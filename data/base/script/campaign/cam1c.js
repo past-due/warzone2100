@@ -15,6 +15,7 @@ const NEW_PARADIGM_RES = [
 const SCAVENGER_RES = [
 	"R-Wpn-MG-Damage02", "R-Wpn-Rocket-Damage02", "R-Wpn-Cannon-Damage01",
 ];
+var NPDefenseGroup; // no particular orders, just stay near factories
 
 function sendRocketForce()
 {
@@ -165,6 +166,15 @@ camAreaEvent("NPLZ2Trigger", function()
 		}
 	);
 });
+
+function eventDroidBuilt(droid, structure)
+{
+	if (!camDef(structure) || !structure || structure.player !== NEW_PARADIGM
+                           || droid.droidType === DROID_CONSTRUCT)
+		return;
+	if (groupSize(NPDefenseGroup) < 4)
+		groupAdd(NPDefenseGroup, droid);
+}
 
 function playSecondVideo()
 {
@@ -334,6 +344,7 @@ function eventStartLevel()
 	camManageTrucks(NEW_PARADIGM);
 	replaceTexture("page-7-barbarians-arizona.png", "page-7-barbarians-kevlar.png");
 
+	NPDefenseGroup = newGroup();
 	camEnableFactory("ScavSouthFactory");
 	camManageGroup(camMakeGroup("RocketScoutForce"), CAM_ORDER_ATTACK, {
 		regroup: true,
