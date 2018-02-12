@@ -7,7 +7,7 @@ matrix:
         - docker
       install:
         - cd docker/ubuntu/
-        - docker build -t ubuntu
+        - docker build -t ubuntu .
         - cd ../..
       script:
         - export MAKEFLAGS="-j$((`grep -c ^processor /proc/cpuinfo`*2))"
