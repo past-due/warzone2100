@@ -1,12 +1,30 @@
-language: c
-dist:
-# precise doesn't have `qtscript5-dev`
-- trusty
-- xenial
-install:
-- sudo apt-get update
-- sudo apt-get build-dep warzone2100
-- sudo apt-get install qtscript5-dev libsdl2-dev libharfbuzz-dev
-script:
-- export MAKEFLAGS="-j$((`grep -c ^processor /proc/cpuinfo`*2))"
-- ./autogen.sh && ./configure && make && make check && sudo make install
+matrix:
+  include:
+    # Build for Ubuntu using Dockerfile
+    - language: c
+      sudo: required
+      services:
+        - docker
+      install:
+        - cd docker/ubuntu/
+        - docker build -t ubuntu
+        - cd ../..
+      script:
+        - export MAKEFLAGS="-j$((`grep -c ^processor /proc/cpuinfo`*2))"
+        - docker run --rm -v ${pwd}:/code ubuntu ./autogen.sh
+        - docker run --rm -v ${pwd}:/code ubuntu ./configure
+        - docker run --rm -v ${pwd}:/code ubuntu make
+        - docker run --rm -v ${pwd}:/code ubuntu make check
+        - docker run --rm -v ${pwd}:/code ubuntu make install
+
+    # Build for macOS
+    - language: objective-c
+      os: osx
+      osx_image: xcode8.3
+      xcode_project: macosx/Warzone.xcodeproj
+      xcode_scheme: Warzone
+      before_install:
+        - brew update
+        - brew install gettext
+        - brew install asciidoc
+        - wget https://tug.org/cgi-bin/mactex-download/BasicTeX.pkg && pkgutil --check-signature BasicTeX.pkg && sudo installer -pkg BasicTeX.pkg -target /
