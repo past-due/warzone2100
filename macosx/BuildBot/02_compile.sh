@@ -31,12 +31,17 @@ fi
 # Create Warzone.zip
 cd build/Release
 
+if [ ! -d "Warzone.app" ]; then
+	echo "ERROR: Warzone.app is not present in build/Release"
+	exit 1
+fi
+
 echo "Creating Warzone.zip..."
 if [ -n "$TRAVIS" ]; then
 	# On Travis-CI, emit fold indicators
 	echo "travis_fold:start:zip.warzone"
 fi
-if ! zip -r Warzone.zip Warzone.app Warzone.app.dSYM; then
+if ! zip -r Warzone.zip -qdgds 10m Warzone.app Warzone.app.dSYM; then
 	exit ${?}
 fi
 if [ -n "$TRAVIS" ]; then

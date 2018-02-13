@@ -27,12 +27,14 @@ fi
 # Helper Functions
 
 execute_xcodebuild_command () {
-set -x
 	if [ -n "$XCPRETTY" ]; then
+		set -x
 		set -o pipefail && $XCODEBUILD "$@" | $XCPRETTY
-		return $?
 	else
+		set -x
 		$XCODEBUILD "$@"
-		return $?
 	fi
+	RESULT=$?
+	set +x
+	return $RESULT
 }
