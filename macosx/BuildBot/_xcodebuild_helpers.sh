@@ -20,8 +20,6 @@ if [ -n "$XCPRETTY_PATH" ]; then
 	if [ -n "$TRAVIS" ]; then
 		XCPRETTY="$XCPRETTY -f `xcpretty-travis-formatter`"
 	fi
-
-	XCODEBUILD="set -o pipefail && $XCODEBUILD"
 fi
 
 
@@ -31,7 +29,7 @@ fi
 execute_xcodebuild_command () {
 set -x
 	if [ -n "$XCPRETTY" ]; then
-		$XCODEBUILD "$@" | $XCPRETTY
+		set -o pipefail && $XCODEBUILD "$@" | $XCPRETTY
 		return $?
 	else
 		$XCODEBUILD "$@"
