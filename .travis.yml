@@ -37,7 +37,5 @@ matrix:
         - macosx/BuildBot/00_clean.sh
         - macosx/BuildBot/01_configure.sh
         - macosx/BuildBot/02_compile.sh
-      deploy:
-        - provider: script
-          skip_cleanup: true # do not delete the built assets
-          script: macosx/BuildBot/03_upload.sh
+      after_success:
+        - macosx/BuildBot/03_upload.sh
