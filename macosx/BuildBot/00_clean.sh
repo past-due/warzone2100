@@ -8,7 +8,7 @@
 ##############################
 # General Setup
 
-. macosx/BuildBot/_xcpretty_detect.sh
+. macosx/BuildBot/_xcodebuild_detect.sh
 
 
 ##############################
@@ -16,7 +16,7 @@
 
 cd macosx
 
-xcodebuild \
+$XCODEBUILD \
  -project Warzone.xcodeproj \
  -target "Warzone" \
  -configuration "Release" \

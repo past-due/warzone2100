@@ -8,7 +8,7 @@
 ##############################
 # General Setup
 
-. macosx/BuildBot/_xcpretty_detect.sh
+. macosx/BuildBot/_xcodebuild_detect.sh
 
 
 ##############################
@@ -16,8 +16,8 @@
 
 cd macosx
 
-if ! xcodebuild -project Warzone.xcodeproj -target "Fetch Third Party Sources" $XCPRETTY; then
-	if ! xcodebuild -project Warzone.xcodeproj -target "Fetch Third Party Sources" -PBXBuildsContinueAfterErrors=NO $XCPRETTY; then
+if ! $XCODEBUILD -project Warzone.xcodeproj -target "Fetch Third Party Sources" $XCPRETTY; then
+	if ! $XCODEBUILD -project Warzone.xcodeproj -target "Fetch Third Party Sources" -PBXBuildsContinueAfterErrors=NO $XCPRETTY; then
 		exit ${?}
 	fi
 fi
