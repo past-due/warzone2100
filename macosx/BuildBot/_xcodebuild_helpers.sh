@@ -29,6 +29,7 @@ fi
 # Helper Functions
 
 execute_xcodebuild_command () {
+set -x
 	if [ -n "$XCPRETTY" ]; then
 		$XCODEBUILD "$@" | $XCPRETTY
 		return $?
