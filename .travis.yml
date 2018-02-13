@@ -22,6 +22,9 @@ matrix:
     - language: objective-c
       os: osx
       osx_image: xcode8.3
+      env:
+        # For new public releases, uncomment the following line to include the video sequences in the resulting app bundle
+        # - MAC_BUILD_RELEASE=true
       before_install:
         #- brew update
         - brew install gettext
@@ -33,4 +36,7 @@ matrix:
         - macosx/BuildBot/00_clean.sh
         - macosx/BuildBot/01_configure.sh
         - macosx/BuildBot/02_compile.sh
-        # TODO: Rewrite 03_upload.sh, include it here to upload builds from master
+      deploy:
+        - provider: script
+        skip_cleanup: true # do not delete the built assets
+        script: macosx/BuildBot/03_upload.sh
