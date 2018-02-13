@@ -11,7 +11,7 @@
 ##############################
 # General Setup
 
-. macosx/BuildBot/_xcodebuild_detect.sh
+. macosx/BuildBot/_xcodebuild_helpers.sh
 
 
 ##############################
@@ -19,13 +19,12 @@
 
 cd macosx
 
-if ! $XCODEBUILD \
+if ! execute_xcodebuild_command  \
  -project Warzone.xcodeproj \
  -target "Warzone" \
  -configuration "Release" \
  -destination "platform=macOS" \
- -PBXBuildsContinueAfterErrors=NO \
- $XCPRETTY; then
+ -PBXBuildsContinueAfterErrors=NO; then
 	exit ${?}
 fi
 

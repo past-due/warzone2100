@@ -23,7 +23,7 @@ matrix:
       os: osx
       osx_image: xcode8.3
       before_install:
-        - brew update
+        #- brew update
         - brew install gettext
         - brew install asciidoc
         - wget https://tug.org/cgi-bin/mactex-download/BasicTeX.pkg && pkgutil --check-signature BasicTeX.pkg && sudo installer -pkg BasicTeX.pkg -target /

@@ -14,7 +14,7 @@ XCPRETTY_PATH=$(command -v xcpretty 2> /dev/null)
 # If xcpretty is present, use it to format xcodebuild output
 XCPRETTY=
 if [ -n "$XCPRETTY_PATH" ]; then
-	XCPRETTY=" | xcpretty -c"
+	XCPRETTY="xcpretty -c"
 
 	# On Travis-CI, use xcpretty-travis-formatter
 	if [ -n "$TRAVIS" ]; then
@@ -24,3 +24,16 @@ if [ -n "$XCPRETTY_PATH" ]; then
 	XCODEBUILD="set -o pipefail && $XCODEBUILD"
 fi
 
+
+##############################
+# Helper Functions
+
+execute_xcodebuild_command () {
+	if [ -n "$XCPRETTY" ]; then
+		$XCODEBUILD "$@" | $XCPRETTY
+		return $?
+	else
+		$XCODEBUILD "$@"
+		return $?
+	fi
+}

@@ -8,7 +8,7 @@
 ##############################
 # General Setup
 
-. macosx/BuildBot/_xcodebuild_detect.sh
+. macosx/BuildBot/_xcodebuild_helpers.sh
 
 
 ##############################
@@ -16,12 +16,10 @@
 
 cd macosx
 
-$XCODEBUILD \
- -project Warzone.xcodeproj \
- -target "Warzone" \
- -configuration "Release" \
- -destination "platform=macOS" \
- clean \
- $XCPRETTY
+if ! execute_xcodebuild_command clean -project Warzone.xcodeproj -target "Warzone" -configuration "Release" -destination "platform=macOS"; then
+	exit ${?}
+fi
+
+rm -rf build/Release
 
 exit ${?}
