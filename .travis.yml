@@ -1,26 +1,22 @@
 matrix:
   include:
-    # Build for Ubuntu using Dockerfile
-    - language: c
-      sudo: required
-      services:
-        - docker
-      install:
-        - cd docker/ubuntu/
-        - docker build -t ubuntu .
-        # Build SDL 2.0.7 from source
-        #- wget https://www.libsdl.org/release/SDL2-2.0.7.tar.gz && tar xvf SDL2-2.0.7.tar.gz
-        #- cd SDL2-2.0.7
-        #- docker run --rm -v $(pwd):/code ubuntu ./configure && make && sudo make install
-        #- cd ../../..
-        - cd ../..
-      script:
-        - export MAKEFLAGS="-j$((`grep -c ^processor /proc/cpuinfo`*2))"
-        - docker run --rm -v $(pwd):/code ubuntu ./autogen.sh
-        - docker run --rm -v $(pwd):/code ubuntu ./configure
-        - docker run --rm -v $(pwd):/code ubuntu make
-        - docker run --rm -v $(pwd):/code ubuntu make check
-        - docker run --rm -v $(pwd):/code ubuntu make install
+    ## Build for Ubuntu using Dockerfile
+    ## Commented out until Ubuntu Dockerfile can be fixed for SDL >= 2.0.5
+    #- language: c
+    #  sudo: required
+    #  services:
+    #    - docker
+    #  install:
+    #    - cd docker/ubuntu/
+    #    - docker build -t ubuntu .
+    #    - cd ../..
+    #  script:
+    #    - export MAKEFLAGS="-j$((`grep -c ^processor /proc/cpuinfo`*2))"
+    #    - docker run --rm -v $(pwd):/code ubuntu ./autogen.sh
+    #    - docker run --rm -v $(pwd):/code ubuntu ./configure
+    #    - docker run --rm -v $(pwd):/code ubuntu make
+    #    - docker run --rm -v $(pwd):/code ubuntu make check
+    #    - docker run --rm -v $(pwd):/code ubuntu make install
 
     # Build for macOS
     - language: objective-c
@@ -34,5 +30,7 @@ matrix:
         - gem install xcpretty --no-rdoc --no-ri --no-document --quiet
         - gem install xcpretty-travis-formatter --no-rdoc --no-ri --no-document --quiet
       script:
-        - cd macosx/
-        - xcodebuild clean build -project Warzone.xcodeproj -target Warzone -configuration Release -destination "platform=macOS" | xcpretty -c -f `xcpretty-travis-formatter`
+        - macosx/BuildBot/00_clean.sh
+        - macosx/BuildBot/01_configure.sh
+        - macosx/BuildBot/02_compile.sh
+        # TODO: Rewrite 03_upload.sh, include it here to upload builds from master

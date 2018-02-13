@@ -5,20 +5,19 @@
 # 
 # This just tries to download the external libs.  It does it twice because they may not download properly the first time.
 
-# Config
-wz_conf="StaticAnalyzer"
+##############################
+# General Setup
+
+. macosx/BuildBot/_xcpretty_detect.sh
+
+
+##############################
+# Download External Libs
 
 cd macosx
 
-if ! xcodeindex -project Warzone.xcodeproj -configuration "${wz_conf}"; then
-	if ! xcodeindex -project Warzone.xcodeproj -configuration "${wz_conf}"; then
-		exit ${?}
-	fi
-fi
-
-
-if ! xcodebuild -project Warzone.xcodeproj -parallelizeTargets -target "Fetch Third Party Sources" -configuration "${wz_conf}"; then
-	if ! xcodebuild -project Warzone.xcodeproj -parallelizeTargets -target "Fetch Third Party Sources" -configuration "${wz_conf}" -PBXBuildsContinueAfterErrors=NO; then
+if ! xcodebuild -project Warzone.xcodeproj -target "Fetch Third Party Sources" $XCPRETTY; then
+	if ! xcodebuild -project Warzone.xcodeproj -target "Fetch Third Party Sources" -PBXBuildsContinueAfterErrors=NO $XCPRETTY; then
 		exit ${?}
 	fi
 fi
