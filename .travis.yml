@@ -1,3 +1,7 @@
+env:
+## For new public releases, uncomment the following line to include the video sequences in the resulting app bundle
+#  - MAC_BUILD_RELEASE=true
+
 matrix:
   include:
     ## Build for Ubuntu using Dockerfile
@@ -22,10 +26,6 @@ matrix:
     - language: objective-c
       os: osx
       osx_image: xcode8.3
-      env:
-        # For new public releases, uncomment the following line to include the video sequences in the resulting app bundle
-        # - MAC_BUILD_RELEASE=true
-	- TRAVIS_MAC_BUILD=true
       before_install:
         #- brew update
         - brew install gettext
