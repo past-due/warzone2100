@@ -35,6 +35,7 @@ The following are valid symbols:
 	VCS_WC_MODIFIED
 	VCS_COMMIT_COUNT
 	VCS_MOST_RECENT_TAG
+	VCS_COMMIT_COUNT_SINCE_MOST_RECENT_TAG
 EOF
 	exit 1
 }
@@ -121,6 +122,12 @@ gitRepo() {
 	VCS_COMMIT_COUNT="$(git rev-list --count HEAD 2> /dev/null)"
 	# get the most recent tag in the current history
 	VCS_MOST_RECENT_TAG="$(git describe --abbrev=0 --tags 2> /dev/null)"
+	if [ -n "${VCS_MOST_RECENT_TAG}" ]; then
+		VCS_COMMIT_COUNT_SINCE_MOST_RECENT_TAG=$(git rev-list --count ${VCS_MOST_RECENT_TAG}.. 2> /dev/null)
+	else
+		echo "warning: No recent tag detected. VCS_COMMIT_COUNT_SINCE_MOST_RECENT_TAG will be empty"
+		VCS_COMMIT_COUNT_SINCE_MOST_RECENT_TAG=
+	fi
 }
 
 # For Travis-CI builds
@@ -128,18 +135,10 @@ travisCIBuild() {
 	# Information must be extracted from a combination of Travis-set environment
 	# variables and other sources
 
-	cd "${TRAVIS_BUILD_DIR}"
-
-	VCS_TYPE="git"
-	VCS_BASENAME="$(basename "${PWD}")"
-
-	# Check if working copy is clean, however, we will ignore any and all po files
-	# when we determine if modifications were done.
-	git update-index --assume-unchanged po/*.po
-	test -z "$(git status --untracked-files=no --porcelain)"
-	VCS_WC_MODIFIED="${?}"
-	# now, reset index back to normal
-	git update-index --no-assume-unchanged po/*.po
+	# Start by calling gitRepo, since certain values should be obtained directly from git
+	# IMPORTANT: Since Travis uses a shallow clone by default, unshallow must be performed before
+	#            this script is run so that the correct values can be obtained by gitRepo().
+	gitRepo
 
 	# The full revision hash
 	VCS_FULL_HASH="${TRAVIS_COMMIT}"
@@ -164,13 +163,6 @@ travisCIBuild() {
 	fi
 
 	VCS_EXTRA=
-
-	# get the # of commits in the current history
-	# IMPORTANT: This value is incorrect if operating from a shallow clone
-	# Travis-CI defaults to shallow clones, so unshallow must be run before this script is run.
-	VCS_COMMIT_COUNT="$(git rev-list --count HEAD 2> /dev/null)"
-	# get the most recent tag in the current history
-	VCS_MOST_RECENT_TAG="$(git describe --abbrev=0 --tags 2> /dev/null)"
 }
 
 
@@ -196,6 +188,7 @@ hOutput() {
 
 #define VCS_COMMIT_COUNT	${VCS_COMMIT_COUNT}
 #define VCS_MOST_RECENT_TAG	"${VCS_MOST_RECENT_TAG}"
+#define VCS_COMMIT_COUNT_SINCE_MOST_RECENT_TAG	${VCS_COMMIT_COUNT_SINCE_MOST_RECENT_TAG}
 
 #endif
 
@@ -223,6 +216,7 @@ xcodeOutput() {
 
 #define VCS_COMMIT_COUNT	${VCS_COMMIT_COUNT}
 #define VCS_MOST_RECENT_TAG	${VCS_MOST_RECENT_TAG}
+#define VCS_COMMIT_COUNT_SINCE_MOST_RECENT_TAG	${VCS_COMMIT_COUNT_SINCE_MOST_RECENT_TAG}
 
 #endif
 
@@ -248,6 +242,7 @@ VCS_WC_MODIFIED=${VCS_WC_MODIFIED}
 
 VCS_COMMIT_COUNT=${VCS_COMMIT_COUNT}
 VCS_MOST_RECENT_TAG="${VCS_MOST_RECENT_TAG}"
+VCS_COMMIT_COUNT_SINCE_MOST_RECENT_TAG=${VCS_COMMIT_COUNT_SINCE_MOST_RECENT_TAG}
 
 # end
 EOF
@@ -294,6 +289,8 @@ if [ ! -z "${VAROUT}" ]; then
 		echo "${VCS_COMMIT_COUNT}"
 	elif [ "${VAROUT}" = "VCS_MOST_RECENT_TAG" ]; then
 		echo "${VCS_MOST_RECENT_TAG}"
+	elif [ "${VAROUT}" = "VCS_COMMIT_COUNT_SINCE_MOST_RECENT_TAG" ]; then
+		echo "${VCS_COMMIT_COUNT_SINCE_MOST_RECENT_TAG}"
 	else
 		echo "error: Not a valid output symbol." 1>&2
 		exit 1
