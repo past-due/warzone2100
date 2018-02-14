@@ -75,7 +75,7 @@ if [ -z "${SHA256SumLoc}" ]; then
 	echo "error: Unable to compute SHA256 for ${FileName}" >&2
 	exit 1
 elif [ "${SHA256SumLoc}" != "${SHA256Sum}" ]; then
-	echo "error: SHA256 does not match for ${FileName}; (received: ${SHA256SumLoc}) (expecting: ${SHA256Sum}) (downloaded file size: $(stat -f%z "${FileName}")" >&2
+	echo "error: SHA256 does not match for ${FileName}; (received: ${SHA256SumLoc}) (expecting: ${SHA256Sum}) (downloaded file size: $(stat -f%z "${FileName}"))" >&2
 	rm -f "${FileName}"
 	exit 1
 fi
