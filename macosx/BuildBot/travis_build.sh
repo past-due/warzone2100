@@ -111,6 +111,8 @@ fi
 
 # Collect current working copy Git information
 GIT_BRANCH="$(git branch --no-color | sed -e '/^[^*]/d' -e 's:* \(.*\):\1:')"
+echo "GIT_BRANCH = ${GIT_BRANCH}"
+echo "Method2 = $(git symbolic-ref --short -q HEAD)"
 BUILT_DATETIME=$(date '+%Y%m%d-%H%M%S')
 GIT_REVISION_SHORT="$(git rev-parse -q --short --verify HEAD | cut -c1-7)"
 
