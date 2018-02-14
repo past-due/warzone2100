@@ -95,10 +95,11 @@ for file in `find . -type f -name "${FILE_MATCH_PATTERN}"`; do
 	filename=$(basename $file)
 	echo "  -> ${filename} ..."
 	echo "       scp -pqCl 320 \"${file}\" \"${DEPLOY_UURL}:${DEPLOY_UPLOAD_PATH}${filename}\""
-	if ! scp -pqCl 320 "${file}" "${DEPLOY_UURL}:${DEPLOY_UPLOAD_PATH}${filename}"; then
-		exstat="${?}"
+	scp -pqCl 320 "${file}" "${DEPLOY_UURL}:${DEPLOY_UPLOAD_PATH}${filename}"
+	result=${?}
+	if [ $result -ne 0 ]; then
 		echo "error: Upload did not complete!"
-		exit ${exstat}
+		exit ${result}
 	fi
 	echo "       Upload complete."
 done

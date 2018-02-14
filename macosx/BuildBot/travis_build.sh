@@ -60,25 +60,31 @@ function shouldIncludeVideoSequences {
 # Clean
 echo "macosx/BuildBot/00_clean.sh"
 macosx/BuildBot/00_clean.sh
+result=${?}
+if [ $result -ne 0 ]; then
+	echo "ERROR: 00_clean.sh failed"
+	exit ${result}
+fi
 find "${OUTPUT_DIR}" -name "Warzone*.zip" -exec rm -r "{}" \;
 
 # Configure
 echo "macosx/BuildBot/01_configure.sh"
-if ! macosx/BuildBot/01_configure.sh; then
-	exstat="${?}"
+macosx/BuildBot/01_configure.sh
+result=${?}
+if [ $result -ne 0 ]; then
 	echo "ERROR: 01_configure.sh failed"
-	exit ${exstat}
+	exit ${result}
 fi
-echo "Configure result: ${?}"
 
 # Fetch the video sequences (if configured)
 if shouldIncludeVideoSequences "${BUILD_MODE}"; then
 	echo "Fetching video sequences..."
 	echo "macosx/BuildBot/02_fetchvideosequences.sh"
-	if ! macosx/BuildBot/02_fetchvideosequences.sh; then
-		exstat="${?}"
+	macosx/BuildBot/02_fetchvideosequences.sh
+	result=${?}
+	if [ $result -ne 0 ]; then
 		echo "ERROR: 02_fetchvideosequences.sh failed"
-		exit ${exstat}
+		exit ${result}
 	fi
 fi
 
@@ -86,10 +92,11 @@ fi
 
 # Compile Warzone.app (and Warzone.zip)
 echo "macosx/BuildBot/03_compile.sh"
-if ! macosx/BuildBot/03_compile.sh; then
-	exstat="${?}"
+macosx/BuildBot/03_compile.sh
+result=${?}
+if [ $result -ne 0 ]; then
 	echo "ERROR: 03_compile.sh failed"
-	exit ${exstat}
+	exit ${result}
 fi
 
 # Verify Warzone.zip was created
@@ -107,10 +114,11 @@ GIT_REVISION_SHORT="$(git rev-parse -q --short --verify HEAD | cut -c1-7)"
 # Move Warzone.zip to the output directory, renaming it to:
 #  Warzone-{GIT_BRANCH}-{BUILT_DATETIME}-{GIT_REVISION_SHORT}_macOS.zip
 DESIRED_ZIP_NAME="Warzone-${GIT_BRANCH}-${BUILT_DATETIME}-${GIT_REVISION_SHORT}_macOS.zip"
-if ! mv "$BUILT_WARZONE_ZIP" "${OUTPUT_DIR}/${DESIRED_ZIP_NAME}"; then
-	exstat="${?}"
+mv "$BUILT_WARZONE_ZIP" "${OUTPUT_DIR}/${DESIRED_ZIP_NAME}"
+result=${?}
+if [ $result -ne 0 ]; then
 	echo "ERROR: Failed to move zip file"
-	exit ${exstat}
+	exit ${result}
 fi
 echo "Generated Warzone.zip: \"${OUTPUT_DIR}/${DESIRED_ZIP_NAME}\""
 
