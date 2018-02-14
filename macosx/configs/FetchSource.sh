@@ -61,10 +61,10 @@ function checkFileSHA256 {
 
 	local SHA256SumLoc="$(shasum -a 256 "${FileName}" | awk '{ print $1 }')"
 	if [ -z "${SHA256SumLoc}" ]; then
-		echo "error: Unable to compute SHA256 for ${FileName}" >&2
+		echo "warning: Unable to compute SHA256 for ${FileName}" >&2
 		return 1
 	elif [ "${SHA256SumLoc}" != "${SHA256Sum}" ]; then
-		echo "error: SHA256 does not match for ${FileName}; (received: ${SHA256SumLoc}) (expecting: ${SHA256Sum}) (file size: $(stat -f%z "${FileName}"))" >&2
+		echo "warning: SHA256 does not match for ${FileName}; (received: ${SHA256SumLoc}) (expecting: ${SHA256Sum}) (file size: $(stat -f%z "${FileName}"))" >&2
 		rm -f "${FileName}"
 		return 1
 	fi
@@ -78,11 +78,11 @@ function fetchAndCheckSHA256 {
 	local SHA256Sum="$3"
 
 	# Fetch the file
-	echo "info: Fetching: ${DLURL}"
+	echo "info: Fetching: ${DLURL}" >&2
 	curl -Lfo "${FileName}" --connect-timeout "30" "${DLURL}"
 	local result=${?}
 	if [ $result -ne 0 ]; then
-		echo "warning: Fetch failed: ${DLURL}"
+		echo "warning: Fetch failed: ${DLURL}" >&2
 		return ${result}
 	fi
 
@@ -101,7 +101,7 @@ if [ ! -r "${FileName}" ]; then
 	fetchAndCheckSHA256 "${SourceDLP}" "${FileName}" "${SHA256Sum}"
 	result=${?}
 	if [ $result -ne 0 ]; then
-		echo "info: Fetching from backup source ..."
+		echo "warning: Fetching from backup source ..." >&2
 		fetchAndCheckSHA256 "${BackupDLP}${FileName}" "${FileName}" "${SHA256Sum}"
 		result=${?}
 		if [ $result -ne 0 ]; then
@@ -110,13 +110,14 @@ if [ ! -r "${FileName}" ]; then
 		fi
 	fi
 else
-	echo "info: ${FileName} already exists, skipping" >&2
+	echo "info: ${FileName} already exists, skipping fetch" >&2
 
 	# Check SHA256
 	checkFileSHA256 "${FileName}" "${SHA256Sum}"
 	result=${?}
 	if [ $result -ne 0 ]; then
 		# SHA256 of existing file does not match expected
+		echo "error: Existing \"${FileName}\" does not match expected SHA256 hash" >&2
 		exit ${result}
 	fi
 fi
