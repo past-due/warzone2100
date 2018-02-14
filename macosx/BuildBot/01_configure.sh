@@ -26,7 +26,9 @@ fi
 # Fetch external libraries
 if ! execute_xcodebuild_command -project Warzone.xcodeproj -target "Fetch Third Party Sources"; then
 	if ! execute_xcodebuild_command -project Warzone.xcodeproj -target "Fetch Third Party Sources" -PBXBuildsContinueAfterErrors=NO; then
-		exit ${?}
+		exstat="${?}"
+		echo "ERROR: 2nd attempt to fetch external libraries failed with: ${exstat}"
+		exit ${exstat}
 	fi
 fi
 
