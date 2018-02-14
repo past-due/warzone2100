@@ -60,6 +60,14 @@ function shouldIncludeVideoSequences {
 	true
 }
 
+# Travis-CI: Repo prep
+# Unshallow the cloned repo (Travis limits Git clone depth, but we need the full history)
+echo "git fetch --unshallow"
+git fetch --unshallow
+# Fetch all tags
+echo "git fetch --tags"
+git fetch --tags
+
 # Clean
 echo "macosx/BuildBot/00_clean.sh"
 macosx/BuildBot/00_clean.sh
