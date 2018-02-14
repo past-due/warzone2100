@@ -20,6 +20,9 @@
 #		- Warzone.app built in Release mode with debugging symbols included, *AND* video sequences
 #
 
+# Future TODO: Use TRAVIS_TAG to detect if the build is for a git tag, and parse the
+#              tag to see if it's likely a release (to automatically set MODE="release")
+
 # Handle arguments
 if [ -z "$1" ]; then
 	echo "travis_build.sh requires an argument specifying one of the valid modes: (\"regular\", \"release\")"
@@ -110,6 +113,14 @@ fi
 GIT_BRANCH="$(git branch --no-color | sed -e '/^[^*]/d' -e 's:* \(.*\):\1:')"
 BUILT_DATETIME=$(date '+%Y%m%d-%H%M%S')
 GIT_REVISION_SHORT="$(git rev-parse -q --short --verify HEAD | cut -c1-7)"
+
+if [ -n "${TRAVIS_PULL_REQUEST_BRANCH}" ]; then
+	echo "Triggered by a Pull Request - use the TRAVIS_PULL_REQUEST_BRANCH (${TRAVIS_PULL_REQUEST_BRANCH}) as the branch for the output filename"
+	GIT_BRANCH="${TRAVIS_PULL_REQUEST_BRANCH}"
+elif [ -n "${TRAVIS_BRANCH}" ]; then
+	echo "Use the TRAVIS_BRANCH (${TRAVIS_BRANCH}) as the branch for the output filename"
+	GIT_BRANCH="${TRAVIS_BRANCH}"
+fi
 
 # Move Warzone.zip to the output directory, renaming it to:
 #  Warzone-{GIT_BRANCH}-{BUILT_DATETIME}-{GIT_REVISION_SHORT}_macOS.zip
