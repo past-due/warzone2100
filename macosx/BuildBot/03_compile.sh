@@ -26,7 +26,7 @@ execute_xcodebuild_command  \
  -destination "platform=macOS" \
  -PBXBuildsContinueAfterErrors=NO
 result=${?}
-if ! ${result}; then
+if [ $result -ne 0 ]; then
 	exit ${result}
 fi
 

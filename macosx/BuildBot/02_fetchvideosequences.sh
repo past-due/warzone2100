@@ -19,7 +19,9 @@ cd macosx
 # Fetch the video sequences
 # For now, specify the standard quality sequence only
 # And download it directly into the ../data/ folder, so it gets picked up by the Xcode app build
-if ! configs/FetchVideoSequences.sh standard ../data; then
+configs/FetchVideoSequences.sh standard ../data
+result=${?}
+if [ $result -ne 0 ]; then
 	exit ${?}
 fi
 
