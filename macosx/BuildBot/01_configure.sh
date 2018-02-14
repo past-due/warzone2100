@@ -25,8 +25,7 @@ if [ $result -ne 0 ]; then
 	exit ${result}
 fi
 
-# FOR DEBUGGING
-# Output the values from autorevision
+# Output the values determined by autorevision
 . "../src/autorevision.cache"
 echo "Generated autorevision.cache info..."
 echo "VCS_TYPE=${VCS_TYPE}"
@@ -37,11 +36,9 @@ echo "VCS_EXTRA=${VCS_EXTRA}"
 echo "VCS_FULL_HASH=${VCS_FULL_HASH}"
 echo "VCS_SHORT_HASH=${VCS_SHORT_HASH}"
 echo "VCS_WC_MODIFIED=${VCS_WC_MODIFIED}"
+echo "VCS_COMMIT_COUNT=${VCS_COMMIT_COUNT}"
+echo "VCS_MOST_RECENT_TAG=${VCS_MOST_RECENT_TAG}"
 echo ""
-echo "Additional info:"
-echo "git rev-list --count HEAD => \"$(git rev-list --count HEAD)\""
-echo "git describe --abbrev=0 --tags 2> /dev/null => \"$(git describe --abbrev=0 --tags 2> /dev/null)\""
-echo "."
 
 # Fetch external libraries
 if ! execute_xcodebuild_command -project Warzone.xcodeproj -target "Fetch Third Party Sources"; then
