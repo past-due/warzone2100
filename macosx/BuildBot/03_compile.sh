@@ -19,13 +19,15 @@
 
 cd macosx
 
-if ! execute_xcodebuild_command  \
+execute_xcodebuild_command  \
  -project Warzone.xcodeproj \
  -target "Warzone" \
  -configuration "Release" \
  -destination "platform=macOS" \
- -PBXBuildsContinueAfterErrors=NO; then
-	exit ${?}
+ -PBXBuildsContinueAfterErrors=NO
+result=${?}
+if ! ${result}; then
+	exit ${result}
 fi
 
 # Create Warzone.zip

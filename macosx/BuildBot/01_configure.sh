@@ -19,15 +19,16 @@
 cd macosx
 
 # Run autorevision
-result=execute_xcodebuild_command -project Warzone.xcodeproj -target "Autorevision" -configuration "Release"
+execute_xcodebuild_command -project Warzone.xcodeproj -target "Autorevision" -configuration "Release"
+result=${?}
 if ! ${result}; then
 	exit ${result}
 fi
 
 # Fetch external libraries
-result=execute_xcodebuild_command -project Warzone.xcodeproj -target "Fetch Third Party Sources"
-if ! ${result}; then
-	result=execute_xcodebuild_command -project Warzone.xcodeproj -target "Fetch Third Party Sources" -PBXBuildsContinueAfterErrors=NO
+if ! execute_xcodebuild_command -project Warzone.xcodeproj -target "Fetch Third Party Sources"; then
+	execute_xcodebuild_command -project Warzone.xcodeproj -target "Fetch Third Party Sources" -PBXBuildsContinueAfterErrors=NO
+	result=${?}
 	if ! ${result}; then
 		echo "ERROR: 2nd attempt to fetch external libraries failed with: ${result}"
 		exit ${result}

@@ -16,8 +16,10 @@
 
 cd macosx
 
-if ! execute_xcodebuild_command clean -project Warzone.xcodeproj -target "Warzone" -configuration "Release" -destination "platform=macOS"; then
-	exit ${?}
+execute_xcodebuild_command clean -project Warzone.xcodeproj -target "Warzone" -configuration "Release" -destination "platform=macOS"
+result=${?}
+if ! ${result}; then
+	exit ${result}
 fi
 
 rm -rf build/Release
