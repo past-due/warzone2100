@@ -57,15 +57,16 @@ fi
 
 # Fetch
 if [ ! -r "${FileName}" ]; then
-	echo "Fetching ${SourceDLP}"
+	echo "info: Fetching: ${SourceDLP}"
 	if ! curl -Lfo "${FileName}" --connect-timeout "30" "${SourceDLP}"; then
+		echo "info: Fetching from backup source: ${BackupDLP}${FileName}"
 		if ! curl -LfOC - --connect-timeout "30" "${BackupDLP}${FileName}"; then
 			echo "error: Unable to fetch ${SourceDLP}" >&2
 			exit 1
 		fi
 	fi
 else
-	echo "${FileName} already exists, skipping" >&2
+	echo "info: ${FileName} already exists, skipping" >&2
 fi
 
 # Check our sums
@@ -75,6 +76,7 @@ if [ -z "${SHA256SumLoc}" ]; then
 	exit 1
 elif [ "${SHA256SumLoc}" != "${SHA256Sum}" ]; then
 	echo "error: SHA256 does not match for ${FileName}; (received: ${SHA256SumLoc}) (expecting: ${SHA256Sum}) (downloaded file size: $(stat -f%z "${FileName}")" >&2
+	rm -f "${FileName}"
 	exit 1
 fi
 
