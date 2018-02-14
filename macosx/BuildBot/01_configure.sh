@@ -63,6 +63,27 @@ function create_all_branches()
 #        git checkout -qf ${branch#origin/}
 #    done
 
+	# output some useful information for debugging
+	echo "git branch -avv"
+	git branch -avv
+	echo "git remote -v"
+	git remote -v
+	echo "git show-ref --heads"
+	git show-ref --heads
+	echo "git branch -a --contains $(git rev-parse HEAD)"
+	git branch -a --contains $(git rev-parse HEAD)
+
+
+	# get values from the source branch (not the detached head)
+	if [ -z "${TRAVIS_PULL_REQUEST_BRANCH}" ] && [ -n "${TRAVIS_BRANCH}"]; then
+		git checkout "${TRAVIS_BRANCH}"
+		git branch -avv
+		git reset --hard "${TRAVIS_COMMIT}"
+		git branch -avv
+		VCS_NUM="$(git rev-list --count HEAD)"
+		VCS_MOST_RECENT_TAG="$(git describe --abbrev=0 --tags 2> /dev/null)"
+	fi
+
     # finally, go back to where we were at the beginning
     git checkout ${build_head}
 }
@@ -71,6 +92,8 @@ create_all_branches
 echo "Additional info [2]:"
 echo "git rev-list --count HEAD => \"$(git rev-list --count HEAD)\""
 echo "git describe --abbrev=0 --tags 2> /dev/null => \"$(git describe --abbrev=0 --tags 2> /dev/null)\""
+echo "VCS_NUM=${VCS_NUM}"
+echo "VCS_MOST_RECENT_TAG=${VCS_MOST_RECENT_TAG}"
 echo "."
 
 
