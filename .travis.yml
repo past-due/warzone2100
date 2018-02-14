@@ -30,8 +30,6 @@ matrix:
         - gem install xcpretty --no-rdoc --no-ri --no-document --quiet
         - gem install xcpretty-travis-formatter --no-rdoc --no-ri --no-document --quiet
       script:
-        - macosx/BuildBot/00_clean.sh
-        - macosx/BuildBot/01_configure.sh
-        - macosx/BuildBot/02_compile.sh
+        - macosx/BuildBot/travis_build.sh regular "tmp/wz_upload"
       after_success:
-        - macosx/BuildBot/03_upload.sh
+        - macosx/BuildBot/travis_deploy.sh "tmp/wz_upload" "Warzone*.zip"

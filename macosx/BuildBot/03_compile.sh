@@ -41,7 +41,7 @@ if [ -n "$TRAVIS" ]; then
 	# On Travis-CI, emit fold indicators
 	echo "travis_fold:start:zip.warzone"
 fi
-if ! zip -r Warzone.zip -qdgds 10m Warzone.app Warzone.app.dSYM; then
+if ! zip -r Warzone.zip -qdgds 10m Warzone.app; then
 	exit ${?}
 fi
 if [ -n "$TRAVIS" ]; then
