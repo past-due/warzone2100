@@ -75,7 +75,7 @@ function create_all_branches()
 
 
 	# get values from the source branch (not the detached head)
-	if [ -z "${TRAVIS_PULL_REQUEST_BRANCH}" ] && [ -n "${TRAVIS_BRANCH}"]; then
+	if [ -z "${TRAVIS_PULL_REQUEST_BRANCH}" ] && [ -n "${TRAVIS_BRANCH}" ]; then
 		git checkout "${TRAVIS_BRANCH}"
 		git branch -avv
 		git reset --hard "${TRAVIS_COMMIT}"
