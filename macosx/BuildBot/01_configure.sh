@@ -25,6 +25,20 @@ if [ $result -ne 0 ]; then
 	exit ${result}
 fi
 
+# FOR DEBUGGING
+# Output the values from autorevision
+. "../src/autorevision.cache"
+echo "Generated autorevision.cache info..."
+echo "VCS_TYPE=${VCS_TYPE}"
+echo "VCS_BASENAME=${VCS_BASENAME}"
+echo "VCS_BRANCH=${VCS_BRANCH}"
+echo "VCS_TAG=${VCS_TAG}"
+echo "VCS_EXTRA=${VCS_EXTRA}"
+echo "VCS_FULL_HASH=${VCS_FULL_HASH}"
+echo "VCS_SHORT_HASH=${VCS_SHORT_HASH}"
+echo "VCS_WC_MODIFIED=${VCS_WC_MODIFIED}"
+echo "."
+
 # Fetch external libraries
 if ! execute_xcodebuild_command -project Warzone.xcodeproj -target "Fetch Third Party Sources"; then
 	execute_xcodebuild_command -project Warzone.xcodeproj -target "Fetch Third Party Sources" -PBXBuildsContinueAfterErrors=NO
