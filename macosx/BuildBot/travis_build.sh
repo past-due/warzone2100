@@ -69,6 +69,7 @@ if ! macosx/BuildBot/01_configure.sh; then
 	echo "ERROR: 01_configure.sh failed"
 	exit ${exstat}
 fi
+echo "Configure result: ${?}"
 
 # Fetch the video sequences (if configured)
 if shouldIncludeVideoSequences "${BUILD_MODE}"; then
