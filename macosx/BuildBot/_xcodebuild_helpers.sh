@@ -34,7 +34,7 @@ execute_xcodebuild_command () {
 		set -x
 		$XCODEBUILD "$@"
 	fi
-	local RESULT=$?
+	local RESULT=${?}
 	set +x
-	return $RESULT
+	return ${RESULT}
 }
