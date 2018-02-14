@@ -37,6 +37,10 @@ echo "VCS_EXTRA=${VCS_EXTRA}"
 echo "VCS_FULL_HASH=${VCS_FULL_HASH}"
 echo "VCS_SHORT_HASH=${VCS_SHORT_HASH}"
 echo "VCS_WC_MODIFIED=${VCS_WC_MODIFIED}"
+echo ""
+echo "Additional info:"
+echo "git rev-list --count HEAD => \"$(git rev-list --count HEAD)\""
+echo "git describe --abbrev=0 --tags => \"$(git describe --abbrev=0 --tags)\""
 echo "."
 
 # Fetch external libraries

@@ -68,7 +68,7 @@ if [ $result -ne 0 ]; then
 	echo "ERROR: 00_clean.sh failed"
 	exit ${result}
 fi
-find "${OUTPUT_DIR}" -name "Warzone*.zip" -exec rm -r "{}" \;
+find "${OUTPUT_DIR}" -name "warzone2100-*.zip" -exec rm -r "{}" \;
 
 # Configure
 echo "macosx/BuildBot/01_configure.sh"
@@ -123,8 +123,8 @@ elif [ -n "${TRAVIS_BRANCH}" ]; then
 fi
 
 # Move Warzone.zip to the output directory, renaming it to:
-#  Warzone-{GIT_BRANCH}-{BUILT_DATETIME}-{GIT_REVISION_SHORT}_macOS.zip
-DESIRED_ZIP_NAME="Warzone-${GIT_BRANCH}-${BUILT_DATETIME}-${GIT_REVISION_SHORT}_macOS.zip"
+#  warzone2100-{GIT_BRANCH}-{BUILT_DATETIME}-{GIT_REVISION_SHORT}_macOS.zip
+DESIRED_ZIP_NAME="warzone2100-${GIT_BRANCH}-${BUILT_DATETIME}-${GIT_REVISION_SHORT}_macOS.zip"
 mv "$BUILT_WARZONE_ZIP" "${OUTPUT_DIR}/${DESIRED_ZIP_NAME}"
 result=${?}
 if [ $result -ne 0 ]; then

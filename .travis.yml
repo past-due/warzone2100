@@ -36,4 +36,4 @@ matrix:
       script:
         - macosx/BuildBot/travis_build.sh regular "tmp/wz_upload"
       after_success:
-        - macosx/BuildBot/travis_deploy.sh "tmp/wz_upload" "Warzone*.zip"
+        - macosx/BuildBot/travis_deploy.sh "tmp/wz_upload" "warzone2100-*.zip"

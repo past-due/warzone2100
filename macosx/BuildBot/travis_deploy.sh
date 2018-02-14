@@ -6,12 +6,12 @@
 # Execute travis_deploy.sh, specifying the input path and file matching pattern
 #
 # So, for example:
-#	./travis_deploy.sh "tmp/build_output" "Warzone*.zip"
-# Will scp all files matching `Warzone*.zip` in the input path to the deployment path.
+#	./travis_deploy.sh "tmp/build_output" "warzone2100-*.zip"
+# Will scp all files matching `warzone2100-*.zip` in the input path to the deployment path.
 #
 # Example (using this with travis_build.sh):
 #	./travis_build.sh nightly "tmp/build_output"
-#	./travis_deploy.sh "tmp/build_output" "Warzone*.zip"
+#	./travis_deploy.sh "tmp/build_output" "warzone2100-*.zip"
 #
 # ########
 # REQUIRED ENVIRONMENT VARIABLES:
