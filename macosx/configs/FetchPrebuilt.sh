@@ -7,7 +7,7 @@ FileName="$3"
 BuiltDLP="$4"
 SHA256Sum="$5"
 Format="$6"
-BackupDLP="http://wz2100.net/~dak180/BuildTools/Mac/"
+BackupDLP="https://github.com/past-due/wz2100-mac-build-tools/raw/master/sources/"
 
 if ! type -aP shasum > /dev/null; then
 	echo "error: Missing command `shasum`. Are you sure Xcode is properly installed?" >&2
