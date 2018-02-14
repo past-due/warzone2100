@@ -33,12 +33,14 @@ The following are valid symbols:
 	VCS_FULL_HASH
 	VCS_SHORT_HASH
 	VCS_WC_MODIFIED
+	VCS_COMMIT_COUNT
+	VCS_MOST_RECENT_TAG
 EOF
 	exit 1
 }
 
 # Config
-ARVERSION="1.7-Warzone"
+ARVERSION="1.8-Warzone"
 TARGETFILE="/dev/stdout"
 while getopts ":t:o:s:Vf" OPTION; do
 	case "${OPTION}" in
@@ -113,6 +115,12 @@ gitRepo() {
 	VCS_TAG="$(git describe --exact-match 2> /dev/null)"
 	# get some extra data in case we are not on a branch or a tag...
 	VCS_EXTRA="$(git describe 2> /dev/null)"
+
+	# get the # of commits in the current history
+	# IMPORTANT: This value is incorrect if operating from a shallow clone
+	VCS_COMMIT_COUNT="$(git rev-list --count HEAD 2> /dev/null)"
+	# get the most recent tag in the current history
+	VCS_MOST_RECENT_TAG="$(git describe --abbrev=0 --tags 2> /dev/null)"
 }
 
 # For Travis-CI builds
@@ -156,6 +164,13 @@ travisCIBuild() {
 	fi
 
 	VCS_EXTRA=
+
+	# get the # of commits in the current history
+	# IMPORTANT: This value is incorrect if operating from a shallow clone
+	# Travis-CI defaults to shallow clones, so unshallow must be run before this script is run.
+	VCS_COMMIT_COUNT="$(git rev-list --count HEAD 2> /dev/null)"
+	# get the most recent tag in the current history
+	VCS_MOST_RECENT_TAG="$(git describe --abbrev=0 --tags 2> /dev/null)"
 }
 
 
@@ -178,6 +193,9 @@ hOutput() {
 #define VCS_SHORT_HASH		"${VCS_SHORT_HASH}"
 
 #define VCS_WC_MODIFIED		${VCS_WC_MODIFIED}
+
+#define VCS_COMMIT_COUNT	${VCS_COMMIT_COUNT}
+#define VCS_MOST_RECENT_TAG	"${VCS_MOST_RECENT_TAG}"
 
 #endif
 
@@ -203,6 +221,9 @@ xcodeOutput() {
 
 #define VCS_WC_MODIFIED		${VCS_WC_MODIFIED}
 
+#define VCS_COMMIT_COUNT	${VCS_COMMIT_COUNT}
+#define VCS_MOST_RECENT_TAG	${VCS_MOST_RECENT_TAG}
+
 #endif
 
 /* end */
@@ -224,6 +245,9 @@ VCS_FULL_HASH="${VCS_FULL_HASH}"
 VCS_SHORT_HASH="${VCS_SHORT_HASH}"
 
 VCS_WC_MODIFIED=${VCS_WC_MODIFIED}
+
+VCS_COMMIT_COUNT=${VCS_COMMIT_COUNT}
+VCS_MOST_RECENT_TAG="${VCS_MOST_RECENT_TAG}"
 
 # end
 EOF
@@ -266,6 +290,10 @@ if [ ! -z "${VAROUT}" ]; then
 		echo "${VCS_SHORT_HASH}"
 	elif [ "${VAROUT}" = "VCS_WC_MODIFIED" ]; then
 		echo "${VCS_WC_MODIFIED}"
+	elif [ "${VAROUT}" = "VCS_COMMIT_COUNT" ]; then
+		echo "${VCS_COMMIT_COUNT}"
+	elif [ "${VAROUT}" = "VCS_MOST_RECENT_TAG" ]; then
+		echo "${VCS_MOST_RECENT_TAG}"
 	else
 		echo "error: Not a valid output symbol." 1>&2
 		exit 1
