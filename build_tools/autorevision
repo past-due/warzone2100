@@ -168,7 +168,7 @@ gitRepo() {
 	fi
 
 	# get the commit count on master until the branch
-	VCS_COMMIT_COUNT_ON_MASTER_UNTIL_BRANCH=$(git rev-list --count $(git rev-list master.. | tail -n 1)^)
+	VCS_COMMIT_COUNT_ON_MASTER_UNTIL_BRANCH=$(git rev-list --count $(git rev-list master.. | tail -n 1)^ 2> /dev/null)
 
 	# get the commit count on this branch *since* the branch from master
 	VCS_BRANCH_COMMIT_COUNT=$(git rev-list --count master..)
