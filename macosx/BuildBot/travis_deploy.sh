@@ -23,6 +23,10 @@
 # - DEPLOY_UURL: Used in the scp command. Example: "buildbot@buildbot.wz2100.net"
 # - DEPLOY_UPLOAD_PATH: The path into which to upload the files. Example: "public_html/files/"
 #
+#
+# Copyright © 2018 pastdue ( https://github.com/past-due/ ) and contributors
+# License: MIT License ( https://opensource.org/licenses/MIT )
+#
 
 # Handle arguments
 if [ -z "$1" ]; then

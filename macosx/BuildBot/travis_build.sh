@@ -6,7 +6,7 @@
 # USAGE:
 # Execute travis_build.sh with 1-2 parameters
 # 1.) Specify one of the valid modes: ("regular", "release") REQUIRED
-# 2.) Specify an output path for the created Warzone*.zip files (optional, default: macosx/build/wz_output)
+# 2.) Specify an output path for the created warzone2100*_macOS.zip files (optional, default: macosx/build/wz_output)
 #
 # Example:
 #	./travis_build.sh nightly "tmp/build_output"
@@ -18,6 +18,10 @@
 # Release builds:
 # - Warzone.zip containing:
 #		- Warzone.app built in Release mode with debugging symbols included, *AND* video sequences
+#
+#
+# Copyright © 2018 pastdue ( https://github.com/past-due/ ) and contributors
+# License: MIT License ( https://opensource.org/licenses/MIT )
 #
 
 # Future TODO: Use TRAVIS_TAG to detect if the build is for a git tag, and parse the
@@ -61,46 +65,33 @@ function shouldIncludeVideoSequences {
 }
 
 # Travis-CI: Repo prep
-# Unshallow the cloned repo (Travis limits Git clone depth, but we need the full history *and* the master branch)
-#echo "git fetch --unshallow"
-#git fetch --unshallow
-## Fetch all tags
-#echo "git fetch --tags"
-#git fetch --tags
+# (Travis limits Git clone depth, but we need the full history *and* the master branch)
+
+# See: https://stackoverflow.com/a/44036486
 function create_all_branches()
 {
-    # Keep track of where Travis put us.
-    # We are on a detached head, and we need to be able to go back to it.
-    local build_head=$(git rev-parse HEAD)
+	# Keep track of where Travis put us.
+	# We are on a detached head, and we need to be able to go back to it.
+	local build_head=$(git rev-parse HEAD)
 
-    # Fetch all the remote branches. Travis clones with `--depth`, which
-    # implies `--single-branch`, so we need to overwrite remote.origin.fetch to
-    # do that.
-    git config --replace-all remote.origin.fetch +refs/heads/*:refs/remotes/origin/*
-    git fetch --unshallow
-    # optionally, we can also fetch the tags
-    git fetch --tags
+	# Fetch all the remote branches. Travis clones with `--depth`, which
+	# implies `--single-branch`, so we need to overwrite remote.origin.fetch to
+	# do that.
+	git config --replace-all remote.origin.fetch +refs/heads/*:refs/remotes/origin/*
+	git fetch --unshallow
+	# also fetch the tags
+	git fetch --tags
 
 	# checkout master to ensure that a local master branch exists
-	git checkout master
+	git checkout -qf master
 
-	#git fetch --unshallow
-
-    # finally, go back to where we were at the beginning
-    git checkout ${build_head}
+	# finally, go back to where we were at the beginning
+	git checkout -qf ${build_head}
 }
 
+echo "Travis cloned repo prep..."
 create_all_branches
-echo "Finished creating all branches."
-
-## Output some debugging info
-#echo "git rev-list master.. | tail -n 1
-echo "$(git rev-list master.. | tail -n 1)"
-echo "$(git rev-list --count master..)"
-#VCS_COMMIT_COUNT_ON_MASTER_UNTIL_BRANCH=$(git rev-list --count $(git rev-list master.. | tail -n 1)^ 2> /dev/null)
-#
-## get the commit count on this branch *since* the branch from master
-#VCS_BRANCH_COMMIT_COUNT=$(git rev-list --count master..)
+echo "Finished preparing cloned repo."
 
 # Clean
 echo "macosx/BuildBot/00_clean.sh"

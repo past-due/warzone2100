@@ -2,6 +2,10 @@
 
 # This script is included by the other scripts in this directory.
 #
+#
+# Copyright © 2018 pastdue ( https://github.com/past-due/ ) and contributors
+# License: MIT License ( https://opensource.org/licenses/MIT )
+#
 
 ##############################
 # General Setup
