@@ -38,6 +38,14 @@ if [ ! -d "Warzone.app" ]; then
 	exit 1
 fi
 
+# For debugging purposes, verify & output some information about the generated Warzone.app
+echo "Generated Warzone.app"
+generated_infoplist_location="Warzone.app/Contents/Info.plist"
+generated_buildnumber=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "${generated_infoplist_location}")
+echo "  -> Build Number (CFBundleVersion): ${generated_buildnumber}"
+generated_versionnumber=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "${generated_infoplist_location}")
+echo "  -> Version Number (CFBundleShortVersionString): ${generated_versionnumber}"
+
 echo "Creating Warzone.zip..."
 if [ -n "$TRAVIS" ]; then
 	# On Travis-CI, emit fold indicators
