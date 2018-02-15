@@ -61,12 +61,38 @@ function shouldIncludeVideoSequences {
 }
 
 # Travis-CI: Repo prep
-# Unshallow the cloned repo (Travis limits Git clone depth, but we need the full history)
-echo "git fetch --unshallow"
-git fetch --unshallow
-# Fetch all tags
-echo "git fetch --tags"
-git fetch --tags
+# Unshallow the cloned repo (Travis limits Git clone depth, but we need the full history *and* the master branch)
+#echo "git fetch --unshallow"
+#git fetch --unshallow
+## Fetch all tags
+#echo "git fetch --tags"
+#git fetch --tags
+function create_all_branches()
+{
+    # Keep track of where Travis put us.
+    # We are on a detached head, and we need to be able to go back to it.
+    local build_head=$(git rev-parse HEAD)
+
+    # Fetch all the remote branches. Travis clones with `--depth`, which
+    # implies `--single-branch`, so we need to overwrite remote.origin.fetch to
+    # do that.
+    git config --replace-all remote.origin.fetch +refs/heads/*:refs/remotes/origin/*
+    git fetch
+    # optionally, we can also fetch the tags
+    git fetch --tags
+
+    # finally, go back to where we were at the beginning
+    git checkout ${build_head}
+}
+create_all_branches
+
+# Output some debugging info
+echo "git rev-list master.. | tail -n 1
+echo "$(git rev-list master.. | tail -n 1)"
+VCS_COMMIT_COUNT_ON_MASTER_UNTIL_BRANCH=$(git rev-list --count $(git rev-list master.. | tail -n 1)^ 2> /dev/null)
+
+# get the commit count on this branch *since* the branch from master
+VCS_BRANCH_COMMIT_COUNT=$(git rev-list --count master..)
 
 # Clean
 echo "macosx/BuildBot/00_clean.sh"
