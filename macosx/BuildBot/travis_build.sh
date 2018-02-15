@@ -77,11 +77,14 @@ function create_all_branches()
     # implies `--single-branch`, so we need to overwrite remote.origin.fetch to
     # do that.
     git config --replace-all remote.origin.fetch +refs/heads/*:refs/remotes/origin/*
-    git fetch
+    git fetch --unshallow
     # optionally, we can also fetch the tags
     git fetch --tags
 
-	git fetch --unshallow
+	# checkout master to ensure that a local master branch exists
+	git checkout master
+
+	#git fetch --unshallow
 
     # finally, go back to where we were at the beginning
     git checkout ${build_head}
