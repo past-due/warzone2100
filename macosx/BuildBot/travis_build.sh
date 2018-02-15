@@ -77,20 +77,31 @@ function create_all_branches()
 	# Fetch all the remote branches. Travis clones with `--depth`, which
 	# implies `--single-branch`, so we need to overwrite remote.origin.fetch to
 	# do that.
+	echo "git config --replace-all remote.origin.fetch +refs/heads/*:refs/remotes/origin/*"
 	git config --replace-all remote.origin.fetch +refs/heads/*:refs/remotes/origin/*
+	echo "git fetch --unshallow"
+	echo "travis_fold:start:git.fetch.unshallow"
 	git fetch --unshallow
+	echo "travis_fold:end:git.fetch.unshallow"
 	# also fetch the tags
+	echo "git fetch --tags"
+	echo "travis_fold:start:git.fetch.tags"
 	git fetch --tags
+	echo "travis_fold:end:git.fetch.tags"
 
 	# checkout master to ensure that a local master branch exists
+	echo "git checkout -qf master"
 	git checkout -qf master
 
 	# finally, go back to where we were at the beginning
+	echo "git checkout -qf ${build_head}"
 	git checkout -qf ${build_head}
 }
 
 echo "Travis cloned repo prep..."
+echo "travis_fold:start:travis.repo.prep"
 create_all_branches
+echo "travis_fold:end:travis.repo.prep"
 echo "Finished preparing cloned repo."
 
 # Clean
