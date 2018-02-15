@@ -41,10 +41,10 @@ fi
 # For debugging purposes, verify & output some information about the generated Warzone.app
 echo "Generated Warzone.app"
 generated_infoplist_location="Warzone.app/Contents/Info.plist"
-generated_buildnumber=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "${generated_infoplist_location}")
-echo "  -> Build Number (CFBundleVersion): ${generated_buildnumber}"
 generated_versionnumber=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "${generated_infoplist_location}")
 echo "  -> Version Number (CFBundleShortVersionString): ${generated_versionnumber}"
+generated_buildnumber=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "${generated_infoplist_location}")
+echo "  -> Build Number (CFBundleVersion): ${generated_buildnumber}"
 codesign_verify_result=$(codesign --verify --deep --strict --verbose=2 Warzone.app 2>&1)
 echo "  -> codesign --verify --deep --strict --verbose=2 Warzone.app"
 if [ -n "${codesign_verify_result}" ]; then
