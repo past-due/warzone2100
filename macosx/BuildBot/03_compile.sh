@@ -45,6 +45,16 @@ generated_buildnumber=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "${ge
 echo "  -> Build Number (CFBundleVersion): ${generated_buildnumber}"
 generated_versionnumber=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "${generated_infoplist_location}")
 echo "  -> Version Number (CFBundleShortVersionString): ${generated_versionnumber}"
+codesign_verify_result=$(codesign --verify --deep --strict --verbose=2 Warzone.app 2>&1)
+echo "  -> codesign --verify --deep --strict --verbose=2 Warzone.app"
+if [ -n "${codesign_verify_result}" ]; then
+	while read -r line; do
+		echo "    $line"
+	done <<< "$codesign_verify_result"
+else
+	echo "    (No output?)"
+fi
+
 
 echo "Creating Warzone.zip..."
 if [ -n "$TRAVIS" ]; then
