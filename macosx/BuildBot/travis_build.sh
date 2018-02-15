@@ -81,6 +81,8 @@ function create_all_branches()
     # optionally, we can also fetch the tags
     git fetch --tags
 
+	git fetch --unshallow
+
     # finally, go back to where we were at the beginning
     git checkout ${build_head}
 }
@@ -90,7 +92,8 @@ echo "Finished creating all branches."
 
 ## Output some debugging info
 #echo "git rev-list master.. | tail -n 1
-#echo "$(git rev-list master.. | tail -n 1)"
+echo "$(git rev-list master.. | tail -n 1)"
+echo "$(git rev-list --count master..)"
 #VCS_COMMIT_COUNT_ON_MASTER_UNTIL_BRANCH=$(git rev-list --count $(git rev-list master.. | tail -n 1)^ 2> /dev/null)
 #
 ## get the commit count on this branch *since* the branch from master
