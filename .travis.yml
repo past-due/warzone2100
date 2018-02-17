@@ -26,6 +26,8 @@ matrix:
     - language: objective-c
       os: osx
       osx_image: xcode8.3
+      addons:
+        ssh_known_hosts: buildbot.wz2100.net
       before_install:
         #- brew update
         - brew install gettext
