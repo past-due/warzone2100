@@ -405,6 +405,7 @@ struct ShadowBufferManager {
 		glBufferWrapper buffer;
 		unsigned edge_count = 0;
 		uint64_t lastQueriedFrameCount = 0;
+		std::vector<Vector3f> vertexes;
 
 		CachedShadowData() { }
 		CachedShadowData(glBufferWrapper&& buffer)
@@ -454,6 +455,24 @@ struct ShadowBufferManager {
 		return result.first->second;
 	}
 
+	void addVertexes(const CachedShadowData& cachedData, const glm::mat4 &modelViewMatrix)
+	{
+		for (auto &vertex : cachedData.vertexes)
+		{
+			vertexes.emplace_back(modelViewMatrix * glm::vec4(vertex, 1.0));
+		}
+	}
+
+	const std::vector<Vector3f>& getVertexes()
+	{
+		return vertexes;
+	}
+
+	void clearVertexes()
+	{
+		vertexes.clear();
+	}
+
 	void setCurrentFrame(uint64_t currentFrame)
 	{
 		_currentFrame = currentFrame;
@@ -484,6 +503,7 @@ struct ShadowBufferManager {
 private:
 	uint64_t _currentFrame = 0;
 	BufferProvider bufferProvider;
+	std::vector<Vector3f> vertexes;
 };
 
 //template <class T>
@@ -593,7 +613,9 @@ static inline DrawShadowResult pie_DrawShadow(ShadowBufferManager &shadowBuffers
 		glBindBuffer(GL_ARRAY_BUFFER, cache.buffer.id);
 		glBufferData(GL_ARRAY_BUFFER, sizeof(Vector3f) * vertexes.size(), vertexes.data(), GL_DYNAMIC_DRAW);
 		cache.edge_count = edge_count;
+		cache.vertexes = vertexes;
 		result = DRAW_SUCCESS_UNCACHED;
+		pCached = &cache;
 	}
 	else
 	{
@@ -602,13 +624,15 @@ static inline DrawShadowResult pie_DrawShadow(ShadowBufferManager &shadowBuffers
 		result = DRAW_SUCCESS_CACHED;
 	}
 
-	// draw the shadow volume
-	const auto &program = pie_ActivateShader(SHADER_GENERIC_COLOR, pie_PerspectiveGet() * modelViewMatrix, glm::vec4());
+//	// draw the shadow volume
+//	const auto &program = pie_ActivateShader(SHADER_GENERIC_COLOR, pie_PerspectiveGet() * modelViewMatrix, glm::vec4());
+//
+//	glVertexAttribPointer(program.locVertex, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+//
+//	glDrawArrays(GL_TRIANGLES, 0, edge_count * 2 * 3);
+//	// NOTE: Do not call pie_DeactivateShader() here. The parent loop calls it at the end of all pie_DrawShadow() calls, for a 10%+ CPU usage reduction.
 
-	glVertexAttribPointer(program.locVertex, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
-
-	glDrawArrays(GL_TRIANGLES, 0, edge_count * 2 * 3);
-	// NOTE: Do not call pie_DeactivateShader() here. The parent loop calls it at the end of all pie_DrawShadow() calls, for a 10%+ CPU usage reduction.
+	shadowBuffers.addVertexes(*pCached, modelViewMatrix);
 
 	return result;
 }
@@ -722,6 +746,9 @@ bool pie_Draw3DShape(iIMDShape *shape, int frame, int team, PIELIGHT colour, int
 
 static void pie_ShadowDrawLoop(ShadowBufferManager &shadowBuffers)
 {
+	static std::vector<glBufferWrapper> buffer(20);
+	static std::vector<size_t> priorBufferSize(20, 0);
+	static size_t currBuffer = 0;
 	const auto &program = pie_ActivateShader(SHADER_GENERIC_COLOR, pie_PerspectiveGet(), glm::vec4());
 	glEnableVertexAttribArray(program.locVertex);
 	size_t cachedShadowDraws = 0;
@@ -738,10 +765,31 @@ static void pie_ShadowDrawLoop(ShadowBufferManager &shadowBuffers)
 			++uncachedShadowDraws;
 		}
 	}
+
+	// draw the shadow volume
+	const auto &program2 = pie_ActivateShader(SHADER_GENERIC_COLOR, pie_PerspectiveGet() /** modelViewMatrix*/, glm::vec4());
+	glBindBuffer(GL_ARRAY_BUFFER, buffer[currBuffer].id);
+//	if (priorBufferSize[currBuffer] > 0)
+//	{
+//		glBufferData(GL_ARRAY_BUFFER, priorBufferSize[currBuffer], 0, GL_STREAM_DRAW);
+//	}
+	glBufferData(GL_ARRAY_BUFFER, sizeof(Vector3f) * shadowBuffers.getVertexes().size(), shadowBuffers.getVertexes().data(), GL_STREAM_DRAW);
+	priorBufferSize[currBuffer] = sizeof(Vector3f) * shadowBuffers.getVertexes().size();
+	glVertexAttribPointer(program2.locVertex, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+
+	glDrawArrays(GL_TRIANGLES, 0, shadowBuffers.getVertexes().size());
+
+	shadowBuffers.clearVertexes();
+
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glDisableVertexAttribArray(program.locVertex);
 	pie_DeactivateShader();
 //	debug(LOG_INFO, "Cached shadow draws: %lu, uncached shadow draws: %lu", cachedShadowDraws, uncachedShadowDraws);
+	++currBuffer;
+	if (currBuffer >= buffer.size())
+	{
+		currBuffer = 0;
+	}
 }
 
 static ShadowBufferManager shadowBuffers;
