@@ -748,6 +748,7 @@ static void pie_ShadowDrawLoop(ShadowBufferManager &shadowBuffers)
 {
 	static std::vector<glBufferWrapper> buffer(20);
 	static std::vector<size_t> priorBufferSize(20, 0);
+	static std::vector<GLsync> fences(20);
 	static size_t currBuffer = 0;
 	const auto &program = pie_ActivateShader(SHADER_GENERIC_COLOR, pie_PerspectiveGet(), glm::vec4());
 	glEnableVertexAttribArray(program.locVertex);
@@ -768,15 +769,35 @@ static void pie_ShadowDrawLoop(ShadowBufferManager &shadowBuffers)
 
 	// draw the shadow volume
 	const auto &program2 = pie_ActivateShader(SHADER_GENERIC_COLOR, pie_PerspectiveGet() /** modelViewMatrix*/, glm::vec4());
-	glBindBuffer(GL_ARRAY_BUFFER, buffer[currBuffer].id);
-//	if (priorBufferSize[currBuffer] > 0)
-//	{
-//		glBufferData(GL_ARRAY_BUFFER, priorBufferSize[currBuffer], 0, GL_STREAM_DRAW);
-//	}
-	glBufferData(GL_ARRAY_BUFFER, sizeof(Vector3f) * shadowBuffers.getVertexes().size(), shadowBuffers.getVertexes().data(), GL_STREAM_DRAW);
-	priorBufferSize[currBuffer] = sizeof(Vector3f) * shadowBuffers.getVertexes().size();
-	glVertexAttribPointer(program2.locVertex, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
 
+	// Wait until buffer is free to use, in most cases this should not wait
+	// because we are using three buffers in chain, glClientWaitSync
+	// function can be used for check if the TIMEOUT is zero
+	GLenum result = glClientWaitSync(fences[currBuffer], 0, GL_TIMEOUT_IGNORED);
+	if (result == GL_TIMEOUT_EXPIRED || result == GL_WAIT_FAILED) {
+		// Something is wrong
+		debug(LOG_WARNING, "glClientWaitSync result: %d", result);
+	}
+	glDeleteSync(fences[currBuffer]);
+	glBindBuffer(GL_ARRAY_BUFFER, buffer[currBuffer].id);
+	if (sizeof(Vector3f) * shadowBuffers.getVertexes().size() > priorBufferSize[currBuffer])
+	{
+		// reallocate the buffer with the appropriate (larger) size
+		glBufferData(GL_ARRAY_BUFFER, sizeof(Vector3f) * shadowBuffers.getVertexes().size(), 0, GL_DYNAMIC_DRAW);
+		priorBufferSize[currBuffer] = sizeof(Vector3f) * shadowBuffers.getVertexes().size();
+	}
+	if (glMapBufferRange == nullptr)
+	{
+		debug(LOG_FATAL, "glMapBufferRange is not available");
+	}
+	void *ptr = glMapBufferRange(GL_ARRAY_BUFFER, 0, sizeof(Vector3f) * shadowBuffers.getVertexes().size(), GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+
+	// Fill ptr with the data
+	memcpy(ptr, shadowBuffers.getVertexes().data(), sizeof(Vector3f) * shadowBuffers.getVertexes().size());
+	glUnmapBuffer(GL_ARRAY_BUFFER);
+
+	// Use buffer in draw operation
+	glVertexAttribPointer(program2.locVertex, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
 	glDrawArrays(GL_TRIANGLES, 0, shadowBuffers.getVertexes().size());
 
 	shadowBuffers.clearVertexes();
@@ -784,6 +805,10 @@ static void pie_ShadowDrawLoop(ShadowBufferManager &shadowBuffers)
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glDisableVertexAttribArray(program.locVertex);
 	pie_DeactivateShader();
+
+	// Put fence into command queue
+	fences[currBuffer] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+
 //	debug(LOG_INFO, "Cached shadow draws: %lu, uncached shadow draws: %lu", cachedShadowDraws, uncachedShadowDraws);
 	++currBuffer;
 	if (currBuffer >= buffer.size())
