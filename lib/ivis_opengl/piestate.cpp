@@ -214,7 +214,7 @@ void pie_FreeShaders()
 }
 
 // Read/compile/link shaders
-SHADER_MODE pie_LoadShader(const char *programName, const char *vertexPath, const char *fragmentPath,
+SHADER_MODE pie_LoadShader(const char *programName, const std::string &vertexPath, const std::string &fragmentPath,
 	const std::vector<std::string> &uniformNames)
 {
 	pie_internal::SHADER_PROGRAM program;
@@ -230,11 +230,11 @@ SHADER_MODE pie_LoadShader(const char *programName, const char *vertexPath, cons
 
 	*buffer = (char *)"";
 
-	if (vertexPath)
+	if (!vertexPath.empty())
 	{
 		success = false; // Assume failure before reading shader file
 
-		if ((*(buffer + 1) = readShaderBuf(vertexPath)))
+		if ((*(buffer + 1) = readShaderBuf(vertexPath.c_str())))
 		{
 			GLuint shader = glCreateShader(GL_VERTEX_SHADER);
 
@@ -245,7 +245,7 @@ SHADER_MODE pie_LoadShader(const char *programName, const char *vertexPath, cons
 			glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
 			if (!status)
 			{
-				debug(LOG_ERROR, "Vertex shader compilation has failed [%s]", vertexPath);
+				debug(LOG_ERROR, "Vertex shader compilation has failed [%s]", vertexPath.c_str());
 				printShaderInfoLog(LOG_ERROR, shader);
 			}
 			else
@@ -256,17 +256,17 @@ SHADER_MODE pie_LoadShader(const char *programName, const char *vertexPath, cons
 			}
 			if (GLEW_VERSION_4_3 || GLEW_KHR_debug)
 			{
-				glObjectLabel(GL_SHADER, shader, -1, vertexPath);
+				glObjectLabel(GL_SHADER, shader, -1, vertexPath.c_str());
 			}
 			free(*(buffer + 1));
 		}
 	}
 
-	if (success && fragmentPath)
+	if (success && !fragmentPath.empty())
 	{
 		success = false; // Assume failure before reading shader file
 
-		if ((*(buffer + 1) = readShaderBuf(fragmentPath)))
+		if ((*(buffer + 1) = readShaderBuf(fragmentPath.c_str())))
 		{
 			GLuint shader = glCreateShader(GL_FRAGMENT_SHADER);
 
@@ -277,7 +277,7 @@ SHADER_MODE pie_LoadShader(const char *programName, const char *vertexPath, cons
 			glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
 			if (!status)
 			{
-				debug(LOG_ERROR, "Fragment shader compilation has failed [%s]", fragmentPath);
+				debug(LOG_ERROR, "Fragment shader compilation has failed [%s]", fragmentPath.c_str());
 				printShaderInfoLog(LOG_ERROR, shader);
 			}
 			else
@@ -288,7 +288,7 @@ SHADER_MODE pie_LoadShader(const char *programName, const char *vertexPath, cons
 			}
 			if (GLEW_VERSION_4_3 || GLEW_KHR_debug)
 			{
-				glObjectLabel(GL_SHADER, shader, -1, fragmentPath);
+				glObjectLabel(GL_SHADER, shader, -1, fragmentPath.c_str());
 			}
 			free(*(buffer + 1));
 		}
@@ -302,7 +302,7 @@ SHADER_MODE pie_LoadShader(const char *programName, const char *vertexPath, cons
 		glGetProgramiv(program.program, GL_LINK_STATUS, &status);
 		if (!status)
 		{
-			debug(LOG_ERROR, "Shader program linkage has failed [%s, %s]", vertexPath, fragmentPath);
+			debug(LOG_ERROR, "Shader program linkage has failed [%s, %s]", vertexPath.c_str(), fragmentPath.c_str());
 			printProgramInfoLog(LOG_ERROR, program.program);
 			success = false;
 		}
@@ -337,6 +337,14 @@ bool pie_LoadShaders()
 	pie_internal::SHADER_PROGRAM program;
 	int result;
 
+	// Determine the shader load path
+	std::string shaderBasePath = "shaders";
+	shaderBasePath.append(PHYSFS_getDirSeparator());
+#if defined(WZ_USE_OPENGL_3_2_CORE_PROFILE)
+	shaderBasePath.append("glsl_150_core");
+	shaderBasePath.append(PHYSFS_getDirSeparator());
+#endif
+
 	// Load some basic shaders
 	memset(&program, 0, sizeof(program));
 	pie_internal::shaderProgram.push_back(program);
@@ -344,7 +352,7 @@ bool pie_LoadShaders()
 
 	// TCMask shader for map-placed models with advanced lighting
 	debug(LOG_3D, "Loading shader: SHADER_COMPONENT");
-	result = pie_LoadShader("Component program", "shaders/tcmask.vert", "shaders/tcmask.frag",
+	result = pie_LoadShader("Component program", shaderBasePath + "tcmask.vert", shaderBasePath + "tcmask.frag",
 		{ "colour", "teamcolour", "stretch", "tcmask", "fogEnabled", "normalmap", "specularmap", "ecmEffect", "alphaTest", "graphicsCycle",
 		"ModelViewMatrix", "ModelViewProjectionMatrix", "NormalMatrix", "lightPosition", "sceneColor", "ambient", "diffuse", "specular",
 		"fogEnd", "fogStart", "fogColor" });
@@ -352,7 +360,7 @@ bool pie_LoadShaders()
 
 	// TCMask shader for buttons with flat lighting
 	debug(LOG_3D, "Loading shader: SHADER_BUTTON");
-	result = pie_LoadShader("Button program", "shaders/button.vert", "shaders/button.frag",
+	result = pie_LoadShader("Button program", shaderBasePath + "button.vert", shaderBasePath + "button.frag",
 		{ "colour", "teamcolour", "stretch", "tcmask", "fogEnabled", "normalmap", "specularmap", "ecmEffect", "alphaTest", "graphicsCycle",
 		"ModelViewMatrix", "ModelViewProjectionMatrix", "NormalMatrix", "lightPosition", "sceneColor", "ambient", "diffuse", "specular",
 		"fogEnd", "fogStart", "fogColor" });
@@ -360,69 +368,69 @@ bool pie_LoadShaders()
 
 	// Plain shader for no lighting
 	debug(LOG_3D, "Loading shader: SHADER_NOLIGHT");
-	result = pie_LoadShader("Plain program", "shaders/nolight.vert", "shaders/nolight.frag",
+	result = pie_LoadShader("Plain program", shaderBasePath + "nolight.vert", shaderBasePath + "nolight.frag",
 		{ "colour", "teamcolour", "stretch", "tcmask", "fogEnabled", "normalmap", "specularmap", "ecmEffect", "alphaTest", "graphicsCycle",
 		"ModelViewMatrix", "ModelViewProjectionMatrix", "NormalMatrix", "lightPosition", "sceneColor", "ambient", "diffuse", "specular",
 		"fogEnd", "fogStart", "fogColor" });
 	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_NOLIGHT, "Failed to load no-lighting shader");
 
 	debug(LOG_3D, "Loading shader: SHADER_TERRAIN");
-	result = pie_LoadShader("terrain program", "shaders/terrain_water.vert", "shaders/terrain.frag",
+	result = pie_LoadShader("terrain program", shaderBasePath + "terrain_water.vert", shaderBasePath + "terrain.frag",
 		{ "ModelViewProjectionMatrix", "paramx1", "paramy1", "paramx2", "paramy2", "tex", "lightmap_tex", "textureMatrix1", "textureMatrix2",
 		"fogEnabled", "fogEnd", "fogStart", "fogColor" });
 	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_TERRAIN, "Failed to load terrain shader");
 
 	debug(LOG_3D, "Loading shader: SHADER_TERRAIN_DEPTH");
-	result = pie_LoadShader("terrain_depth program", "shaders/terrain_water.vert", "shaders/terraindepth.frag",
+	result = pie_LoadShader("terrain_depth program", shaderBasePath + "terrain_water.vert", shaderBasePath + "terraindepth.frag",
 	{ "ModelViewProjectionMatrix", "paramx2", "paramy2", "lightmap_tex", "textureMatrix1", "textureMatrix2" });
 	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_TERRAIN_DEPTH, "Failed to load terrain_depth shader");
 
 	debug(LOG_3D, "Loading shader: SHADER_DECALS");
-	result = pie_LoadShader("decals program", "shaders/decals.vert", "shaders/decals.frag",
+	result = pie_LoadShader("decals program", shaderBasePath + "decals.vert", shaderBasePath + "decals.frag",
 		{ "ModelViewProjectionMatrix", "paramxlight", "paramylight", "tex", "lightmap_tex", "lightTextureMatrix",
 		"fogEnabled", "fogEnd", "fogStart", "fogColor" });
 	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_DECALS, "Failed to load decals shader");
 
 	debug(LOG_3D, "Loading shader: SHADER_WATER");
-	result = pie_LoadShader("water program", "shaders/terrain_water.vert", "shaders/water.frag",
+	result = pie_LoadShader("water program", shaderBasePath + "terrain_water.vert", shaderBasePath + "water.frag",
 		{ "ModelViewProjectionMatrix", "paramx1", "paramy1", "paramx2", "paramy2", "tex1", "tex2", "textureMatrix1", "textureMatrix2",
 		"fogEnabled", "fogEnd", "fogStart" });
 	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_WATER, "Failed to load water shader");
 
 	// Rectangular shader
 	debug(LOG_3D, "Loading shader: SHADER_RECT");
-	result = pie_LoadShader("Rect program", "shaders/rect.vert", "shaders/rect.frag",
+	result = pie_LoadShader("Rect program", shaderBasePath + "rect.vert", shaderBasePath + "rect.frag",
 		{ "transformationMatrix", "color" });
 	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_RECT, "Failed to load rect shader");
 
 	// Textured rectangular shader
 	debug(LOG_3D, "Loading shader: SHADER_TEXRECT");
-	result = pie_LoadShader("Textured rect program", "shaders/rect.vert", "shaders/texturedrect.frag",
-		{ "transformationMatrix", "tuv_offset", "tuv_scale", "color", "texture" });
+	result = pie_LoadShader("Textured rect program", shaderBasePath + "rect.vert", shaderBasePath + "texturedrect.frag",
+		{ "transformationMatrix", "tuv_offset", "tuv_scale", "color", "theTexture" });
 	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_TEXRECT, "Failed to load textured rect shader");
 
 	debug(LOG_3D, "Loading shader: SHADER_GFX_COLOUR");
-	result = pie_LoadShader("gfx_color program", "shaders/gfx.vert", "shaders/gfx.frag",
+	result = pie_LoadShader("gfx_color program", shaderBasePath + "gfx.vert", shaderBasePath + "gfx.frag",
 		{ "posMatrix" });
 	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_GFX_COLOUR, "Failed to load textured gfx shader");
 
 	debug(LOG_3D, "Loading shader: SHADER_GFX_TEXT");
-	result = pie_LoadShader("gfx_text program", "shaders/gfx.vert", "shaders/texturedrect.frag",
-		{ "posMatrix", "color", "texture" });
+	result = pie_LoadShader("gfx_text program", shaderBasePath + "gfx.vert", shaderBasePath + "texturedrect.frag",
+		{ "posMatrix", "color", "theTexture" });
 	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_GFX_TEXT, "Failed to load textured gfx shader");
 
 	debug(LOG_3D, "Loading shader: SHADER_GENERIC_COLOR");
-	result = pie_LoadShader("generic color program", "shaders/generic.vert", "shaders/rect.frag", { "ModelViewProjectionMatrix", "color" });
+	result = pie_LoadShader("generic color program", shaderBasePath + "generic.vert", shaderBasePath + "rect.frag", { "ModelViewProjectionMatrix", "color" });
 	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_GENERIC_COLOR, "Failed to load generic color shader");
 
 	debug(LOG_3D, "Loading shader: SHADER_LINE");
-	result = pie_LoadShader("line program", "shaders/line.vert", "shaders/rect.frag", { "from", "to", "color", "ModelViewProjectionMatrix" });
+	result = pie_LoadShader("line program", shaderBasePath + "line.vert", shaderBasePath + "rect.frag", { "from", "to", "color", "ModelViewProjectionMatrix" });
 	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_LINE, "Failed to load line shader");
 
 	// Text shader
 	debug(LOG_3D, "Loading shader: SHADER_TEXT");
-	result = pie_LoadShader("Text program", "shaders/rect.vert", "shaders/text.frag",
-		{ "transformationMatrix", "tuv_offset", "tuv_scale", "color", "texture" });
+	result = pie_LoadShader("Text program", shaderBasePath + "rect.vert", shaderBasePath + "text.frag",
+		{ "transformationMatrix", "tuv_offset", "tuv_scale", "color", "theTexture" });
 	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_TEXT, "Failed to load text shader");
 
 	pie_internal::currentShaderMode = SHADER_NONE;

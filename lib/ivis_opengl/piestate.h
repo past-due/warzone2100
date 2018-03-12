@@ -87,7 +87,7 @@ int pie_GetMaxAntialiasing();
 
 bool pie_LoadShaders();
 void pie_FreeShaders();
-SHADER_MODE pie_LoadShader(const char *programName, const char *vertexPath, const char *fragmentPath,
+SHADER_MODE pie_LoadShader(const char *programName, const std::string &vertexPath, const std::string &fragmentPath,
 	const std::vector<std::string> &);
 
 namespace pie_internal
