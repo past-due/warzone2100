@@ -402,32 +402,10 @@ struct ShadowBufferManager {
 	// Buffers are purged when they aren't used for 5 frames
 
 	struct CachedShadowData {
-		glBufferWrapper buffer;
-		unsigned edge_count = 0;
 		uint64_t lastQueriedFrameCount = 0;
 		std::vector<Vector3f> vertexes;
 
 		CachedShadowData() { }
-		CachedShadowData(glBufferWrapper&& buffer)
-		: buffer(std::move(buffer))
-		{ }
-	};
-
-	struct BufferProvider {
-		std::vector<glBufferWrapper> buffers;
-
-		void take(glBufferWrapper&& buffer) {
-			buffers.push_back(std::move(buffer));
-		}
-
-		glBufferWrapper get() {
-			if (buffers.empty()) {
-				return glBufferWrapper();
-			}
-			glBufferWrapper item = std::move(buffers.back());
-			buffers.pop_back();
-			return item;
-		}
 	};
 
 	typedef std::unordered_map<ShadowDrawParameters, CachedShadowData> ShadowDrawParametersToCachedDataMap;
@@ -450,7 +428,7 @@ struct ShadowBufferManager {
 
 	CachedShadowData& createCachedBufferDataForShadowDraw(iIMDShape *shape, int flag, int flag_data, const glm::vec4 &light, const glm::mat4 &modelViewMatrix)
 	{
-		auto result = shapeMap[shape].emplace(ShadowDrawParameters(flag, flag_data, light), CachedShadowData(bufferProvider.get()));
+		auto result = shapeMap[shape].emplace(ShadowDrawParameters(flag, flag_data, light), CachedShadowData());
 		result.first->second.lastQueriedFrameCount = _currentFrame;
 		return result.first->second;
 	}
@@ -493,7 +471,6 @@ struct ShadowBufferManager {
 			}
 			for (auto &item : unusedBuffersForShape)
 			{
-				bufferProvider.take(std::move(item->second.buffer));
 				it_shape->second.erase(item);
 				++oldItemsRemoved;
 			}
@@ -502,7 +479,6 @@ struct ShadowBufferManager {
 	}
 private:
 	uint64_t _currentFrame = 0;
-	BufferProvider bufferProvider;
 	std::vector<Vector3f> vertexes;
 };
 
@@ -610,17 +586,12 @@ static inline DrawShadowResult pie_DrawShadow(ShadowBufferManager &shadowBuffers
 		}
 
 		ShadowBufferManager::CachedShadowData& cache = shadowBuffers.createCachedBufferDataForShadowDraw(shape, flag, flag_data, light, modelViewMatrix);
-		glBindBuffer(GL_ARRAY_BUFFER, cache.buffer.id);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(Vector3f) * vertexes.size(), vertexes.data(), GL_DYNAMIC_DRAW);
-		cache.edge_count = edge_count;
 		cache.vertexes = vertexes;
 		result = DRAW_SUCCESS_UNCACHED;
 		pCached = &cache;
 	}
 	else
 	{
-		glBindBuffer(GL_ARRAY_BUFFER, pCached->buffer.id);
-		edge_count = pCached->edge_count;
 		result = DRAW_SUCCESS_CACHED;
 	}
 
