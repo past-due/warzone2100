@@ -20,6 +20,8 @@ add_custom_command(
     OUTPUT
 		"${CMAKE_CURRENT_BINARY_DIR}/__shouldnotexist.h"  # fake - ensure we run
 		"${CMAKE_CURRENT_BINARY_DIR}/autorevision.h"
+	# temporarily, print out environment variables
+	COMMAND ${CMAKE_COMMAND} -E environment
 	# this command must generate: ${CMAKE_CURRENT_BINARY_DIR}/autorevision.h
     COMMAND ${CMAKE_COMMAND} -DCACHEFILE="${CMAKE_CURRENT_BINARY_DIR}/autorevision.cache" -DOUTPUT_TYPE=h -DOUTPUT_FILE="${CMAKE_CURRENT_BINARY_DIR}/autorevision.h" -P "${CMAKE_SOURCE_DIR}/build_tools/autorevision.cmake"
 	WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"

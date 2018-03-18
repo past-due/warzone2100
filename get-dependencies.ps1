@@ -29,13 +29,15 @@ popd;
 
 # Download google-breakpad's dump_syms.exe
 Write-Output "Downloading dump_syms.exe ...";
+$dump_syms_path = $(Join-Path (pwd) dump_syms.exe);
 
 # Unfortunately, there does not currently appear to be any way to download the raw file from chromium.googlesource.com
 # Instead, we have to download the Base64-encoded contents of the file and then decode them
-Invoke-WebRequest "https://chromium.googlesource.com/breakpad/breakpad/+/$DUMP_SYMS_EXE_COMMIT/src/tools/windows/binaries/dump_syms.exe?format=TEXT" -OutFile "dump_syms_exe.b64"
-$base64string = Get-Content -Raw "dump_syms_exe.b64"
-[IO.File]::WriteAllBytes("dump_syms.exe", [Convert]::FromBase64String($base64string));
-$dump_syms_hash = Get-FileHash -Path "dump_syms.exe" -Algorithm SHA512;
+$dump_syms_b64_path = $(Join-Path (pwd) dump_syms_exe.b64);
+Invoke-WebRequest "https://chromium.googlesource.com/breakpad/breakpad/+/$DUMP_SYMS_EXE_COMMIT/src/tools/windows/binaries/dump_syms.exe?format=TEXT" -OutFile "$dump_syms_b64_path"
+$base64string = Get-Content -Raw "$dump_syms_b64_path"
+[IO.File]::WriteAllBytes("$dump_syms_path", [Convert]::FromBase64String($base64string));
+$dump_syms_hash = Get-FileHash -Path "$dump_syms_path" -Algorithm SHA512;
 If ($dump_syms_hash.Hash -eq $DUMP_SYMS_EXE_SHA512) {
 	Write-Output "Successfully downloaded dump_syms.exe";
 }

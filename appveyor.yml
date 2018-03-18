@@ -18,7 +18,12 @@ environment:
     WZ_VC_TOOLCHAIN: v141
     WZ_VC_TARGET_PLATFORMNAME: x64
 
+# Cache
+# - Maintains a separate cache for each build matrix entry
 cache:
+  # 1. The vcpkg directory
+  #    - Cache built dependencies to reduce frequent build time by 20+ minutes.
+  #    - The vcpkg cache is invalidated if get-dependencies.ps1 changes (and get-dependencies.ps1 is what contains the pinned vcpkg commit).
   - vcpkg/ -> get-dependencies.ps1
 
 platform:
