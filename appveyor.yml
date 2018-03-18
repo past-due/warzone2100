@@ -1,6 +1,6 @@
 environment:
-  APPVEYOR_CACHE_ENTRY_ZIP_ARGS: -tzip -mx=5
-
+  global:
+    APPVEYOR_CACHE_ENTRY_ZIP_ARGS: -t7z -m0=lzma -mx=4
   matrix:
   # 32-bit (x86) builds maintain Windows XP compatibility by using Qt 5.6.x and the "*_xp" VC toolchain
   # Note: This uses the VS 2015 AppVeyor image because we need Qt 5.6.x
@@ -36,9 +36,10 @@ configuration:
 
 before_build:
  - set PATH=%PATH%;%QT5DIR%\bin;
-# - ps: Invoke-WebRequest "https://onedrive.live.com/download?cid=363DD3AAFA342F70&resid=363DD3AAFA342F70%2120519&authkey=AIoZ_CRK7-Ckq9I" -OutFile vcpkg.7z
-# - 7z x vcpkg.7z > NUL
  - ps: .\get-dependencies.ps1
+ # Remove the vcpkg\buildtrees folder. Once all dependencies are installed, it isn't needed (and it takes up a lot of space in the cache).
+ - ps: Remove-Item "%APPVEYOR_BUILD_FOLDER%\vcpkg\buildtrees" -Force -Recurse
+ # Use CMake to configure with the appropriate Visual Studio (MSBUILD) generator, toolchain, and target platform
  - cmake -H. -Bbuild  -DCMAKE_TOOLCHAIN_FILE="%APPVEYOR_BUILD_FOLDER%\vcpkg\scripts\buildsystems\vcpkg.cmake" -G "%WZ_VC_GENERATOR%" -T "%WZ_VC_TOOLCHAIN%" -A "%WZ_VC_TARGET_PLATFORMNAME%"
 
 build:
