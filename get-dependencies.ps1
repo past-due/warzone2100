@@ -10,7 +10,16 @@ Function Vcpkg_Install([string]$VCPKG_TRIPLET)
 	.\vcpkg install physfs harfbuzz libiconv libogg libtheora libvorbis libpng openal-soft sdl2 glew freetype gettext zlib;
 }
 
-git clone https://github.com/Microsoft/vcpkg.git;
+If ( -not (Test-Path (Join-Path (pwd) vcpkg\.git) -PathType Container) )
+{
+	# Clone the vcpkg repo
+	git clone -q https://github.com/Microsoft/vcpkg.git;
+}
+Else
+{
+	# On CI (for example), the vcpkg directory may have been cached and restored
+	Write-Output "Skipping git clone for vcpkg (local copy already exists)";
+}
 pushd vcpkg;
 git reset --hard $VCPKG_COMMIT_SHA;
 .\bootstrap-vcpkg.bat;
