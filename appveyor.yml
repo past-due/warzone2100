@@ -38,10 +38,10 @@ before_build:
  - set PATH=%PATH%;%QT5DIR%\bin;
  - ps: .\get-dependencies.ps1
  # Remove the vcpkg\buildtrees folder. Once all dependencies are installed, it isn't needed (and it takes up a lot of space in the cache).
- - ps: Remove-Item "%APPVEYOR_BUILD_FOLDER%\vcpkg\buildtrees" -Force -Recurse
+ - ps: Remove-Item .\vcpkg\buildtrees -Force -Recurse
  # Use CMake to configure with the appropriate Visual Studio (MSBUILD) generator, toolchain, and target platform
  - cmake -H. -Bbuild  -DCMAKE_TOOLCHAIN_FILE="%APPVEYOR_BUILD_FOLDER%\vcpkg\scripts\buildsystems\vcpkg.cmake" -G "%WZ_VC_GENERATOR%" -T "%WZ_VC_TOOLCHAIN%" -A "%WZ_VC_TARGET_PLATFORMNAME%"
 
-build:
+build_script:
  parallel: true
- project: build/src/warzone2100.vcxproj
+ project: build/PACKAGE.vcxproj
