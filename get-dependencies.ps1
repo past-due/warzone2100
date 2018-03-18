@@ -13,6 +13,7 @@ Function Vcpkg_Install([string]$VCPKG_TRIPLET)
 If ( -not (Test-Path (Join-Path (pwd) vcpkg\.git) -PathType Container) )
 {
 	# Clone the vcpkg repo
+	Write-Output "Cloning https://github.com/Microsoft/vcpkg.git ...";
 	git clone -q https://github.com/Microsoft/vcpkg.git;
 }
 Else
