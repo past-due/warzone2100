@@ -329,6 +329,28 @@ macro(_gitRepo)
 	unset(_repo_top_directory)
 endmacro()
 
+macro(_appVeyorBuild)
+	# Extract most symbols from the Git repo first
+	_gitRepo()
+
+	# Get remaining symbols from the AppVeyor environment variables
+	# See: https://www.appveyor.com/docs/environment-variables/
+
+	# Determine VCS_BRANCH
+	if (DEFINED APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH AND NOT "${APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH}" STREQUAL "")
+		# On a PR build, APPVEYOR_REPO_BRANCH is set to the *base* branch that's being merged into
+		# Use APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH to get the source branch
+		set(VCS_BRANCH "${APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH}")
+	else()
+		# In the normal case, use APPVEYOR_REPO_BRANCH
+		if (DEFINED APPVEYOR_REPO_BRANCH AND NOT "${APPVEYOR_REPO_BRANCH}" STREQUAL "")
+			set(VCS_BRANCH "${APPVEYOR_REPO_BRANCH}")
+		else()
+			message( WARNING "APPVEYOR_REPO_BRANCH is empty; VCS_BRANCH may be empty" )
+		endif()
+	endif()
+endmacro()
+
 if(LOGGING_QUIET)
 	find_package(Git QUIET)
 else()
@@ -357,9 +379,17 @@ if(CACHEFORCE)
 		message( FATAL_ERROR "Option CACHEFORCE declared, but the specified CACHEFILE does not exist at: ${CACHEFILE}" )
 	endif()
 elseif(Git_FOUND AND _currentDirectoryIsInGitRepo)
-	_gitRepo()
-	if(NOT LOGGING_QUIET)
-		message( STATUS "Gathered revision data from Git" )
+	if(DEFINED CI AND "${CI}" STREQUAL "True" AND DEFINED APPVEYOR AND "${APPVEYOR}" STREQUAL "True")
+		# On AppVeyor
+		_appVeyorBuild()
+		if(NOT LOGGING_QUIET)
+			message( STATUS "Gathered revision data from Git + AppVeyor environment" )
+		endif()
+	else()
+		_gitRepo()
+		if(NOT LOGGING_QUIET)
+			message( STATUS "Gathered revision data from Git" )
+		endif()
 	endif()
 elseif(EXISTS ${CACHEFILE})
 	# We are not in a repo; try to use a previously generated cache to populate our symbols.
