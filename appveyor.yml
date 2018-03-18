@@ -1,21 +1,33 @@
 environment:
-  QT5DIR: C:\Qt\5.9.1\msvc2015
+  matrix:
+  # 32-bit (x86) builds maintain Windows XP compatibility by using Qt 5.6.x and the "*_xp" VC toolchain
+  - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
+    WZ_VC_GENERATOR: "Visual Studio 14 2015"
+    QT5DIR: C:\Qt\5.6\msvc2015
+    WZ_VC_TOOLCHAIN: v140_xp
+    WZ_VC_TARGET_PLATFORMNAME: Win32
+  # 64-bit (x64) builds use the latest Qt and VC toolchain (and do not support Windows XP)
+  - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
+    WZ_VC_GENERATOR: "Visual Studio 15 2017"
+    QT5DIR: C:\Qt\5.10.1\msvc2017_64
+    WZ_VC_TOOLCHAIN: v141
+    WZ_VC_TARGET_PLATFORMNAME: x64
 
 cache:
   - vcpkg/ -> get-dependencies.ps1
 
 platform:
-  - Win32
+  - x64
 
 configuration:
-  - Debug
   - Release
 
 before_build:
  - set PATH=%PATH%;%QT5DIR%\bin;
- - ps: Invoke-WebRequest "https://onedrive.live.com/download?cid=363DD3AAFA342F70&resid=363DD3AAFA342F70%2120519&authkey=AIoZ_CRK7-Ckq9I" -OutFile vcpkg.7z
- - 7z x vcpkg.7z > NUL
- - cmake -H. -Bbuild  -DCMAKE_TOOLCHAIN_FILE=C:\projects\warzone2100\vcpkg\scripts\buildsystems\vcpkg.cmake -G "Visual Studio 14 2015" 
+# - ps: Invoke-WebRequest "https://onedrive.live.com/download?cid=363DD3AAFA342F70&resid=363DD3AAFA342F70%2120519&authkey=AIoZ_CRK7-Ckq9I" -OutFile vcpkg.7z
+# - 7z x vcpkg.7z > NUL
+ - ps: .\get-dependencies.ps1
+ - cmake -H. -Bbuild  -DCMAKE_TOOLCHAIN_FILE="%APPVEYOR_BUILD_FOLDER%\vcpkg\scripts\buildsystems\vcpkg.cmake" -G "%WZ_VC_GENERATOR%" -T "%WZ_VC_TOOLCHAIN%" -A "%WZ_VC_TARGET_PLATFORMNAME"
 
 build:
  parallel: true
