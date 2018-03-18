@@ -1,4 +1,6 @@
 environment:
+  APPVEYOR_CACHE_ENTRY_ZIP_ARGS: -tzip -mx=5
+
   matrix:
   # 32-bit (x86) builds maintain Windows XP compatibility by using Qt 5.6.x and the "*_xp" VC toolchain
   # Note: This uses the VS 2015 AppVeyor image because we need Qt 5.6.x
