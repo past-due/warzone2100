@@ -1,15 +1,15 @@
+############################
+
 # To ensure reproducible builds, pin to a specific vcpkg commit
 $VCPKG_COMMIT_SHA = "7528c4d525419a418e8e0046f6650b833ad75fd7";
 
-Function Vcpkg_Install([string]$VCPKG_TRIPLET)
-{
-	If (-not ([string]::IsNullOrEmpty($VCPKG_TRIPLET)))
-	{
-		$env:VCPKG_DEFAULT_TRIPLET = "$VCPKG_TRIPLET";
-	}
-	.\vcpkg install physfs harfbuzz libiconv libogg libtheora libvorbis libpng openal-soft sdl2 glew freetype gettext zlib;
-}
+# To ensure the proper dump_syms.exe is downloaded, specify the commit + hash
+$DUMP_SYMS_EXE_COMMIT = "aebee55695eeb40d788f5421bf32eaaa7227aba0";
+$DUMP_SYMS_EXE_SHA512 = "AA88547EC486077623A9026EFBC39D7B51912781FDB2C7C6AF5A38165110579EFF9EC04E528D4FDBA7F492A039D94A735ACCAE47074B6E0242855403B609E63E";
 
+############################
+
+# Download & build vcpkg (+ dependencies)
 If ( -not (Test-Path (Join-Path (pwd) vcpkg\.git) -PathType Container) )
 {
 	# Clone the vcpkg repo
@@ -24,27 +24,21 @@ Else
 pushd vcpkg;
 git reset --hard $VCPKG_COMMIT_SHA;
 .\bootstrap-vcpkg.bat;
-
-If ((Test-Path env:APPVEYOR))
-{
-	# On AppVeyor builds, get the WZ_VC_TARGET_PLATFORMNAME environment var (options: Win32, x64)
-	If ($env:WZ_VC_TARGET_PLATFORMNAME -eq "x64")
-	{
-		Vcpkg_Install "x64-windows";
-	}
-	ElseIf ($env:WZ_VC_TARGET_PLATFORMNAME -eq "Win32")
-	{
-		Vcpkg_Install "x86-windows";
-	}
-	Else
-	{
-		Write-Error "Unsupported WZ_VC_TARGET_PLATFORMNAME";
-	}
-}
-Else
-{
-	# Default to default triplet (this is the vcpkg default, unless the user defines %VCPKG_DEFAULT_TRIPLET%)
-	Vcpkg_Install "";
-}
-
+.\vcpkg install physfs harfbuzz libiconv libogg libtheora libvorbis libpng openal-soft sdl2 glew freetype gettext zlib;
 popd;
+
+# Download google-breakpad's dump_syms.exe
+Write-Output "Downloading dump_syms.exe ...";
+
+# Unfortunately, there does not currently appear to be any way to download the raw file from chromium.googlesource.com
+# Instead, we have to download the Base64-encoded contents of the file and then decode them
+Invoke-WebRequest "https://chromium.googlesource.com/breakpad/breakpad/+/$DUMP_SYMS_EXE_COMMIT/src/tools/windows/binaries/dump_syms.exe?format=TEXT" -OutFile "dump_syms_exe.b64"
+$base64string = Get-Content -Raw "dump_syms_exe.b64"
+[IO.File]::WriteAllBytes("dump_syms.exe", [Convert]::FromBase64String($base64string));
+$dump_syms_hash = Get-FileHash -Path "dump_syms.exe" -Algorithm SHA512;
+If ($dump_syms_hash.Hash -eq $DUMP_SYMS_EXE_SHA512) {
+	Write-Output "Successfully downloaded dump_syms.exe";
+}
+Else {
+	Write-Error "The downloaded dump_syms.exe hash '$($dump_syms_hash.Hash)' does not match the expected hash: '$DUMP_SYMS_EXE_SHA512'";
+}
