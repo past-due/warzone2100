@@ -27,7 +27,7 @@ before_build:
 # - ps: Invoke-WebRequest "https://onedrive.live.com/download?cid=363DD3AAFA342F70&resid=363DD3AAFA342F70%2120519&authkey=AIoZ_CRK7-Ckq9I" -OutFile vcpkg.7z
 # - 7z x vcpkg.7z > NUL
  - ps: .\get-dependencies.ps1
- - cmake -H. -Bbuild  -DCMAKE_TOOLCHAIN_FILE="%APPVEYOR_BUILD_FOLDER%\vcpkg\scripts\buildsystems\vcpkg.cmake" -G "%WZ_VC_GENERATOR%" -T "%WZ_VC_TOOLCHAIN%" -A "%WZ_VC_TARGET_PLATFORMNAME"
+ - cmake -H. -Bbuild  -DCMAKE_TOOLCHAIN_FILE="%APPVEYOR_BUILD_FOLDER%\vcpkg\scripts\buildsystems\vcpkg.cmake" -G "%WZ_VC_GENERATOR%" -T "%WZ_VC_TOOLCHAIN%" -A "%WZ_VC_TARGET_PLATFORMNAME%"
 
 build:
  parallel: true
