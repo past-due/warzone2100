@@ -190,7 +190,7 @@ if(CMAKE_SYSTEM_NAME MATCHES "Windows")
 			if(TOOL_WINDEPLOYQT)
 				install(CODE "
 					execute_process(
-						COMMAND ${TOOL_WINDEPLOYQT} \"\${CMAKE_INSTALL_PREFIX}/${_mainexename}.exe\" -verbose=2
+						COMMAND ${TOOL_WINDEPLOYQT} \"\${CMAKE_INSTALL_PREFIX}/${_mainexename}.exe\" --no-compiler-runtime --no-angle --no-svg
 					)
 				" COMPONENT Core)
 			else()
