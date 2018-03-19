@@ -26,7 +26,7 @@ cache:
   # 1. The vcpkg directory
   #    - Cache built dependencies to reduce frequent build time by 20+ minutes.
   #    - The vcpkg cache is invalidated if get-dependencies.ps1 changes (and get-dependencies.ps1 is what contains the pinned vcpkg commit).
-  - vcpkg/ -> get-dependencies.ps1
+  # - vcpkg/ -> get-dependencies.ps1
 
 platform:
   - x64
