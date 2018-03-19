@@ -1,3 +1,7 @@
+# Optionally, specify a VCPKG_BUILD_TYPE
+# This will be used to modified the current triplet (once vcpkg is downloaded)
+param([string]$VCPKG_BUILD_TYPE = "")
+
 ############################
 
 # To ensure reproducible builds, pin to a specific vcpkg commit
@@ -24,6 +28,23 @@ Else
 pushd vcpkg;
 git reset --hard $VCPKG_COMMIT_SHA;
 .\bootstrap-vcpkg.bat;
+
+If (-not ([string]::IsNullOrEmpty($VCPKG_BUILD_TYPE)))
+{
+	// Add VCPKG_BUILD_TYPE to the specified triplet
+	$triplet = "x86-windows"; // vcpkg default
+	If (-not ([string]::IsNullOrEmpty($env:VCPKG_DEFAULT_TRIPLET)))
+	{
+		$triplet = "$env:VCPKG_DEFAULT_TRIPLET";
+	}
+	$tripletFile = "triplets\$($triplet).cmake";
+	$setString = Select-String -Quiet -Pattern "set(VCPKG_BUILD_TYPE `"$VCPKG_BUILD_TYPE`")" -Path $tripletFile;
+	if (-not $setString)
+	{
+		Add-Content -Path $tripletFile -Value "`r`nset(VCPKG_BUILD_TYPE `"$VCPKG_BUILD_TYPE`")";
+	}
+}
+
 .\vcpkg install physfs harfbuzz libiconv libogg libtheora libvorbis libpng openal-soft sdl2 glew freetype gettext zlib;
 popd;
 
