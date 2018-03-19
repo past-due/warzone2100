@@ -38,7 +38,7 @@ If (-not ([string]::IsNullOrEmpty($VCPKG_BUILD_TYPE)))
 		$triplet = "$env:VCPKG_DEFAULT_TRIPLET";
 	}
 	$tripletFile = "triplets\$($triplet).cmake";
-	$setString = Select-String -Quiet -Pattern "set(VCPKG_BUILD_TYPE `"$VCPKG_BUILD_TYPE`")" -Path $tripletFile;
+	$setString = Select-String -Quiet -Pattern "set(VCPKG_BUILD_TYPE `"$VCPKG_BUILD_TYPE`")" -SimpleMatch -Path $tripletFile;
 	if (-not $setString)
 	{
 		Add-Content -Path $tripletFile -Value "`r`nset(VCPKG_BUILD_TYPE `"$VCPKG_BUILD_TYPE`")";
@@ -48,20 +48,28 @@ If (-not ([string]::IsNullOrEmpty($VCPKG_BUILD_TYPE)))
 .\vcpkg install physfs harfbuzz libiconv libogg libtheora libvorbis libpng openal-soft sdl2 glew freetype gettext zlib;
 popd;
 
-# Download google-breakpad's dump_syms.exe
-Write-Output "Downloading dump_syms.exe ...";
+# Download google-breakpad's dump_syms.exe (if necessary)
 $dump_syms_path = $(Join-Path (pwd) dump_syms.exe);
 
-# Unfortunately, there does not currently appear to be any way to download the raw file from chromium.googlesource.com
-# Instead, we have to download the Base64-encoded contents of the file and then decode them
-$dump_syms_b64_path = $(Join-Path (pwd) dump_syms_exe.b64);
-Invoke-WebRequest "https://chromium.googlesource.com/breakpad/breakpad/+/$DUMP_SYMS_EXE_COMMIT/src/tools/windows/binaries/dump_syms.exe?format=TEXT" -OutFile "$dump_syms_b64_path"
-$base64string = Get-Content -Raw "$dump_syms_b64_path"
-[IO.File]::WriteAllBytes("$dump_syms_path", [Convert]::FromBase64String($base64string));
-$dump_syms_hash = Get-FileHash -Path "$dump_syms_path" -Algorithm SHA512;
-If ($dump_syms_hash.Hash -eq $DUMP_SYMS_EXE_SHA512) {
-	Write-Output "Successfully downloaded dump_syms.exe";
+If (!(Test-Path $dump_syms_path -PathType Leaf) -or !((Get-FileHash -Path "$dump_syms_path" -Algorithm SHA512).Hash -eq $DUMP_SYMS_EXE_SHA512))
+{
+	Write-Output "Downloading dump_syms.exe ...";
+
+	# Unfortunately, there does not currently appear to be any way to download the raw file from chromium.googlesource.com
+	# Instead, we have to download the Base64-encoded contents of the file and then decode them
+	$dump_syms_b64_path = $(Join-Path (pwd) dump_syms_exe.b64);
+	Invoke-WebRequest "https://chromium.googlesource.com/breakpad/breakpad/+/$DUMP_SYMS_EXE_COMMIT/src/tools/windows/binaries/dump_syms.exe?format=TEXT" -OutFile "$dump_syms_b64_path"
+	$base64string = Get-Content -Raw "$dump_syms_b64_path"
+	[IO.File]::WriteAllBytes("$dump_syms_path", [Convert]::FromBase64String($base64string));
+	$dump_syms_hash = Get-FileHash -Path "$dump_syms_path" -Algorithm SHA512;
+	If ($dump_syms_hash.Hash -eq $DUMP_SYMS_EXE_SHA512) {
+		Write-Output "Successfully downloaded dump_syms.exe";
+	}
+	Else {
+		Write-Error "The downloaded dump_syms.exe hash '$($dump_syms_hash.Hash)' does not match the expected hash: '$DUMP_SYMS_EXE_SHA512'";
+	}
 }
-Else {
-	Write-Error "The downloaded dump_syms.exe hash '$($dump_syms_hash.Hash)' does not match the expected hash: '$DUMP_SYMS_EXE_SHA512'";
+Else
+{
+	Write-Output "dump_syms.exe already exists";
 }
