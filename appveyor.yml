@@ -37,8 +37,10 @@ configuration:
 before_build:
   - set PATH=%PATH%;%QT5DIR%\bin;
   - ps: .\get-dependencies.ps1
-  # Remove the vcpkg\buildtrees folder. Once all dependencies are installed, it isn't needed (and it takes up a lot of space in the cache).
+  # Remove the vcpkg\buildtrees folder. (Once all dependencies are installed, it isn't needed, and it takes up a lot of space in the cache.)
   - ps: Remove-Item .\vcpkg\buildtrees -Force -Recurse
+  # Clean the build remnants of vcpkg itself. (Since it's rebuilt fresh - even from a cached vcpkg directory - these aren't needed.)
+  - msbuild .\vcpkg\toolsrc\vcpkg.sln /t:Clean /p:Configuration=Release /p:Platform=x86
   # Use CMake to configure with the appropriate Visual Studio (MSBUILD) generator, toolchain, and target platform
   - cmake -H. -Bbuild  -DCMAKE_TOOLCHAIN_FILE="%APPVEYOR_BUILD_FOLDER%\vcpkg\scripts\buildsystems\vcpkg.cmake" -G "%WZ_VC_GENERATOR%" -T "%WZ_VC_TOOLCHAIN%" -A "%WZ_VC_TARGET_PLATFORMNAME%"
 
@@ -48,8 +50,8 @@ build:
 
 after_build:
   # Package the setup exe into a zip
-  # TODO: Name the zip file based on the autorevision info
-  - ps: 7z a "warzone2100-$($env:APPVEYOR_REPO_BRANCH)-$(get-date -f yyyyMMdd-HHmmss)-$(($env:APPVEYOR_REPO_COMMIT.ToCharArray | select -first 7) -join "").zip" "$($env:APPVEYOR_BUILD_FOLDER)\build\warzone2100.exe"
+  # Name the zip file based on the autorevision info: warzone2100-<BRANCH>-<DATE>-<TIME>-<COMMIT_FIRST_7>.zip
+  - ps: cmd /c 7z a "warzone2100-$($env:APPVEYOR_REPO_BRANCH)-$(get-date -f yyyyMMdd-HHmmss)-$($env:APPVEYOR_REPO_COMMIT.SubString(0,7)).zip" "$($env:APPVEYOR_BUILD_FOLDER)\build\warzone2100.exe"
 
 artifacts:
   - path: warzone2100-*.zip
