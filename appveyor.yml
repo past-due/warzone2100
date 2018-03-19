@@ -58,6 +58,8 @@ after_build:
   # Package the setup exe into a zip
   # Name the zip file based on the autorevision info: warzone2100-<BRANCH>-<DATE>-<TIME>-<COMMIT_FIRST_7>-<PLATFORM: x86, x64>.zip
   - ps: cmd /c 7z a "warzone2100-$($env:APPVEYOR_REPO_BRANCH)-$(get-date -f yyyyMMdd-HHmmss)-$($env:APPVEYOR_REPO_COMMIT.SubString(0,7))-$($env:WZ_OUTPUT_PLATFORMNAME).zip" "$($env:APPVEYOR_BUILD_FOLDER)\build\warzone2100.exe"
+  # Package the .pdb and .sym files into a "DEBUGSYMBOLS" .7z archive
+  - ps: cmd /c 7z a -t7z -m0=lzma -mx=9 "warzone2100-$($env:APPVEYOR_REPO_BRANCH)-$(get-date -f yyyyMMdd-HHmmss)-$($env:APPVEYOR_REPO_COMMIT.SubString(0,7))-$($env:WZ_OUTPUT_PLATFORMNAME).DEBUGSYMBOLS.7z" "$($env:APPVEYOR_BUILD_FOLDER)\build\src\*.pdb" "$($env:APPVEYOR_BUILD_FOLDER)\build\src\*.sym"
 
 artifacts:
   - path: warzone2100-*.zip
