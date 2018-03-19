@@ -31,8 +31,8 @@ git reset --hard $VCPKG_COMMIT_SHA;
 
 If (-not ([string]::IsNullOrEmpty($VCPKG_BUILD_TYPE)))
 {
-	// Add VCPKG_BUILD_TYPE to the specified triplet
-	$triplet = "x86-windows"; // vcpkg default
+	# Add VCPKG_BUILD_TYPE to the specified triplet
+	$triplet = "x86-windows"; # vcpkg default
 	If (-not ([string]::IsNullOrEmpty($env:VCPKG_DEFAULT_TRIPLET)))
 	{
 		$triplet = "$env:VCPKG_DEFAULT_TRIPLET";
