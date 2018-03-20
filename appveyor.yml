@@ -66,3 +66,5 @@ after_build:
 artifacts:
   - path: warzone2100-*.zip
     name: Warzone2100 Installer
+  - path: warzone2100-*.DEBUGSYMBOLS.7z
+    name: Debug Symbols (7z)
