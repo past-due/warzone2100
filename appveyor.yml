@@ -13,14 +13,16 @@ environment:
     WZ_VC_TOOLCHAIN: v140_xp
     WZ_VC_TARGET_PLATFORMNAME: Win32
     WZ_OUTPUT_PLATFORMNAME: x86
+  ## NOTE: Unfortunately, 64-bit Windows builds are currently broken because of QScript (see: http://developer.wz2100.net/ticket/4763)
+  ## Whenever that ticket is resolved, the following will build 64-bit:
   # 64-bit (x64) builds use the latest Qt and VC toolchain (and support Windows 7+)
-  - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
-    VCPKG_DEFAULT_TRIPLET: x64-windows
-    WZ_VC_GENERATOR: "Visual Studio 15 2017"
-    QT5DIR: C:\Qt\5.9.4\msvc2017_64
-    WZ_VC_TOOLCHAIN: v141
-    WZ_VC_TARGET_PLATFORMNAME: x64
-    WZ_OUTPUT_PLATFORMNAME: x64
+  # - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
+  #   VCPKG_DEFAULT_TRIPLET: x64-windows
+  #   WZ_VC_GENERATOR: "Visual Studio 15 2017"
+  #   QT5DIR: C:\Qt\5.9.4\msvc2017_64
+  #   WZ_VC_TOOLCHAIN: v141
+  #   WZ_VC_TARGET_PLATFORMNAME: x64
+  #   WZ_OUTPUT_PLATFORMNAME: x64
 
 # Cache
 # - Maintains a separate cache for each build matrix entry
