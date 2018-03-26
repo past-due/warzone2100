@@ -133,6 +133,7 @@ static void finishDrawRangeElements()
 {
 	if (drawRangeElementsStarted && dreCount > 0)
 	{
+#if !defined(WZ_NO_DRAW_RANGE_ELEMENTS)
 		ASSERT(dreEnd - dreStart + 1 <= GLmaxElementsVertices, "too many vertices (%i)", (int)(dreEnd - dreStart + 1));
 		ASSERT(dreCount <= GLmaxElementsIndices, "too many indices (%i)", (int)dreCount);
 		glDrawRangeElements(GL_TRIANGLES,
@@ -141,6 +142,9 @@ static void finishDrawRangeElements()
 		                    dreCount,
 		                    GL_UNSIGNED_INT,
 		                    BUFFER_OFFSET(sizeof(GLuint)*dreOffset));
+#else
+		glDrawElements(GL_TRIANGLES, dreCount, GL_UNSIGNED_INT, BUFFER_OFFSET(sizeof(GLuint)*dreOffset));
+#endif
 	}
 	drawRangeElementsStarted = false;
 }
