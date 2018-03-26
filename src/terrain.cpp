@@ -1089,12 +1089,29 @@ static void drawDepthOnly(const glm::mat4 &ModelViewProjection, const glm::vec4 
 	glEnable(GL_POLYGON_OFFSET_FILL);
 	glPolygonOffset(0.1f, 1.0f);
 
+#if defined(WZ_USE_OPENGL_3_2_CORE_PROFILE)
+	static GLuint depthVAO = 0;
+	if (depthVAO != 0)
+	{
+		glBindVertexArray(depthVAO);
+	}
+	else
+	{
+		glGenVertexArrays(1, &depthVAO);
+		glBindVertexArray(depthVAO);
+		// fall through to initialize the VAO
+#endif
+
 	// bind the vertex buffer
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, geometryIndexVBO);
 	glBindBuffer(GL_ARRAY_BUFFER, geometryVBO);
 
 	glVertexAttribPointer(program.locVertex, 3, GL_FLOAT, GL_FALSE, sizeof(RenderVertex), BUFFER_OFFSET(0));
 	glEnableVertexAttribArray(program.locVertex);
+
+#if defined(WZ_USE_OPENGL_3_2_CORE_PROFILE)
+	}
+#endif
 
 	for (int x = 0; x < xSectors; x++)
 	{
@@ -1112,8 +1129,14 @@ static void drawDepthOnly(const glm::mat4 &ModelViewProjection, const glm::vec4 
 		}
 	}
 	finishDrawRangeElements();
+
+#if defined(WZ_USE_OPENGL_3_2_CORE_PROFILE)
+	glBindVertexArray(opengl.baseVAO);
+#else
+	glDisableVertexAttribArray(program.locVertex);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+#endif
 
 	if (!pie_GetFogStatus())
 	{
@@ -1122,7 +1145,6 @@ static void drawDepthOnly(const glm::mat4 &ModelViewProjection, const glm::vec4 
 
 	// disable the depth offset
 	glDisable(GL_POLYGON_OFFSET_FILL);
-	glDisableVertexAttribArray(program.locVertex);
 	pie_DeactivateShader();
 }
 
