@@ -151,14 +151,32 @@ void GFX::draw(const glm::mat4 &modelViewProjectionMatrix)
 		pie_SetTexturePage(TEXPAGE_EXTERN);
 		mTexture->bind();
 		pie_ActivateShader(SHADER_GFX_TEXT, modelViewProjectionMatrix, glm::vec4(1), 0);
+	}
+	else if (mType == GFX_COLOUR)
+	{
+		pie_SetTexturePage(TEXPAGE_NONE);
+		pie_ActivateShader(SHADER_GFX_COLOUR, modelViewProjectionMatrix);
+	}
+
+#if defined(WZ_USE_OPENGL_3_2_CORE_PROFILE)
+	if (gfxVao != 0)
+	{
+		glBindVertexArray(gfxVao);
+	}
+	else
+	{
+		glGenVertexArrays(1, &gfxVao);
+		glBindVertexArray(gfxVao);
+		// fall through to initialize the VAO
+#endif
+	if (mType == GFX_TEXTURE)
+	{
 		glBindBuffer(GL_ARRAY_BUFFER, mBuffers[VBO_TEXCOORD]);
 		glVertexAttribPointer(VERTEX_COORDS_ATTRIB_INDEX, 2, GL_FLOAT, false, 0, nullptr);
 		glEnableVertexAttribArray(VERTEX_COORDS_ATTRIB_INDEX);
 	}
 	else if (mType == GFX_COLOUR)
 	{
-		pie_SetTexturePage(TEXPAGE_NONE);
-		pie_ActivateShader(SHADER_GFX_COLOUR, modelViewProjectionMatrix);
 		glBindBuffer(GL_ARRAY_BUFFER, mBuffers[VBO_TEXCOORD]);
 		glVertexAttribPointer(VERTEX_COLOR_ATTRIB_INDEX, 4, GL_UNSIGNED_BYTE, true, 0, nullptr);
 		glEnableVertexAttribArray(VERTEX_COLOR_ATTRIB_INDEX);
@@ -166,7 +184,14 @@ void GFX::draw(const glm::mat4 &modelViewProjectionMatrix)
 	glBindBuffer(GL_ARRAY_BUFFER, mBuffers[VBO_VERTEX]);
 	glVertexAttribPointer(VERTEX_POS_ATTRIB_INDEX, mCoordsPerVertex, GL_FLOAT, false, 0, nullptr);
 	glEnableVertexAttribArray(VERTEX_POS_ATTRIB_INDEX);
+#if defined(WZ_USE_OPENGL_3_2_CORE_PROFILE)
+	}
+#endif
 	glDrawArrays(mdrawType, 0, mSize);
+
+#if defined(WZ_USE_OPENGL_3_2_CORE_PROFILE)
+	glBindVertexArray(opengl.baseVAO);
+#else
 	glDisableVertexAttribArray(VERTEX_POS_ATTRIB_INDEX);
 	if (mType == GFX_TEXTURE)
 	{
@@ -177,6 +202,7 @@ void GFX::draw(const glm::mat4 &modelViewProjectionMatrix)
 		glDisableVertexAttribArray(VERTEX_COLOR_ATTRIB_INDEX);
 	}
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
+#endif
 	pie_DeactivateShader();
 }
 

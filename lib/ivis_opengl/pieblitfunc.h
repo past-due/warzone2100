@@ -103,6 +103,9 @@ private:
 	GLuint mBuffers[VBO_COUNT];
 	gfx_api::texture* mTexture = nullptr;
 	int mSize;
+#if defined(WZ_USE_OPENGL_3_2_CORE_PROFILE)
+	GLuint gfxVao = 0;
+#endif
 };
 
 /***************************************************************************/
