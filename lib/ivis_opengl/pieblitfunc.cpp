@@ -189,6 +189,17 @@ GFX::~GFX()
 
 static void enableRect()
 {
+#if defined(WZ_USE_OPENGL_3_2_CORE_PROFILE)
+	static GLuint rectVAO = 0;
+	if (rectVAO != 0)
+	{
+		glBindVertexArray(rectVAO);
+		return;
+	}
+	glGenVertexArrays(1, &rectVAO);
+	glBindVertexArray(rectVAO);
+	// fall through to initialize the VAO
+#endif
 	glBindBuffer(GL_ARRAY_BUFFER, pie_internal::rectBuffer);
 	glVertexAttribPointer(VERTEX_POS_ATTRIB_INDEX, 4, GL_BYTE, false, 0, nullptr);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -197,7 +208,11 @@ static void enableRect()
 
 static void disableRect()
 {
+#if defined(WZ_USE_OPENGL_3_2_CORE_PROFILE)
+	glBindVertexArray(opengl.baseVAO);
+#else
 	glDisableVertexAttribArray(VERTEX_POS_ATTRIB_INDEX);
+#endif
 }
 
 void iV_Line(int x0, int y0, int x1, int y1, PIELIGHT colour)

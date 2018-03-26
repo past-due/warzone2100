@@ -305,14 +305,13 @@ bool screenInitialise()
 
 #if defined(WZ_USE_OPENGL_3_2_CORE_PROFILE)
 	// Very simple VAO code - just bind a single global VAO (this gets things working, but is not optimal)
-	static GLuint vaoId = 0;
 	if (glGenVertexArrays == nullptr)
 	{
 		debug(LOG_FATAL, "glGenVertexArray is not available, but core profile was specified");
 		exit(1);
 	}
-	glGenVertexArrays(1, &vaoId);
-	glBindVertexArray(vaoId);
+	glGenVertexArrays(1, &opengl.baseVAO);
+	glBindVertexArray(opengl.baseVAO);
 #endif
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);

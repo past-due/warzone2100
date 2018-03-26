@@ -101,6 +101,7 @@ struct OPENGL_DATA
 	char version[256];
 	char GLEWversion[256];
 	char GLSLversion[256];
+	unsigned int baseVAO = 0;
 };
 extern OPENGL_DATA opengl;
 #endif
