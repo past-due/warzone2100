@@ -88,7 +88,7 @@ matrix:
         - docker run --rm -e CI -e TRAVIS -e "TRAVIS_BUILD_DIR=/code" -e TRAVIS_BRANCH -e TRAVIS_COMMIT -e TRAVIS_PULL_REQUEST_BRANCH -e TRAVIS_TAG -e MAKEFLAGS -v $(pwd):/code ubuntu make check
         - docker run --rm -e CI -e TRAVIS -e "TRAVIS_BUILD_DIR=/code" -e TRAVIS_BRANCH -e TRAVIS_COMMIT -e TRAVIS_PULL_REQUEST_BRANCH -e TRAVIS_TAG -e MAKEFLAGS -v $(pwd):/code ubuntu sudo make install
 
-    # Build for macOS
+    # Build for macOS (Xcode 8.3)
     # (This also deploys the macOS build to the buildbot)
     - language: objective-c
       env:
@@ -106,6 +106,40 @@ matrix:
         - macosx/BuildBot/travis_build.sh regular "tmp/wz_upload"
       after_success:
         - macosx/BuildBot/travis_deploy.sh "tmp/wz_upload" "warzone2100-*.zip"
+
+    # Build for macOS (Xcode 9.2) (NO DEPLOY)
+    - language: objective-c
+      env:
+        - NAME="macOS"
+      os: osx
+      osx_image: xcode9.2
+      before_install:
+        #- brew update
+        - brew install gettext
+        - brew install asciidoc
+        - brew install docbook-xsl
+        - gem install xcpretty --no-rdoc --no-ri --no-document --quiet
+        - gem install xcpretty-travis-formatter --no-rdoc --no-ri --no-document --quiet
+      script:
+        - macosx/BuildBot/travis_build.sh regular "tmp/wz_upload"
+
+    # Build for macOS (Xcode 9.3) (NO DEPLOY)
+    - language: objective-c
+      env:
+        - NAME="macOS"
+      os: osx
+      osx_image: xcode9.3beta
+      before_install:
+        #- brew update
+        - brew install gettext
+        - brew install asciidoc
+        - brew install docbook-xsl
+        - gem install xcpretty --no-rdoc --no-ri --no-document --quiet
+        - gem install xcpretty-travis-formatter --no-rdoc --no-ri --no-document --quiet
+      script:
+        - macosx/BuildBot/travis_build.sh regular "tmp/wz_upload"
+      #after_success:
+      #  - macosx/BuildBot/travis_deploy.sh "tmp/wz_upload" "warzone2100-*.zip"
 
 # The channel name "chat.freenode.net#warzone2100-dev" is encrypted against Warzone2100/warzone2100 to prevent IRC spam of forks
 notifications:
