@@ -12,7 +12,7 @@ SUBDIRS = \
 	3rdparty/miniupnpc \
 	3rdparty/micro-ecc \
 	3rdparty/sha2 \
-	3rdparty/utf8proc \
+	3rdparty \
 	lib/framework \
 	lib/exceptionhandler \
 	lib/script \
