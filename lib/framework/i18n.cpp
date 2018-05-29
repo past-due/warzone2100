@@ -93,22 +93,24 @@ static const struct
 	const char *name;
 	USHORT usPrimaryLanguage;
 	USHORT usSubLanguage;
+	const char *locale;
+	const char *localeFallback;
 } map[] =
 {
-	{ "", N_("System locale"), LANG_NEUTRAL, SUBLANG_DEFAULT },
+	{ "", N_("System locale"), LANG_NEUTRAL, SUBLANG_DEFAULT, "", "" },
 #  if defined(ENABLE_NLS)
-	{ "ca", LANG_NAME_CATALAN, LANG_CATALAN, SUBLANG_DEFAULT },
-	{ "cs", LANG_NAME_CZECH, LANG_CZECH, SUBLANG_DEFAULT },
-	{ "da", LANG_NAME_DANISH, LANG_DANISH, SUBLANG_DEFAULT },
-	{ "de", LANG_NAME_GERMAN, LANG_GERMAN, SUBLANG_GERMAN },
-	{ "el", LANG_NAME_GREEK, LANG_GREEK, SUBLANG_DEFAULT },
-	{ "en", LANG_NAME_ENGLISH, LANG_ENGLISH, SUBLANG_DEFAULT },
-	{ "en_GB", LANG_NAME_ENGLISH_UK, LANG_ENGLISH, SUBLANG_ENGLISH_UK },
-	{ "es", LANG_NAME_SPANISH, LANG_SPANISH, SUBLANG_SPANISH },
-	{ "et_EE", LANG_NAME_ESTONIAN, LANG_ESTONIAN, SUBLANG_DEFAULT },
+	{ "ca", LANG_NAME_CATALAN, LANG_CATALAN, SUBLANG_DEFAULT, "ca_ES", "ca"},
+	{ "cs", LANG_NAME_CZECH, LANG_CZECH, SUBLANG_DEFAULT, "cs_CZ", "cs" },
+	{ "da", LANG_NAME_DANISH, LANG_DANISH, SUBLANG_DEFAULT, "da_DK", "" },
+	{ "de", LANG_NAME_GERMAN, LANG_GERMAN, SUBLANG_GERMAN, "de_DE", "" },
+	{ "el", LANG_NAME_GREEK, LANG_GREEK, SUBLANG_DEFAULT, "el_GR", "el" },
+	{ "en", LANG_NAME_ENGLISH, LANG_ENGLISH, SUBLANG_DEFAULT, "en_US", "en" },
+	{ "en_GB", LANG_NAME_ENGLISH_UK, LANG_ENGLISH, SUBLANG_ENGLISH_UK, "en_GB", "en" },
+	{ "es", LANG_NAME_SPANISH, LANG_SPANISH, SUBLANG_SPANISH, "es_ES", "es" },
+	{ "et_EE", LANG_NAME_ESTONIAN, LANG_ESTONIAN, SUBLANG_DEFAULT, "et_EE", "et" },
 //	{ "eu", LANG_NAME_BASQUE, LANG_BASQUE, SUBLANG_DEFAULT },
-	{ "fi", LANG_NAME_FINNISH, LANG_FINNISH, SUBLANG_DEFAULT },
-	{ "fr", LANG_NAME_FRENCH, LANG_FRENCH, SUBLANG_FRENCH },
+	{ "fi", LANG_NAME_FINNISH, LANG_FINNISH, SUBLANG_DEFAULT, "fi_FI", "fi" },
+	{ "fr", LANG_NAME_FRENCH, LANG_FRENCH, SUBLANG_FRENCH, "fr_FR", "fr" },
 	/* Our Frisian translation is the "West Frisian" variation of it. This
 	 * variation is mostly spoken in the Dutch province Friesland (Fryslân
 	 * in Frisian) and has ISO 639-3 code "fry".
@@ -116,37 +118,37 @@ static const struct
 	 * FIXME: We should really use a sub-language code for this. E.g.
 	 *        fy_XX.
 	 */
-	{ "fy", LANG_NAME_FRISIAN_NETHERLANDS, LANG_FRISIAN, SUBLANG_FRISIAN_NETHERLANDS },
-	{ "ga", LANG_NAME_IRISH, LANG_IRISH, SUBLANG_IRISH_IRELAND },
-	{ "hr", LANG_NAME_CROATIAN, LANG_CROATIAN, SUBLANG_DEFAULT },
-	{ "hu", LANG_NAME_HUNGARIAN, LANG_HUNGARIAN, SUBLANG_DEFAULT },
-	{ "it", LANG_NAME_ITALIAN, LANG_ITALIAN, SUBLANG_ITALIAN },
-	{ "ko_KR", LANG_NAME_KOREAN, LANG_KOREAN, SUBLANG_DEFAULT },
-//	{ "la", LANG_NAME_LATIN, LANG_LATIN, SUBLANG_DEFAULT },
-	{ "lt", LANG_NAME_LITHUANIAN, LANG_LITHUANIAN, SUBLANG_DEFAULT },
+	{ "fy", LANG_NAME_FRISIAN_NETHERLANDS, LANG_FRISIAN, SUBLANG_FRISIAN_NETHERLANDS, "fy_NL", "fy" },
+	{ "ga", LANG_NAME_IRISH, LANG_IRISH, SUBLANG_IRISH_IRELAND, "ga_IE", "ga" },
+	{ "hr", LANG_NAME_CROATIAN, LANG_CROATIAN, SUBLANG_DEFAULT, "hr_HR", "hr" },
+	{ "hu", LANG_NAME_HUNGARIAN, LANG_HUNGARIAN, SUBLANG_DEFAULT, "hu_HU", "hu" },
+	{ "it", LANG_NAME_ITALIAN, LANG_ITALIAN, SUBLANG_ITALIAN, "it_IT", "it" },
+	{ "ko_KR", LANG_NAME_KOREAN, LANG_KOREAN, SUBLANG_DEFAULT, "ko_KR", "ko" },
+	{ "la", LANG_NAME_LATIN, LANG_LATIN, SUBLANG_DEFAULT, "la", "" },
+	{ "lt", LANG_NAME_LITHUANIAN, LANG_LITHUANIAN, SUBLANG_DEFAULT, "lt_LT", "lt" },
 //	{ "lv", LANG_NAME_LATVIAN, LANG_LATVIAN, SUBLANG_DEFAULT },
 	// MSDN uses "no"...
-	{ "nb", LANG_NAME_NORWEGIAN, LANG_NORWEGIAN, SUBLANG_DEFAULT },
+	{ "nb", LANG_NAME_NORWEGIAN, LANG_NORWEGIAN, SUBLANG_DEFAULT, "nb_NO", "nb" },
 //	{ "nn", LANG_NAME_NORWEGIAN_NYNORSK, LANG_NORWEGIAN, SUBLANG_NORWEGIAN_NYNORSK },
-	{ "nl", LANG_NAME_DUTCH, LANG_DUTCH, SUBLANG_DUTCH },
-	{ "pl", LANG_NAME_POLISH, LANG_POLISH, SUBLANG_DEFAULT },
-	{ "pt_BR", LANG_NAME_PORTUGUESE_BRAZILIAN, LANG_PORTUGUESE, SUBLANG_PORTUGUESE_BRAZILIAN },
-	{ "pt", LANG_NAME_PORTUGUESE, LANG_PORTUGUESE, SUBLANG_DEFAULT },
-	{ "ro", LANG_NAME_ROMANIAN, LANG_ROMANIAN, SUBLANG_DEFAULT },
-	{ "ru", LANG_NAME_RUSSIAN, LANG_RUSSIAN, SUBLANG_DEFAULT },
-	{ "sk", LANG_NAME_SLOVAK, LANG_SLOVAK, SUBLANG_DEFAULT },
-	{ "sl", LANG_NAME_SLOVENIAN, LANG_SLOVENIAN, SUBLANG_DEFAULT },
+	{ "nl", LANG_NAME_DUTCH, LANG_DUTCH, SUBLANG_DUTCH, "nl_NL", "nl" },
+	{ "pl", LANG_NAME_POLISH, LANG_POLISH, SUBLANG_DEFAULT, "pl_PL", "pl" },
+	{ "pt_BR", LANG_NAME_PORTUGUESE_BRAZILIAN, LANG_PORTUGUESE, SUBLANG_PORTUGUESE_BRAZILIAN, "pt_BR", "pt" },
+	{ "pt", LANG_NAME_PORTUGUESE, LANG_PORTUGUESE, SUBLANG_DEFAULT, "pt_PT", "pt_PT" },
+	{ "ro", LANG_NAME_ROMANIAN, LANG_ROMANIAN, SUBLANG_DEFAULT, "ro_RO", "ro" },
+	{ "ru", LANG_NAME_RUSSIAN, LANG_RUSSIAN, SUBLANG_DEFAULT, "ru_RU", "ru" },
+	{ "sk", LANG_NAME_SLOVAK, LANG_SLOVAK, SUBLANG_DEFAULT, "sk_SK", "sk" },
+	{ "sl", LANG_NAME_SLOVENIAN, LANG_SLOVENIAN, SUBLANG_DEFAULT, "sl_SI", "sl" },
 #if (WINVER >= 0x0600)
 //	{ "sv_SE", LANG_NAME_SWEDISH_SWEDEN, LANG_SWEDISH, SUBLANG_SWEDISH_SWEDEN },
 #else
 //	{ "sv_SE", LANG_NAME_SWEDISH_SWEDEN, LANG_SWEDISH, SUBLANG_SWEDISH },
 #endif
 //	{ "sv", LANG_NAME_SWEDISH, LANG_SWEDISH, SUBLANG_DEFAULT },
-	{ "tr", LANG_NAME_TURKISH, LANG_TURKISH, SUBLANG_DEFAULT },
+	{ "tr", LANG_NAME_TURKISH, LANG_TURKISH, SUBLANG_DEFAULT, "tr_TR", "tr" },
 //	{ "uz", LANG_NAME_UZBEK_CYRILLIC, LANG_UZBEK, SUBLANG_UZBEK_CYRILLIC },
-	{ "uk_UA", LANG_NAME_UKRAINIAN, LANG_UKRAINIAN, SUBLANG_DEFAULT },
-	{ "zh_CN", LANG_NAME_CHINESE_SIMPLIFIED, LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED },
-	{ "zh_TW", LANG_NAME_CHINESE_TRADITIONAL, LANG_CHINESE, SUBLANG_CHINESE_TRADITIONAL },
+	{ "uk_UA", LANG_NAME_UKRAINIAN, LANG_UKRAINIAN, SUBLANG_DEFAULT, "uk_UA", "uk" },
+	{ "zh_CN", LANG_NAME_CHINESE_SIMPLIFIED, LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED, "zh_CN", "zh" },
+	{ "zh_TW", LANG_NAME_CHINESE_TRADITIONAL, LANG_CHINESE, SUBLANG_CHINESE_TRADITIONAL, "zh_TW", "zh" },
 #  endif
 };
 #else
@@ -310,7 +312,7 @@ static bool setLocaleWindows(USHORT usPrimaryLanguage, USHORT usSubLanguage)
 
 	return success;
 }
-#  else
+#  endif
 /*!
  * Set the prefered locale
  * \param locale The locale, NOT just the language part
@@ -336,7 +338,7 @@ static bool setLocaleUnix(const char *locale)
 
 	return (actualLocale != NULL);
 }
-#  endif
+//#  endif
 #endif
 
 
@@ -355,10 +357,13 @@ bool setLanguage(const char *language)
 			debug(LOG_WZ, "Setting language to \"%s\" (%s)", map[i].name, map[i].language);
 
 #  if defined(WZ_OS_WIN)
-			return setLocaleWindows(map[i].usPrimaryLanguage, map[i].usSubLanguage);
-#  else
-			return setLocaleUnix(map[i].locale) || setLocaleUnix(map[i].localeFallback);
+			if (!setLocaleWindows(map[i].usPrimaryLanguage, map[i].usSubLanguage))
+			{
+				return false;
+			}
 #  endif
+			return setLocaleUnix(map[i].locale) || setLocaleUnix(map[i].localeFallback);
+//#  endif
 		}
 	}
 
