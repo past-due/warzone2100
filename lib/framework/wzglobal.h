@@ -700,4 +700,11 @@ static inline char *_WZ_ASSERT_ARRAY_EXPR_FUNCTION(T *&)
 # define likely(expr)	(expr)
 #endif
 
+// Compiler-specific #pragma support
+#if defined( _MSC_VER )
+	#define MSVC_PRAGMA(x) __pragma(x)
+#else
+	#define MSVC_PRAGMA(x)
+#endif
+
 #endif /* WZGLOBAL_H */
