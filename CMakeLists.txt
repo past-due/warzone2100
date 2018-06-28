@@ -63,7 +63,10 @@ if(MSVC)
 
 	# Enable some additional MSVC warnings
 	# C4701: Potentially uninitialized local variable 'name' used
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /we4701")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w34701")
+
+	# C4702: unreachable code
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w34702")
 
 	# Disable some warnings for WZ (for now)
 	# C4456: declaration of 'identifier' hides previous local declaration
