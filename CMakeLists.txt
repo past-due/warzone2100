@@ -58,10 +58,16 @@ if(MSVC)
 	# MSVC
 
 	# TODO: Enable /W4
-	# NOTE: Do not use /Wall, as it enables *many* warnings that are off by default. MS recommends /W4
+	# NOTE: Do not use /Wall, as it enables *many* warnings that are off by default. MS recommends /W4 (max)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3")
 
+	# Enable some additional MSVC warnings
+	# C4701: Potentially uninitialized local variable 'name' used
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /we4701")
+
 	# Disable some warnings for WZ (for now)
+	# C4456: declaration of 'identifier' hides previous local declaration
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4456")
 	# C4459: declaration of 'identifier' hides global declaration
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4459")
 
