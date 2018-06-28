@@ -62,17 +62,23 @@ if(MSVC)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3")
 
 	# Enable some additional MSVC warnings
-	# C4701: Potentially uninitialized local variable 'name' used
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w34701")
+	# C4204: nonstandard extension used : non-constant aggregate initializer
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w34204")
+	# C4512: 'class' : assignment operator could not be generated
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w34512")
 
-	# C4702: unreachable code
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w34702")
+	# Disable some warnings for WZ (permanently)
+	# C4800: 'type' : forcing value to bool 'true' or 'false' (performance warning)
+	# This warning is no longer generated in Visual Studio 2017+
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4800")
 
-	# Disable some warnings for WZ (for now)
+	# Disable some warnings for WZ (FIXME)
 	# C4456: declaration of 'identifier' hides previous local declaration
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4456")
 	# C4459: declaration of 'identifier' hides global declaration
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4459")
+	# C4702: unreachable code
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4702")
 
 	# Qt headers (at least 5.6.x) necessitate disabling some warnings
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4127")

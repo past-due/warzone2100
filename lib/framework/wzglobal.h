@@ -577,14 +577,14 @@
 //   notify people we are disabling these warning messages.
 #    pragma message (" *** Warnings 4018,4100,4127,4204,4244,4267,4389,4512,4800 have been squelched. ***")
 #    pragma warning (disable : 4018) // Shut up: '>' : signed/unsigned mismatch
-#    pragma warning (disable : 4100) // Shut up: unreferenced formal parameter (FIXME)
+//#    pragma warning (disable : 4100) // Shut up: unreferenced formal parameter (FIXME)
 #    pragma warning (disable : 4127) // Shut up: conditional expression is constant (eg. "while(0)")
-#    pragma warning (disable : 4204) // Shut up: non-constant aggregate initializer
-#    pragma warning (disable : 4244) // Shut up: conversion from 'float' to 'int', possible loss of data
-#    pragma warning (disable : 4267) // Shut up: conversion from 'size_t' to 'type', possible loss of data
+//#    pragma warning (disable : 4204) // Shut up: non-constant aggregate initializer
+// #    pragma warning (disable : 4244) // Shut up: conversion from 'float' to 'int', possible loss of data
+//#    pragma warning (disable : 4267) // Shut up: conversion from 'size_t' to 'type', possible loss of data
 #    pragma warning (disable : 4389) // Shut up: '==' : signed/unsigned mismatch
-#    pragma warning (disable : 4800) // Shut up: 'bool' : forcing value to bool 'true' or 'false' (performance warning)
-#    pragma warning (disable : 4512) // Shut up: 'class' : assignment operator could not be generated
+// #    pragma warning (disable : 4800) // Shut up: 'bool' : forcing value to bool 'true' or 'false' (performance warning)
+//#    pragma warning (disable : 4512) // Shut up: 'class' : assignment operator could not be generated
 
 #    define strcasecmp _stricmp
 #    define strncasecmp _strnicmp
