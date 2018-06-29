@@ -220,6 +220,17 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 		#	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer")
 		#endif()
 
+		# Disable some warnings for WZ (FIXME)
+		# Disable -Wunused-parameter (FIXME)
+				check_c_compiler_flag("-Werror -Wno-unused-parameter -Wno-error=cpp" HAS_CFLAG_WNO_UNUSED_PARAMETER)
+		if (HAS_CFLAG_WNO_UNUSED_PARAMETER)
+			set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-parameter")
+		endif()
+		check_cxx_compiler_flag("-Werror -Wno-unused-parameter -Wno-error=cpp" HAS_CXXFLAG_WNO_UNUSED_PARAMETER)
+		if (HAS_CXXFLAG_WNO_UNUSED_PARAMETER)
+			set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter")
+		endif()
+
 	endif()
 endmacro(CONFIGURE_WZ_COMPILER_WARNINGS)
 
