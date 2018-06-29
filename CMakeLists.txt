@@ -96,12 +96,16 @@ function(CONFIGURE_WZ_COMPILER_WARNINGS)
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4800")
 
 		# Disable some warnings for WZ (FIXME)
+		# C4100: unreferenced formal parameter
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4100")
 		# C4456: declaration of 'identifier' hides previous local declaration
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4456")
 		# C4459: declaration of 'identifier' hides global declaration
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4459")
 		# C4702: unreachable code
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4702")
+		# C4245: 'conversion' : conversion from 'type1' to 'type2', signed/unsigned mismatch
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4245")
 
 		# Qt headers (at least 5.6.x) necessitate disabling some warnings
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4127")
