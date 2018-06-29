@@ -53,13 +53,34 @@ endif()
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 
+# Enable stack protection, if supported by the compiler
+# Prefer -fstack-protector-strong if supported, fall-back to -fstack-protector
+check_c_compiler_flag(-fstack-protector-strong HAS_CFLAG_FSTACK_PROTECTOR_STRONG)
+if (HAS_CFLAG_FSTACK_PROTECTOR_STRONG)
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-strong")
+else()
+	check_c_compiler_flag(-fstack-protector HAS_CFLAG_FSTACK_PROTECTOR)
+	if (HAS_CFLAG_FSTACK_PROTECTOR)
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector")
+	endif()
+endif()
+check_cxx_compiler_flag(-fstack-protector-strong HAS_CXXFLAG_FSTACK_PROTECTOR_STRONG)
+if (HAS_CXXFLAG_FSTACK_PROTECTOR_STRONG)
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector-strong")
+else()
+	check_cxx_compiler_flag(-fstack-protector HAS_CXXFLAG_FSTACK_PROTECTOR)
+	if (HAS_CXXFLAG_FSTACK_PROTECTOR)
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector")
+	endif()
+endif()
+
 # Configure compiler warnings
 if(MSVC)
 	# MSVC
 
 	# TODO: Enable /W4
 	# NOTE: Do not use /Wall, as it enables *many* warnings that are off by default. MS recommends /W4 (max)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
 
 	# Enable some additional MSVC warnings
 	# C4204: nonstandard extension used : non-constant aggregate initializer
@@ -103,6 +124,26 @@ else()
 	check_cxx_compiler_flag(-Werror HAS_CXXFLAG_W_ERROR)
 	if (HAS_CXXFLAG_W_ERROR)
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
+	endif()
+
+#	# Enable -Wcast-function-type (if supported)
+#	check_c_compiler_flag(-Wcast-function-type HAS_CFLAG_W_CAST_FUNCTION_TYPE)
+#	if (HAS_CFLAG_W_CAST_FUNCTION_TYPE)
+#		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wcast-function-type")
+#	endif()
+#	check_cxx_compiler_flag(-Wcast-function-type HAS_CXXFLAG_CAST_FUNCTION_TYPE)
+#	if (HAS_CXXFLAG_CAST_FUNCTION_TYPE)
+#		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wcast-function-type")
+#	endif()
+
+	# Enable -Wextra (if supported)
+	check_c_compiler_flag(-Wextra HAS_CFLAG_W_EXTRA)
+	if (HAS_CFLAG_W_EXTRA)
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wextra")
+	endif()
+	check_cxx_compiler_flag(-Wextra HAS_CXXFLAG_W_EXTRA)
+	if (HAS_CXXFLAG_W_EXTRA)
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")
 	endif()
 
 	# Enable -Wcast-align (if supported)
@@ -170,27 +211,6 @@ else()
 	#if (HAS_CXXFLAG_FNO_OMIT_FRAME_POINTER)
 	#	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer")
 	#endif()
-
-	# Enable stack protection, if supported by the compiler
-	# Prefer -fstack-protector-strong if supported, fall-back to -fstack-protector
-	check_c_compiler_flag(-fstack-protector-strong HAS_CFLAG_FSTACK_PROTECTOR_STRONG)
-	if (HAS_CFLAG_FSTACK_PROTECTOR_STRONG)
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-strong")
-	else()
-		check_c_compiler_flag(-fstack-protector HAS_CFLAG_FSTACK_PROTECTOR)
-		if (HAS_CFLAG_FSTACK_PROTECTOR)
-			set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector")
-		endif()
-	endif()
-	check_cxx_compiler_flag(-fstack-protector-strong HAS_CXXFLAG_FSTACK_PROTECTOR_STRONG)
-	if (HAS_CXXFLAG_FSTACK_PROTECTOR_STRONG)
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector-strong")
-	else()
-		check_cxx_compiler_flag(-fstack-protector HAS_CXXFLAG_FSTACK_PROTECTOR)
-		if (HAS_CXXFLAG_FSTACK_PROTECTOR)
-			set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector")
-		endif()
-	endif()
 
 endif()
 
