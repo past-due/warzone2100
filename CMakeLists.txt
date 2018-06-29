@@ -76,7 +76,7 @@ endif()
 
 # Configure compiler warnings for WZ
 # NOTE: This should be called after the 3rdparty/ libs are added, so it only affects WZ code & frameworks
-function(CONFIGURE_WZ_COMPILER_WARNINGS)
+macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 	if(MSVC)
 		# MSVC
 
@@ -219,7 +219,7 @@ function(CONFIGURE_WZ_COMPILER_WARNINGS)
 		#endif()
 
 	endif()
-endfunction(CONFIGURE_WZ_COMPILER_WARNINGS)
+endmacro(CONFIGURE_WZ_COMPILER_WARNINGS)
 
 add_definitions("-DHAVE_CONFIG_H")
 
