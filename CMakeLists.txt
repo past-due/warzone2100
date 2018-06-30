@@ -90,9 +90,6 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 		# C4512: 'class' : assignment operator could not be generated
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w34512")
 
-		# Set C4244 to W3-level
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w34244")
-
 		# Disable some warnings for WZ (permanently)
 		# C4800: 'type' : forcing value to bool 'true' or 'false' (performance warning)
 		# This warning is no longer generated in Visual Studio 2017+
