@@ -90,6 +90,9 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 		# C4512: 'class' : assignment operator could not be generated
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w34512")
 
+		# Set C4244 to W3-level
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w34244")
+
 		# Disable some warnings for WZ (permanently)
 		# C4800: 'type' : forcing value to bool 'true' or 'false' (performance warning)
 		# This warning is no longer generated in Visual Studio 2017+
@@ -106,6 +109,8 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4702")
 		# C4245: 'conversion' : conversion from 'type1' to 'type2', signed/unsigned mismatch
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4245")
+		# C4701: Potentially uninitialized local variable 'name' used
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4701")
 
 		# Qt headers (at least 5.6.x) necessitate disabling some warnings
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4127")
