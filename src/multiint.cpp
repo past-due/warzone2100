@@ -2741,10 +2741,13 @@ static void SendFireUp()
 // host kicks a player from a game.
 void kickPlayer(uint32_t player_id, const char *reason, LOBBY_ERROR_TYPES type)
 {
+	// make a local copy of the reason string, to avoid having to drop the const qualifier on the input
+	std::vector<char> reason_cpy(reason, reason + strlen(reason));
+
 	// send a kick msg
 	NETbeginEncode(NETbroadcastQueue(), NET_KICK);
 	NETuint32_t(&player_id);
-	NETstring((char *) reason, MAX_KICK_REASON);
+	NETstring(&reason_cpy[0], MAX_KICK_REASON);
 	NETenum(&type);
 	NETend();
 	NETflush();
