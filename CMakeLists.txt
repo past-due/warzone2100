@@ -228,7 +228,7 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 		# NOTE: Do not use /Wall, as it enables *many* warnings that are off by default. MS recommends /W4 (max)
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
 
-		# Enable some additional MSVC warnings
+		# Enable some additional MSVC warnings (if compiling at warning level 3)
 		# C4204: nonstandard extension used : non-constant aggregate initializer
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w34204")
 		# C4512: 'class' : assignment operator could not be generated
@@ -257,7 +257,7 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4127")
 	else()
 		# GCC, Clang, etc
-		# Comments are provided next to each warning option detailing compiler support (from GCC 3.4+, Clang 3.2+ - earlier versions may / may not support these options)
+		# Comments are provided next to each warning option detailing expected compiler support (from GCC 3.4+, Clang 3.2+ - earlier versions may / may not support these options)
 
 		set(_supported_c_compiler_flags "")
 		set(_supported_cxx_compiler_flags "")
@@ -334,7 +334,7 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 		# -Wnon-virtual-dtor		(GCC 3.4+, Clang 3.2+) [C++ only]
 		check_compiler_flags_output("-Werror -Wnon-virtual-dtor -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "-Wnon-virtual-dtor" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
 
-#		# FUTURE-TODO: Enable -Wshadow (lots of warnings to fix)
+#		# FUTURE-TODO: Enable -Wshadow (lots of warnings to fix, some due to 3rdparty dependencies?)
 #		# -Wshadow					(GCC 3.4+, Clang 3.2+)
 #		check_compiler_flags_output("-Werror -Wshadow -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Wshadow" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
 #		check_compiler_flags_output("-Werror -Wshadow -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "-Wshadow" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
