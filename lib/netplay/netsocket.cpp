@@ -230,9 +230,9 @@ static int addressToText(const struct sockaddr *addr, char *buf, size_t size)
 	case AF_INET6:
 		{
 
-			const uint16_t *address = (uint16_t *) & ((const struct sockaddr_in6 *)addr)->sin6_addr.s6_addr;
+			const uint16_t *address = (const uint16_t *) & ((const struct sockaddr_in6 *)addr)->sin6_addr.s6_addr;
 			// Check to see if this is really a IPv6 address
-			struct sockaddr_in6 *mappedIP = (struct sockaddr_in6 *)addr;
+			const struct sockaddr_in6 *mappedIP = (const struct sockaddr_in6 *)addr;
 			if (IN6_IS_ADDR_V4MAPPED(&mappedIP->sin6_addr))
 			{
 				// looks like it is ::ffff:(...) so lets set up a IPv4 socket address structure
