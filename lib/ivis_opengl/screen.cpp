@@ -332,7 +332,7 @@ bool screenInitialise()
 
 	if (khr_debug)
 	{
-		glDebugMessageCallback((GLDEBUGPROC)khr_callback, nullptr);
+		glDebugMessageCallback(khr_callback, nullptr);
 		glEnable(GL_DEBUG_OUTPUT);
 		// Do not want to output notifications. Some drivers spam them too much.
 		glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, nullptr, GL_FALSE);
