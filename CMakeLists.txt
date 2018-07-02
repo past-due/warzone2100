@@ -234,6 +234,22 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 		# C4512: 'class' : assignment operator could not be generated
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w34512")
 
+		# Enable some additional MSVC warnings (that are off by default)
+		# C4191: unsafe conversion from 'type of expression' to 'type required'
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w34191")
+		# C4263: 'function': member function does not override any base class virtual member function
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w34263")
+		# C4264: 'virtual_function': no override available for virtual member function from base 'class'; function is hidden
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w34264")
+		# C4265: 'class': class has virtual functions, but destructor is not virtual
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w34265")
+		# C4266: 'function' : no override available for virtual member function from base 'type'; function is hidden
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w34266")
+		# C4905: wide string literal cast to 'LPSTR'
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w14905")
+		# C4906: string literal cast to 'LPWSTR'
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w14906")
+
 		# Disable some warnings for WZ (permanently)
 		# C4800: 'type' : forcing value to bool 'true' or 'false' (performance warning)
 		# This warning is no longer generated in Visual Studio 2017+
