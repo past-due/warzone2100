@@ -136,7 +136,7 @@ static const char *cbseverity(GLenum severity)
 	}
 }
 
-static GLAPIENTRY void khr_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
+static void GLAPIENTRY khr_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
 {
 	(void)userParam; // we pass in NULL here
 	(void)length; // length of message, buggy on some drivers, don't use
