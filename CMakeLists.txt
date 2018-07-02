@@ -249,6 +249,8 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w14905")
 		# C4906: string literal cast to 'LPWSTR'
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w14906")
+		# C4928: illegal copy-initialization; more than one user-defined conversion has been implicitly applied
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w14928")
 
 		# Disable some warnings for WZ (permanently)
 		# C4800: 'type' : forcing value to bool 'true' or 'false' (performance warning)
@@ -270,6 +272,7 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4701")
 
 		# Qt headers (at least 5.6.x) necessitate disabling some warnings
+		# C4127: conditional expression is constant
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4127")
 	else()
 		# GCC, Clang, etc
