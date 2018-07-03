@@ -252,6 +252,13 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 		# C4928: illegal copy-initialization; more than one user-defined conversion has been implicitly applied
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w14928")
 
+		# C4289: nonstandard extension used : 'var' : loop control variable declared in the for-loop is used outside the for-loop scope
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w44289")
+		# C4836: nonstandard extension used : 'type' : local types or unnamed types cannot be used as template arguments
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w14836")
+		# C4946: reinterpret_cast used between related classes: 'class1' and 'class2'
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w14946")
+
 		# Disable some warnings for WZ (permanently)
 		# C4800: 'type' : forcing value to bool 'true' or 'false' (performance warning)
 		# This warning is no longer generated in Visual Studio 2017+
