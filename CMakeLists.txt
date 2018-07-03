@@ -256,8 +256,10 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w44289")
 		# C4836: nonstandard extension used : 'type' : local types or unnamed types cannot be used as template arguments
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w14836")
-		# C4946: reinterpret_cast used between related classes: 'class1' and 'class2'
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w14946")
+
+#		# NOTE: The following cannot currently be enabled because of Qt headers (at least Qt 5.6.x)
+#		# C4946: reinterpret_cast used between related classes: 'class1' and 'class2'
+#		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w14946")
 
 		# Disable some warnings for WZ (permanently)
 		# C4800: 'type' : forcing value to bool 'true' or 'false' (performance warning)
