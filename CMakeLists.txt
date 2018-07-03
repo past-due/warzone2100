@@ -349,9 +349,10 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 		# -Wstrict-prototypes		(GCC 3.4+, Clang 3.2+ (no-op through at least 6.0)) [C-only]
 		check_compiler_flags_output("-Werror -Wstrict-prototypes -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Wstrict-prototypes" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
 
-		# -Wfloat-equal				(GCC 3.4+)
-		check_compiler_flags_output("-Werror -Wfloat-equal -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Wfloat-equal" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
-		check_compiler_flags_output("-Werror -Wfloat-equal -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "-Wfloat-equal" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
+#		# TODO: Enable this, and verify all comparisons are working as expected
+#		# -Wfloat-equal				(GCC 3.4+)
+#		check_compiler_flags_output("-Werror -Wfloat-equal -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Wfloat-equal" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
+#		check_compiler_flags_output("-Werror -Wfloat-equal -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "-Wfloat-equal" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
 
 #		# -Wmissing-noreturn		(GCC 3.4+, Clang 3.3+)
 #		check_compiler_flags_output("-Werror -Wmissing-noreturn -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Wmissing-noreturn" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
