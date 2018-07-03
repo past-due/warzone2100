@@ -1351,7 +1351,7 @@ int realmain(int argc, char *argv[])
 #ifdef WZ_OS_WIN	// clean up the memory allocated for the command line conversion
 	for (int i = 0; i < argc; i++)
 	{
-		const char *** const utfargvF = &utfargv;
+		char *** const utfargvF = &utfargv;
 		free((void *)(*utfargvF)[i]);
 	}
 	free(utfargv);
