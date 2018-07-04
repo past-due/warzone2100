@@ -383,6 +383,14 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 		check_compiler_flags_output("-Werror -Wduplicated-cond -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Wduplicated-cond" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
 		check_compiler_flags_output("-Werror -Wduplicated-cond -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "-Wduplicated-cond" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
 
+		# -Walloc-zero				(GCC 7.0+)
+		check_compiler_flags_output("-Werror -Walloc-zero -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Walloc-zero" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
+		check_compiler_flags_output("-Werror -Walloc-zero -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "-Walloc-zero" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
+
+		# -Walloca-larger-than=1024	(GCC 7.0+)
+		check_compiler_flags_output("-Werror -Walloca-larger-than=1024 -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Walloca-larger-than=1024" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
+		check_compiler_flags_output("-Werror -Walloca-larger-than=1024 -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "-Walloca-larger-than=1024" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
+
 		# -Wrestrict				(GCC 7.0+)
 		check_compiler_flags_output("-Werror -Wrestrict -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Wrestrict" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
 		check_compiler_flags_output("-Werror -Wrestrict -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "-Wrestrict" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
