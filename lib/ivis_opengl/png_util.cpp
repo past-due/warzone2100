@@ -130,6 +130,9 @@ bool iV_loadImage_PNG(const char *fileName, iV_Image *image)
 		return false;
 	}
 
+	// FIXME?: disable MSVC warning C4611: interaction between '_setjmp' and C++ object destruction is non-portable
+	MSVC_PRAGMA(warning( push ))
+	MSVC_PRAGMA(warning( disable : 4611 ))
 	// Set libpng's failure jump position to the if branch,
 	// setjmp evaluates to false so the else branch will be executed at first
 	if (setjmp(png_jmpbuf(png_ptr)))
@@ -138,6 +141,7 @@ bool iV_loadImage_PNG(const char *fileName, iV_Image *image)
 		PNGReadCleanup(&info_ptr, &png_ptr, fileHandle);
 		return false;
 	}
+	MSVC_PRAGMA(warning( pop ))
 
 	// Tell libpng how many byte we already read
 	png_set_sig_bytes(png_ptr, PNG_BYTES_TO_CHECK);
