@@ -224,11 +224,11 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 	if(MSVC)
 		# MSVC
 
-		# TODO: Enable /W4
+		# Enable /W4
 		# NOTE: Do not use /Wall, as it enables *many* warnings that are off by default. MS recommends /W4 (max)
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
 
-		# Enable some additional MSVC warnings (if compiling at warning level 3)
+		# Enable some additional MSVC warnings (if compiling at warning level 3+)
 		# C4204: nonstandard extension used : non-constant aggregate initializer
 		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /w34204")
 		# C4512: 'class' : assignment operator could not be generated
@@ -349,14 +349,14 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 		# -Wstrict-prototypes		(GCC 3.4+, Clang 3.2+ (no-op through at least 6.0)) [C-only]
 		check_compiler_flags_output("-Werror -Wstrict-prototypes -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Wstrict-prototypes" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
 
-#		# TODO: Enable this, and verify all comparisons are working as expected
+#		# TODO: Enable this, and verify all code functions as expected
 #		# -Wfloat-equal				(GCC 3.4+)
 #		check_compiler_flags_output("-Werror -Wfloat-equal -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Wfloat-equal" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
 #		check_compiler_flags_output("-Werror -Wfloat-equal -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "-Wfloat-equal" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
 
-#		# -Wmissing-noreturn		(GCC 3.4+, Clang 3.3+)
-#		check_compiler_flags_output("-Werror -Wmissing-noreturn -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Wmissing-noreturn" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
-#		check_compiler_flags_output("-Werror -Wmissing-noreturn -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "-Wmissing-noreturn" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
+		# -Wmissing-noreturn		(GCC 3.4+, Clang 3.3+)
+		check_compiler_flags_output("-Werror -Wmissing-noreturn -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Wmissing-noreturn" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
+		check_compiler_flags_output("-Werror -Wmissing-noreturn -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "-Wmissing-noreturn" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
 
 #		# -Wundef					(GCC 3.4+, Clang (supported, but min version unclear))
 #		check_compiler_flags_output("-Werror -Wundef -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Wundef" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
@@ -403,8 +403,6 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 			message( STATUS "WZ will *NOT* enable -Werror" )
 		endif()
 		message(STATUS "CMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}")
-
-		# NOTE: From this point on, checking compiler flags must also specify -Wno-error=cpp (or the check will fail)
 
 		# Enable -Wlogical-op (if supported) (WARNING-ONLY)
 		check_compiler_flags_output("-Werror ${WZ_Wno_}logical-op -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "${WZ_Wno_}logical-op" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
