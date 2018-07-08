@@ -81,6 +81,11 @@ void pie_AssignTexture(int page, gfx_api::texture* texture)
 	_TEX_PAGE[page].id = texture;
 }
 
+inline bool IsPowerOfTwo(unsigned long x)
+{
+	return (x != 0) && ((x & (x - 1)) == 0);
+}
+
 int pie_AddTexPage(iV_Image *s, const char *filename, bool gameTexture, int page)
 {
 	ASSERT(s && filename, "Bad input parameter");
@@ -116,7 +121,8 @@ int pie_AddTexPage(iV_Image *s, const char *filename, bool gameTexture, int page
 		if (_TEX_PAGE[page].id)
 			delete _TEX_PAGE[page].id;
 		_TEX_PAGE[page].id = gfx_api::context::get().create_texture(s->width, s->height, format, filename);
-		pie_Texture(page).upload(0u, 0u, 0u, s->width, s->height, iV_getPixelFormat(s), s->bmp);
+		pie_Texture(page).upload(0u, s->width, s->height, iV_getPixelFormat(s), s->bmp);
+		ASSERT(IsPowerOfTwo(s->width) && IsPowerOfTwo(s->height), "Texture width and height (%u x %u) must be a power of two, or certain older graphics cards may not support generating mipmaps properly: %s", s->width, s->height, (filename) ? filename : "(no filename available)");
 		pie_Texture(page).generate_mip_levels();
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 	}
@@ -125,7 +131,7 @@ int pie_AddTexPage(iV_Image *s, const char *filename, bool gameTexture, int page
 		if (_TEX_PAGE[page].id)
 			delete _TEX_PAGE[page].id;
 		_TEX_PAGE[page].id = gfx_api::context::get().create_texture(s->width, s->height, gfx_api::pixel_format::rgba, filename);
-		pie_Texture(page).upload(0u, 0u, 0u, s->width, s->height, iV_getPixelFormat(s), s->bmp);
+		pie_Texture(page).upload(0u, s->width, s->height, iV_getPixelFormat(s), s->bmp);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	}
 	pie_SetTexturePage(page);

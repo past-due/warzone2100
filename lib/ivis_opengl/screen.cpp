@@ -56,8 +56,8 @@
 #endif
 #include <glm/gtx/transform.hpp>
 
-/* global used to indicate preferred internal OpenGL format */
-bool wz_texture_compression = 0;
+/* global used to indicate whether the internal texture format should be compressed (if supported) */
+bool wz_texture_compression = true;
 
 // for compatibility with older versions of GLEW
 #ifndef GLEW_ARB_timer_query

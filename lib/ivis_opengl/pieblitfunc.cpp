@@ -99,8 +99,7 @@ void GFX::makeTexture(int width, int height, GLenum filter, const gfx_api::pixel
 	if (mTexture)
 		delete mTexture;
 	mTexture = gfx_api::context::get().create_texture(width, height, format);
-	if (image != nullptr)
-		mTexture->upload(0u, 0u, 0u, width, height, format, image);
+	mTexture->upload(0u, width, height, format, image);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -122,7 +121,7 @@ void GFX::updateTexture(const void *image, int width, int height)
 		height = mHeight;
 	}
 	pie_SetTexturePage(TEXPAGE_EXTERN);
-	mTexture->upload(0u, 0u, 0u, width, height, mFormat, image);
+	mTexture->update_subrect(0u, 0u, 0u, width, height, mFormat, image);
 }
 
 void GFX::buffers(int vertices, const GLvoid *vertBuf, const GLvoid *auxBuf)

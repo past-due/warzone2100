@@ -71,7 +71,9 @@ bool pie_Initialise()
 	}
 	else
 	{
+		// Texture compression is not supported
 		debug(LOG_TEXTURE, "Texture compression: No");
+		wz_texture_compression = false;
 	}
 
 	pie_UpdateSurfaceGeometry();

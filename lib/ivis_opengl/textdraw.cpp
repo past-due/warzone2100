@@ -742,7 +742,7 @@ void iV_DrawTextRotated(const char *string, float XPos, float YPos, float rotati
 		if (textureID)
 			delete textureID;
 		textureID = gfx_api::context::get().create_texture(width, height, gfx_api::pixel_format::rgba);
-		textureID->upload(0u, 0u, 0u, width, height, gfx_api::pixel_format::rgba, texture.get());
+		textureID->upload(0u, width, height, gfx_api::pixel_format::rgba, texture.get());
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, text_filtering);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, text_filtering);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -851,7 +851,7 @@ void WzText::drawAndCacheText(const std::string &string, iV_fonts fontID)
 	{
 		pie_SetTexturePage(TEXPAGE_EXTERN);
 		texture = gfx_api::context::get().create_texture(dimensions.x, dimensions.y, gfx_api::pixel_format::rgba);
-		texture->upload(0u, 0u, 0u, dimensions.x , dimensions.y, gfx_api::pixel_format::rgba, data.get());
+		texture->upload(0u, dimensions.x , dimensions.y, gfx_api::pixel_format::rgba, data.get());
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, text_filtering);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, text_filtering);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);

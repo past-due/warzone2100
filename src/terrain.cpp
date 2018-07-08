@@ -928,7 +928,7 @@ bool initTerrain()
 	lightmap_tex_num = gfx_api::context::get().create_texture(lightmapWidth, lightmapHeight, gfx_api::pixel_format::rgb);
 
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-	lightmap_tex_num->upload(0, 0, 0, lightmapWidth, lightmapHeight, gfx_api::pixel_format::rgb, lightmapPixmap);
+	lightmap_tex_num->upload(0, lightmapWidth, lightmapHeight, gfx_api::pixel_format::rgb, lightmapPixmap);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -1284,7 +1284,7 @@ void drawTerrain(const glm::mat4 &mvp)
 		updateLightMap();
 
 		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-		lightmap_tex_num->upload(0, 0, 0, lightmapWidth, lightmapHeight, gfx_api::pixel_format::rgb, lightmapPixmap);
+		lightmap_tex_num->update_subrect(0, 0, 0, lightmapWidth, lightmapHeight, gfx_api::pixel_format::rgb, lightmapPixmap);
 	}
 
 	///////////////////////////////////
