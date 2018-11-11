@@ -4,7 +4,10 @@
   Warzone 2100
 </h1>
 
-[Homepage of the Warzone 2100 Project](http://wz2100.net/)
+<p align="center">
+  A free and open-source real time strategy game, for Windows, macOS, and Linux.<br />
+  <a href="http://wz2100.net/">Homepage of the Warzone 2100 Project</a>
+</p>
 
 Origins
 -------
