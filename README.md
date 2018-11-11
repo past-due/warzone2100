@@ -5,7 +5,7 @@
 </h1>
 
 <p align="center">
-  A <b>free</b> and <b>open-source</b> real time strategy game, for Windows, macOS, and Linux.<br />
+  A <b>free</b> and <b>open-source</b> 3D real-time strategy game, for Windows, macOS, and Linux.<br />
   <a href="http://wz2100.net/">Homepage of the Warzone 2100 Project</a>
 </p>
 
