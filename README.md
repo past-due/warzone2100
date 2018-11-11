@@ -1,10 +1,10 @@
-Warzone 2100
-============
+<h1 align="center">
+  <img src="icons/warzone2100.large.png" alt="Warzone 2100">
+  <br />
+  Warzone 2100
+</h1>
 
-<p align="center">
-   <img src ="icons/warzone2100.large.png?raw=true" /><br />
-   <a href="http://wz2100.net/">Homepage of the Warzone 2100 Project</a>
-</p>
+[Homepage of the Warzone 2100 Project](http://wz2100.net/)
 
 Origins
 -------
