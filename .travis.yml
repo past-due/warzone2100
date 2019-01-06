@@ -68,6 +68,7 @@ matrix:
       language: cpp
       compiler: gcc
       sudo: required
+      dist: xenial
       services:
         - docker
       install:
@@ -90,6 +91,7 @@ matrix:
       language: cpp
       compiler: clang
       sudo: required
+      dist: xenial
       services:
         - docker
       install:
@@ -109,6 +111,7 @@ matrix:
       language: cpp
       compiler: gcc
       sudo: required
+      dist: xenial
       services:
         - docker
       install:
