@@ -30,6 +30,7 @@ jobs:
       - run:
           name: Build WZ with Clang
           command: |
+            export MAKEFLAGS="-j$((`grep -c ^processor /proc/cpuinfo`*2))"
             cmake '-H.' -Bbuild -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWZ_ENABLE_WARNINGS:BOOL=ON -G"Ninja"
             cmake --build build
           environment:
@@ -65,6 +66,7 @@ jobs:
       - run:
           name: Build WZ with GCC
           command: |
+            export MAKEFLAGS="-j$((`grep -c ^processor /proc/cpuinfo`*2))"
             cmake '-H.' -Bbuild -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWZ_ENABLE_WARNINGS:BOOL=ON -G"Ninja"
             cmake --build build
 
