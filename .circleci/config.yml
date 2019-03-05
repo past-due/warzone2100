@@ -36,6 +36,38 @@ jobs:
             CC: /usr/bin/clang
             CXX: /usr/bin/clang++
 
+
+  # Build for Fedora :LATEST (CMake) (GCC)
+  fedora_latest_build:
+    docker:
+      - image: fedora:latest
+
+    steps:
+      - run:
+          name: Install essential packages
+          command: |
+            dnf -y update && dnf clean all && dnf -y install git ssh tar gzip ca-certificates curl
+
+      - run:
+          name: Install WZ Prereqs
+          command: |
+            dnf -y update && dnf clean all
+            dnf -y install git gcc gcc-c++ cmake ninja-build p7zip gettext rubygem-asciidoctor
+            dnf -y install qt5-qtbase-devel qt5-qtscript-devel libpng-devel SDL2-devel openal-soft-devel physfs-devel libvorbis-devel libtheora-devel glew-devel freetype-devel harfbuzz-devel && dnf clean all
+
+      - checkout
+
+      # Init Git Submodules
+      - run:
+          name: Pull Submodules
+          command: git submodule update --init --recursive
+
+      - run:
+          name: Build WZ with GCC
+          command: |
+            cmake '-H.' -Bbuild -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWZ_ENABLE_WARNINGS:BOOL=ON -G"Ninja"
+            cmake --build build
+
   # macOS build (Xcode 9.4.1)
   macos_xcode_9_4_1_build:
 
