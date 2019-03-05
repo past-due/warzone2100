@@ -2,7 +2,7 @@
 #
 version: 2
 jobs:
-	
+
   # Ubuntu 18.04 (CMake)
   ubuntu_18_04_build:
     docker:
