@@ -46,12 +46,12 @@ jobs:
       - run:
           name: Install essential packages
           command: |
-            dnf -y update && dnf clean all && dnf -y install git ssh tar gzip ca-certificates curl
+            dnf -y update && dnf clean all && dnf -y install git openssh-server tar gzip ca-certificates curl
 
       - run:
           name: Install WZ Prereqs
           command: |
-            dnf -y update && dnf clean all
+            # dnf -y update && dnf clean all
             dnf -y install git gcc gcc-c++ cmake ninja-build p7zip gettext rubygem-asciidoctor
             dnf -y install qt5-qtbase-devel qt5-qtscript-devel libpng-devel SDL2-devel openal-soft-devel physfs-devel libvorbis-devel libtheora-devel glew-devel freetype-devel harfbuzz-devel && dnf clean all
 
