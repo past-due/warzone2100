@@ -35,7 +35,7 @@ jobs:
           environment:
             CC: /usr/bin/clang
             CXX: /usr/bin/clang++
-	
+
   # macOS build (Xcode 9.4.1)
   macos_xcode_9_4_1_build:
 
