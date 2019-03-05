@@ -1,0 +1,42 @@
+# macOS CircleCI 2.0 configuration file
+#
+version: 2
+jobs:
+  macos_xcode_9_4_1_build:
+
+    # Specify the Xcode version to use
+    macos:
+      xcode: "9.4.1"
+
+    environment:
+      MACOSX_DEPLOYMENT_TARGET: 10.9
+
+    steps:
+      - checkout
+
+      # Init Git Submodules
+      - run:
+          name: Pull Submodules
+          command: git submodule update --init --recursive
+
+      # Install Prereqs
+      - run:
+          name: Install Prereqs
+          command: |
+            brew install cmake
+            brew install gettext
+            gem install asciidoctor -v 1.5.8 --no-document
+            brew install gcc@7
+            bundle install --gemfile="macosx/BuildBot/Gemfile"
+
+      # Build
+      - run:
+          name: Build Warzone
+          command: |
+            source build_tools/ci/travis/export_build_output_desc.sh
+            macosx/BuildBot/travis_cmake_build.sh "${WZ_BUILD_DESC_PREFIX}-" "tmp/wz_upload"
+
+      # Collect and save build artifacts
+      - store_artifacts:
+          path: tmp/wz_upload
+          destination: macos_build_results
