@@ -1,7 +1,35 @@
-# macOS CircleCI 2.0 configuration file
+# Warzone 2100 CircleCI 2.0 configuration file
 #
 version: 2
 jobs:
+	
+  # Ubuntu 18.04 (CMake)
+  ubuntu_18_04_build:
+    docker:
+      - image: ubuntu:18.04
+
+    steps:
+      - run:
+          name: Install essential packages
+          command: |
+            apt-get update && apt-get install -y git ssh tar gzip ca-certificates curl
+
+      - run:
+          name: Install WZ Prereqs
+          command: |
+            apt-get -u update
+            DEBIAN_FRONTEND=noninteractive apt-get -y install clang ninja-build pkg-config libpng-dev libsdl2-dev libopenal-dev libphysfs-dev libvorbis-dev libtheora-dev libglew-dev libxrandr-dev zip unzip qtscript5-dev qt5-default libfribidi-dev libfreetype6-dev libharfbuzz-dev libfontconfig1-dev docbook-xsl xsltproc asciidoc gettext git cmake sudo
+
+      - run:
+          name: Build WZ with Clang
+		  command: |
+            cmake '-H.' -Bbuild -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWZ_ENABLE_WARNINGS:BOOL=ON -G"Ninja"
+            cmake --build build
+          environment:
+            CC: /usr/bin/clang
+            CXX: /usr/bin/clang++
+	
+  # macOS build (Xcode 9.4.1)
   macos_xcode_9_4_1_build:
 
     # Specify the Xcode version to use
