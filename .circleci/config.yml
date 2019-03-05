@@ -20,9 +20,16 @@ jobs:
             apt-get -u update
             DEBIAN_FRONTEND=noninteractive apt-get -y install clang ninja-build pkg-config libpng-dev libsdl2-dev libopenal-dev libphysfs-dev libvorbis-dev libtheora-dev libglew-dev libxrandr-dev zip unzip qtscript5-dev qt5-default libfribidi-dev libfreetype6-dev libharfbuzz-dev libfontconfig1-dev docbook-xsl xsltproc asciidoc gettext git cmake sudo
 
+      - checkout
+
+      # Init Git Submodules
+      - run:
+          name: Pull Submodules
+          command: git submodule update --init --recursive
+
       - run:
           name: Build WZ with Clang
-		  command: |
+          command: |
             cmake '-H.' -Bbuild -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWZ_ENABLE_WARNINGS:BOOL=ON -G"Ninja"
             cmake --build build
           environment:
@@ -73,4 +80,5 @@ workflows:
   version: 2
   all_builds:
     jobs:
+      - ubuntu_18_04_build
       - macos_xcode_9_4_1_build
