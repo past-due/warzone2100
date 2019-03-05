@@ -113,4 +113,5 @@ workflows:
   all_builds:
     jobs:
       - ubuntu_18_04_build
+      - fedora_latest_build
       - macos_xcode_9_4_1_build
