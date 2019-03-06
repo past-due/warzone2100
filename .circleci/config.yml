@@ -33,7 +33,7 @@ jobs:
           command: |
             export MAKEFLAGS="-j$((`grep -c ^processor /proc/cpuinfo`))"
             cmake '-H.' -Bbuild -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWZ_ENABLE_WARNINGS:BOOL=ON -G"Ninja"
-            cmake --build build
+            cmake --build build -- -j 2
           environment:
             CC: /usr/bin/clang
             CXX: /usr/bin/clang++
@@ -70,7 +70,7 @@ jobs:
           command: |
             export MAKEFLAGS="-j$((`grep -c ^processor /proc/cpuinfo`))"
             cmake '-H.' -Bbuild -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWZ_ENABLE_WARNINGS:BOOL=ON -G"Ninja"
-            cmake --build build
+            cmake --build build -- -j 2
 
   # macOS build (Xcode 9.4.1)
   macos_xcode_9_4_1_build:
