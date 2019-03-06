@@ -77,13 +77,24 @@ jobs:
           command: |
             cd extracted/warzone2100
             echo $(pwd)
+            echo "--- src/autorevision.cache ---"
+            cat src/autorevision.cache
+            echo "--- src/autorevision.cache ---"
             cmake '-H.' -Bbuild -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWZ_ENABLE_WARNINGS:BOOL=ON -G"Ninja"
             cmake --build build -- -j 2
 
+      - run:
+          name: Prepare Source Tarball for Deployment
+          command: |
+            echo $(pwd)
+            source build_tools/ci/circleci/export_build_output_desc.sh
+            echo ${WZ_BUILD_DESC_PREFIX}
+            build_tools/ci/travis/packaged_source_deploy_prepare.sh "build/warzone2100.tar.xz" "${WZ_BUILD_DESC_PREFIX}-" "/tmp/wz_upload"
+
       # Collect and save build artifacts
       - store_artifacts:
-          path: build/warzone2100.tar.xz
-          destination: packaged_source_results
+          path: /tmp/wz_upload
+          #destination: packaged_source_results
 
   # Build for Fedora :LATEST (CMake) (GCC)
   fedora_latest_build:
@@ -150,7 +161,7 @@ jobs:
       - run:
           name: Build Warzone
           command: |
-            source build_tools/ci/travis/export_build_output_desc.sh
+            source build_tools/ci/circleci/export_build_output_desc.sh
             macosx/BuildBot/travis_cmake_build.sh "${WZ_BUILD_DESC_PREFIX}-" "tmp/wz_upload"
 
       # Collect and save build artifacts
@@ -163,6 +174,18 @@ workflows:
   all_builds:
     jobs:
       - ubuntu_18_04_build
+          filters:
+            tags:
+              only: /.*/
       - package_source
+          filters:
+            tags:
+              only: /.*/
       - fedora_latest_build
+          filters:
+            tags:
+              only: /.*/
       - macos_xcode_9_4_1_build
+          filters:
+            tags:
+              only: /.*/
