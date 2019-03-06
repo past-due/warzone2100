@@ -173,19 +173,19 @@ workflows:
   version: 2
   all_builds:
     jobs:
-      - ubuntu_18_04_build
+      - ubuntu_18_04_build:
           filters:
             tags:
               only: /.*/
-      - package_source
+      - package_source:
           filters:
             tags:
               only: /.*/
-      - fedora_latest_build
+      - fedora_latest_build:
           filters:
             tags:
               only: /.*/
-      - macos_xcode_9_4_1_build
+      - macos_xcode_9_4_1_build:
           filters:
             tags:
               only: /.*/
