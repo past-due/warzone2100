@@ -153,21 +153,21 @@ jobs:
           command: |
             brew install cmake
             brew install gettext
-            gem install asciidoctor -v 1.5.8 --no-document
+            sudo gem install asciidoctor -v 1.5.8 --no-document
             brew install gcc@7
-            bundle install --gemfile="macosx/BuildBot/Gemfile"
+            sudo bundle install --gemfile="macosx/BuildBot/Gemfile"
 
       # Build
       - run:
           name: Build Warzone
           command: |
             source build_tools/ci/circleci/export_build_output_desc.sh
-            macosx/BuildBot/travis_cmake_build.sh "${WZ_BUILD_DESC_PREFIX}-" "tmp/wz_upload"
+            macosx/BuildBot/travis_cmake_build.sh "${WZ_BUILD_DESC_PREFIX}-" "/tmp/wz_upload"
 
       # Collect and save build artifacts
       - store_artifacts:
-          path: tmp/wz_upload
-          destination: macos_build_results
+          path: /tmp/wz_upload
+          #destination: macos_build_results
 
 workflows:
   version: 2
