@@ -80,6 +80,11 @@ jobs:
             cmake '-H.' -Bbuild -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWZ_ENABLE_WARNINGS:BOOL=ON -G"Ninja"
             cmake --build build -- -j 2
 
+      # Collect and save build artifacts
+      - store_artifacts:
+          path: build/warzone2100.tar.xz
+          destination: packaged_source_results
+
   # Build for Fedora :LATEST (CMake) (GCC)
   fedora_latest_build:
     docker:
