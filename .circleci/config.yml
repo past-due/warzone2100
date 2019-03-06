@@ -3,7 +3,7 @@
 version: 2
 jobs:
 
-  # Ubuntu 18.04 (CMake)
+  # Build for Ubuntu 18.04 (CMake) (Clang)
   ubuntu_18_04_build:
     docker:
       - image: ubuntu:18.04
@@ -38,6 +38,47 @@ jobs:
             CC: /usr/bin/clang
             CXX: /usr/bin/clang++
 
+  # Package source (Ubuntu 18.04, CMake) [GCC]
+  package_source:
+    docker:
+      - image: ubuntu:18.04
+        command: ["/bin/sh"]
+
+    steps:
+      - run:
+          name: Install essential packages
+          command: |
+            apt-get update && apt-get install -y git ssh tar gzip ca-certificates curl
+
+      - run:
+          name: Install WZ Prereqs
+          command: |
+            apt-get -u update
+            DEBIAN_FRONTEND=noninteractive apt-get -y install build-essential clang ninja-build pkg-config libpng-dev libsdl2-dev libopenal-dev libphysfs-dev libvorbis-dev libtheora-dev libglew-dev libxrandr-dev zip unzip qtscript5-dev qt5-default libfribidi-dev libfreetype6-dev libharfbuzz-dev libfontconfig1-dev docbook-xsl xsltproc asciidoc gettext git cmake sudo
+
+      - checkout
+
+      # Init Git Submodules
+      - run:
+          name: Pull Submodules
+          command: git submodule update --init --recursive
+
+      - run:
+          name: Package Source
+          command: |
+            export MAKEFLAGS="-j$((`grep -c ^processor /proc/cpuinfo`))"
+            cmake '-H.' -Bbuild -DCMAKE_BUILD_TYPE=Debug -G"Ninja"
+            cmake --build build --target package_source
+            # Extract the .tar.xz into a new location
+            mkdir extracted && tar -xf build/warzone2100.tar.xz -C extracted
+
+      - run:
+          name: Build from Packaged Source (CMake)
+          command: |
+            cd extracted/warzone2100
+            echo $(pwd)
+            cmake '-H.' -Bbuild -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWZ_ENABLE_WARNINGS:BOOL=ON -G"Ninja"
+            cmake --build build -- -j 2
 
   # Build for Fedora :LATEST (CMake) (GCC)
   fedora_latest_build:
@@ -117,5 +158,6 @@ workflows:
   all_builds:
     jobs:
       - ubuntu_18_04_build
+	  - package_source
       - fedora_latest_build
       - macos_xcode_9_4_1_build
