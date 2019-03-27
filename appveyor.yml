@@ -56,6 +56,7 @@ before_build:
         $env:QT5DIR = "C:\Qt\5.6\msvc2015"
         $env:WZ_VC_TOOLCHAIN = "v141_xp"
         $env:WZ_VC_TARGET_PLATFORMNAME = "Win32"
+        $env:WZ_WIN32_API_COMPAT_VERSION = "5.1" # XP
         $env:WZ_OUTPUT_PLATFORMNAME = "x86"
       }
       elseif ($env:WZ_JOB_ID -eq "release_x86") {
@@ -66,6 +67,7 @@ before_build:
         $env:QT5DIR = "C:\Qt\5.9\msvc2015"
         $env:WZ_VC_TOOLCHAIN = "v141"
         $env:WZ_VC_TARGET_PLATFORMNAME = "Win32"
+        $env:WZ_WIN32_API_COMPAT_VERSION = "6.1" # Windows 7
         $env:WZ_OUTPUT_PLATFORMNAME = "x86"
       }
       elseif ($env:WZ_JOB_ID -eq "release_x64") {
@@ -76,6 +78,7 @@ before_build:
         $env:QT5DIR = "C:\Qt\5.9\msvc2017_64"
         $env:WZ_VC_TOOLCHAIN = "v141"
         $env:WZ_VC_TARGET_PLATFORMNAME = "x64"
+        $env:WZ_WIN32_API_COMPAT_VERSION = "6.1" # Windows 7
         $env:WZ_OUTPUT_PLATFORMNAME = "x64"
       }
   # Set distributor (if building from the main repo)
@@ -94,7 +97,7 @@ before_build:
   # Clean the build remnants of vcpkg itself. (Since it's rebuilt fresh - even from a cached vcpkg directory - these aren't needed.)
   - msbuild .\vcpkg\toolsrc\vcpkg.sln /t:Clean /p:Configuration=Release /p:Platform=x86
   # Use CMake to configure with the appropriate Visual Studio (MSBUILD) generator, toolchain, and target platform (portable build)
-  - cmake -H. -Bbuild  -DCMAKE_TOOLCHAIN_FILE="%APPVEYOR_BUILD_FOLDER%\vcpkg\scripts\buildsystems\vcpkg.cmake" -DWZ_PORTABLE:BOOL=ON -DCPACK_PACKAGE_FILE_NAME:STRING="warzone2100_portable" -DWZ_DISTRIBUTOR:STRING="%WZ_DISTRIBUTOR%" -G "%WZ_VC_GENERATOR%" -T "%WZ_VC_TOOLCHAIN%" -A "%WZ_VC_TARGET_PLATFORMNAME%"
+  - cmake -H. -Bbuild  -DCMAKE_TOOLCHAIN_FILE="%APPVEYOR_BUILD_FOLDER%\vcpkg\scripts\buildsystems\vcpkg.cmake" -DWZ_PORTABLE:BOOL=ON -DCPACK_PACKAGE_FILE_NAME:STRING="warzone2100_portable" -DWZ_DISTRIBUTOR:STRING="%WZ_DISTRIBUTOR%" -G "%WZ_VC_GENERATOR%" -T "%WZ_VC_TOOLCHAIN%" -A "%WZ_VC_TARGET_PLATFORMNAME%" -DWZ_WIN32_API_COMPAT_VERSION:STRING="%WZ_WIN32_API_COMPAT_VERSION%"
 
 build:
   parallel: true
@@ -124,7 +127,7 @@ after_build:
   - ps: cmd /c 7z a -t7z -m0=lzma -mx=9 -mtc=off -mtm=off -mta=off "warzone2100-$($env:WZ_ZIP_DESC)_portable.DEBUGSYMBOLS.7z" "$($env:APPVEYOR_BUILD_FOLDER)\build\src\*.pdb" "$($env:APPVEYOR_BUILD_FOLDER)\build\src\*.sym"
   
   # Re-run CMake configure for non-portable (regular) installer
-  - cmake -H. -Bbuild  -DCMAKE_TOOLCHAIN_FILE="%APPVEYOR_BUILD_FOLDER%\vcpkg\scripts\buildsystems\vcpkg.cmake" -DWZ_PORTABLE:BOOL=OFF -DCPACK_PACKAGE_FILE_NAME:STRING="warzone2100_installer" -DWZ_DISTRIBUTOR:STRING="%WZ_DISTRIBUTOR%" -G "%WZ_VC_GENERATOR%" -T "%WZ_VC_TOOLCHAIN%" -A "%WZ_VC_TARGET_PLATFORMNAME%"
+  - cmake -H. -Bbuild  -DCMAKE_TOOLCHAIN_FILE="%APPVEYOR_BUILD_FOLDER%\vcpkg\scripts\buildsystems\vcpkg.cmake" -DWZ_PORTABLE:BOOL=OFF -DCPACK_PACKAGE_FILE_NAME:STRING="warzone2100_installer" -DWZ_DISTRIBUTOR:STRING="%WZ_DISTRIBUTOR%" -G "%WZ_VC_GENERATOR%" -T "%WZ_VC_TOOLCHAIN%" -A "%WZ_VC_TARGET_PLATFORMNAME%" -DWZ_WIN32_API_COMPAT_VERSION:STRING="%WZ_WIN32_API_COMPAT_VERSION%"
   # Build the regular installer package (this should only rebuild the installer itself)
   - msbuild build/PACKAGE.vcxproj /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
   
