@@ -7,6 +7,7 @@ OPTION(WZ_ENABLE_WARNINGS "Enable (additional) warnings" OFF)
 OPTION(WZ_ENABLE_WARNINGS_AS_ERRORS "Enable compiler flags that treat (most) warnings as errors" ON)
 
 set(WZ_DISTRIBUTOR "UNKNOWN" CACHE STRING "Name of distributor compiling this package")
+set(WZ_WIN32_API_COMPAT_VERSION "" CACHE STRING "Override for targeted minimum version of Windows (used for Windows SDK conditional compilation); expect same format as CMAKE_SYSTEM_VERSION (ex. \"6.1\" for Windows 7)")
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
@@ -136,6 +137,81 @@ endif()
 # NOTE: For MSVC, this also sets the executable character set.
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
+
+# Set Windows-specific defines (ex. _WIN32_WINNT)
+set(WZ_DEFAULT_WIN32_API_COMPAT_VERSION "6.1") # Windows 7
+if(CMAKE_SYSTEM_NAME MATCHES "Windows")
+	# Source: https://stackoverflow.com/a/40217291; modified for WZ
+	macro(convert_to_WIN32_WINNT input_version output)
+		if (${input_version})
+			set(ver "${${input_version}}")
+			string(REGEX MATCH "^([0-9]+).([0-9])" ver ${ver})
+			string(REGEX MATCH "^([0-9]+)" verMajor ${ver})
+			# Check for Windows 10, b/c we'll need to convert to hex 'A'.
+			if ("${verMajor}" MATCHES "10")
+				set(verMajor "A")
+				string(REGEX REPLACE "^([0-9]+)" ${verMajor} ver ${ver})
+			endif ("${verMajor}" MATCHES "10")
+			# Remove all remaining '.' characters.
+			string(REPLACE "." "" ver ${ver})
+			# Prepend each digit with a zero.
+			string(REGEX REPLACE "([0-9A-Z])" "0\\1" ver ${ver})
+			set(${output} "0x${ver}")
+		endif(${input_version})
+	endmacro(convert_to_WIN32_WINNT)
+
+	# Default Windows SDK API compatibility version
+	set(_input_target_windows_version_source "(WZ default)")
+	set(_input_target_windows_version "${WZ_DEFAULT_WIN32_API_COMPAT_VERSION}")
+
+	if(DEFINED WZ_WIN32_API_COMPAT_VERSION AND NOT "${WZ_WIN32_API_COMPAT_VERSION}" STREQUAL "")
+		# By defining WZ_WIN32_API_COMPAT_VERSION when running CMake configure, a custom Windows SDK API
+		# compatibility version can be specified for appropriately setting `_WIN32_WINNT`.
+		#
+		# This setting does _not_ impact which Windows SDK is used (if multiple versions are present).
+		# It only impacts the definition of `_WIN32_WINNT`.
+		#
+		# The expected format is the same as that of CMAKE_SYSTEM_VERSION. Examples:
+		# - Windows 7:   "6.1"
+		# - Windows 8:   "6.2"
+		# - Windows 8.1: "6.3"
+		#
+		set(_input_target_windows_version_source WZ_WIN32_API_COMPAT_VERSION)
+		set(_input_target_windows_version "${WZ_WIN32_API_COMPAT_VERSION}")
+	elseif(DEFINED CMAKE_SYSTEM_VERSION AND NOT "${CMAKE_SYSTEM_VERSION}" STREQUAL "")
+		# When compiling on Windows *for* Windows, CMAKE_HOST_SYSTEM_VERSION is used to set CMAKE_SYSTEM_VERSION
+		# and we do *not* want to override WZ_DEFAULT_WIN32_API_COMPAT_VERSION in this case.
+		#
+		# So, only use CMAKE_SYSTEM_VERSION to compute _WIN32_WINNT if:
+		# (a) cross-compiling
+		# (b) CMAKE_SYSTEM_VERSION differs from CMAKE_HOST_SYSTEM_VERSION (i.e. it was explicitly set)
+		#
+		if(CMAKE_CROSSCOMPILING OR (NOT CMAKE_SYSTEM_VERSION STREQUAL CMAKE_HOST_SYSTEM_VERSION))
+			set(_input_target_windows_version_source CMAKE_SYSTEM_VERSION)
+			set(_input_target_windows_version "${CMAKE_SYSTEM_VERSION}")
+		endif()
+	endif()
+
+	convert_to_WIN32_WINNT(_input_target_windows_version WIN32_WINNT_ver)
+
+	if(DEFINED WIN32_WINNT_ver)
+		message(STATUS "Setting -D_WIN32_WINNT=${WIN32_WINNT_ver} (based on target minimum ${_input_target_windows_version_source}: \"${_input_target_windows_version}\")")
+		add_definitions(-D_WIN32_WINNT=${WIN32_WINNT_ver})
+	else()
+		message(WARNING "convert_to_WIN32_WINNT failed (${_input_target_windows_version_source}: \"${_input_target_windows_version}\")")
+		# Fallback to WZ_DEFAULT_WIN32_API_COMPAT_VERSION
+		convert_to_WIN32_WINNT(WZ_DEFAULT_WIN32_API_COMPAT_VERSION WIN32_WINNT_ver)
+		if(DEFINED WIN32_WINNT_ver)
+			message(STATUS "Setting -D_WIN32_WINNT=${WIN32_WINNT_ver} (based on WZ *default* minimum: \"${WZ_DEFAULT_WIN32_API_COMPAT_VERSION}\")")
+		else()
+			message(FATAL_ERROR "convert_to_WIN32_WINNT failed (WZ_DEFAULT_WIN32_API_COMPAT_VERSION: \"${WZ_DEFAULT_WIN32_API_COMPAT_VERSION}\"); cannot define _WIN32_WINNT")
+		endif()
+	endif()
+
+	if(MSVC AND CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION)
+		message(STATUS "CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION=${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}")
+	endif()
+endif(CMAKE_SYSTEM_NAME MATCHES "Windows")
 
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
