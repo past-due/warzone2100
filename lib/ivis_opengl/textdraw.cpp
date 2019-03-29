@@ -791,7 +791,7 @@ void iV_DrawTextF(float x, float y, const char *format, ...)
 int WzText::width()
 {
 	updateCacheIfNecessary();
-	return width_pixelsToPoints(dimensions.x);
+	return width_pixelsToPoints(dimensions.x + std::max(offsets.x, 0));
 }
 int WzText::height()
 {
