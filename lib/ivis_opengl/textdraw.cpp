@@ -267,8 +267,8 @@ struct TextShaper
 	// Returns the text width and height *IN PIXELS*
 	std::tuple<uint32_t, uint32_t> getTextMetrics(const TextRun& text, FTFace &face)
 	{
-		const std::vector<HarfbuzzPosition> &shapingResult = shapeText(text, face);
-		if (shapingResult.empty())
+		const ShapingResult &shapingResult = shapeText(text, face);
+		if (shapingResult.glyphes.empty())
 			return std::make_tuple(0, 0);
 
 		int32_t min_x;
@@ -276,7 +276,7 @@ struct TextShaper
 		int32_t min_y;
 		int32_t max_y;
 
-		std::tie(min_x, max_x, min_y, max_y) = std::accumulate(shapingResult.begin(), shapingResult.end(), std::make_tuple(1000, -1000, 1000, -1000),
+		std::tie(min_x, max_x, min_y, max_y) = std::accumulate(shapingResult.glyphes.begin(), shapingResult.glyphes.end(), std::make_tuple(1000, -1000, 1000, -1000),
 			[&face] (const std::tuple<int32_t, int32_t, int32_t, int32_t> &bounds, const HarfbuzzPosition &g) {
 			RasterizedGlyph glyph = face.get(g.codepoint, g.penPosition % 64);
 			int32_t x0 = g.penPosition.x / 64 + glyph.bearing_x;
@@ -289,15 +289,23 @@ struct TextShaper
 				);
 			});
 
-		return std::make_tuple(max_x - min_x + 1, max_y - min_y + 1);
+		uint32_t width = max_x - min_x + 1;
+		uint32_t possible_fixed_width = (shapingResult.x_advance / 64);
+		if (possible_fixed_width > width)
+		{
+			debug(LOG_INFO, "Found it!");
+			width = possible_fixed_width;
+		}
+
+		return std::make_tuple(width + std::max(min_x, 0), max_y - min_y + 1);
 	}
 
 	// Draws the text and returns the text buffer, width and height, etc *IN PIXELS*
 	std::tuple<std::unique_ptr<unsigned char[]>, uint32_t, uint32_t, int32_t, int32_t> drawText(const TextRun& text, FTFace &face)
 	{
-		const std::vector<HarfbuzzPosition> &shapingResult = shapeText(text, face);
+		const ShapingResult &shapingResult = shapeText(text, face);
 
-		if (shapingResult.empty())
+		if (shapingResult.glyphes.empty())
 		{
 			return std::make_tuple(nullptr, 0, 0, 0, 0);
 		}
@@ -320,7 +328,7 @@ struct TextShaper
 		};
 
 		std::vector<glyphRaster> glyphs;
-		std::transform(shapingResult.begin(), shapingResult.end(), std::back_inserter(glyphs),
+		std::transform(shapingResult.glyphes.begin(), shapingResult.glyphes.end(), std::back_inserter(glyphs),
 			[&] (const HarfbuzzPosition &g) {
 			RasterizedGlyph glyph = face.get(g.codepoint, g.penPosition % 64);
 			int32_t x0 = g.penPosition.x / 64 + glyph.bearing_x;
@@ -334,6 +342,12 @@ struct TextShaper
 
 		uint32_t width = max_x - min_x + 1;
 		uint32_t height = max_y - min_y + 1;
+		uint32_t possible_fixed_width = (shapingResult.x_advance / 64);
+		if (possible_fixed_width > width)
+		{
+			debug(LOG_INFO, "Found it!");
+			width = possible_fixed_width;
+		}
 
 		std::unique_ptr<unsigned char[]> stringTexture(new unsigned char[4 * width * height]);
 		memset(stringTexture.get(), 0, 4 * width * height);
@@ -370,7 +384,14 @@ public:
 		HarfbuzzPosition(hb_codepoint_t c, Vector2i &&p) : codepoint(c), penPosition(p) {}
 	};
 
-	std::vector<HarfbuzzPosition> shapeText(const TextRun& text, FTFace &face)
+	struct ShapingResult
+	{
+		std::vector<HarfbuzzPosition> glyphes;
+		int32_t x_advance = 0;
+		int32_t y_advance = 0;
+	};
+
+	ShapingResult shapeText(const TextRun& text, FTFace &face)
 	{
 		hb_buffer_reset(m_buffer);
 		size_t length = text.text.size();
@@ -392,15 +413,18 @@ public:
 
 		int32_t x = 0;
 		int32_t y = 0;
-		std::vector<HarfbuzzPosition> glyphes;
+		ShapingResult result;
 		for (unsigned int glyphIndex = 0; glyphIndex < glyphCount; ++glyphIndex)
 		{
-			glyphes.emplace_back(glyphInfo[glyphIndex].codepoint, Vector2i(x + glyphPos[glyphIndex].x_offset, y + glyphPos[glyphIndex].y_offset));
+			hb_glyph_position_t &current_glyphPos = glyphPos[glyphIndex];
+			result.glyphes.emplace_back(glyphInfo[glyphIndex].codepoint, Vector2i(x + current_glyphPos.x_offset, y + current_glyphPos.y_offset));
 
 			x += glyphPos[glyphIndex].x_advance;
 			y += glyphPos[glyphIndex].y_advance;
 		};
-		return glyphes;
+		result.x_advance = x;
+		result.y_advance = y;
+		return result;
 	}
 };
 
