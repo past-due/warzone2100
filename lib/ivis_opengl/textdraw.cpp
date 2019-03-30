@@ -400,7 +400,7 @@ public:
 		hb_buffer_guess_segment_properties(m_buffer);
 
 		// harfbuzz shaping
-		std::array<hb_feature_t, 3> features = { HBFeature::KerningOn, HBFeature::LigatureOn, HBFeature::CligOn };
+		std::array<hb_feature_t, 3> features = { {HBFeature::KerningOn, HBFeature::LigatureOn, HBFeature::CligOn} };
 		hb_shape(face.m_font, m_buffer, features.data(), features.size());
 
 		unsigned int glyphCount;
