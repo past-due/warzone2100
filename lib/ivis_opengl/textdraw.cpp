@@ -833,7 +833,7 @@ int WzText::width()
 int WzText::height()
 {
 	updateCacheIfNecessary();
-	return height_pixelsToPoints(dimensions.y);
+	return height_pixelsToPoints(dimensions.y + std::max(offsets.y, 0));
 }
 int WzText::aboveBase()
 {
