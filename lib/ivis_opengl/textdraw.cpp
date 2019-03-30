@@ -240,11 +240,40 @@ struct TextRun
 		text(t), language(l), script(s), direction(d) {}
 };
 
-struct ShapedText
+struct TextLayoutMetrics
 {
-	std::unique_ptr<unsigned char[]> texture;
+	TextLayoutMetrics(uint32_t _width, uint32_t _height) : width(_width), height(_height) { }
+	TextLayoutMetrics() : width(0), height(0) { }
 	uint32_t width;
 	uint32_t height;
+};
+
+struct RenderedText
+{
+	RenderedText(std::unique_ptr<unsigned char[]> &&_data, uint32_t _width, uint32_t _height, uint32_t _offset_x, uint32_t _offset_y)
+	: data(std::move(_data)), width(_width), height(_height), offset_x(_offset_x), offset_y(_offset_y)
+	{ }
+
+	RenderedText() : data(nullptr) , width(0) , height(0) , offset_x(0) , offset_y(0)
+	{ }
+
+	std::unique_ptr<unsigned char[]> data;
+	uint32_t width;
+	uint32_t height;
+	uint32_t offset_x;
+	uint32_t offset_y;
+};
+
+struct DrawTextResult
+{
+	DrawTextResult(RenderedText &&_text, TextLayoutMetrics _layoutMetrics) : text(std::move(_text)), layoutMetrics(_layoutMetrics)
+	{ }
+
+	DrawTextResult()
+	{ }
+
+	RenderedText text;
+	TextLayoutMetrics layoutMetrics;
 };
 
 // Note:
@@ -265,11 +294,13 @@ struct TextShaper
 	}
 
 	// Returns the text width and height *IN PIXELS*
-	std::tuple<uint32_t, uint32_t> getTextMetrics(const TextRun& text, FTFace &face)
+	TextLayoutMetrics getTextMetrics(const TextRun& text, FTFace &face)
 	{
 		const ShapingResult &shapingResult = shapeText(text, face);
 		if (shapingResult.glyphes.empty())
-			return std::make_tuple(0, 0);
+		{
+			return TextLayoutMetrics(shapingResult.x_advance / 64, shapingResult.y_advance / 64);
+		}
 
 		int32_t min_x;
 		int32_t max_x;
@@ -289,25 +320,26 @@ struct TextShaper
 				);
 			});
 
-		uint32_t width = max_x - min_x + 1;
-		uint32_t possible_fixed_width = (shapingResult.x_advance / 64);
-		if (possible_fixed_width > width)
-		{
-			debug(LOG_INFO, "Found it!");
-			width = possible_fixed_width;
-		}
+		const uint32_t texture_width = max_x - min_x + 1;
+		const uint32_t texture_height = max_y - min_y + 1;
+		const uint32_t x_advance = (shapingResult.x_advance / 64);
+		const uint32_t y_advance = (shapingResult.y_advance / 64);
+		const FT_Face &type = face.face();
+		const uint32_t lineHeight = (uint32_t)std::abs((int)((type->size->metrics.ascender - type->size->metrics.descender) >> 6));
 
-		return std::make_tuple(width + std::max(min_x, 0), max_y - min_y + 1);
+		// return the *layout* bounding box
+		// this is the maximum of the x_advance / y_advance (converted from harfbuzz units) and the texture dimensions
+		// for the height, also check and use the type's lineHeight if it's the greatest height value
+		return TextLayoutMetrics(std::max(texture_width, x_advance), std::max({texture_height, y_advance, lineHeight}));
 	}
 
 	// Draws the text and returns the text buffer, width and height, etc *IN PIXELS*
-	std::tuple<std::unique_ptr<unsigned char[]>, uint32_t, uint32_t, int32_t, int32_t> drawText(const TextRun& text, FTFace &face)
+	DrawTextResult drawText(const TextRun& text, FTFace &face)
 	{
 		const ShapingResult &shapingResult = shapeText(text, face);
-
 		if (shapingResult.glyphes.empty())
 		{
-			return std::make_tuple(nullptr, 0, 0, 0, 0);
+			return DrawTextResult(RenderedText(), TextLayoutMetrics(shapingResult.x_advance / 64, shapingResult.y_advance / 64));
 		}
 
 		int32_t min_x = 1000;
@@ -340,17 +372,15 @@ struct TextShaper
 			return glyphRaster(std::move(glyph.buffer), Vector2i(x0, y0), Vector2i(glyph.width, glyph.height), glyph.pitch);
 			});
 
-		uint32_t width = max_x - min_x + 1;
-		uint32_t height = max_y - min_y + 1;
-		uint32_t possible_fixed_width = (shapingResult.x_advance / 64);
-		if (possible_fixed_width > width)
-		{
-			debug(LOG_INFO, "Found it!");
-			width = possible_fixed_width;
-		}
+		const uint32_t texture_width = max_x - min_x + 1;
+		const uint32_t texture_height = max_y - min_y + 1;
+		const uint32_t x_advance = (shapingResult.x_advance / 64);
+		const uint32_t y_advance = (shapingResult.y_advance / 64);
+		const FT_Face &type = face.face();
+		const uint32_t lineHeight = (uint32_t)std::abs((int)((type->size->metrics.ascender - type->size->metrics.descender) >> 6));
 
-		std::unique_ptr<unsigned char[]> stringTexture(new unsigned char[4 * width * height]);
-		memset(stringTexture.get(), 0, 4 * width * height);
+		std::unique_ptr<unsigned char[]> stringTexture(new unsigned char[4 * texture_width * texture_height]);
+		memset(stringTexture.get(), 0, 4 * texture_width * texture_height);
 
 		std::for_each(glyphs.begin(), glyphs.end(),
 			[&](const glyphRaster &g)
@@ -362,7 +392,7 @@ struct TextShaper
 					{
 						uint32_t j0 = g.pixelPosition.x - min_x;
 						uint8_t const *src = &g.buffer[i * g.pitch + 3 * j];
-						uint8_t *dst = &stringTexture[4 * ((i0 + i) * width + j + j0)];
+						uint8_t *dst = &stringTexture[4 * ((i0 + i) * texture_width + j + j0)];
 						dst[0] = std::min(dst[0] + src[0], 255);
 						dst[1] = std::min(dst[1] + src[1], 255);
 						dst[2] = std::min(dst[2] + src[2], 255);
@@ -370,7 +400,10 @@ struct TextShaper
 					}
 				}
 			});
-		return std::make_tuple(std::move(stringTexture), width, height, min_x, min_y);
+		return DrawTextResult(
+				RenderedText(std::move(stringTexture), texture_width, texture_height, min_x, min_y),
+				TextLayoutMetrics(std::max(texture_width, x_advance), std::max({texture_height, y_advance, lineHeight}))
+		);
 	}
 
 public:
@@ -546,10 +579,9 @@ unsigned int height_pixelsToPoints(unsigned int heightInPixels)
 // Returns the text width *in points*
 unsigned int iV_GetTextWidth(const char *string, iV_fonts fontID)
 {
-	uint32_t width;
 	TextRun tr(string, "en", HB_SCRIPT_COMMON, HB_DIRECTION_LTR);
-	std::tie(width, std::ignore) = getShaper().getTextMetrics(tr, getFTFace(fontID));
-	return width_pixelsToPoints(width);
+	TextLayoutMetrics metrics = getShaper().getTextMetrics(tr, getFTFace(fontID));
+	return width_pixelsToPoints(metrics.width);
 }
 
 // Returns the counted text width *in points*
@@ -561,10 +593,9 @@ unsigned int iV_GetCountedTextWidth(const char *string, size_t string_length, iV
 // Returns the text height *in points*
 unsigned int iV_GetTextHeight(const char *string, iV_fonts fontID)
 {
-	uint32_t height;
 	TextRun tr(string, "en", HB_SCRIPT_COMMON, HB_DIRECTION_LTR);
-	std::tie(std::ignore, height) = getShaper().getTextMetrics(tr, getFTFace(fontID));
-	return height_pixelsToPoints(height);
+	TextLayoutMetrics metrics = getShaper().getTextMetrics(tr, getFTFace(fontID));
+	return height_pixelsToPoints(metrics.height);
 }
 
 // Returns the character width *in points*
@@ -768,24 +799,21 @@ void iV_DrawTextRotated(const char *string, float XPos, float YPos, float rotati
 	color.vector[3] = font_colour[3] * 255.f;
 
 	TextRun tr(string, "en", HB_SCRIPT_COMMON, HB_DIRECTION_LTR);
-	uint32_t width, height;
-	std::unique_ptr<unsigned char[]> texture;
-	int32_t xoffset, yoffset;
-	std::tie(texture, width, height, xoffset, yoffset) = getShaper().drawText(tr, getFTFace(fontID));
+	DrawTextResult drawResult = getShaper().drawText(tr, getFTFace(fontID));
 
-	if (width > 0 && height > 0)
+	if (drawResult.text.width > 0 && drawResult.text.height > 0)
 	{
 		pie_SetTexturePage(TEXPAGE_EXTERN);
 		if (textureID)
 			delete textureID;
-		textureID = gfx_api::context::get().create_texture(width, height, gfx_api::pixel_format::rgba);
-		textureID->upload(0u, 0u, 0u, width, height, gfx_api::pixel_format::rgba, texture.get());
+		textureID = gfx_api::context::get().create_texture(drawResult.text.width, drawResult.text.height, gfx_api::pixel_format::rgba);
+		textureID->upload(0u, 0u, 0u, drawResult.text.width, drawResult.text.height, gfx_api::pixel_format::rgba, drawResult.text.data.get());
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, text_filtering);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, text_filtering);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glDisable(GL_CULL_FACE);
-		iV_DrawImageText(*textureID, Vector2i(XPos, YPos), Vector2f((float)xoffset / _horizScaleFactor, (float)yoffset / _vertScaleFactor), Vector2f((float)width / _horizScaleFactor, (float)height / _vertScaleFactor), rotation, REND_TEXT, color);
+		iV_DrawImageText(*textureID, Vector2i(XPos, YPos), Vector2f((float)drawResult.text.offset_x / _horizScaleFactor, (float)drawResult.text.offset_y / _vertScaleFactor), Vector2f((float)drawResult.text.width / _horizScaleFactor, (float)drawResult.text.height / _vertScaleFactor), rotation, REND_TEXT, color);
 		glEnable(GL_CULL_FACE);
 	}
 }
@@ -828,12 +856,12 @@ void iV_DrawTextF(float x, float y, const char *format, ...)
 int WzText::width()
 {
 	updateCacheIfNecessary();
-	return width_pixelsToPoints(dimensions.x + std::max(offsets.x, 0));
+	return width_pixelsToPoints(layoutMetrics.x);
 }
 int WzText::height()
 {
 	updateCacheIfNecessary();
-	return height_pixelsToPoints(dimensions.y + std::max(offsets.y, 0));
+	return height_pixelsToPoints(layoutMetrics.y);
 }
 int WzText::aboveBase()
 {
@@ -868,7 +896,6 @@ void WzText::drawAndCacheText(const std::string &string, iV_fonts fontID)
 	mRenderingVertScaleFactor = iV_GetVertScaleFactor();
 
 	TextRun tr(string, "en", HB_SCRIPT_COMMON, HB_DIRECTION_LTR);
-	std::unique_ptr<unsigned char[]> data;
 	FTFace &face = getFTFace(fontID);
 	FT_Face &type = face.face();
 
@@ -876,7 +903,10 @@ void WzText::drawAndCacheText(const std::string &string, iV_fonts fontID)
 	mPtsLineSize = metricsHeight_PixelsToPoints((type->size->metrics.ascender - type->size->metrics.descender) >> 6);
 	mPtsBelowBase = metricsHeight_PixelsToPoints(type->size->metrics.descender >> 6);
 
-	std::tie(data, dimensions.x, dimensions.y, offsets.x, offsets.y) = getShaper().drawText(tr, face);
+	DrawTextResult drawResult = getShaper().drawText(tr, face);
+	dimensions = Vector2i(drawResult.text.width, drawResult.text.height);
+	offsets = Vector2i(drawResult.text.offset_x, drawResult.text.offset_y);
+	layoutMetrics = Vector2i(drawResult.layoutMetrics.width, drawResult.layoutMetrics.height);
 
 	if (texture)
 	{
@@ -888,7 +918,7 @@ void WzText::drawAndCacheText(const std::string &string, iV_fonts fontID)
 	{
 		pie_SetTexturePage(TEXPAGE_EXTERN);
 		texture = gfx_api::context::get().create_texture(dimensions.x, dimensions.y, gfx_api::pixel_format::rgba);
-		texture->upload(0u, 0u, 0u, dimensions.x , dimensions.y, gfx_api::pixel_format::rgba, data.get());
+		texture->upload(0u, 0u, 0u, dimensions.x , dimensions.y, gfx_api::pixel_format::rgba, drawResult.text.data.get());
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, text_filtering);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, text_filtering);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -934,6 +964,7 @@ WzText& WzText::operator=(WzText&& other)
 		dimensions = other.dimensions;
 		mRenderingHorizScaleFactor = other.mRenderingHorizScaleFactor;
 		mRenderingVertScaleFactor = other.mRenderingVertScaleFactor;
+		layoutMetrics = other.layoutMetrics;
 
 		// Reset other's texture
 		other.texture = nullptr;
