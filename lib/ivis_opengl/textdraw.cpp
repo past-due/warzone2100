@@ -50,14 +50,15 @@ static float font_colour[4] = {1.f, 1.f, 1.f, 1.f};
 #include <unordered_map>
 #include <memory>
 
-#if defined(HB_VERSION_ATLEAST) && HB_VERSION_ATLEAST(1,0,5)
-	#define WZ_FT_LOAD_FLAGS (FT_LOAD_DEFAULT | FT_LOAD_TARGET_LCD)
-#else
+// // NOTE: The following is commented-out pending further testing on low-DPI displays
+//#if defined(HB_VERSION_ATLEAST) && HB_VERSION_ATLEAST(1,0,5)
+//	#define WZ_FT_LOAD_FLAGS (FT_LOAD_DEFAULT | FT_LOAD_TARGET_LCD)
+//#else
 	// Without `hb_ft_font_set_load_flags` (which requires Harfbuzz 1.0.5+),
 	// must default FreeType to the same flags that Harfbuzz internally uses
-	// (by default hb load fonts without hinting)
-	#define WZ_FT_LOAD_FLAGS FT_LOAD_NO_HINTING
-#endif
+	// (by default hb loads fonts without hinting)
+	#define WZ_FT_LOAD_FLAGS FT_LOAD_NO_HINTING | FT_LOAD_TARGET_LCD
+//#endif
 #define WZ_FT_RENDER_MODE FT_RENDER_MODE_LCD
 
 float _horizScaleFactor = 1.0f;
