@@ -323,11 +323,6 @@ void wzDisplayDialog(DialogType type, const char *title, const char *message)
 	SDL_ShowSimpleMessageBox(sdl_messagebox_flags, title, message, WZwindow);
 }
 
-void wzScreenFlip()
-{
-	SDL_GL_SwapWindow(WZwindow);
-}
-
 void wzToggleFullscreen()
 {
 	Uint32 flags = SDL_GetWindowFlags(WZwindow);
