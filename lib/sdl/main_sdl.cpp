@@ -310,11 +310,6 @@ void wzFatalDialog(const char *msg)
 	SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "We have a problem!", msg, nullptr);
 }
 
-void wzScreenFlip()
-{
-	SDL_GL_SwapWindow(WZwindow);
-}
-
 void wzToggleFullscreen()
 {
 	Uint32 flags = SDL_GetWindowFlags(WZwindow);
