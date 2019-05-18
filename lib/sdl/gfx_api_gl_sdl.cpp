@@ -68,3 +68,8 @@ bool gl_context::setSwapchain(struct SDL_Window* window)
 
 	return true;
 }
+
+void gl_context::flip()
+{
+	SDL_GL_SwapWindow(WZwindow);
+}
