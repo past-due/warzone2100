@@ -110,12 +110,12 @@ const glm::mat4& pie_PerspectiveGet()
 
 void pie_Begin3DScene()
 {
-	gfx_api::context::get().set_depth_range(0.1, 1);
+	gfx_api::context::get().set_depth_range(0.1f, 1.f);
 }
 
 void pie_BeginInterface()
 {
-	gfx_api::context::get().set_depth_range(0., 0.1);
+	gfx_api::context::get().set_depth_range(0.f, 0.1f);
 }
 
 void pie_SetGeometricOffset(int x, int y)
