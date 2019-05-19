@@ -74,7 +74,7 @@ GFX::GFX(GFXTYPE type, int coordsPerVertex) : mType(type), mCoordsPerVertex(coor
 {
 }
 
-void GFX::loadTexture(const char *filename, GLenum filter)
+void GFX::loadTexture(const char *filename)
 {
 	ASSERT(mType == GFX_TEXTURE, "Wrong GFX type");
 	const char *extension = strrchr(filename, '.'); // determine the filetype
@@ -86,24 +86,19 @@ void GFX::loadTexture(const char *filename, GLenum filter)
 	}
 	if (iV_loadImage_PNG(filename, &image))
 	{
-		makeTexture(image.width, image.height, filter, iV_getPixelFormat(&image), image.bmp);
+		makeTexture(image.width, image.height, iV_getPixelFormat(&image), image.bmp);
 		iV_unloadImage(&image);
 	}
 }
 
-void GFX::makeTexture(int width, int height, GLenum filter, const gfx_api::pixel_format& format, const GLvoid *image)
+void GFX::makeTexture(int width, int height, const gfx_api::pixel_format& format, const GLvoid *image)
 {
 	ASSERT(mType == GFX_TEXTURE, "Wrong GFX type");
-//	pie_SetTexturePage(TEXPAGE_EXTERN);
 	if (mTexture)
 		delete mTexture;
 	mTexture = gfx_api::context::get().create_texture(1, width, height, format);
 	if (image != nullptr)
 		mTexture->upload(0u, 0u, 0u, width, height, format, image);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	mWidth = width;
 	mHeight = height;
 	mFormat = format;
@@ -629,7 +624,7 @@ bool pie_ShutdownRadar()
 
 void pie_SetRadar(gfx_api::gfxFloat x, gfx_api::gfxFloat y, gfx_api::gfxFloat width, gfx_api::gfxFloat height, int twidth, int theight)
 {
-	radarGfx->makeTexture(twidth, theight, GL_LINEAR);
+	radarGfx->makeTexture(twidth, theight);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);  // Want GL_LINEAR (or GL_LINEAR_MIPMAP_NEAREST) for min filter, but GL_NEAREST for mag filter.
 	gfx_api::gfxFloat texcoords[] = { 0.0f, 0.0f,  1.0f, 0.0f,  0.0f, 1.0f,  1.0f, 1.0f };
 	gfx_api::gfxFloat vertices[] = { x, y,  x + width, y,  x, y + height,  x + width, y + height };

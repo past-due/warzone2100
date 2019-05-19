@@ -704,7 +704,7 @@ bool seq_Play(const char *filename)
 		}
 
 		Allocate_videoFrame();
-		videoGfx->makeTexture(texture_width, texture_height, GL_LINEAR, gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8, blackframe);
+		videoGfx->makeTexture(texture_width, texture_height, gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8, blackframe);
 		free(blackframe);
 
 		// when using scanlines we need to double the height

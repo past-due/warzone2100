@@ -81,11 +81,11 @@ public:
 	~GFX();
 
 	/// Load texture data from file, allocate space for it, and put it on the GPU
-	void loadTexture(const char *filename, GLenum filter = GL_LINEAR);
+	void loadTexture(const char *filename);
 
 	/// Allocate space on the GPU for texture of given parameters. If image is non-NULL,
 	/// then that memory buffer is uploaded to the GPU.
-	void makeTexture(int width, int height, GLenum filter = GL_LINEAR, const gfx_api::pixel_format& format = gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8, const GLvoid *image = nullptr);
+	void makeTexture(int width, int height, const gfx_api::pixel_format& format = gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8, const GLvoid *image = nullptr);
 
 	/// Upload given memory buffer to already allocated texture space on the GPU
 	void updateTexture(const GLvoid *image, int width = -1, int height = -1);

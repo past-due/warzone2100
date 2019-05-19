@@ -372,7 +372,7 @@ void screen_Upload(const char *newBackDropBmp)
 	{
 		// Slight hack to display maps previews in background.
 		// Bitmap MUST be (BACKDROP_HACK_WIDTH * BACKDROP_HACK_HEIGHT) for now.
-		backdropGfx->makeTexture(BACKDROP_HACK_WIDTH, BACKDROP_HACK_HEIGHT, GL_NEAREST, gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8, newBackDropBmp);
+		backdropGfx->makeTexture(BACKDROP_HACK_WIDTH, BACKDROP_HACK_HEIGHT, gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8, newBackDropBmp);
 		backdropIsMapPreview = true;
 	}
 
