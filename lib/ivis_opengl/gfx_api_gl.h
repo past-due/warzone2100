@@ -24,6 +24,7 @@
 #include <GL/glew.h>
 #include <algorithm>
 #include <cmath>
+#include <functional>
 
 struct gl_texture final : public gfx_api::texture
 {
