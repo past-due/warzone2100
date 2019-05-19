@@ -1145,7 +1145,7 @@ static void drawTerrainLayers(const glm::mat4 &ModelViewProjection, const glm::v
 		gfx_api::TerrainLayer::get().bind_textures(&pie_Texture(texPage), lightmap_tex_num);
 
 		// load the color buffer
-		gfx_api::context::get().bind_vertex_buffers(1, { {textureVBO, static_cast<size_t>(sizeof(PIELIGHT)*xSectors * ySectors * (sectorSize + 1) * (sectorSize + 1) * 2 * layer)} });
+		gfx_api::context::get().bind_vertex_buffers(1, { std::make_tuple(textureVBO, static_cast<size_t>(sizeof(PIELIGHT)*xSectors * ySectors * (sectorSize + 1) * (sectorSize + 1) * 2 * layer)) });
 
 		for (int x = 0; x < xSectors; x++)
 		{
