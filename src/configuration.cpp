@@ -39,7 +39,6 @@
 #include "lib/netplay/netplay.h"
 #include "lib/sound/mixer.h"
 #include "lib/ivis_opengl/screen.h"
-#include "lib/framework/opengl.h"
 #include "lib/ivis_opengl/pieclip.h"
 
 #include "ai.h"
