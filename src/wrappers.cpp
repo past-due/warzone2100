@@ -122,7 +122,6 @@ TITLECODE titleLoop()
 {
 	TITLECODE RetCode = TITLECODE_CONTINUE;
 
-	pie_SetDepthBufferStatus(DEPTH_CMP_ALWAYS_WRT_ON);
 	pie_SetFogStatus(false);
 	screen_RestartBackDrop();
 	wzShowMouse(true);
