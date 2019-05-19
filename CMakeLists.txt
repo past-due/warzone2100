@@ -28,6 +28,7 @@ endif()
 # CXX Standard
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF) # Disable compiler-specific extensions
 
 # Support folders (for nicer IDE organization)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -85,9 +86,6 @@ if(IS_ABSOLUTE "${CMAKE_INSTALL_BINDIR}")
 endif()
 
 if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
-	# Disable compiler-specific extensions for macOS builds
-	set(CMAKE_CXX_EXTENSIONS OFF)
-
 	# Enable macOS-specific find scripts
 	list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/macosx/cmake")
 endif()
