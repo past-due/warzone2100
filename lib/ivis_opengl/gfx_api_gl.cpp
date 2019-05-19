@@ -826,6 +826,8 @@ size_t get_size(const gfx_api::vertex_attribute_type& type)
 		case gfx_api::vertex_attribute_type::u8x4_norm:
 			return 4;
 	}
+	debug(LOG_FATAL, "get_size(%d) failed", (int)type);
+	return 0; // silence warning
 }
 
 GLenum get_type(const gfx_api::vertex_attribute_type& type)
@@ -839,6 +841,8 @@ GLenum get_type(const gfx_api::vertex_attribute_type& type)
 		case gfx_api::vertex_attribute_type::u8x4_norm:
 			return GL_UNSIGNED_BYTE;
 	}
+	debug(LOG_FATAL, "get_type(%d) failed", (int)type);
+	return GL_INVALID_ENUM; // silence warning
 }
 
 GLboolean get_normalisation(const gfx_api::vertex_attribute_type& type)
@@ -852,6 +856,8 @@ GLboolean get_normalisation(const gfx_api::vertex_attribute_type& type)
 		case gfx_api::vertex_attribute_type::u8x4_norm:
 			return true;
 	}
+	debug(LOG_FATAL, "get_normalisation(%d) failed", (int)type);
+	return GL_FALSE; // silence warning
 }
 
 // MARK: gl_context
