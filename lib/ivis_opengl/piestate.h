@@ -68,8 +68,6 @@ void rendStatesRendModeHack();  // Sets rendStates.rendMode = REND_ALPHA; (Added
  */
 /***************************************************************************/
 void pie_SetDefaultStates();//Sets all states
-void pie_SetDepthBufferStatus(DEPTH_MODE depthMode);
-void pie_SetDepthOffset(float offset);
 //fog available
 void pie_EnableFog(bool val);
 bool pie_GetFogEnabled();
@@ -80,8 +78,6 @@ void pie_SetFogColour(PIELIGHT colour);
 PIELIGHT pie_GetFogColour() WZ_DECL_PURE;
 void pie_UpdateFogDistance(float begin, float end);
 //render states
-void pie_SetTexturePage(SDWORD num);
-void pie_SetRendMode(REND_MODE rendMode);
 RENDER_STATE getCurrentRenderState();
 
 int pie_GetMaxAntialiasing();
@@ -125,7 +121,6 @@ namespace pie_internal
 	};
 
 	extern std::vector<SHADER_PROGRAM> shaderProgram;
-	extern SHADER_MODE currentShaderMode;
 	extern gfx_api::buffer* rectBuffer;
 
 	/**
@@ -200,59 +195,21 @@ namespace pie_internal
 	};
 }
 
-/**
- * Bind program and sets the uniforms Args.
- * The uniform binding mechanism works in conjonction with pie_LoadShader.
- * When shader is loaded uniform location is fetched in a certain order.
- * in pie_ActivateShader the uniforms passed as variadic Args template
- * must be given in the same order.
- *
- * For instance if a shader is loaded by :
- * pie_LoadShader(..., { vector_uniform_name, matrix_uniform_name });
- * then subsequent pie_ActivateShader must be called like :
- * pie_ActivateShader(..., some_vector, some_matrix);
- * It will be expanded as :
- * {
- *     glUseProgram(...);
- *     glUniform4f(vector_uniform_location, some_vector);
- *     glUniform4fv(matrix_uniform_location, some_matrix);
- * }
- * Note that uniform count is checked at run time.
- * Uniform type is not checked but the GL implementation will complain
- * if the uniform type doesn't match.
- */
-template<typename...T>
-pie_internal::SHADER_PROGRAM &pie_ActivateShader(SHADER_MODE shaderMode, const T&... Args)
-{
-	pie_internal::SHADER_PROGRAM &program = pie_internal::shaderProgram[shaderMode];
-	if (shaderMode != pie_internal::currentShaderMode)
-	{
-		glUseProgram(program.program);
-		pie_internal::currentShaderMode = shaderMode;
-	}
-	assert(program.locations.size() == sizeof...(T));
-	pie_internal::uniformSetter<T...>()(program.locations, Args...);
-	return program;
-}
-
-
-// Actual shaders (we do not want to export these calls)
-pie_internal::SHADER_PROGRAM &pie_ActivateShaderDeprecated(SHADER_MODE shaderMode, const iIMDShape *shape, PIELIGHT teamcolour, PIELIGHT colour, const glm::mat4 &ModelView, const glm::mat4 &Proj,
-	const glm::vec4 &sunPos, const glm::vec4 &sceneColor, const glm::vec4 &ambient, const glm::vec4 &diffuse, const glm::vec4 &specular);
-void pie_DeactivateShader();
 void pie_SetShaderStretchDepth(float stretch);
+float pie_GetShaderTime();
 float pie_GetShaderStretchDepth();
 void pie_SetShaderTime(uint32_t shaderTime);
 void pie_SetShaderEcmEffect(bool value);
+int pie_GetShaderEcmEffect();
 
-/* Errors control routine */
-#ifdef DEBUG
-#define glErrors() \
-	_glerrors(__FUNCTION__, __FILE__, __LINE__)
-#else
-#define glErrors()
-#endif
-
-bool _glerrors(const char *, const char *, int);
+static inline glm::vec4 pal_PIELIGHTtoVec4(PIELIGHT rgba)
+{
+	return (1 / 255.0f) * glm::vec4{
+		rgba.byte.r,
+		rgba.byte.g,
+		rgba.byte.b,
+		rgba.byte.a
+	};
+}
 
 #endif // _pieState_h

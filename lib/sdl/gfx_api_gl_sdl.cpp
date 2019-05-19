@@ -59,7 +59,7 @@ bool gl_context::setSwapchain(struct SDL_Window* window)
 
 	glViewport(0, 0, width, height);
 	glCullFace(GL_FRONT);
-	glEnable(GL_CULL_FACE);
+//	glEnable(GL_CULL_FACE);
 
 	if (!initGLContext())
 	{
@@ -72,4 +72,6 @@ bool gl_context::setSwapchain(struct SDL_Window* window)
 void gl_context::flip()
 {
 	SDL_GL_SwapWindow(WZwindow);
+	glUseProgram(0);
+	current_program = nullptr;
 }
