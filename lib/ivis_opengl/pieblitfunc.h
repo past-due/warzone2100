@@ -42,7 +42,6 @@
 #include "pietypes.h"
 #include "piepalette.h"
 #include "pieclip.h"
-#include "lib/framework/opengl.h"
 #include <list>
 
 /***************************************************************************/
@@ -85,13 +84,13 @@ public:
 
 	/// Allocate space on the GPU for texture of given parameters. If image is non-NULL,
 	/// then that memory buffer is uploaded to the GPU.
-	void makeTexture(int width, int height, const gfx_api::pixel_format& format = gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8, const GLvoid *image = nullptr);
+	void makeTexture(int width, int height, const gfx_api::pixel_format& format = gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8, const void *image = nullptr);
 
 	/// Upload given memory buffer to already allocated texture space on the GPU
-	void updateTexture(const GLvoid *image, int width = -1, int height = -1);
+	void updateTexture(const void *image, int width = -1, int height = -1);
 
 	/// Upload vertex and texture buffer data to the GPU
-	void buffers(int vertices, const GLvoid *vertBuf, const GLvoid *texBuf);
+	void buffers(int vertices, const void *vertBuf, const void *texBuf);
 
 	/// Draw everything
 	template<typename PSO>

@@ -91,7 +91,7 @@ void GFX::loadTexture(const char *filename)
 	}
 }
 
-void GFX::makeTexture(int width, int height, const gfx_api::pixel_format& format, const GLvoid *image)
+void GFX::makeTexture(int width, int height, const gfx_api::pixel_format& format, const void *image)
 {
 	ASSERT(mType == GFX_TEXTURE, "Wrong GFX type");
 	if (mTexture)
@@ -119,7 +119,7 @@ void GFX::updateTexture(const void *image, int width, int height)
 	mTexture->upload(0u, 0u, 0u, width, height, mFormat, image);
 }
 
-void GFX::buffers(int vertices, const GLvoid *vertBuf, const GLvoid *auxBuf)
+void GFX::buffers(int vertices, const void *vertBuf, const void *auxBuf)
 {
 	if (!mBuffers[VBO_VERTEX])
 		mBuffers[VBO_VERTEX] = gfx_api::context::get().create_buffer_object(gfx_api::buffer::usage::vertex_buffer);
