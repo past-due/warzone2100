@@ -876,8 +876,12 @@ gfx_api::pipeline_state_object * gl_context::build_pipeline(const gfx_api::state
 
 void gl_context::bind_pipeline(gfx_api::pipeline_state_object* pso)
 {
-	current_program = static_cast<gl_pipeline_state_object*>(pso);
-	current_program->bind();
+	gl_pipeline_state_object* new_program = static_cast<gl_pipeline_state_object*>(pso);
+	if (current_program != new_program)
+	{
+		current_program = new_program;
+		current_program->bind();
+	}
 }
 
 void gl_context::bind_vertex_buffers(const std::size_t& first, const std::vector<std::tuple<gfx_api::buffer*, std::size_t>>& vertex_buffers_offset)
