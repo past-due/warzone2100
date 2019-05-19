@@ -414,7 +414,6 @@ void	displayConsoleMessages()
 		return;
 	}
 
-	pie_SetDepthBufferStatus(DEPTH_CMP_ALWAYS_WRT_ON);
 	pie_SetFogStatus(false);
 
 	if (bConsoleDropped)
