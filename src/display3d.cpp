@@ -756,11 +756,11 @@ void draw3DScene()
 	{
 		if (radarVisible())
 		{
-			pie_SetDepthBufferStatus(DEPTH_CMP_ALWAYS_WRT_ON);
+//			pie_SetDepthBufferStatus(DEPTH_CMP_ALWAYS_WRT_ON);
 			pie_SetFogStatus(false);
 			gfx_api::context::get().debugStringMarker("Draw 3D scene - radar");
 			drawRadar();
-			pie_SetDepthBufferStatus(DEPTH_CMP_LEQ_WRT_ON);
+//			pie_SetDepthBufferStatus(DEPTH_CMP_LEQ_WRT_ON);
 			pie_SetFogStatus(true);
 		}
 
@@ -770,7 +770,7 @@ void draw3DScene()
 		bRender3DOnly = true;
 	}
 
-	pie_SetDepthBufferStatus(DEPTH_CMP_ALWAYS_WRT_OFF);
+//	pie_SetDepthBufferStatus(DEPTH_CMP_ALWAYS_WRT_OFF);
 	pie_SetFogStatus(false);
 	iV_SetTextColour(WZCOL_TEXT_BRIGHT);
 
@@ -1117,7 +1117,7 @@ static void drawTiles(iView *player)
 
 	// and prepare for rendering the models
 	wzPerfBegin(PERF_MODEL_INIT, "Draw 3D scene - model init");
-	pie_SetRendMode(REND_OPAQUE);
+//	pie_SetRendMode(REND_OPAQUE);
 
 	/* ---------------------------------------------------------------- */
 	/* Now display all the static objects                               */
@@ -1540,7 +1540,7 @@ void	renderProjectile(PROJECTILE *psCurr, const glm::mat4 &viewMatrix)
 static void displayStaticObjects(const glm::mat4 &viewMatrix)
 {
 	// to solve the flickering edges of baseplates
-	pie_SetDepthOffset(-1.0f);
+//	pie_SetDepthOffset(-1.0f);
 
 	/* Go through all the players */
 	for (unsigned aPlayer = 0; aPlayer <= MAX_PLAYERS; ++aPlayer)
@@ -1565,7 +1565,7 @@ static void displayStaticObjects(const glm::mat4 &viewMatrix)
 			renderStructure(psStructure, viewMatrix);
 		}
 	}
-	pie_SetDepthOffset(0.0f);
+//	pie_SetDepthOffset(0.0f);
 }
 
 static bool tileHasIncompatibleStructure(MAPTILE const *tile, STRUCTURE_STATS const *stats, int moduleIndex)
@@ -2524,10 +2524,10 @@ static void	drawDragBox()
 		minY += dragBox3D.pulse / 2;
 		maxY -= dragBox3D.pulse / 2;
 
-		pie_SetDepthBufferStatus(DEPTH_CMP_ALWAYS_WRT_OFF);
+//		pie_SetDepthBufferStatus(DEPTH_CMP_ALWAYS_WRT_OFF);
 		iV_Box(minX, minY, maxX, maxY, WZCOL_UNIT_SELECT_BORDER);
 		pie_UniTransBoxFill(minX + 1, minY, maxX, maxY - 1, WZCOL_UNIT_SELECT_BOX);
-		pie_SetDepthBufferStatus(DEPTH_CMP_LEQ_WRT_ON);
+//		pie_SetDepthBufferStatus(DEPTH_CMP_LEQ_WRT_ON);
 	}
 }
 
@@ -2749,7 +2749,7 @@ static void	drawStructureSelections()
 			bMouseOverOwnStructure = true;
 		}
 	}
-	pie_SetDepthBufferStatus(DEPTH_CMP_ALWAYS_WRT_ON);
+//	pie_SetDepthBufferStatus(DEPTH_CMP_ALWAYS_WRT_ON);
 	pie_SetFogStatus(false);
 
 	/* Go thru' all the buildings */
@@ -2807,7 +2807,7 @@ static void	drawStructureSelections()
 		}
 	}
 
-	pie_SetDepthBufferStatus(DEPTH_CMP_LEQ_WRT_ON);
+//	pie_SetDepthBufferStatus(DEPTH_CMP_LEQ_WRT_ON);
 }
 
 static UDWORD	getTargettingGfx()
@@ -2886,7 +2886,7 @@ static void	drawDroidSelections()
 	}
 
 	std::vector<PIERECT_DrawRequest> rectsToDraw; // batch rect drawing
-	pie_SetDepthBufferStatus(DEPTH_CMP_ALWAYS_WRT_ON);
+//	pie_SetDepthBufferStatus(DEPTH_CMP_ALWAYS_WRT_ON);
 	pie_SetFogStatus(false);
 	for (DROID *psDroid = apsDroidLists[selectedPlayer]; psDroid; psDroid = psDroid->psNext)
 	{
@@ -3089,7 +3089,7 @@ static void	drawDroidSelections()
 		}
 	}
 
-	pie_SetDepthBufferStatus(DEPTH_CMP_LEQ_WRT_ON);
+//	pie_SetDepthBufferStatus(DEPTH_CMP_LEQ_WRT_ON);
 }
 
 /* ---------------------------------------------------------------------------- */

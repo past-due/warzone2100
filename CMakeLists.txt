@@ -26,11 +26,7 @@ else()
 endif()
 
 # CXX Standard
-if(MSVC)
-	set(CMAKE_CXX_STANDARD 14)
-else()
-	set(CMAKE_CXX_STANDARD 11)
-endif()
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Support folders (for nicer IDE organization)

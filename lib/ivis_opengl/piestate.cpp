@@ -57,7 +57,7 @@ static gfx_api::gfxFloat shaderStretch = 0;
 SHADER_MODE pie_internal::currentShaderMode = SHADER_NONE;
 gfx_api::buffer* pie_internal::rectBuffer = nullptr;
 static RENDER_STATE rendStates;
-static GLint ecmState = 0;
+static int32_t ecmState = 0;
 static gfx_api::gfxFloat timeState = 0.0f;
 
 void rendStatesRendModeHack()
@@ -68,16 +68,6 @@ void rendStatesRendModeHack()
 /*
  *	Source
  */
-
-static inline glm::vec4 pal_PIELIGHTtoVec4(PIELIGHT rgba)
-{
-	return (1 / 255.0f) * glm::vec4{
-		rgba.byte.r,
-		rgba.byte.g,
-		rgba.byte.b,
-		rgba.byte.a
-	};
-}
 
 void pie_SetDefaultStates()//Sets all states
 {
@@ -91,11 +81,7 @@ void pie_SetDefaultStates()//Sets all states
 	black.byte.a = 255;
 	pie_SetFogColour(black);
 
-	//depth Buffer on
-	pie_SetDepthBufferStatus(DEPTH_CMP_LEQ_WRT_ON);
-
 	rendStates.rendMode = REND_ALPHA;	// to force reset to REND_OPAQUE
-	pie_SetRendMode(REND_OPAQUE);
 }
 
 //***************************************************************************
@@ -655,117 +641,117 @@ SHADER_MODE pie_LoadShader(SHADER_VERSION vertex_version, SHADER_VERSION fragmen
 	return SHADER_MODE(pie_internal::shaderProgram.size() - 1);
 }
 
-static float fogBegin;
-static float fogEnd;
+//static float fogBegin;
+//static float fogEnd;
 
 // Run from screen.c on init. Do not change the order of loading here! First ones are enumerated.
 bool pie_LoadShaders()
 {
-	pie_internal::SHADER_PROGRAM program;
-	int result;
+//	pie_internal::SHADER_PROGRAM program;
+//	int result;
+//
+//	// Determine the shader version directive we should use by examining the current OpenGL context
+//	// (The built-in shaders support (and have been tested with) VERSION_120 and VERSION_150_CORE)
+//	SHADER_VERSION version = getMinimumShaderVersionForCurrentGLContext();
+//
+//	// Load some basic shaders
+//	pie_internal::shaderProgram.push_back(program);
+//	int shaderEnum = 0;
+//
+//	// TCMask shader for map-placed models with advanced lighting
+//	debug(LOG_3D, "Loading shader: SHADER_COMPONENT");
+//	result = pie_LoadShader(version, "Component program", "shaders/tcmask.vert", "shaders/tcmask.frag",
+//		{ "colour", "teamcolour", "stretch", "tcmask", "fogEnabled", "normalmap", "specularmap", "ecmEffect", "alphaTest", "graphicsCycle",
+//		"ModelViewMatrix", "ModelViewProjectionMatrix", "NormalMatrix", "lightPosition", "sceneColor", "ambient", "diffuse", "specular",
+//		"fogEnd", "fogStart", "fogColor" });
+//	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_COMPONENT, "Failed to load component shader");
+//
+//	// TCMask shader for buttons with flat lighting
+//	debug(LOG_3D, "Loading shader: SHADER_BUTTON");
+//	result = pie_LoadShader(version, "Button program", "shaders/button.vert", "shaders/button.frag",
+//		{ "colour", "teamcolour", "stretch", "tcmask", "fogEnabled", "normalmap", "specularmap", "ecmEffect", "alphaTest", "graphicsCycle",
+//		"ModelViewMatrix", "ModelViewProjectionMatrix", "NormalMatrix", "lightPosition", "sceneColor", "ambient", "diffuse", "specular",
+//		"fogEnd", "fogStart", "fogColor" });
+//	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_BUTTON, "Failed to load button shader");
+//
+//	// Plain shader for no lighting
+//	debug(LOG_3D, "Loading shader: SHADER_NOLIGHT");
+//	result = pie_LoadShader(version, "Plain program", "shaders/nolight.vert", "shaders/nolight.frag",
+//		{ "colour", "teamcolour", "stretch", "tcmask", "fogEnabled", "normalmap", "specularmap", "ecmEffect", "alphaTest", "graphicsCycle",
+//		"ModelViewMatrix", "ModelViewProjectionMatrix", "NormalMatrix", "lightPosition", "sceneColor", "ambient", "diffuse", "specular",
+//		"fogEnd", "fogStart", "fogColor" });
+//	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_NOLIGHT, "Failed to load no-lighting shader");
+//
+//	debug(LOG_3D, "Loading shader: SHADER_TERRAIN");
+//	result = pie_LoadShader(version, "terrain program", "shaders/terrain_water.vert", "shaders/terrain.frag",
+//		{ "ModelViewProjectionMatrix", "paramx1", "paramy1", "paramx2", "paramy2", "tex", "lightmap_tex", "textureMatrix1", "textureMatrix2",
+//		"fogEnabled", "fogEnd", "fogStart", "fogColor" });
+//	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_TERRAIN, "Failed to load terrain shader");
+//
+//	debug(LOG_3D, "Loading shader: SHADER_TERRAIN_DEPTH");
+//	result = pie_LoadShader(version, "terrain_depth program", "shaders/terrain_water.vert", "shaders/terraindepth.frag",
+//	{ "ModelViewProjectionMatrix", "paramx2", "paramy2", "lightmap_tex", "textureMatrix1", "textureMatrix2" });
+//	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_TERRAIN_DEPTH, "Failed to load terrain_depth shader");
+//
+//	debug(LOG_3D, "Loading shader: SHADER_DECALS");
+//	result = pie_LoadShader(version, "decals program", "shaders/decals.vert", "shaders/decals.frag",
+//		{ "ModelViewProjectionMatrix", "paramxlight", "paramylight", "tex", "lightmap_tex", "lightTextureMatrix",
+//		"fogEnabled", "fogEnd", "fogStart", "fogColor" });
+//	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_DECALS, "Failed to load decals shader");
+//
+//	debug(LOG_3D, "Loading shader: SHADER_WATER");
+//	result = pie_LoadShader(version, "water program", "shaders/terrain_water.vert", "shaders/water.frag",
+//		{ "ModelViewProjectionMatrix", "paramx1", "paramy1", "paramx2", "paramy2", "tex1", "tex2", "textureMatrix1", "textureMatrix2",
+//		"fogEnabled", "fogEnd", "fogStart" });
+//	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_WATER, "Failed to load water shader");
+//
+//	// Rectangular shader
+//	debug(LOG_3D, "Loading shader: SHADER_RECT");
+//	result = pie_LoadShader(version, "Rect program", "shaders/rect.vert", "shaders/rect.frag",
+//		{ "transformationMatrix", "color" });
+//	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_RECT, "Failed to load rect shader");
+//
+//	// Textured rectangular shader
+//	debug(LOG_3D, "Loading shader: SHADER_TEXRECT");
+//	result = pie_LoadShader(version, "Textured rect program", "shaders/rect.vert", "shaders/texturedrect.frag",
+//		{ "transformationMatrix", "tuv_offset", "tuv_scale", "color", "theTexture" });
+//	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_TEXRECT, "Failed to load textured rect shader");
+//
+//	debug(LOG_3D, "Loading shader: SHADER_GFX_COLOUR");
+//	result = pie_LoadShader(version, "gfx_color program", "shaders/gfx.vert", "shaders/gfx.frag",
+//		{ "posMatrix" });
+//	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_GFX_COLOUR, "Failed to load textured gfx shader");
+//
+//	debug(LOG_3D, "Loading shader: SHADER_GFX_TEXT");
+//	result = pie_LoadShader(version, "gfx_text program", "shaders/gfx.vert", "shaders/texturedrect.frag",
+//		{ "posMatrix", "color", "theTexture" });
+//	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_GFX_TEXT, "Failed to load textured gfx shader");
+//
+//	debug(LOG_3D, "Loading shader: SHADER_GENERIC_COLOR");
+//	result = pie_LoadShader(version, "generic color program", "shaders/generic.vert", "shaders/rect.frag", { "ModelViewProjectionMatrix", "color" });
+//	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_GENERIC_COLOR, "Failed to load generic color shader");
+//
+//	debug(LOG_3D, "Loading shader: SHADER_LINE");
+//	result = pie_LoadShader(version, "line program", "shaders/line.vert", "shaders/rect.frag", { "from", "to", "color", "ModelViewProjectionMatrix" });
+//	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_LINE, "Failed to load line shader");
+//
+//	// Text shader
+//	debug(LOG_3D, "Loading shader: SHADER_TEXT");
+//	result = pie_LoadShader(version, "Text program", "shaders/rect.vert", "shaders/text.frag",
+//		{ "transformationMatrix", "tuv_offset", "tuv_scale", "color", "theTexture" });
+//	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_TEXT, "Failed to load text shader");
+//
+//	pie_internal::currentShaderMode = SHADER_NONE;
 
-	// Determine the shader version directive we should use by examining the current OpenGL context
-	// (The built-in shaders support (and have been tested with) VERSION_120 and VERSION_150_CORE)
-	SHADER_VERSION version = getMinimumShaderVersionForCurrentGLContext();
-
-	// Load some basic shaders
-	pie_internal::shaderProgram.push_back(program);
-	int shaderEnum = 0;
-
-	// TCMask shader for map-placed models with advanced lighting
-	debug(LOG_3D, "Loading shader: SHADER_COMPONENT");
-	result = pie_LoadShader(version, "Component program", "shaders/tcmask.vert", "shaders/tcmask.frag",
-		{ "colour", "teamcolour", "stretch", "tcmask", "fogEnabled", "normalmap", "specularmap", "ecmEffect", "alphaTest", "graphicsCycle",
-		"ModelViewMatrix", "ModelViewProjectionMatrix", "NormalMatrix", "lightPosition", "sceneColor", "ambient", "diffuse", "specular",
-		"fogEnd", "fogStart", "fogColor" });
-	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_COMPONENT, "Failed to load component shader");
-
-	// TCMask shader for buttons with flat lighting
-	debug(LOG_3D, "Loading shader: SHADER_BUTTON");
-	result = pie_LoadShader(version, "Button program", "shaders/button.vert", "shaders/button.frag",
-		{ "colour", "teamcolour", "stretch", "tcmask", "fogEnabled", "normalmap", "specularmap", "ecmEffect", "alphaTest", "graphicsCycle",
-		"ModelViewMatrix", "ModelViewProjectionMatrix", "NormalMatrix", "lightPosition", "sceneColor", "ambient", "diffuse", "specular",
-		"fogEnd", "fogStart", "fogColor" });
-	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_BUTTON, "Failed to load button shader");
-
-	// Plain shader for no lighting
-	debug(LOG_3D, "Loading shader: SHADER_NOLIGHT");
-	result = pie_LoadShader(version, "Plain program", "shaders/nolight.vert", "shaders/nolight.frag",
-		{ "colour", "teamcolour", "stretch", "tcmask", "fogEnabled", "normalmap", "specularmap", "ecmEffect", "alphaTest", "graphicsCycle",
-		"ModelViewMatrix", "ModelViewProjectionMatrix", "NormalMatrix", "lightPosition", "sceneColor", "ambient", "diffuse", "specular",
-		"fogEnd", "fogStart", "fogColor" });
-	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_NOLIGHT, "Failed to load no-lighting shader");
-
-	debug(LOG_3D, "Loading shader: SHADER_TERRAIN");
-	result = pie_LoadShader(version, "terrain program", "shaders/terrain_water.vert", "shaders/terrain.frag",
-		{ "ModelViewProjectionMatrix", "paramx1", "paramy1", "paramx2", "paramy2", "tex", "lightmap_tex", "textureMatrix1", "textureMatrix2",
-		"fogEnabled", "fogEnd", "fogStart", "fogColor" });
-	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_TERRAIN, "Failed to load terrain shader");
-
-	debug(LOG_3D, "Loading shader: SHADER_TERRAIN_DEPTH");
-	result = pie_LoadShader(version, "terrain_depth program", "shaders/terrain_water.vert", "shaders/terraindepth.frag",
-	{ "ModelViewProjectionMatrix", "paramx2", "paramy2", "lightmap_tex", "textureMatrix1", "textureMatrix2" });
-	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_TERRAIN_DEPTH, "Failed to load terrain_depth shader");
-
-	debug(LOG_3D, "Loading shader: SHADER_DECALS");
-	result = pie_LoadShader(version, "decals program", "shaders/decals.vert", "shaders/decals.frag",
-		{ "ModelViewProjectionMatrix", "paramxlight", "paramylight", "tex", "lightmap_tex", "lightTextureMatrix",
-		"fogEnabled", "fogEnd", "fogStart", "fogColor" });
-	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_DECALS, "Failed to load decals shader");
-
-	debug(LOG_3D, "Loading shader: SHADER_WATER");
-	result = pie_LoadShader(version, "water program", "shaders/terrain_water.vert", "shaders/water.frag",
-		{ "ModelViewProjectionMatrix", "paramx1", "paramy1", "paramx2", "paramy2", "tex1", "tex2", "textureMatrix1", "textureMatrix2",
-		"fogEnabled", "fogEnd", "fogStart" });
-	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_WATER, "Failed to load water shader");
-
-	// Rectangular shader
-	debug(LOG_3D, "Loading shader: SHADER_RECT");
-	result = pie_LoadShader(version, "Rect program", "shaders/rect.vert", "shaders/rect.frag",
-		{ "transformationMatrix", "color" });
-	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_RECT, "Failed to load rect shader");
-
-	// Textured rectangular shader
-	debug(LOG_3D, "Loading shader: SHADER_TEXRECT");
-	result = pie_LoadShader(version, "Textured rect program", "shaders/rect.vert", "shaders/texturedrect.frag",
-		{ "transformationMatrix", "tuv_offset", "tuv_scale", "color", "theTexture" });
-	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_TEXRECT, "Failed to load textured rect shader");
-
-	debug(LOG_3D, "Loading shader: SHADER_GFX_COLOUR");
-	result = pie_LoadShader(version, "gfx_color program", "shaders/gfx.vert", "shaders/gfx.frag",
-		{ "posMatrix" });
-	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_GFX_COLOUR, "Failed to load textured gfx shader");
-
-	debug(LOG_3D, "Loading shader: SHADER_GFX_TEXT");
-	result = pie_LoadShader(version, "gfx_text program", "shaders/gfx.vert", "shaders/texturedrect.frag",
-		{ "posMatrix", "color", "theTexture" });
-	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_GFX_TEXT, "Failed to load textured gfx shader");
-
-	debug(LOG_3D, "Loading shader: SHADER_GENERIC_COLOR");
-	result = pie_LoadShader(version, "generic color program", "shaders/generic.vert", "shaders/rect.frag", { "ModelViewProjectionMatrix", "color" });
-	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_GENERIC_COLOR, "Failed to load generic color shader");
-
-	debug(LOG_3D, "Loading shader: SHADER_LINE");
-	result = pie_LoadShader(version, "line program", "shaders/line.vert", "shaders/rect.frag", { "from", "to", "color", "ModelViewProjectionMatrix" });
-	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_LINE, "Failed to load line shader");
-
-	// Text shader
-	debug(LOG_3D, "Loading shader: SHADER_TEXT");
-	result = pie_LoadShader(version, "Text program", "shaders/rect.vert", "shaders/text.frag",
-		{ "transformationMatrix", "tuv_offset", "tuv_scale", "color", "theTexture" });
-	ASSERT_OR_RETURN(false, result && ++shaderEnum == SHADER_TEXT, "Failed to load text shader");
-
-	pie_internal::currentShaderMode = SHADER_NONE;
-
-	GLbyte rect[] {
-		0, 1, 0, 1,
-		0, 0, 0, 1,
-		1, 1, 0, 1,
-		1, 0, 0, 1
+	GLubyte rect[] {
+		0, 255, 0, 255,
+		0, 0, 0, 255,
+		255, 255, 0, 255,
+		255, 0, 0, 255
 	};
 	if (!pie_internal::rectBuffer)
 		pie_internal::rectBuffer = gfx_api::context::get().create_buffer_object(gfx_api::buffer::usage::vertex_buffer);
-	pie_internal::rectBuffer->upload(16 * sizeof(GLbyte), rect);
+	pie_internal::rectBuffer->upload(16 * sizeof(GLubyte), rect);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 	return true;
@@ -787,9 +773,19 @@ void pie_SetShaderTime(uint32_t shaderTime)
 	timeState = (gfx_api::gfxFloat)base / 1000.0f;
 }
 
+float pie_GetShaderTime()
+{
+	return timeState;
+}
+
 void pie_SetShaderEcmEffect(bool value)
 {
 	ecmState = (int)value;
+}
+
+int pie_GetShaderEcmEffect()
+{
+	return ecmState;
 }
 
 void pie_SetShaderStretchDepth(float stretch)
@@ -802,125 +798,125 @@ float pie_GetShaderStretchDepth()
 	return shaderStretch;
 }
 
-pie_internal::SHADER_PROGRAM &pie_ActivateShaderDeprecated(SHADER_MODE shaderMode, const iIMDShape *shape, PIELIGHT teamcolour, PIELIGHT colour, const glm::mat4 &ModelView, const glm::mat4 &Proj,
-	const glm::vec4 &sunPos, const glm::vec4 &sceneColor, const glm::vec4 &ambient, const glm::vec4 &diffuse, const glm::vec4 &specular)
-{
-	int maskpage = shape->tcmaskpage;
-	int normalpage = shape->normalpage;
-	int specularpage = shape->specularpage;
-	pie_internal::SHADER_PROGRAM &program = pie_internal::shaderProgram[shaderMode];
+//pie_internal::SHADER_PROGRAM &pie_ActivateShaderDeprecated(SHADER_MODE shaderMode, const iIMDShape *shape, PIELIGHT teamcolour, PIELIGHT colour, const glm::mat4 &ModelView, const glm::mat4 &Proj,
+//	const glm::vec4 &sunPos, const glm::vec4 &sceneColor, const glm::vec4 &ambient, const glm::vec4 &diffuse, const glm::vec4 &specular)
+//{
+//	int maskpage = shape->tcmaskpage;
+//	int normalpage = shape->normalpage;
+//	int specularpage = shape->specularpage;
+//	pie_internal::SHADER_PROGRAM &program = pie_internal::shaderProgram[shaderMode];
+//
+//	if (shaderMode != pie_internal::currentShaderMode)
+//	{
+//		glUseProgram(program.program);
+//
+//		// These do not change during our drawing pass
+//		glUniform1i(program.locations[4], rendStates.fog);
+//		glUniform1f(program.locations[9], timeState);
+//
+//		pie_internal::currentShaderMode = shaderMode;
+//	}
+//	glUniform4fv(program.locations[0], 1, &pal_PIELIGHTtoVec4(colour)[0]);
+//	pie_SetTexturePage(shape->texpage);
+//
+//	glUniform4fv(program.locations[1], 1, &pal_PIELIGHTtoVec4(teamcolour)[0]);
+//	glUniform1i(program.locations[3], maskpage != iV_TEX_INVALID);
+//
+//	glUniform1i(program.locations[8], 0);
+//
+//	glUniformMatrix4fv(program.locations[10], 1, GL_FALSE, glm::value_ptr(ModelView));
+//	glUniformMatrix4fv(program.locations[11], 1, GL_FALSE, glm::value_ptr(Proj * ModelView));
+//	glUniformMatrix4fv(program.locations[12], 1, GL_FALSE, glm::value_ptr(glm::transpose(glm::inverse(ModelView))));
+//	glUniform4fv(program.locations[13], 1, &sunPos[0]);
+//	glUniform4fv(program.locations[14], 1, &sceneColor[0]);
+//	glUniform4fv(program.locations[15], 1, &ambient[0]);
+//	glUniform4fv(program.locations[16], 1, &diffuse[0]);
+//	glUniform4fv(program.locations[17], 1, &specular[0]);
+//
+//	glUniform1f(program.locations[18], fogBegin);
+//	glUniform1f(program.locations[19], fogEnd);
+//
+//	float color[4] = {
+//		rendStates.fogColour.vector[0] / 255.f,
+//		rendStates.fogColour.vector[1] / 255.f,
+//		rendStates.fogColour.vector[2] / 255.f,
+//		rendStates.fogColour.vector[3] / 255.f
+//	};
+//	glUniform4fv(program.locations[20], 1, color);
+//
+//	if (program.locations[2] >= 0)
+//	{
+//		glUniform1f(program.locations[2], shaderStretch);
+//	}
+//	if (program.locations[5] >= 0)
+//	{
+//		glUniform1i(program.locations[5], normalpage != iV_TEX_INVALID);
+//	}
+//	if (program.locations[6] >= 0)
+//	{
+//		glUniform1i(program.locations[6], specularpage != iV_TEX_INVALID);
+//	}
+//	if (program.locations[7] >= 0)
+//	{
+//		glUniform1i(program.locations[7], ecmState);
+//	}
+//
+//	if (maskpage != iV_TEX_INVALID)
+//	{
+//		glActiveTexture(GL_TEXTURE1);
+//		pie_Texture(maskpage).bind();
+//	}
+//	if (normalpage != iV_TEX_INVALID)
+//	{
+//		glActiveTexture(GL_TEXTURE2);
+//		pie_Texture(normalpage).bind();
+//	}
+//	if (specularpage != iV_TEX_INVALID)
+//	{
+//		glActiveTexture(GL_TEXTURE3);
+//		pie_Texture(specularpage).bind();
+//	}
+//	glActiveTexture(GL_TEXTURE0);
+//
+//	return program;
+//}
 
-	if (shaderMode != pie_internal::currentShaderMode)
-	{
-		glUseProgram(program.program);
+//void pie_SetDepthBufferStatus(DEPTH_MODE depthMode)
+//{
+//	switch (depthMode)
+//	{
+//	case DEPTH_CMP_LEQ_WRT_ON:
+//		glEnable(GL_DEPTH_TEST);
+//		glDepthFunc(GL_LEQUAL);
+//		glDepthMask(GL_TRUE);
+//		break;
+//
+//	case DEPTH_CMP_ALWAYS_WRT_ON:
+//		glDisable(GL_DEPTH_TEST);
+//		glDepthMask(GL_TRUE);
+//		break;
+//
+//	case DEPTH_CMP_ALWAYS_WRT_OFF:
+//		glDisable(GL_DEPTH_TEST);
+//		glDepthMask(GL_FALSE);
+//		break;
+//	}
+//}
 
-		// These do not change during our drawing pass
-		glUniform1i(program.locations[4], rendStates.fog);
-		glUniform1f(program.locations[9], timeState);
-
-		pie_internal::currentShaderMode = shaderMode;
-	}
-	glUniform4fv(program.locations[0], 1, &pal_PIELIGHTtoVec4(colour)[0]);
-	pie_SetTexturePage(shape->texpage);
-
-	glUniform4fv(program.locations[1], 1, &pal_PIELIGHTtoVec4(teamcolour)[0]);
-	glUniform1i(program.locations[3], maskpage != iV_TEX_INVALID);
-
-	glUniform1i(program.locations[8], 0);
-
-	glUniformMatrix4fv(program.locations[10], 1, GL_FALSE, glm::value_ptr(ModelView));
-	glUniformMatrix4fv(program.locations[11], 1, GL_FALSE, glm::value_ptr(Proj * ModelView));
-	glUniformMatrix4fv(program.locations[12], 1, GL_FALSE, glm::value_ptr(glm::transpose(glm::inverse(ModelView))));
-	glUniform4fv(program.locations[13], 1, &sunPos[0]);
-	glUniform4fv(program.locations[14], 1, &sceneColor[0]);
-	glUniform4fv(program.locations[15], 1, &ambient[0]);
-	glUniform4fv(program.locations[16], 1, &diffuse[0]);
-	glUniform4fv(program.locations[17], 1, &specular[0]);
-
-	glUniform1f(program.locations[18], fogBegin);
-	glUniform1f(program.locations[19], fogEnd);
-
-	float color[4] = {
-		rendStates.fogColour.vector[0] / 255.f,
-		rendStates.fogColour.vector[1] / 255.f,
-		rendStates.fogColour.vector[2] / 255.f,
-		rendStates.fogColour.vector[3] / 255.f
-	};
-	glUniform4fv(program.locations[20], 1, color);
-
-	if (program.locations[2] >= 0)
-	{
-		glUniform1f(program.locations[2], shaderStretch);
-	}
-	if (program.locations[5] >= 0)
-	{
-		glUniform1i(program.locations[5], normalpage != iV_TEX_INVALID);
-	}
-	if (program.locations[6] >= 0)
-	{
-		glUniform1i(program.locations[6], specularpage != iV_TEX_INVALID);
-	}
-	if (program.locations[7] >= 0)
-	{
-		glUniform1i(program.locations[7], ecmState);
-	}
-
-	if (maskpage != iV_TEX_INVALID)
-	{
-		glActiveTexture(GL_TEXTURE1);
-		pie_Texture(maskpage).bind();
-	}
-	if (normalpage != iV_TEX_INVALID)
-	{
-		glActiveTexture(GL_TEXTURE2);
-		pie_Texture(normalpage).bind();
-	}
-	if (specularpage != iV_TEX_INVALID)
-	{
-		glActiveTexture(GL_TEXTURE3);
-		pie_Texture(specularpage).bind();
-	}
-	glActiveTexture(GL_TEXTURE0);
-
-	return program;
-}
-
-void pie_SetDepthBufferStatus(DEPTH_MODE depthMode)
-{
-	switch (depthMode)
-	{
-	case DEPTH_CMP_LEQ_WRT_ON:
-		glEnable(GL_DEPTH_TEST);
-		glDepthFunc(GL_LEQUAL);
-		glDepthMask(GL_TRUE);
-		break;
-
-	case DEPTH_CMP_ALWAYS_WRT_ON:
-		glDisable(GL_DEPTH_TEST);
-		glDepthMask(GL_TRUE);
-		break;
-
-	case DEPTH_CMP_ALWAYS_WRT_OFF:
-		glDisable(GL_DEPTH_TEST);
-		glDepthMask(GL_FALSE);
-		break;
-	}
-}
-
-/// Set the depth (z) offset
-/// Negative values are closer to the screen
-void pie_SetDepthOffset(float offset)
-{
-	if (offset == 0.0f)
-	{
-		glDisable(GL_POLYGON_OFFSET_FILL);
-	}
-	else
-	{
-		glPolygonOffset(offset, offset);
-		glEnable(GL_POLYGON_OFFSET_FILL);
-	}
-}
+///// Set the depth (z) offset
+///// Negative values are closer to the screen
+//void pie_SetDepthOffset(float offset)
+//{
+//	if (offset == 0.0f)
+//	{
+//		glDisable(GL_POLYGON_OFFSET_FILL);
+//	}
+//	else
+//	{
+//		glPolygonOffset(offset, offset);
+//		glEnable(GL_POLYGON_OFFSET_FILL);
+//	}
+//}
 
 /// Set the OpenGL fog start and end
 void pie_UpdateFogDistance(float begin, float end)
@@ -942,72 +938,72 @@ void pie_SetFogStatus(bool val)
 	}
 }
 
-/** Selects a texture page and binds it for the current texture unit
- *  \param num a number indicating the texture page to bind. If this is a
- *         negative value (doesn't matter what value) it will disable texturing.
- */
-void pie_SetTexturePage(SDWORD num)
-{
-	// Only bind textures when they're not bound already
-	if (num != rendStates.texPage)
-	{
-		switch (num)
-		{
-		case TEXPAGE_NONE:
-			glBindTexture(GL_TEXTURE_2D, 0);
-			break;
-		case TEXPAGE_EXTERN:
-			break;
-		default:
-			pie_Texture(num).bind();
-		}
-		rendStates.texPage = num;
-	}
-}
+///** Selects a texture page and binds it for the current texture unit
+// *  \param num a number indicating the texture page to bind. If this is a
+// *         negative value (doesn't matter what value) it will disable texturing.
+// */
+//void pie_SetTexturePage(SDWORD num)
+//{
+//	// Only bind textures when they're not bound already
+//	if (num != rendStates.texPage)
+//	{
+//		switch (num)
+//		{
+//		case TEXPAGE_NONE:
+//			glBindTexture(GL_TEXTURE_2D, 0);
+//			break;
+//		case TEXPAGE_EXTERN:
+//			break;
+//		default:
+//			pie_Texture(num).bind();
+//		}
+//		rendStates.texPage = num;
+//	}
+//}
 
-void pie_SetRendMode(REND_MODE rendMode)
-{
-	if (rendMode != rendStates.rendMode)
-	{
-		rendStates.rendMode = rendMode;
-		switch (rendMode)
-		{
-		case REND_OPAQUE:
-			glDisable(GL_BLEND);
-			break;
-
-		case REND_ALPHA:
-			glEnable(GL_BLEND);
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-			break;
-
-		case REND_ADDITIVE:
-			glEnable(GL_BLEND);
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-			break;
-
-		case REND_MULTIPLICATIVE:
-			glEnable(GL_BLEND);
-			glBlendFunc(GL_ZERO, GL_SRC_COLOR);
-			break;
-
-		case REND_PREMULTIPLIED:
-			glEnable(GL_BLEND);
-			glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-			break;
-
-		case REND_TEXT:
-			glEnable(GL_BLEND);
-			glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA /* Should be GL_ONE_MINUS_SRC1_COLOR, if supported. Also, gl_FragData[1] then needs to be set in text.frag. */);
-			break;
-
-		default:
-			ASSERT(false, "Bad render state");
-			break;
-		}
-	}
-	return;
-}
+//void pie_SetRendMode(REND_MODE rendMode)
+//{
+//	if (rendMode != rendStates.rendMode)
+//	{
+//		rendStates.rendMode = rendMode;
+//		switch (rendMode)
+//		{
+//		case REND_OPAQUE:
+//			glDisable(GL_BLEND);
+//			break;
+//
+//		case REND_ALPHA:
+//			glEnable(GL_BLEND);
+//			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+//			break;
+//
+//		case REND_ADDITIVE:
+//			glEnable(GL_BLEND);
+//			glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+//			break;
+//
+//		case REND_MULTIPLICATIVE:
+//			glEnable(GL_BLEND);
+//			glBlendFunc(GL_ZERO, GL_SRC_COLOR);
+//			break;
+//
+//		case REND_PREMULTIPLIED:
+//			glEnable(GL_BLEND);
+//			glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+//			break;
+//
+//		case REND_TEXT:
+//			glEnable(GL_BLEND);
+//			glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA /* Should be GL_ONE_MINUS_SRC1_COLOR, if supported. Also, gl_FragData[1] then needs to be set in text.frag. */);
+//			break;
+//
+//		default:
+//			ASSERT(false, "Bad render state");
+//			break;
+//		}
+//	}
+//	return;
+//}
 
 RENDER_STATE getCurrentRenderState()
 {
