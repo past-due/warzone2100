@@ -193,6 +193,14 @@ namespace gfx_api
 				dynamic_draw,
 		};
 
+		enum context_value
+		{
+			MAX_ELEMENTS_VERTICES,
+			MAX_ELEMENTS_INDICES,
+			MAX_TEXTURE_SIZE,
+			MAX_SAMPLES, // max antialiasing
+		};
+
 		virtual ~context() {};
 		virtual texture* create_texture(const size_t& mipmap_count, const size_t& width, const size_t& height, const pixel_format& internal_format, const std::string& filename = "") = 0;
 		virtual buffer* create_buffer_object(const buffer::usage&, const buffer_storage_hint& = buffer_storage_hint::static_draw) = 0;
@@ -212,6 +220,7 @@ namespace gfx_api
 		virtual void draw_elements(const std::size_t& offset, const std::size_t&, const primitive_type&, const index_type&) = 0;
 		virtual void set_polygon_offset(const float& offset, const float& slope) = 0;
 		virtual void set_depth_range(const float& min, const float& max) = 0;
+		virtual int32_t get_context_value(const context_value property) = 0;
 		static context& get();
 		virtual bool setSwapchain(struct SDL_Window* window) = 0;
 		virtual void flip() = 0;

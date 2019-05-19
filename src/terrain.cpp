@@ -109,7 +109,7 @@ static gfx_api::buffer *waterVBO = nullptr, *waterIndexVBO = nullptr;
 static float waterOffset;
 
 /// These are properties of your videocard and hardware
-static GLint GLmaxElementsVertices, GLmaxElementsIndices;
+static int32_t GLmaxElementsVertices, GLmaxElementsIndices;
 
 /// The sectors are stored here
 static Sector *sectors;
@@ -599,8 +599,8 @@ bool initTerrain()
 	bool decreasedSize = false;
 
 	// this information is useful to prevent crashes with buggy opengl implementations
-	glGetIntegerv(GL_MAX_ELEMENTS_VERTICES, &GLmaxElementsVertices);
-	glGetIntegerv(GL_MAX_ELEMENTS_INDICES,  &GLmaxElementsIndices);
+	GLmaxElementsVertices = gfx_api::context::get().get_context_value(gfx_api::context::context_value::MAX_ELEMENTS_VERTICES);
+	GLmaxElementsIndices = gfx_api::context::get().get_context_value(gfx_api::context::context_value::MAX_ELEMENTS_INDICES);
 
 	// testing for crappy cards
 	debug(LOG_TERRAIN, "GL_MAX_ELEMENTS_VERTICES: %i", (int)GLmaxElementsVertices);

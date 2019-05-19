@@ -114,7 +114,6 @@ bool texLoad(const char *fileName)
 	char fullPath[PATH_MAX], partialPath[PATH_MAX], *buffer;
 	unsigned int i, j, k, size;
 	int texPage;
-	GLint glval;
 
 	firstPage = pie_NumberOfPages();
 
@@ -131,16 +130,16 @@ bool texLoad(const char *fileName)
 	mipmap_max = MIPMAP_MAX;
 	mipmap_levels = MIPMAP_LEVELS;
 
-	glGetIntegerv(GL_MAX_TEXTURE_SIZE, &glval);
+	int32_t max_texture_size = gfx_api::context::get().get_context_value(gfx_api::context::context_value::MAX_TEXTURE_SIZE);
 
-	while (glval < mipmap_max * TILES_IN_PAGE_COLUMN)
+	while (max_texture_size < mipmap_max * TILES_IN_PAGE_COLUMN)
 	{
 		mipmap_max /= 2;
 		mipmap_levels--;
 		debug(LOG_ERROR, "Max supported texture size %dx%d is too low - reducing texture detail to %dx%d.",
-		      (int)glval, (int)glval, mipmap_max, mipmap_max);
+		      (int)max_texture_size, (int)max_texture_size, mipmap_max, mipmap_max);
 		ASSERT(mipmap_levels > 0, "Supported texture size %d is too low to load any mipmap levels!",
-		       (int)glval);
+		       (int)max_texture_size);
 		if (mipmap_levels == 0)
 		{
 			exit(1);

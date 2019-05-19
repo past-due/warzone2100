@@ -133,6 +133,24 @@ static GLenum to_gl(const gfx_api::index_type& index)
 	return GL_INVALID_ENUM;
 }
 
+static GLenum to_gl(const gfx_api::context::context_value property)
+{
+	switch (property)
+	{
+		case gfx_api::context::context_value::MAX_ELEMENTS_VERTICES:
+			return GL_MAX_ELEMENTS_VERTICES;
+		case gfx_api::context::context_value::MAX_ELEMENTS_INDICES:
+			return GL_MAX_ELEMENTS_INDICES;
+		case gfx_api::context::context_value::MAX_TEXTURE_SIZE:
+			return GL_MAX_TEXTURE_SIZE;
+		case gfx_api::context::context_value::MAX_SAMPLES:
+			return GL_MAX_SAMPLES;
+		default:
+			debug(LOG_FATAL, "Unrecognised property type");
+	}
+	return GL_INVALID_ENUM;
+}
+
 // MARK: gl_texture
 
 gl_texture::gl_texture()
@@ -1012,6 +1030,13 @@ void gl_context::set_polygon_offset(const float& offset, const float& slope)
 void gl_context::set_depth_range(const float& min, const float& max)
 {
 	glDepthRange(min, max);
+}
+
+int32_t gl_context::get_context_value(const context_value property)
+{
+	GLint value;
+	glGetIntegerv(to_gl(property), &value);
+	return value;
 }
 
 gfx_api::context& gfx_api::context::get()
