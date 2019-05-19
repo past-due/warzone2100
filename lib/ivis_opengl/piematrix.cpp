@@ -22,7 +22,6 @@
  */
 
 #include "lib/framework/frame.h"
-#include "lib/framework/opengl.h"
 
 #include "lib/framework/fixedpoint.h"
 #include "lib/ivis_opengl/pieclip.h"
