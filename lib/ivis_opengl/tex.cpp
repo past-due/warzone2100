@@ -28,6 +28,8 @@
 
 #include "screen.h"
 
+#include <algorithm>
+
 //*************************************************************************
 
 struct iTexPage
