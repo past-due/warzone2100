@@ -64,6 +64,7 @@ namespace gfx_api
 			 vertex_buffer,
 			 index_buffer,
 		};
+		static const size_t USAGE_COUNT = 2;
 
 		// Create a new data store for the buffer. Any existing data store will be deleted.
 		// The new data store is created with the specified `size` in bytes.
@@ -209,10 +210,12 @@ namespace gfx_api
 													  const gfx_api::primitive_type& primitive,
 													  const std::vector<gfx_api::texture_input>& texture_desc,
 													  const std::vector<vertex_buffer>& attribute_descriptions) = 0;
-		virtual void bind_pipeline(pipeline_state_object*) = 0;
+		virtual void bind_pipeline(pipeline_state_object*, bool notextures) = 0;
 		virtual void bind_index_buffer(buffer&, const index_type&) = 0;
+		virtual void unbind_index_buffer(buffer&) = 0;
 		virtual void bind_vertex_buffers(const std::size_t& first, const std::vector<std::tuple<gfx_api::buffer*, std::size_t>>& vertex_buffers_offset) = 0;
-		virtual void disable_vertex_buffers(const std::size_t& first, const std::vector<std::tuple<gfx_api::buffer*, std::size_t>>& vertex_buffers_offset) = 0;
+		virtual void unbind_vertex_buffers(const std::size_t& first, const std::vector<std::tuple<gfx_api::buffer*, std::size_t>>& vertex_buffers_offset) = 0;
+		virtual void disable_all_vertex_buffers() = 0;
 		virtual void bind_streamed_vertex_buffers(const void* data, const std::size_t size) = 0;
 		virtual void bind_textures(const std::vector<texture_input>& attribute_descriptions, const std::vector<texture*>& textures) = 0;
 		virtual void set_constants(const void* buffer, const std::size_t& size) = 0;
@@ -293,7 +296,7 @@ namespace gfx_api
 
 		void bind()
 		{
-			gfx_api::context::get().bind_pipeline(pso);
+			gfx_api::context::get().bind_pipeline(pso, std::tuple_size<texture_inputs>::value == 0);
 		}
 
 		template<typename... Args>
@@ -304,10 +307,10 @@ namespace gfx_api
 		}
 
 		template<typename... Args>
-		void disable_vertex_buffers(Args&&... args)
+		void unbind_vertex_buffers(Args&&... args)
 		{
 			static_assert(sizeof...(args) == std::tuple_size<vertex_buffer_inputs>::value, "Wrong number of vertex buffer");
-			gfx_api::context::get().disable_vertex_buffers(0, { std::make_tuple(args, 0)... });
+			gfx_api::context::get().unbind_vertex_buffers(0, { std::make_tuple(args, 0)... });
 		}
 
 		template<typename...Args>
@@ -619,7 +622,7 @@ namespace gfx_api
 	std::tuple<
 	vertex_buffer_description<4, vertex_attribute_description<position, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
 	>,
-	std::tuple<texture_description<0, sampler_type::nearest_clamped>>, SHADER_TEXT>;
+	std::tuple<texture_description<0, sampler_type::bilinear>>, SHADER_TEXT>;
 
 	template<>
 	struct constant_buffer_type<SHADER_RECT>

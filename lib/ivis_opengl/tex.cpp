@@ -120,7 +120,6 @@ int pie_AddTexPage(iV_Image *s, const char *filename, bool gameTexture, int page
 		size_t mip_count = floor(log(std::max(s->width, s->height))) + 1;
 		_TEX_PAGE[page].id = gfx_api::context::get().create_texture(mip_count, s->width, s->height, format, filename);
 		pie_Texture(page).upload(0u, 0u, 0u, s->width, s->height, iV_getPixelFormat(s), s->bmp, true);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 	}
 	else	// this is an interface texture, do not use compression
 	{
@@ -128,24 +127,11 @@ int pie_AddTexPage(iV_Image *s, const char *filename, bool gameTexture, int page
 			delete _TEX_PAGE[page].id;
 		_TEX_PAGE[page].id = gfx_api::context::get().create_texture(1, s->width, s->height, gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8, filename);
 		pie_Texture(page).upload(0u, 0u, 0u, s->width, s->height, iV_getPixelFormat(s), s->bmp);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	}
-//	pie_SetTexturePage(page);
-//	// it is uploaded, we do not need it anymore
-//	free(s->bmp);
-//	s->bmp = nullptr;
 
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-//
-//	// Use anisotropic filtering, if available, but only max 4.0 to reduce processor burden
-//	if (GLEW_EXT_texture_filter_anisotropic)
-//	{
-//		gfx_api::gfxFloat max;
-//		glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &max);
-//		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, MIN(4.0f, max));
-//	}
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	// it is uploaded, we do not need it anymore
+	free(s->bmp);
+	s->bmp = nullptr;
 
 	/* Send back the texpage number so we can store it in the IMD */
 	return page;

@@ -115,7 +115,6 @@ void GFX::updateTexture(const void *image, int width, int height)
 	{
 		height = mHeight;
 	}
-//	pie_SetTexturePage(TEXPAGE_EXTERN);
 	mTexture->upload(0u, 0u, 0u, width, height, mFormat, image);
 }
 
@@ -138,49 +137,12 @@ void GFX::buffers(int vertices, const void *vertBuf, const void *auxBuf)
 			mBuffers[VBO_TEXCOORD] = gfx_api::context::get().create_buffer_object(gfx_api::buffer::usage::vertex_buffer);
 		mBuffers[VBO_TEXCOORD]->upload(vertices * 4 * sizeof(GLbyte), auxBuf);
 	}
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	mSize = vertices;
 }
 
 #define VERTEX_POS_ATTRIB_INDEX 0
 #define VERTEX_COORDS_ATTRIB_INDEX 1
 #define VERTEX_COLOR_ATTRIB_INDEX 2
-
-//void GFX::draw(const glm::mat4 &modelViewProjectionMatrix)
-//{
-//	if (mType == GFX_TEXTURE)
-//	{
-//		pie_SetTexturePage(TEXPAGE_EXTERN);
-//		mTexture->bind();
-//		pie_ActivateShader(SHADER_GFX_TEXT, modelViewProjectionMatrix, glm::vec4(1), 0);
-//		mBuffers[VBO_TEXCOORD]->bind();
-//		glVertexAttribPointer(VERTEX_COORDS_ATTRIB_INDEX, 2, GL_FLOAT, false, 0, nullptr);
-//		glEnableVertexAttribArray(VERTEX_COORDS_ATTRIB_INDEX);
-//	}
-//	else if (mType == GFX_COLOUR)
-//	{
-//		pie_SetTexturePage(TEXPAGE_NONE);
-//		pie_ActivateShader(SHADER_GFX_COLOUR, modelViewProjectionMatrix);
-//		mBuffers[VBO_TEXCOORD]->bind();
-//		glVertexAttribPointer(VERTEX_COLOR_ATTRIB_INDEX, 4, GL_UNSIGNED_BYTE, true, 0, nullptr);
-//		glEnableVertexAttribArray(VERTEX_COLOR_ATTRIB_INDEX);
-//	}
-//	mBuffers[VBO_VERTEX]->bind();
-//	glVertexAttribPointer(VERTEX_POS_ATTRIB_INDEX, mCoordsPerVertex, GL_FLOAT, false, 0, nullptr);
-//	glEnableVertexAttribArray(VERTEX_POS_ATTRIB_INDEX);
-//	glDrawArrays(mdrawType, 0, mSize);
-//	glDisableVertexAttribArray(VERTEX_POS_ATTRIB_INDEX);
-//	if (mType == GFX_TEXTURE)
-//	{
-//		glDisableVertexAttribArray(VERTEX_COORDS_ATTRIB_INDEX);
-//	}
-//	else if (mType == GFX_COLOUR)
-//	{
-//		glDisableVertexAttribArray(VERTEX_COLOR_ATTRIB_INDEX);
-//	}
-//	glBindBuffer(GL_ARRAY_BUFFER, 0);
-//	pie_DeactivateShader();
-//}
 
 GFX::~GFX()
 {
@@ -205,7 +167,7 @@ void iV_Line(int x0, int y0, int x1, int y1, PIELIGHT colour)
 	gfx_api::LinePSO::get().bind_constants({ mat, glm::vec2(x0, y0), glm::vec2(x1, y1), color });
 	gfx_api::LinePSO::get().bind_vertex_buffers(pie_internal::rectBuffer);
 	gfx_api::LinePSO::get().draw(2, 0);
-	gfx_api::LinePSO::get().disable_vertex_buffers(pie_internal::rectBuffer);
+	gfx_api::LinePSO::get().unbind_vertex_buffers(pie_internal::rectBuffer);
 }
 
 void iV_Lines(const std::vector<glm::ivec4> &lines, PIELIGHT colour)
@@ -224,7 +186,7 @@ void iV_Lines(const std::vector<glm::ivec4> &lines, PIELIGHT colour)
 		gfx_api::LinePSO::get().bind_constants({ mat, glm::vec2(line.x, line.y), glm::vec2(line.z, line.w), color });
 		gfx_api::LinePSO::get().draw(2, 0);
 	}
-	gfx_api::LinePSO::get().disable_vertex_buffers(pie_internal::rectBuffer);
+	gfx_api::LinePSO::get().unbind_vertex_buffers(pie_internal::rectBuffer);
 }
 
 /**
@@ -249,7 +211,7 @@ static void pie_DrawRect(float x0, float y0, float x1, float y1, PIELIGHT colour
 		glm::vec4(colour.vector[0] / 255.f, colour.vector[1] / 255.f, colour.vector[2] / 255.f, colour.vector[3] / 255.f) });
 	PSO::get().bind_vertex_buffers(pie_internal::rectBuffer);
 	PSO::get().draw(4, 0);
-	PSO::get().disable_vertex_buffers(pie_internal::rectBuffer);
+	PSO::get().unbind_vertex_buffers(pie_internal::rectBuffer);
 }
 
 void pie_DrawMultiRect(std::vector<PIERECT_DrawRequest> rects)
@@ -284,7 +246,7 @@ void pie_DrawMultiRect(std::vector<PIERECT_DrawRequest> rects)
 
 		gfx_api::BoxFillPSO::get().draw(4, 0);
 	}
-	gfx_api::BoxFillPSO::get().disable_vertex_buffers(pie_internal::rectBuffer);
+	gfx_api::BoxFillPSO::get().unbind_vertex_buffers(pie_internal::rectBuffer);
 }
 
 void iV_ShadowBox(int x0, int y0, int x1, int y1, int pad, PIELIGHT first, PIELIGHT second, PIELIGHT fill)
@@ -321,7 +283,7 @@ void iV_Box2(int x0, int y0, int x1, int y1, PIELIGHT first, PIELIGHT second)
 	gfx_api::LinePSO::get().draw(2, 0);
 	gfx_api::LinePSO::get().bind_constants({ mat, glm::vec2(x0, y1), glm::vec2(x1, y1), secondColor });
 	gfx_api::LinePSO::get().draw(2, 0);
-	gfx_api::LinePSO::get().disable_vertex_buffers(pie_internal::rectBuffer);
+	gfx_api::LinePSO::get().unbind_vertex_buffers(pie_internal::rectBuffer);
 }
 
 /***************************************************************************/
@@ -371,7 +333,7 @@ static void iv_DrawImageImpl(Vector2f offset, Vector2f size, Vector2f TextureUV,
 		glm::vec4(colour.vector[0] / 255.f, colour.vector[1] / 255.f, colour.vector[2] / 255.f, colour.vector[3] / 255.f), 0});
 	PSO::get().bind_vertex_buffers(pie_internal::rectBuffer);
 	PSO::get().draw(4, 0);
-	PSO::get().disable_vertex_buffers(pie_internal::rectBuffer);
+	PSO::get().unbind_vertex_buffers(pie_internal::rectBuffer);
 }
 
 void iV_DrawImageText(gfx_api::texture& TextureID, Vector2i Position, Vector2f offset, Vector2f size, float angle, PIELIGHT colour)

@@ -37,6 +37,7 @@ private:
 	virtual ~gl_texture();
 public:
 	virtual void bind() override;
+	void unbind();
 	virtual void upload(const size_t& mip_level, const size_t& offset_x, const size_t& offset_y, const size_t & width, const size_t & height, const gfx_api::pixel_format & buffer_format, const void * data, bool generate_mip_levels = false) override;
 	virtual unsigned id() override;
 };
@@ -52,6 +53,7 @@ struct gl_buffer final : public gfx_api::buffer
 	virtual ~gl_buffer() override;
 
 	void bind() override;
+	void unbind();
 	virtual void upload(const size_t & size, const void * data) override;
 	virtual void update(const size_t & start, const size_t & size, const void * data) override;
 };
@@ -164,10 +166,12 @@ struct gl_context final : public gfx_api::context
 															const gfx_api::primitive_type& primitive,
 															const std::vector<gfx_api::texture_input>& texture_desc,
 															const std::vector<gfx_api::vertex_buffer>& attribute_descriptions) override;
-	virtual void bind_pipeline(gfx_api::pipeline_state_object* pso) override;
+	virtual void bind_pipeline(gfx_api::pipeline_state_object* pso, bool notextures) override;
 	virtual void bind_index_buffer(gfx_api::buffer&, const gfx_api::index_type&) override;
+	virtual void unbind_index_buffer(gfx_api::buffer&) override;
 	virtual void bind_vertex_buffers(const std::size_t& first, const std::vector<std::tuple<gfx_api::buffer*, std::size_t>>& vertex_buffers_offset) override;
-	virtual void disable_vertex_buffers(const std::size_t& first, const std::vector<std::tuple<gfx_api::buffer*, std::size_t>>& vertex_buffers_offset) override;
+	virtual void unbind_vertex_buffers(const std::size_t& first, const std::vector<std::tuple<gfx_api::buffer*, std::size_t>>& vertex_buffers_offset) override;
+	virtual void disable_all_vertex_buffers() override;
 	virtual void bind_streamed_vertex_buffers(const void* data, const std::size_t size) override;
 	virtual void bind_textures(const std::vector<gfx_api::texture_input>& texture_descriptions, const std::vector<gfx_api::texture*>& textures) override;
 	virtual void set_constants(const void* buffer, const size_t& size) override;

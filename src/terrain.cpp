@@ -523,11 +523,8 @@ static void updateSectorGeometry(int x, int y)
 
 	decalVBO->update(sizeof(DecalVertex)*sectors[x * ySectors + y].decalOffset,
 	                 sizeof(DecalVertex)*sectors[x * ySectors + y].decalSize, decaldata);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 	free(decaldata);
-
-	glBindBuffer(GL_ARRAY_BUFFER, 0);  // HACK Must unbind GL_ARRAY_BUFFER (don't know if it has to be unbound everywhere), otherwise text rendering may mysteriously crash.
 }
 
 /**
@@ -769,7 +766,6 @@ bool initTerrain()
 	waterIndexVBO = gfx_api::context::get().create_buffer_object(gfx_api::buffer::usage::index_buffer);
 	waterIndexVBO->upload(sizeof(GLuint)*waterIndexSize, waterIndex);
 	free(waterIndex);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 
 	////////////////////
@@ -885,7 +881,6 @@ bool initTerrain()
 	textureIndexVBO = gfx_api::context::get().create_buffer_object(gfx_api::buffer::usage::index_buffer);
 	textureIndexVBO->upload(sizeof(GLuint)*textureIndexSize, textureIndex);
 	free(textureIndex);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 	// and finally the decals
 	decaldata = (DecalVertex *)malloc(sizeof(DecalVertex) * mapWidth * mapHeight * 12);
@@ -906,7 +901,6 @@ bool initTerrain()
 	decalVBO = gfx_api::context::get().create_buffer_object(gfx_api::buffer::usage::vertex_buffer, gfx_api::context::buffer_storage_hint::dynamic_draw);
 	decalVBO->upload(sizeof(DecalVertex)*decalSize, decaldata);
 	free(decaldata);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 	lightmap_tex_num = 0;
 	lightmapLastUpdate = 0;
@@ -930,18 +924,9 @@ bool initTerrain()
 		delete lightmap_tex_num;
 	lightmap_tex_num = gfx_api::context::get().create_texture(1, lightmapWidth, lightmapHeight, gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8);
 
-//	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	lightmap_tex_num->upload(0, 0, 0, lightmapWidth, lightmapHeight, gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8, lightmapPixmap);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-
-//	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, lightmapWidth, lightmapHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, lightmapPixmap);
 
 	terrainInitialised = true;
-
-	glBindBuffer(GL_ARRAY_BUFFER, 0);  // HACK Must unbind GL_ARRAY_BUFFER (in this function, at least), otherwise text rendering may mysteriously crash.
 
 	return true;
 }
@@ -1114,6 +1099,8 @@ static void drawDepthOnly(const glm::mat4 &ModelViewProjection, const glm::vec4 
 	}
 	finishDrawRangeElements<gfx_api::TerrainDepth>();
 	gfx_api::context::get().set_polygon_offset(0.f, 0.f);
+	gfx_api::TerrainDepth::get().unbind_vertex_buffers(geometryVBO);
+	gfx_api::context::get().unbind_index_buffer(*geometryIndexVBO);
 }
 
 static void drawTerrainLayers(const glm::mat4 &ModelViewProjection, const glm::vec4 &paramsXLight, const glm::vec4 &paramsYLight, const glm::mat4 &textureMatrix)
@@ -1163,8 +1150,8 @@ static void drawTerrainLayers(const glm::mat4 &ModelViewProjection, const glm::v
 		}
 		finishDrawRangeElements<gfx_api::TerrainLayer>();
 	}
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	gfx_api::TerrainLayer::get().unbind_vertex_buffers(geometryVBO, textureVBO);
+	gfx_api::context::get().unbind_index_buffer(*textureIndexVBO);
 }
 
 static void drawDecals(const glm::mat4 &ModelViewProjection, const glm::vec4 &paramsXLight, const glm::vec4 &paramsYLight, const glm::mat4 &textureMatrix)
@@ -1207,6 +1194,7 @@ static void drawDecals(const glm::mat4 &ModelViewProjection, const glm::vec4 &pa
 			}
 		}
 	}
+	gfx_api::TerrainDecals::get().unbind_vertex_buffers(decalVBO);
 }
 
 
@@ -1222,9 +1210,6 @@ void drawTerrain(const glm::mat4 &mvp)
 
 	///////////////////////////////////
 	// set up the lightmap texture
-//	glActiveTexture(GL_TEXTURE1);
-	// bind the texture
-//	lightmap_tex_num->bind();
 
 	// we limit the framerate of the lightmap, because updating a texture is an expensive operation
 	if (realTime - lightmapLastUpdate >= LIGHTMAP_REFRESH)
@@ -1232,15 +1217,12 @@ void drawTerrain(const glm::mat4 &mvp)
 		lightmapLastUpdate = realTime;
 		updateLightMap();
 
-//		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 		lightmap_tex_num->upload(0, 0, 0, lightmapWidth, lightmapHeight, gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8, lightmapPixmap);
 	}
 
 	///////////////////////////////////
 	// terrain culling
 	cullTerrain();
-
-//	glActiveTexture(GL_TEXTURE0);
 
 	// shift the lightmap half a tile as lights are supposed to be placed at the center of a tile
 	const glm::mat4 lightMatrix = glm::translate(glm::vec3(1.f / lightmapWidth / 2, 1.f / lightmapHeight / 2, 0.f));
@@ -1256,15 +1238,6 @@ void drawTerrain(const glm::mat4 &mvp)
 	//////////////////////////////////
 	// decals
 	drawDecals(mvp, paramsXLight, paramsYLight, lightMatrix);
-
-	////////////////////////////////
-	// disable the lightmap texture
-//	glActiveTexture(GL_TEXTURE1);
-//	glActiveTexture(GL_TEXTURE0);
-
-	// leave everything in a sane state so it won't mess up somewhere else
-
-	glBindBuffer(GL_ARRAY_BUFFER, 0);  // HACK Must unbind GL_ARRAY_BUFFER (don't know if it has to be unbound everywhere), otherwise text rendering may mysteriously crash.
 }
 
 /**
@@ -1302,6 +1275,8 @@ void drawWater(const glm::mat4 &viewMatrix)
 		}
 	}
 	finishDrawRangeElements<gfx_api::WaterPSO>();
+	gfx_api::WaterPSO::get().unbind_vertex_buffers(waterVBO);
+	gfx_api::context::get().unbind_index_buffer(*waterIndexVBO);
 
 	// move the water
 	if (!gamePaused())

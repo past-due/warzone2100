@@ -168,6 +168,11 @@ void gl_texture::bind()
 	glBindTexture(GL_TEXTURE_2D, _id);
 }
 
+void gl_texture::unbind()
+{
+	glBindTexture(GL_TEXTURE_2D, 0);
+}
+
 void gl_texture::upload(const size_t& mip_level, const size_t& offset_x, const size_t& offset_y, const size_t & width, const size_t & height, const gfx_api::pixel_format & buffer_format, const void * data, bool generate_mip_levels /*= false*/)
 {
 	bind();
@@ -185,6 +190,7 @@ void gl_texture::upload(const size_t& mip_level, const size_t& offset_x, const s
 	{
 		glGenerateMipmap(GL_TEXTURE_2D);
 	}
+	unbind();
 }
 
 unsigned gl_texture::id()
@@ -211,11 +217,17 @@ void gl_buffer::bind()
 	glBindBuffer(to_gl(usage), buffer);
 }
 
+void gl_buffer::unbind()
+{
+	glBindBuffer(to_gl(usage), 0);
+}
+
 void gl_buffer::upload(const size_t & size, const void * data)
 {
 	glBindBuffer(to_gl(usage), buffer);
 	glBufferData(to_gl(usage), size, data, to_gl(hint));
 	buffer_size = size;
+	glBindBuffer(to_gl(usage), 0);
 }
 
 void gl_buffer::update(const size_t & start, const size_t & size, const void * data)
@@ -229,6 +241,7 @@ void gl_buffer::update(const size_t & start, const size_t & size, const void * d
 	}
 	glBindBuffer(to_gl(usage), buffer);
 	glBufferSubData(to_gl(usage), start, size, data);
+	glBindBuffer(to_gl(usage), 0);
 }
 
 // MARK: gl_pipeline_state_object
@@ -898,13 +911,17 @@ gfx_api::pipeline_state_object * gl_context::build_pipeline(const gfx_api::state
 	return new gl_pipeline_state_object(state_desc, shader_mode, attribute_descriptions);
 }
 
-void gl_context::bind_pipeline(gfx_api::pipeline_state_object* pso)
+void gl_context::bind_pipeline(gfx_api::pipeline_state_object* pso, bool notextures)
 {
 	gl_pipeline_state_object* new_program = static_cast<gl_pipeline_state_object*>(pso);
 	if (current_program != new_program)
 	{
 		current_program = new_program;
 		current_program->bind();
+		if (notextures)
+		{
+			glBindTexture(GL_TEXTURE_2D, 0);
+		}
 	}
 }
 
@@ -914,6 +931,7 @@ void gl_context::bind_vertex_buffers(const std::size_t& first, const std::vector
 	{
 		const auto& buffer_desc = current_program->vertex_buffer_desc[first + i];
 		auto* buffer = static_cast<gl_buffer*>(std::get<0>(vertex_buffers_offset[i]));
+		ASSERT(buffer->usage == gfx_api::buffer::usage::vertex_buffer, "bind_vertex_buffers called with non-vertex-buffer");
 		buffer->bind();
 		for (const auto& attribute : buffer_desc.attributes)
 		{
@@ -923,7 +941,7 @@ void gl_context::bind_vertex_buffers(const std::size_t& first, const std::vector
 	}
 }
 
-void gl_context::disable_vertex_buffers(const std::size_t& first, const std::vector<std::tuple<gfx_api::buffer*, std::size_t>>& vertex_buffers_offset)
+void gl_context::unbind_vertex_buffers(const std::size_t& first, const std::vector<std::tuple<gfx_api::buffer*, std::size_t>>& vertex_buffers_offset)
 {
 	for (size_t i = 0, e = vertex_buffers_offset.size(); i < e && (first + i) < current_program->vertex_buffer_desc.size(); ++i)
 	{
@@ -933,6 +951,20 @@ void gl_context::disable_vertex_buffers(const std::size_t& first, const std::vec
 			glDisableVertexAttribArray(attribute.id);
 		}
 	}
+	glBindBuffer(to_gl(gfx_api::buffer::usage::vertex_buffer), 0);
+}
+
+void gl_context::disable_all_vertex_buffers()
+{
+	for (size_t i = 0; i < current_program->vertex_buffer_desc.size(); ++i)
+	{
+		const auto& buffer_desc = current_program->vertex_buffer_desc[i];
+		for (const auto& attribute : buffer_desc.attributes)
+		{
+			glDisableVertexAttribArray(attribute.id);
+		}
+	}
+	glBindBuffer(to_gl(gfx_api::buffer::usage::vertex_buffer), 0);
 }
 
 void gl_context::bind_streamed_vertex_buffers(const void* data, const std::size_t size)
@@ -953,8 +985,14 @@ void gl_context::bind_index_buffer(gfx_api::buffer& _buffer, const gfx_api::inde
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer.buffer);
 }
 
+void gl_context::unbind_index_buffer(gfx_api::buffer&)
+{
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+}
+
 void gl_context::bind_textures(const std::vector<gfx_api::texture_input>& texture_descriptions, const std::vector<gfx_api::texture*>& textures)
 {
+	ASSERT(textures.size() <= texture_descriptions.size(), "Received more textures than expected");
 	for (size_t i = 0; i < texture_descriptions.size() && i < textures.size(); ++i)
 	{
 		const auto& desc = texture_descriptions[i];

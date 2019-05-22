@@ -959,7 +959,7 @@ void seq_Shutdown()
 	audioTime = 0;
 	sampletimeOffset = last_time = timer_expire = timer_started = 0;
 	basetime = -1;
-//	pie_SetTexturePage(-1);
+
 	debug(LOG_VIDEO, " **** frames = %d dropped = %d ****", frames, dropped);
 }
 

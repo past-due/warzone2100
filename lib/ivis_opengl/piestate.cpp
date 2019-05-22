@@ -752,7 +752,6 @@ bool pie_LoadShaders()
 	if (!pie_internal::rectBuffer)
 		pie_internal::rectBuffer = gfx_api::context::get().create_buffer_object(gfx_api::buffer::usage::vertex_buffer);
 	pie_internal::rectBuffer->upload(16 * sizeof(GLubyte), rect);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 	return true;
 }
@@ -798,126 +797,6 @@ float pie_GetShaderStretchDepth()
 	return shaderStretch;
 }
 
-//pie_internal::SHADER_PROGRAM &pie_ActivateShaderDeprecated(SHADER_MODE shaderMode, const iIMDShape *shape, PIELIGHT teamcolour, PIELIGHT colour, const glm::mat4 &ModelView, const glm::mat4 &Proj,
-//	const glm::vec4 &sunPos, const glm::vec4 &sceneColor, const glm::vec4 &ambient, const glm::vec4 &diffuse, const glm::vec4 &specular)
-//{
-//	int maskpage = shape->tcmaskpage;
-//	int normalpage = shape->normalpage;
-//	int specularpage = shape->specularpage;
-//	pie_internal::SHADER_PROGRAM &program = pie_internal::shaderProgram[shaderMode];
-//
-//	if (shaderMode != pie_internal::currentShaderMode)
-//	{
-//		glUseProgram(program.program);
-//
-//		// These do not change during our drawing pass
-//		glUniform1i(program.locations[4], rendStates.fog);
-//		glUniform1f(program.locations[9], timeState);
-//
-//		pie_internal::currentShaderMode = shaderMode;
-//	}
-//	glUniform4fv(program.locations[0], 1, &pal_PIELIGHTtoVec4(colour)[0]);
-//	pie_SetTexturePage(shape->texpage);
-//
-//	glUniform4fv(program.locations[1], 1, &pal_PIELIGHTtoVec4(teamcolour)[0]);
-//	glUniform1i(program.locations[3], maskpage != iV_TEX_INVALID);
-//
-//	glUniform1i(program.locations[8], 0);
-//
-//	glUniformMatrix4fv(program.locations[10], 1, GL_FALSE, glm::value_ptr(ModelView));
-//	glUniformMatrix4fv(program.locations[11], 1, GL_FALSE, glm::value_ptr(Proj * ModelView));
-//	glUniformMatrix4fv(program.locations[12], 1, GL_FALSE, glm::value_ptr(glm::transpose(glm::inverse(ModelView))));
-//	glUniform4fv(program.locations[13], 1, &sunPos[0]);
-//	glUniform4fv(program.locations[14], 1, &sceneColor[0]);
-//	glUniform4fv(program.locations[15], 1, &ambient[0]);
-//	glUniform4fv(program.locations[16], 1, &diffuse[0]);
-//	glUniform4fv(program.locations[17], 1, &specular[0]);
-//
-//	glUniform1f(program.locations[18], fogBegin);
-//	glUniform1f(program.locations[19], fogEnd);
-//
-//	float color[4] = {
-//		rendStates.fogColour.vector[0] / 255.f,
-//		rendStates.fogColour.vector[1] / 255.f,
-//		rendStates.fogColour.vector[2] / 255.f,
-//		rendStates.fogColour.vector[3] / 255.f
-//	};
-//	glUniform4fv(program.locations[20], 1, color);
-//
-//	if (program.locations[2] >= 0)
-//	{
-//		glUniform1f(program.locations[2], shaderStretch);
-//	}
-//	if (program.locations[5] >= 0)
-//	{
-//		glUniform1i(program.locations[5], normalpage != iV_TEX_INVALID);
-//	}
-//	if (program.locations[6] >= 0)
-//	{
-//		glUniform1i(program.locations[6], specularpage != iV_TEX_INVALID);
-//	}
-//	if (program.locations[7] >= 0)
-//	{
-//		glUniform1i(program.locations[7], ecmState);
-//	}
-//
-//	if (maskpage != iV_TEX_INVALID)
-//	{
-//		glActiveTexture(GL_TEXTURE1);
-//		pie_Texture(maskpage).bind();
-//	}
-//	if (normalpage != iV_TEX_INVALID)
-//	{
-//		glActiveTexture(GL_TEXTURE2);
-//		pie_Texture(normalpage).bind();
-//	}
-//	if (specularpage != iV_TEX_INVALID)
-//	{
-//		glActiveTexture(GL_TEXTURE3);
-//		pie_Texture(specularpage).bind();
-//	}
-//	glActiveTexture(GL_TEXTURE0);
-//
-//	return program;
-//}
-
-//void pie_SetDepthBufferStatus(DEPTH_MODE depthMode)
-//{
-//	switch (depthMode)
-//	{
-//	case DEPTH_CMP_LEQ_WRT_ON:
-//		glEnable(GL_DEPTH_TEST);
-//		glDepthFunc(GL_LEQUAL);
-//		glDepthMask(GL_TRUE);
-//		break;
-//
-//	case DEPTH_CMP_ALWAYS_WRT_ON:
-//		glDisable(GL_DEPTH_TEST);
-//		glDepthMask(GL_TRUE);
-//		break;
-//
-//	case DEPTH_CMP_ALWAYS_WRT_OFF:
-//		glDisable(GL_DEPTH_TEST);
-//		glDepthMask(GL_FALSE);
-//		break;
-//	}
-//}
-
-///// Set the depth (z) offset
-///// Negative values are closer to the screen
-//void pie_SetDepthOffset(float offset)
-//{
-//	if (offset == 0.0f)
-//	{
-//		glDisable(GL_POLYGON_OFFSET_FILL);
-//	}
-//	else
-//	{
-//		glPolygonOffset(offset, offset);
-//		glEnable(GL_POLYGON_OFFSET_FILL);
-//	}
-//}
-
 /// Set the OpenGL fog start and end
 void pie_UpdateFogDistance(float begin, float end)
 {
@@ -937,73 +816,6 @@ void pie_SetFogStatus(bool val)
 		rendStates.fog = false;
 	}
 }
-
-///** Selects a texture page and binds it for the current texture unit
-// *  \param num a number indicating the texture page to bind. If this is a
-// *         negative value (doesn't matter what value) it will disable texturing.
-// */
-//void pie_SetTexturePage(SDWORD num)
-//{
-//	// Only bind textures when they're not bound already
-//	if (num != rendStates.texPage)
-//	{
-//		switch (num)
-//		{
-//		case TEXPAGE_NONE:
-//			glBindTexture(GL_TEXTURE_2D, 0);
-//			break;
-//		case TEXPAGE_EXTERN:
-//			break;
-//		default:
-//			pie_Texture(num).bind();
-//		}
-//		rendStates.texPage = num;
-//	}
-//}
-
-//void pie_SetRendMode(REND_MODE rendMode)
-//{
-//	if (rendMode != rendStates.rendMode)
-//	{
-//		rendStates.rendMode = rendMode;
-//		switch (rendMode)
-//		{
-//		case REND_OPAQUE:
-//			glDisable(GL_BLEND);
-//			break;
-//
-//		case REND_ALPHA:
-//			glEnable(GL_BLEND);
-//			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-//			break;
-//
-//		case REND_ADDITIVE:
-//			glEnable(GL_BLEND);
-//			glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-//			break;
-//
-//		case REND_MULTIPLICATIVE:
-//			glEnable(GL_BLEND);
-//			glBlendFunc(GL_ZERO, GL_SRC_COLOR);
-//			break;
-//
-//		case REND_PREMULTIPLIED:
-//			glEnable(GL_BLEND);
-//			glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-//			break;
-//
-//		case REND_TEXT:
-//			glEnable(GL_BLEND);
-//			glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA /* Should be GL_ONE_MINUS_SRC1_COLOR, if supported. Also, gl_FragData[1] then needs to be set in text.frag. */);
-//			break;
-//
-//		default:
-//			ASSERT(false, "Bad render state");
-//			break;
-//		}
-//	}
-//	return;
-//}
 
 RENDER_STATE getCurrentRenderState()
 {

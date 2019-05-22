@@ -114,11 +114,11 @@ void pie_TransColouredTriangle(const std::array<Vector3f, 3> &vrt, PIELIGHT c, c
 	if (!buffer)
 		buffer = gfx_api::context::get().create_buffer_object(gfx_api::buffer::usage::vertex_buffer, gfx_api::context::buffer_storage_hint::stream_draw);
 	buffer->upload(3 * sizeof(Vector3f), vrt.data());
-	buffer->bind();
 	gfx_api::TransColouredTrianglePSO::get().bind();
 	gfx_api::TransColouredTrianglePSO::get().bind_constants({ pie_PerspectiveGet() * modelViewMatrix, glm::vec2(0), glm::vec2(0), color });
 	gfx_api::TransColouredTrianglePSO::get().bind_vertex_buffers(buffer);
 	gfx_api::TransColouredTrianglePSO::get().draw(3, 0);
+	gfx_api::TransColouredTrianglePSO::get().unbind_vertex_buffers(buffer);
 }
 
 void pie_Skybox_Init()

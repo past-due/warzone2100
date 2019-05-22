@@ -99,7 +99,7 @@ public:
 		PSO::get().bind_textures(mTexture);
 		PSO::get().bind_vertex_buffers(mBuffers[VBO_VERTEX], mBuffers[VBO_TEXCOORD]);
 		PSO::get().draw(mSize, 0);
-		PSO::get().disable_vertex_buffers(mBuffers[VBO_VERTEX], mBuffers[VBO_TEXCOORD]);
+		PSO::get().unbind_vertex_buffers(mBuffers[VBO_VERTEX], mBuffers[VBO_TEXCOORD]);
 	}
 
 	template<typename PSO>
@@ -108,7 +108,7 @@ public:
 		PSO::get().bind_constants({ modelViewProjectionMatrix });
 		PSO::get().bind_vertex_buffers(mBuffers[VBO_VERTEX], mBuffers[VBO_TEXCOORD]);
 		PSO::get().draw(mSize, 0);
-		PSO::get().disable_vertex_buffers(mBuffers[VBO_VERTEX], mBuffers[VBO_TEXCOORD]);
+		PSO::get().unbind_vertex_buffers(mBuffers[VBO_VERTEX], mBuffers[VBO_TEXCOORD]);
 	}
 
 private:

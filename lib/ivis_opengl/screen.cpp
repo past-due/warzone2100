@@ -281,7 +281,7 @@ void screen_Display()
 	// Draw backdrop
 	const auto& modelViewProjectionMatrix = glm::ortho(0.f, (float)pie_GetVideoBufferWidth(), (float)pie_GetVideoBufferHeight(), 0.f);
 	gfx_api::BackDropPSO::get().bind();
-	gfx_api::BackDropPSO::get().bind_constants({ modelViewProjectionMatrix, glm::vec2{}, glm::vec2{}, glm::vec4(1), 0 });
+	gfx_api::BackDropPSO::get().bind_constants({ modelViewProjectionMatrix, glm::vec2(0.f), glm::vec2(0.f), glm::vec4(1), 0 });
 	backdropGfx->draw<gfx_api::BackDropPSO>(modelViewProjectionMatrix);
 
 	if (mappreview)

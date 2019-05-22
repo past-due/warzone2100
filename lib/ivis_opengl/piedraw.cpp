@@ -139,6 +139,8 @@ static void pie_Draw3DButton(iIMDShape *shape, PIELIGHT teamcolour, const glm::m
 	gfx_api::context::get().bind_index_buffer(*shape->buffers[VBO_INDEX], gfx_api::index_type::u16);
 	gfx_api::Draw3DButtonPSO::get().draw_elements(shape->polys.size() * 3, 0);
 	polyCount += shape->polys.size();
+	gfx_api::Draw3DButtonPSO::get().unbind_vertex_buffers(shape->buffers[VBO_VERTEX], shape->buffers[VBO_NORMAL], shape->buffers[VBO_TEXCOORD]);
+	gfx_api::context::get().unbind_index_buffer(*shape->buffers[VBO_INDEX]);
 }
 
 template<SHADER_MODE shader, typename AdditivePSO, typename AlphaPSO, typename PremultipliedPSO, typename OpaquePSO>
@@ -161,6 +163,7 @@ static void draw3dShapeTemplated(const PIELIGHT &colour, const PIELIGHT &teamcol
 		AdditivePSO::get().bind_constants(cbuf);
 		AdditivePSO::get().bind_textures(&pie_Texture(shape->texpage), tcmask, normalmap, specularmap);
 		AdditivePSO::get().draw_elements(shape->polys.size() * 3, frame * shape->polys.size() * 3 * sizeof(uint16_t));
+//		AdditivePSO::get().unbind_vertex_buffers(shape->buffers[VBO_VERTEX], shape->buffers[VBO_NORMAL], shape->buffers[VBO_TEXCOORD]);
 	}
 	else if (pieFlag & pie_TRANSLUCENT)
 	{
@@ -169,6 +172,7 @@ static void draw3dShapeTemplated(const PIELIGHT &colour, const PIELIGHT &teamcol
 		AlphaPSO::get().bind_constants(cbuf);
 		AlphaPSO::get().bind_textures(&pie_Texture(shape->texpage), tcmask, normalmap, specularmap);
 		AlphaPSO::get().draw_elements(shape->polys.size() * 3, frame * shape->polys.size() * 3 * sizeof(uint16_t));
+//		AlphaPSO::get().unbind_vertex_buffers(shape->buffers[VBO_VERTEX], shape->buffers[VBO_NORMAL], shape->buffers[VBO_TEXCOORD]);
 	}
 	else if (pieFlag & pie_PREMULTIPLIED)
 	{
@@ -177,6 +181,7 @@ static void draw3dShapeTemplated(const PIELIGHT &colour, const PIELIGHT &teamcol
 		PremultipliedPSO::get().bind_constants(cbuf);
 		PremultipliedPSO::get().bind_textures(&pie_Texture(shape->texpage), tcmask, normalmap, specularmap);
 		PremultipliedPSO::get().draw_elements(shape->polys.size() * 3, frame * shape->polys.size() * 3 * sizeof(uint16_t));
+//		PremultipliedPSO::get().unbind_vertex_buffers(shape->buffers[VBO_VERTEX], shape->buffers[VBO_NORMAL], shape->buffers[VBO_TEXCOORD]);
 	}
 	else
 	{
@@ -185,6 +190,7 @@ static void draw3dShapeTemplated(const PIELIGHT &colour, const PIELIGHT &teamcol
 		OpaquePSO::get().bind_constants(cbuf);
 		OpaquePSO::get().bind_textures(&pie_Texture(shape->texpage), tcmask, normalmap, specularmap);
 		OpaquePSO::get().draw_elements(shape->polys.size() * 3, frame * shape->polys.size() * 3 * sizeof(uint16_t));
+//		OpaquePSO::get().unbind_vertex_buffers(shape->buffers[VBO_VERTEX], shape->buffers[VBO_NORMAL], shape->buffers[VBO_TEXCOORD]);
 	}
 
 }
@@ -666,6 +672,7 @@ static void pie_ShadowDrawLoop(ShadowCache &shadowCache)
 	}
 
 	shadowCache.clearPremultipliedVertexes();
+	gfx_api::DrawStencilShadow::get().unbind_vertex_buffers(buffers[currBuffer]);
 
 //	debug(LOG_INFO, "Cached shadow draws: %lu, uncached shadow draws: %lu", cachedShadowDraws, uncachedShadowDraws);
 	++currBuffer;
@@ -700,6 +707,13 @@ void pie_RemainingPasses(uint64_t currentGameFrame)
 		pie_SetShaderStretchDepth(shape.stretch);
 		pie_Draw3DShape2(shape.shape, shape.frame, shape.colour, shape.teamcolour, shape.flag, shape.flag_data, shape.matrix);
 	}
+	gfx_api::context::get().disable_all_vertex_buffers();
+	if (!shapes.empty())
+	{
+		// unbind last index buffer bound inside pie_Draw3DShape2
+		gfx_api::context::get().unbind_index_buffer(*((shapes.back().shape)->buffers[VBO_INDEX]));
+	}
+//	glBindTexture(GL_TEXTURE_2D, 0);
 	gfx_api::context::get().debugStringMarker("Remaining passes - shadows");
 	// Draw shadows
 	if (shadows)
@@ -713,6 +727,12 @@ void pie_RemainingPasses(uint64_t currentGameFrame)
 	{
 		pie_SetShaderStretchDepth(shape.stretch);
 		pie_Draw3DShape2(shape.shape, shape.frame, shape.colour, shape.teamcolour, shape.flag, shape.flag_data, shape.matrix);
+	}
+	gfx_api::context::get().disable_all_vertex_buffers();
+	if (!tshapes.empty())
+	{
+		// unbind last index buffer bound inside pie_Draw3DShape2
+		gfx_api::context::get().unbind_index_buffer(*((tshapes.back().shape)->buffers[VBO_INDEX]));
 	}
 	pie_SetShaderStretchDepth(0);
 	tshapes.clear();
