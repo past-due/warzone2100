@@ -195,4 +195,8 @@ struct gl_context final : public gfx_api::context
 	virtual std::map<std::string, std::string> getBackendGameInfo() override;
 private:
 	bool initGLContext();
+	void enableVertexAttribArray(GLuint index);
+	void disableVertexAttribArray(GLuint index);
+
+	std::vector<bool> enabledVertexAttribIndexes;
 };

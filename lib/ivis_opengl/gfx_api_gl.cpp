@@ -925,6 +925,20 @@ void gl_context::bind_pipeline(gfx_api::pipeline_state_object* pso, bool notextu
 	}
 }
 
+inline void gl_context::enableVertexAttribArray(GLuint index)
+{
+	glEnableVertexAttribArray(index);
+	ASSERT(enabledVertexAttribIndexes.capacity() >= static_cast<size_t>(index), "Insufficient room in enabledVertexAttribIndexes for: %u", (unsigned int) index);
+	enabledVertexAttribIndexes[static_cast<size_t>(index)] = true;
+}
+
+inline void gl_context::disableVertexAttribArray(GLuint index)
+{
+	glDisableVertexAttribArray(index);
+	ASSERT(enabledVertexAttribIndexes.size() >= static_cast<size_t>(index), "Insufficient room in enabledVertexAttribIndexes for: %u", (unsigned int) index);
+	enabledVertexAttribIndexes[static_cast<size_t>(index)] = false;
+}
+
 void gl_context::bind_vertex_buffers(const std::size_t& first, const std::vector<std::tuple<gfx_api::buffer*, std::size_t>>& vertex_buffers_offset)
 {
 	for (size_t i = 0, e = vertex_buffers_offset.size(); i < e && (first + i) < current_program->vertex_buffer_desc.size(); ++i)
@@ -935,7 +949,7 @@ void gl_context::bind_vertex_buffers(const std::size_t& first, const std::vector
 		buffer->bind();
 		for (const auto& attribute : buffer_desc.attributes)
 		{
-			glEnableVertexAttribArray(attribute.id);
+			enableVertexAttribArray(attribute.id);
 			glVertexAttribPointer(attribute.id, get_size(attribute.type), get_type(attribute.type), get_normalisation(attribute.type), buffer_desc.stride, reinterpret_cast<void*>(attribute.offset + std::get<1>(vertex_buffers_offset[i])));
 		}
 	}
@@ -948,7 +962,7 @@ void gl_context::unbind_vertex_buffers(const std::size_t& first, const std::vect
 		const auto& buffer_desc = current_program->vertex_buffer_desc[first + i];
 		for (const auto& attribute : buffer_desc.attributes)
 		{
-			glDisableVertexAttribArray(attribute.id);
+			disableVertexAttribArray(attribute.id);
 		}
 	}
 	glBindBuffer(to_gl(gfx_api::buffer::usage::vertex_buffer), 0);
@@ -956,12 +970,11 @@ void gl_context::unbind_vertex_buffers(const std::size_t& first, const std::vect
 
 void gl_context::disable_all_vertex_buffers()
 {
-	for (size_t i = 0; i < current_program->vertex_buffer_desc.size(); ++i)
+	for (size_t index = 0; index < enabledVertexAttribIndexes.size(); ++index)
 	{
-		const auto& buffer_desc = current_program->vertex_buffer_desc[i];
-		for (const auto& attribute : buffer_desc.attributes)
+		if(enabledVertexAttribIndexes[index])
 		{
-			glDisableVertexAttribArray(attribute.id);
+			disableVertexAttribArray(index);
 		}
 	}
 	glBindBuffer(to_gl(gfx_api::buffer::usage::vertex_buffer), 0);
@@ -974,7 +987,7 @@ void gl_context::bind_streamed_vertex_buffers(const void* data, const std::size_
 	const auto& buffer_desc = current_program->vertex_buffer_desc[0];
 	for (const auto& attribute : buffer_desc.attributes)
 	{
-		glEnableVertexAttribArray(attribute.id);
+		enableVertexAttribArray(attribute.id);
 		glVertexAttribPointer(attribute.id, get_size(attribute.type), get_type(attribute.type), get_normalisation(attribute.type), buffer_desc.stride, nullptr);
 	}
 }
@@ -1376,7 +1389,7 @@ bool gl_context::initGLContext()
 	sscanf((char const *)glGetString(GL_SHADING_LANGUAGE_VERSION), "%d.%d", &glslVersion.first, &glslVersion.second);
 
 	/* Dump information about OpenGL 2.0+ implementation to the console and the dump file */
-	GLint glMaxTIUs, glMaxTCs, glMaxTIUAs, glmaxSamples, glmaxSamplesbuf;
+	GLint glMaxTIUs, glMaxTCs, glMaxTIUAs, glmaxSamples, glmaxSamplesbuf, glmaxVertexAttribs;
 
 	debug(LOG_3D, "  * OpenGL GLSL Version : %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
 	ssprintf(opengl.GLSLversion, "OpenGL GLSL Version : %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
@@ -1392,6 +1405,11 @@ bool gl_context::initGLContext()
 	debug(LOG_3D, "  * (current) Max Sample buffer is %d.", (int) glmaxSamplesbuf);
 	glGetIntegerv(GL_SAMPLES, &glmaxSamples);
 	debug(LOG_3D, "  * (current) Max Sample level is %d.", (int) glmaxSamples);
+	glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &glmaxVertexAttribs);
+	debug(LOG_3D, "  * (current) Max vertex attribute locations is %d.", (int) glmaxVertexAttribs);
+
+	// IMPORTANT: Reserve enough slots in enabledVertexAttribIndexes based on glmaxVertexAttribs
+	enabledVertexAttribIndexes.resize(static_cast<size_t>(glmaxVertexAttribs), false);
 
 #if defined(WZ_USE_OPENGL_3_2_CORE_PROFILE)
 	// Very simple VAO code - just bind a single global VAO (this gets things working, but is not optimal)
