@@ -25,7 +25,6 @@
 /***************************************************************************/
 
 #include "lib/framework/frame.h"
-#include "lib/framework/opengl.h"
 #include "lib/framework/fixedpoint.h"
 #include "lib/gamelib/gtime.h"
 #include <time.h>
@@ -135,14 +134,10 @@ void GFX::buffers(int vertices, const void *vertBuf, const void *auxBuf)
 		// reusing texture buffer for colours for now
 		if (!mBuffers[VBO_TEXCOORD])
 			mBuffers[VBO_TEXCOORD] = gfx_api::context::get().create_buffer_object(gfx_api::buffer::usage::vertex_buffer);
-		mBuffers[VBO_TEXCOORD]->upload(vertices * 4 * sizeof(GLbyte), auxBuf);
+		mBuffers[VBO_TEXCOORD]->upload(vertices * 4 * sizeof(gfx_api::gfxByte), auxBuf);
 	}
 	mSize = vertices;
 }
-
-#define VERTEX_POS_ATTRIB_INDEX 0
-#define VERTEX_COORDS_ATTRIB_INDEX 1
-#define VERTEX_COLOR_ATTRIB_INDEX 2
 
 GFX::~GFX()
 {
@@ -587,7 +582,7 @@ bool pie_ShutdownRadar()
 void pie_SetRadar(gfx_api::gfxFloat x, gfx_api::gfxFloat y, gfx_api::gfxFloat width, gfx_api::gfxFloat height, int twidth, int theight)
 {
 	radarGfx->makeTexture(twidth, theight);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);  // Want GL_LINEAR (or GL_LINEAR_MIPMAP_NEAREST) for min filter, but GL_NEAREST for mag filter.
+	//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);  // Want GL_LINEAR (or GL_LINEAR_MIPMAP_NEAREST) for min filter, but GL_NEAREST for mag filter. // TODO: Add a gfx_api::sampler_type to handle this case? bilinear, but nearest for mag?
 	gfx_api::gfxFloat texcoords[] = { 0.0f, 0.0f,  1.0f, 0.0f,  0.0f, 1.0f,  1.0f, 1.0f };
 	gfx_api::gfxFloat vertices[] = { x, y,  x + width, y,  x, y + height,  x + width, y + height };
 	radarGfx->buffers(4, vertices, texcoords);

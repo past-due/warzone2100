@@ -743,7 +743,7 @@ bool pie_LoadShaders()
 //
 //	pie_internal::currentShaderMode = SHADER_NONE;
 
-	GLubyte rect[] {
+	gfx_api::gfxUByte rect[] {
 		0, 255, 0, 255,
 		0, 0, 0, 255,
 		255, 255, 0, 255,
@@ -751,7 +751,7 @@ bool pie_LoadShaders()
 	};
 	if (!pie_internal::rectBuffer)
 		pie_internal::rectBuffer = gfx_api::context::get().create_buffer_object(gfx_api::buffer::usage::vertex_buffer);
-	pie_internal::rectBuffer->upload(16 * sizeof(GLubyte), rect);
+	pie_internal::rectBuffer->upload(16 * sizeof(gfx_api::gfxUByte), rect);
 
 	return true;
 }

@@ -36,8 +36,12 @@ namespace gfx_api
 {
 #ifdef GL_ONLY
 	using gfxFloat = GLfloat;
+	using gfxByte = GLbyte;
+	using gfxUByte = GLubyte;
 #else
 	using gfxFloat = float;
+	using gfxByte = char;
+	using gfxUByte = unsigned char;
 #endif
 
 	enum class pixel_format

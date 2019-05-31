@@ -97,7 +97,7 @@ static unsigned int lightmapLastUpdate;
 static int lightmapWidth;
 static int lightmapHeight;
 /// Lightmap image
-static GLubyte *lightmapPixmap;
+static gfx_api::gfxUByte *lightmapPixmap;
 /// Ticks per lightmap refresh
 static const unsigned int LIGHTMAP_REFRESH = 80;
 
@@ -913,7 +913,7 @@ bool initTerrain()
 	debug(LOG_TERRAIN, "lightmap texture size is %ix%i", lightmapWidth, lightmapHeight);
 
 	// Prepare the lightmap pixmap and texture
-	lightmapPixmap = (GLubyte *)calloc(lightmapWidth * lightmapHeight, 3 * sizeof(GLubyte));
+	lightmapPixmap = (gfx_api::gfxUByte *)calloc(lightmapWidth * lightmapHeight, 3 * sizeof(gfx_api::gfxUByte));
 	if (lightmapPixmap == nullptr)
 	{
 		debug(LOG_FATAL, "Out of memory!");
@@ -1076,7 +1076,7 @@ static void drawDepthOnly(const glm::mat4 &ModelViewProjection, const glm::vec4 
 	// bind the vertex buffer
 	gfx_api::TerrainDepth::get().bind();
 	gfx_api::TerrainDepth::get().bind_vertex_buffers(geometryVBO);
-	gfx_api::TerrainDepth::get().bind_constants({ ModelViewProjection, paramsXLight, paramsYLight, glm::vec4{}, glm::vec4{}, glm::mat4(1.f), glm::mat4(1.f), 0, 0.f, 0.f, glm::vec4(), 0, 0 });
+	gfx_api::TerrainDepth::get().bind_constants({ ModelViewProjection, paramsXLight, paramsYLight, glm::vec4(0.f), glm::vec4(0.f), glm::mat4(1.f), glm::mat4(1.f), 0, 0.f, 0.f, glm::vec4(0.f), 0, 0 });
 	gfx_api::context::get().bind_index_buffer(*geometryIndexVBO, gfx_api::index_type::u32);
 
 	// draw slightly higher distance than it actually is so it will not
@@ -1256,7 +1256,7 @@ void drawWater(const glm::mat4 &viewMatrix)
 	gfx_api::WaterPSO::get().bind_textures(&pie_Texture(iV_GetTexture("page-80-water-1.png")), &pie_Texture(iV_GetTexture("page-81-water-2.png")));
 	gfx_api::WaterPSO::get().bind_vertex_buffers(waterVBO);
 	gfx_api::WaterPSO::get().bind_constants({ viewMatrix, paramsX, paramsY, paramsX2, paramsY2,
-		glm::translate(glm::vec3{ waterOffset, 0.f, 0.f}), glm::mat4(), renderState.fogEnabled, renderState.fogBegin, renderState.fogEnd, glm::vec4{}, 0, 1
+		glm::translate(glm::vec3{ waterOffset, 0.f, 0.f}), glm::mat4(), renderState.fogEnabled, renderState.fogBegin, renderState.fogEnd, glm::vec4(0.f), 0, 1
 	});
 	gfx_api::context::get().bind_index_buffer(*waterIndexVBO, gfx_api::index_type::u32);
 
