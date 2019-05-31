@@ -108,7 +108,7 @@ int pie_AddTexPage(iV_Image *s, const char *filename, bool gameTexture, int page
 			delete _TEX_PAGE[page].id;
 		size_t mip_count = floor(log(std::max(s->width, s->height))) + 1;
 		_TEX_PAGE[page].id = gfx_api::context::get().create_texture(mip_count, s->width, s->height, format, filename);
-		pie_Texture(page).upload(0u, 0u, 0u, s->width, s->height, iV_getPixelFormat(s), s->bmp, true);
+		pie_Texture(page).upload_and_generate_mipmaps(0u, 0u, s->width, s->height, iV_getPixelFormat(s), s->bmp);
 	}
 	else	// this is an interface texture, do not use compression
 	{

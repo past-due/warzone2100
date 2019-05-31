@@ -176,10 +176,17 @@ void gl_texture::unbind()
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void gl_texture::upload(const size_t& mip_level, const size_t& offset_x, const size_t& offset_y, const size_t & width, const size_t & height, const gfx_api::pixel_format & buffer_format, const void * data, bool generate_mip_levels /*= false*/)
+void gl_texture::upload(const size_t& mip_level, const size_t& offset_x, const size_t& offset_y, const size_t & width, const size_t & height, const gfx_api::pixel_format & buffer_format, const void * data)
 {
 	bind();
-	if(generate_mip_levels && !glGenerateMipmap)
+	glTexSubImage2D(GL_TEXTURE_2D, mip_level, offset_x, offset_y, width, height, std::get<1>(to_gl(buffer_format)), GL_UNSIGNED_BYTE, data);
+	unbind();
+}
+
+void gl_texture::upload_and_generate_mipmaps(const size_t& offset_x, const size_t& offset_y, const size_t& width, const size_t& height, const  gfx_api::pixel_format& buffer_format, const void* data)
+{
+	bind();
+	if(!glGenerateMipmap)
 	{
 		// fallback for if glGenerateMipmap is unavailable
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -188,8 +195,8 @@ void gl_texture::upload(const size_t& mip_level, const size_t& offset_x, const s
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_TRUE);
 	}
-	glTexSubImage2D(GL_TEXTURE_2D, mip_level, offset_x, offset_y, width, height, std::get<1>(to_gl(buffer_format)), GL_UNSIGNED_BYTE, data);
-	if(generate_mip_levels && glGenerateMipmap)
+	glTexSubImage2D(GL_TEXTURE_2D, 0, offset_x, offset_y, width, height, std::get<1>(to_gl(buffer_format)), GL_UNSIGNED_BYTE, data);
+	if(glGenerateMipmap)
 	{
 		glGenerateMipmap(GL_TEXTURE_2D);
 	}
