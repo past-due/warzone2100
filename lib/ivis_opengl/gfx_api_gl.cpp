@@ -1022,6 +1022,7 @@ GLboolean get_normalisation(const gfx_api::vertex_attribute_type& type)
 
 gl_context::~gl_context()
 {
+	glDeleteBuffers(1, &scratchbuffer);
 }
 
 gfx_api::texture* gl_context::create_texture(const size_t& mipmap_count, const size_t & width, const size_t & height, const gfx_api::pixel_format & internal_format, const std::string& filename)
@@ -1128,7 +1129,12 @@ void gl_context::disable_all_vertex_buffers()
 void gl_context::bind_streamed_vertex_buffers(const void* data, const std::size_t size)
 {
 	glBindBuffer(GL_ARRAY_BUFFER, scratchbuffer);
+	if (scratchbuffer_size > 0)
+	{
+		glBufferData(GL_ARRAY_BUFFER, scratchbuffer_size, nullptr, GL_STREAM_DRAW); // orphan previous buffer
+	}
 	glBufferData(GL_ARRAY_BUFFER, size, data, GL_STREAM_DRAW);
+	scratchbuffer_size = size;
 	const auto& buffer_desc = current_program->vertex_buffer_desc[0];
 	for (const auto& attribute : buffer_desc.attributes)
 	{
@@ -1606,6 +1612,8 @@ bool gl_context::initGLContext()
 		glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, nullptr, GL_FALSE);
 		debug(LOG_3D, "Enabling KHR_debug message callback");
 	}
+
+	glGenBuffers(1, &scratchbuffer);
 
 	return true;
 }

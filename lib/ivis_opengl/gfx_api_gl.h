@@ -155,7 +155,8 @@ struct gl_context final : public gfx_api::context
 {
 	gl_pipeline_state_object* current_program = nullptr;
 	SDL_Window* WZwindow = nullptr;
-	GLuint scratchbuffer;
+	GLuint scratchbuffer = 0;
+	size_t scratchbuffer_size = 0;
 	bool khr_debug = false;
 
 	gl_context() {}
