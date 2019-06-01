@@ -353,50 +353,48 @@ static void pie_DrawImage(IMAGEFILE *imageFile, int id, Vector2i size, const PIE
 
 static void pie_DrawMultipleImages(const std::list<PieDrawImageRequest>& requests)
 {
-//	bool didEnableRect = false;
+	bool didEnableRect = false;
 	if (requests.empty()) { return; }
 	for (auto& request : requests)
 	{
-		pie_DrawImage(request.imageFile, request.ID, request.size, &request.dest, request.colour, request.modelViewProjection, request.textureInset);
+		// The following is the equivalent of:
+		// pie_DrawImage(request.imageFile, request.ID, request.size, &request.dest, request.colour, request.modelViewProjection, request.textureInset)
+		// but is tweaked to use custom implementation of iv_DrawImageImpl that does not disable the shader after every glDrawArrays call.
 
-//		pie_SetRendMode(request.rendMode);
-//
-//		// The following is the equivalent of:
-//		// pie_DrawImage(request.imageFile, request.ID, request.size, &request.dest, request.colour, request.modelViewProjection, request.textureInset)
-//		// but is tweaked to use custom implementation of iv_DrawImageImpl that does not disable the shader after every glDrawArrays call.
-//
-//		ImageDef const &image2 = request.imageFile->imageDefs[request.ID];
-//		GLuint texPage = request.imageFile->pages[image2.TPageID].id;
-//		gfx_api::gfxFloat invTextureSize = 1.f / (float)request.imageFile->pages[image2.TPageID].size;
-//		float tu = (float)(image2.Tu + request.textureInset.x) * invTextureSize;
-//		float tv = (float)(image2.Tv + request.textureInset.y) * invTextureSize;
-//		float su = (float)(request.size.x - (request.textureInset.x * 2)) * invTextureSize;
-//		float sv = (float)(request.size.y - (request.textureInset.y * 2)) * invTextureSize;
-//
-//		glm::mat4 mvp = request.modelViewProjection * glm::translate(glm::vec3((float)request.dest.x, (float)request.dest.y, 0.f));
-//
-//		pie_SetTexturePage(texPage);
-//
-//		Vector2f offset = Vector2f(0.f, 0.f);
-//		Vector2f size = Vector2f(request.dest.w, request.dest.h);
-//		Vector2f TextureUV = Vector2f(tu, tv);
-//		Vector2f TextureSize = Vector2f(su, sv);
-//		glm::mat4 transformMat = mvp * glm::translate(glm::vec3(offset.x, offset.y, 0.f)) * glm::scale(glm::vec3(size.x, size.y, 1.f));
-//
-//		pie_ActivateShader(SHADER_TEXRECT,
-//						   transformMat,
-//						   TextureUV,
-//						   TextureSize,
-//						   glm::vec4(request.colour.vector[0] / 255.f, request.colour.vector[1] / 255.f, request.colour.vector[2] / 255.f, request.colour.vector[3] / 255.f), 0);
-//		if (!didEnableRect)
-//		{
-//			enableRect();
-//			didEnableRect = true;
-//		}
-//		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+		ImageDef const &image2 = request.imageFile->imageDefs[request.ID];
+		uint32_t texPage = request.imageFile->pages[image2.TPageID].id;
+		gfx_api::gfxFloat invTextureSize = 1.f / (float)request.imageFile->pages[image2.TPageID].size;
+		float tu = (float)(image2.Tu + request.textureInset.x) * invTextureSize;
+		float tv = (float)(image2.Tv + request.textureInset.y) * invTextureSize;
+		float su = (float)(request.size.x - (request.textureInset.x * 2)) * invTextureSize;
+		float sv = (float)(request.size.y - (request.textureInset.y * 2)) * invTextureSize;
+
+		glm::mat4 mvp = request.modelViewProjection * glm::translate(glm::vec3((float)request.dest.x, (float)request.dest.y, 0.f));
+
+		gfx_api::texture& TextureID = pie_Texture(texPage);
+		Vector2f offset = Vector2f(0.f, 0.f);
+		Vector2f size = Vector2f(request.dest.w, request.dest.h);
+		Vector2f TextureUV = Vector2f(tu, tv);
+		Vector2f TextureSize = Vector2f(su, sv);
+		glm::mat4 transformMat = mvp * glm::translate(glm::vec3(offset.x, offset.y, 0.f)) * glm::scale(glm::vec3(size.x, size.y, 1.f));
+
+		gfx_api::DrawImagePSO::get().bind();
+		gfx_api::DrawImagePSO::get().bind_constants({ transformMat,
+			TextureUV,
+			TextureSize,
+			glm::vec4(request.colour.vector[0] / 255.f, request.colour.vector[1] / 255.f, request.colour.vector[2] / 255.f, request.colour.vector[3] / 255.f), 0});
+
+		gfx_api::DrawImagePSO::get().bind_textures(&TextureID);
+
+		if (!didEnableRect)
+		{
+			gfx_api::DrawImagePSO::get().bind_vertex_buffers(pie_internal::rectBuffer);
+			didEnableRect = true;
+		}
+
+		gfx_api::DrawImagePSO::get().draw(4, 0);
 	}
-//	disableRect();
-//	pie_DeactivateShader();
+	gfx_api::DrawImagePSO::get().unbind_vertex_buffers(pie_internal::rectBuffer);
 }
 
 static Vector2i makePieImage(IMAGEFILE *imageFile, unsigned id, PIERECT *dest, int x, int y)
