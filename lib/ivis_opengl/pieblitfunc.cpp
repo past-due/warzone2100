@@ -314,7 +314,7 @@ static bool assertValidImage(IMAGEFILE *imageFile, unsigned id)
 }
 
 template<typename PSO>
-static void iv_DrawImageImpl(Vector2f offset, Vector2f size, Vector2f TextureUV, Vector2f TextureSize, PIELIGHT colour, const glm::mat4 &modelViewProjection, SHADER_MODE mode = SHADER_TEXRECT)
+static void iv_DrawImageImpl(gfx_api::texture& TextureID, Vector2f offset, Vector2f size, Vector2f TextureUV, Vector2f TextureSize, PIELIGHT colour, const glm::mat4 &modelViewProjection, SHADER_MODE mode = SHADER_TEXRECT)
 {
 	glm::mat4 transformMat = modelViewProjection * glm::translate(glm::vec3(offset.x, offset.y, 0.f)) * glm::scale(glm::vec3(size.x, size.y, 1.f));
 
@@ -323,6 +323,7 @@ static void iv_DrawImageImpl(Vector2f offset, Vector2f size, Vector2f TextureUV,
 		TextureUV,
 		TextureSize,
 		glm::vec4(colour.vector[0] / 255.f, colour.vector[1] / 255.f, colour.vector[2] / 255.f, colour.vector[3] / 255.f), 0});
+	PSO::get().bind_textures(&TextureID);
 	PSO::get().bind_vertex_buffers(pie_internal::rectBuffer);
 	PSO::get().draw(4, 0);
 	PSO::get().unbind_vertex_buffers(pie_internal::rectBuffer);
@@ -332,8 +333,7 @@ void iV_DrawImageText(gfx_api::texture& TextureID, Vector2i Position, Vector2f o
 {
 	glm::mat4 mvp = defaultProjectionMatrix() * glm::translate(glm::vec3(Position.x, Position.y, 0)) * glm::rotate(RADIANS(angle), glm::vec3(0.f, 0.f, 1.f));
 
-	gfx_api::DrawImageTextPSO::get().bind_textures(&TextureID);
-	iv_DrawImageImpl<gfx_api::DrawImageTextPSO>(offset, size, Vector2f(0.f, 0.f), Vector2f(1.f, 1.f), colour, mvp, SHADER_TEXT);
+	iv_DrawImageImpl<gfx_api::DrawImageTextPSO>(TextureID, offset, size, Vector2f(0.f, 0.f), Vector2f(1.f, 1.f), colour, mvp, SHADER_TEXT);
 }
 
 static void pie_DrawImage(IMAGEFILE *imageFile, int id, Vector2i size, const PIERECT *dest, PIELIGHT colour, const glm::mat4 &modelViewProjection, Vector2i textureInset = Vector2i(0, 0))
@@ -348,8 +348,7 @@ static void pie_DrawImage(IMAGEFILE *imageFile, int id, Vector2i size, const PIE
 
 	glm::mat4 mvp = modelViewProjection * glm::translate(glm::vec3((float)dest->x, (float)dest->y, 0.f));
 
-	gfx_api::DrawImagePSO::get().bind_textures(&pie_Texture(texPage));
-	iv_DrawImageImpl<gfx_api::DrawImagePSO>(Vector2i(0, 0), Vector2i(dest->w, dest->h), Vector2f(tu, tv), Vector2f(su, sv), colour, mvp);
+	iv_DrawImageImpl<gfx_api::DrawImagePSO>(pie_Texture(texPage), Vector2i(0, 0), Vector2i(dest->w, dest->h), Vector2f(tu, tv), Vector2f(su, sv), colour, mvp);
 }
 
 static void pie_DrawMultipleImages(const std::list<PieDrawImageRequest>& requests)
@@ -426,11 +425,9 @@ void iV_DrawImage2(const WzString &filename, float x, float y, float width, floa
 	const int h = height > 0 ? height : image->Height;
 	x += image->XOffset;
 	y += image->YOffset;
-	gfx_api::DrawImagePSO::get().bind();
-	gfx_api::DrawImagePSO::get().bind_textures(&pie_Texture(image->textureId));
 
 	glm::mat4 mvp = defaultProjectionMatrix() * glm::translate(glm::vec3(x, y, 0));
-	iv_DrawImageImpl<gfx_api::DrawImagePSO>(Vector2i(0, 0), Vector2i(w, h),
+	iv_DrawImageImpl<gfx_api::DrawImagePSO>(pie_Texture(image->textureId), Vector2i(0, 0), Vector2i(w, h),
 		Vector2f(tu * invTextureSize, tv * invTextureSize),
 		Vector2f(image->Width * invTextureSize, image->Height * invTextureSize),
 		WZCOL_WHITE, mvp);
