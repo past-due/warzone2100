@@ -225,6 +225,15 @@ void screenShutDown()
 	pie_Skybox_Shutdown();
 
 	delete backdropGfx;
+	backdropGfx = nullptr;
+
+	delete pie_internal::rectBuffer;
+	pie_internal::rectBuffer = nullptr;
+
+	for (int i = 0; i < MAX_PLAYERS; i++)
+	{
+		player_Text[i] = WzText();
+	}
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 }

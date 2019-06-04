@@ -1390,6 +1390,18 @@ int realmain(int argc, char *argv[])
 #endif
 	debug(LOG_MAIN, "Entering main loop");
 	wzMainEventLoop();
+
+	switch (GetGameMode())
+	{
+		case GS_NORMAL:
+			// if running a game while quitting, stop the game loop
+			// (currently required for some cleanup) (should modelShutdown() be added to systemShutdown?)
+			stopGameLoop();
+			break;
+		default:
+			// should be no extra cleanup needed?
+			break;
+	}
 	saveConfig();
 	systemShutdown();
 #ifdef WZ_OS_WIN	// clean up the memory allocated for the command line conversion

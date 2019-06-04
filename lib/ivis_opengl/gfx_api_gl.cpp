@@ -1618,3 +1618,8 @@ bool gl_context::initGLContext()
 	return true;
 }
 
+void gl_context::shutdown()
+{
+	// move any cleanup here?
+}
+
