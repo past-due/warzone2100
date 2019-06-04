@@ -85,6 +85,7 @@ void widgReset(void)
 /* Shut down the widget module */
 void widgShutDown(void)
 {
+	tipShutdown();
 }
 
 static void deleteOldWidgets()
