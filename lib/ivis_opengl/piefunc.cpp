@@ -106,6 +106,14 @@ void pie_DrawViewingWindow(const glm::mat4 &modelViewProjectionMatrix)
 	radarViewGfx[1]->draw<gfx_api::RadarViewPSO>(modelViewProjectionMatrix);
 }
 
+void pie_ViewingWindow_Shutdown()
+{
+	delete radarViewGfx[0];
+	radarViewGfx[0] = nullptr;
+	delete radarViewGfx[1];
+	radarViewGfx[1] = nullptr;
+}
+
 void pie_TransColouredTriangle(const std::array<Vector3f, 3> &vrt, PIELIGHT c, const glm::mat4 &modelViewMatrix)
 {
 	glm::vec4 color(c.byte.r / 255.f, c.byte.g / 255.f, c.byte.b / 255.f, 128.f / 255.f);
@@ -197,6 +205,7 @@ void pie_Skybox_Texture(const char *filename)
 void pie_Skybox_Shutdown()
 {
 	delete skyboxGfx;
+	skyboxGfx = nullptr;
 }
 
 void pie_DrawSkybox(float scale, const glm::mat4 &viewMatrix)
