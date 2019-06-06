@@ -17,6 +17,7 @@ noinst_HEADERS = \
 
 libsdl_a_SOURCES = \
 	cursors_sdl.cpp \
+	gfx_api_sdl.cpp \
 	gfx_api_gl_sdl.cpp \
 	main_sdl.cpp
 
