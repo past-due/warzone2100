@@ -1836,9 +1836,9 @@ bool wzMainScreenSetup(int antialiasing, bool fullscreen, bool vsync, bool highD
 	cocoaSetupWZMenus();
 #endif
 
-	if (!gfx_api::context::get().initGraphics(SDL_gfx_api_Impl_Factory(WZwindow)))
+	if (!gfx_api::context::get().init(SDL_gfx_api_Impl_Factory(WZwindow)))
 	{
-		debug(LOG_FATAL, "gfx_api::context::get().initGraphics failed");
+		debug(LOG_FATAL, "gfx_api::context::get().init failed");
 		SDL_Quit();
 		exit(EXIT_FAILURE);
 	}
