@@ -1419,7 +1419,7 @@ int realmain(int argc, char *argv[])
 			}
 			else
 			{
-				info("global mod \"%s\" is enabled", iterator->c_str());
+				wz_info("global mod \"%s\" is enabled", iterator->c_str());
 				++iterator;
 			}
 		}
@@ -1440,7 +1440,7 @@ int realmain(int argc, char *argv[])
 			}
 			else
 			{
-				info("campaign mod \"%s\" is enabled", iterator->c_str());
+				wz_info("campaign mod \"%s\" is enabled", iterator->c_str());
 				++iterator;
 			}
 		}
@@ -1461,7 +1461,7 @@ int realmain(int argc, char *argv[])
 			}
 			else
 			{
-				info("multiplay mod \"%s\" is enabled", iterator->c_str());
+				wz_info("multiplay mod \"%s\" is enabled", iterator->c_str());
 				++iterator;
 			}
 		}
