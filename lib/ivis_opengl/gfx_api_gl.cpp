@@ -1423,7 +1423,7 @@ static void GLAPIENTRY khr_callback(GLenum source, GLenum type, GLuint id, GLenu
 bool gl_context::initialize(const gfx_api::backend_Impl_Factory& impl)
 {
 	// obtain backend_OpenGL_Impl from impl
-	backend_impl = impl.getOpenGLBackendImpl();
+	backend_impl = impl.createOpenGLBackendImpl();
 	if (!backend_impl)
 	{
 		debug(LOG_ERROR, "Failed to get OpenGL backend implementation");

@@ -39,7 +39,7 @@ namespace gfx_api
 	{
 	public:
 		virtual ~backend_Impl_Factory() {};
-		virtual std::unique_ptr<backend_OpenGL_Impl> getOpenGLBackendImpl() const = 0;
+		virtual std::unique_ptr<backend_OpenGL_Impl> createOpenGLBackendImpl() const = 0;
 	};
 	//
 }
