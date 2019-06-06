@@ -303,7 +303,7 @@ static bool setLocaleWindows(USHORT usPrimaryLanguage, USHORT usSubLanguage)
 
 	if (!success)
 	{
-		info("Failed to set locale to \"%d\"", usPrimaryLanguage);
+		wz_info("Failed to set locale to \"%d\"", usPrimaryLanguage);
 	}
 	else
 	{
