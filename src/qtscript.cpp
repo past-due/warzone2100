@@ -995,6 +995,11 @@ void jsAutogame()
 	jsAutogameSpecific(QStringToWzString("scripts/" + basename.fileName()), selectedPlayer);
 }
 
+void jsHandleDebugClosed()
+{
+	globalDialog = false;
+}
+
 void jsShowDebug()
 {
 	// Add globals
@@ -1017,7 +1022,7 @@ void jsShowDebug()
 
 	globalDialog = true;
 	updateGlobalModels();
-	jsDebugCreate(models, triggerModel);
+	jsDebugCreate(models, triggerModel, createLabelModel(), jsHandleDebugClosed);
 }
 
 // ----------------------------------------------------------------------------------------
