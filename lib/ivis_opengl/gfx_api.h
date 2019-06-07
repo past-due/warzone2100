@@ -340,7 +340,7 @@ namespace gfx_api
 		void bind_textures(Args&&... args)
 		{
 			static_assert(sizeof...(args) == std::tuple_size<texture_inputs>::value, "Wrong number of textures");
-			gfx_api::context::get().bind_textures(untuple(texture_inputs{}), { args... });
+			gfx_api::context::get().bind_textures(untuple<texture_input>(texture_inputs{}), { args... });
 		}
 
 		void bind_constants(const constant_buffer_type<shader>& data)
@@ -361,20 +361,28 @@ namespace gfx_api
 		pipeline_state_object* pso;
 		pipeline_state_helper()
 		{
-			pso = gfx_api::context::get().build_pipeline(rasterizer::get(), shader, primitive, untuple(texture_inputs{}), untuple(vertex_buffer_inputs{}));
+			pso = gfx_api::context::get().build_pipeline(rasterizer::get(), shader, primitive, untuple<texture_input>(texture_inputs{}), untuple<vertex_buffer>(vertex_buffer_inputs{}));
 		}
 
-		template<typename...Args>
-		auto untuple(const std::tuple<Args...>&)
-		{
-			auto type_holder = { Args::get_desc()... };
-			using output_type = decltype(type_holder);
-			return std::vector<typename output_type::value_type>(type_holder);
-		}
+//		// Requires C++14 (+)
+//		template<typename...Args>
+//		auto untuple(const std::tuple<Args...>&)
+//		{
+//			auto type_holder = { Args::get_desc()... };
+//			using output_type = decltype(type_holder);
+//			return std::vector<typename output_type::value_type>(type_holder);
+//		}
+//
+//		std::vector<gfx_api::texture_input> untuple(const std::tuple<>&)
+//		{
+//			return std::vector<gfx_api::texture_input>{};
+//		}
 
-		std::vector<gfx_api::texture_input> untuple(const std::tuple<>&)
+		// C++11, but requires specifying Output type
+		template<typename Output, typename...Args>
+		std::vector<Output> untuple(const std::tuple<Args...>&)
 		{
-			return std::vector<gfx_api::texture_input>{};
+			return std::vector<Output>({ Args::get_desc()... });
 		}
 	};
 
