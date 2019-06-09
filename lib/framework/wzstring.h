@@ -58,9 +58,10 @@ public:
 	WzString(size_t size, const WzUniCodepoint& ch);
 	WzString(WzString&& other) noexcept : _utf8String(std::move(other._utf8String)) { }
 	WzString(const WzString& other) noexcept : _utf8String(other._utf8String) { }
-	WzString(const char * str, int size = -1);
+	WzString(const char * str);
 
-	static WzString fromUtf8(const char *str, int size = -1);
+	static WzString fromUtf8(const char *str);
+	static WzString fromUtf8(const char *str, size_t size);
 	static WzString fromUtf8(const std::string &str);
 	static WzString fromUtf16(const std::vector<uint16_t>& utf16);
 	static WzString fromCodepoint(const WzUniCodepoint& codepoint);
@@ -107,6 +108,10 @@ public:
 	WzString trimmed(const std::locale &loc = std::locale::classic()) const;
 
 	std::vector<WzString> split(const WzString &delimiter) const;
+
+private:
+	WzString(const char * str, size_t size);
+	void setWithCharStr(const char * str, size_t size);
 
 public:
 	// Normalization

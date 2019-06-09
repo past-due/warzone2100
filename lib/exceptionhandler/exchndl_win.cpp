@@ -34,6 +34,8 @@
 #include <limits.h>
 #include <shlobj.h>
 #include <shlwapi.h>
+#include <inttypes.h>
+#include <stdint.h>
 
 #include <vector>
 
@@ -139,8 +141,12 @@ protected:
 	virtual void OnOutput(LPCSTR szText)
 	{
 		DWORD cbWritten = 0;
-		size_t len = strlen(szText);
-		WriteFile(hOutputFile, szText, len * sizeof(char), &cbWritten, 0);
+		size_t numberOfBytesToWrite = strlen(szText) * sizeof(char);
+		if (numberOfBytesToWrite > MAXDWORD)
+		{
+			numberOfBytesToWrite = MAXDWORD; // truncate (really shouldn't happen)
+		}
+		WriteFile(hOutputFile, szText, static_cast<DWORD>(numberOfBytesToWrite), &cbWritten, 0);
 	}
 
 private:
@@ -166,11 +172,11 @@ int __cdecl rprintf(HANDLE hReportFile, const TCHAR *format, ...)
 
 // The GetModuleBase function retrieves the base address of the module that contains the specified address.
 static
-DWORD GetModuleBase(DWORD dwAddress)
+PVOID GetModuleBase(LPCVOID lpAddress)
 {
 	MEMORY_BASIC_INFORMATION Buffer;
 
-	return VirtualQuery((LPCVOID)dwAddress, &Buffer, sizeof(Buffer)) ? (DWORD)Buffer.AllocationBase : 0;
+	return VirtualQuery(lpAddress, &Buffer, sizeof(Buffer)) ? Buffer.AllocationBase : 0;
 }
 
 // Generate a MiniDump
@@ -404,8 +410,8 @@ void GenerateExceptionReport(HANDLE hReportFile, PEXCEPTION_POINTERS pExceptionI
 	}
 
 	// Now print information about where the fault occurred
-	rprintf(hReportFile, _T(" at location %08x"), (DWORD) pExceptionRecord->ExceptionAddress);
-	if ((hModule = (HMODULE) GetModuleBase((DWORD) pExceptionRecord->ExceptionAddress)) && GetModuleFileName(hModule, szModule, sizeof(szModule)))
+	rprintf(hReportFile, _T(" at location %016" PRIxPTR ""), (uintptr_t) pExceptionRecord->ExceptionAddress);
+	if ((hModule = (HMODULE) GetModuleBase(pExceptionRecord->ExceptionAddress)) && GetModuleFileName(hModule, szModule, sizeof(szModule)))
 	{
 		rprintf(hReportFile, _T(" in module %s"), szModule);
 	}

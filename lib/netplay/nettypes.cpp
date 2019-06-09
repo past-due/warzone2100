@@ -40,6 +40,7 @@
 #include "netlog.h"
 #include "src/order.h"
 #include <cstring>
+#include <limits>
 
 /// There is a game queue representing each player. The game queues are synchronised among all players, so that all players process the same game queue
 /// messages at the same game time. The game queues should be used, even in single-player. Players should write to their own queue, not to other player's
@@ -242,7 +243,8 @@ static void queue(const Q &q, Vector2i &v)
 template<class Q, class T>
 static void queue(const Q &q, std::vector<T> &v)
 {
-	uint32_t len = v.size();
+	ASSERT(!(v.size() > static_cast<size_t>(std::numeric_limits<uint32_t>::max())), "v.size(): %zu", v.size());
+	uint32_t len = static_cast<uint32_t>(v.size());
 	queue(q, len);
 	switch (Q::Direction)
 	{
@@ -688,7 +690,8 @@ void NETwzstring(WzString &str)
 	if (NETgetPacketDir() == PACKET_ENCODE)
 	{
 		u16_characters = str.toUtf16();
-		len = u16_characters.size();
+		ASSERT(!(u16_characters.size() > static_cast<size_t>(std::numeric_limits<uint32_t>::max())), "u16_characters.size(): %zu", u16_characters.size());
+		len = static_cast<uint32_t>(u16_characters.size());
 	}
 
 	queueAuto(len);

@@ -31,7 +31,7 @@ uint32_t crcSumVector2i(uint32_t crc, const Vector2i *data, size_t dataLen);
 
 struct Sha256
 {
-	static const int Bytes = 32;
+	static const size_t Bytes = 32;
 
 	bool operator ==(Sha256 const &b) const;
 	bool operator !=(Sha256 const &b) const { return !(*this == b); }

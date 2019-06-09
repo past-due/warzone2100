@@ -84,13 +84,23 @@ WzString::WzString(size_t size, const WzUniCodepoint& ch)
 }
 
 // NOTE: The char * should be valid UTF-8.
-WzString::WzString(const char * str, int size /*= -1*/)
+WzString::WzString(const char * str)
 {
 	if (str == nullptr) { return; }
-	if (size < 0)
-	{
-		size = strlen(str);
-	}
+	size_t size = strlen(str);
+	setWithCharStr(str, size);
+}
+
+// NOTE: The char * should be valid UTF-8.
+WzString::WzString(const char * str, size_t size)
+{
+	if (str == nullptr) { return; }
+	setWithCharStr(str, size);
+}
+
+void WzString::setWithCharStr(const char * str, size_t size)
+{
+	ASSERT(str != nullptr, "Must be a valid str");
 	ASSERT(utf8::is_valid(str, str + size), "Input text is not valid UTF-8");
 	try {
 		utf8::replace_invalid(str, str + size, back_inserter(_utf8String), '?');
@@ -102,7 +112,12 @@ WzString::WzString(const char * str, int size /*= -1*/)
 	}
 }
 
-WzString WzString::fromUtf8(const char *str, int size /*= -1*/)
+WzString WzString::fromUtf8(const char *str)
+{
+	return WzString(str);
+}
+
+WzString WzString::fromUtf8(const char *str, size_t size)
 {
 	return WzString(str, size);
 }

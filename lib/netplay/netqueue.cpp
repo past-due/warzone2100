@@ -24,6 +24,8 @@
 #include "lib/framework/frame.h"
 #include "netqueue.h"
 
+#include <limits>
+
 // See comments in netqueue.h.
 
 
@@ -102,13 +104,15 @@ bool decode_uint32_t(uint8_t b, uint32_t &v, unsigned n)
 
 uint8_t *NetMessage::rawDataDup() const
 {
-	unsigned encodedLengthOfSize = encodedlength_uint32_t(data.size());
+	ASSERT(data.size() <= std::numeric_limits<uint32_t>::max(), "data.size (%zu) exceeds std::numeric_limits<uint32_t>::max()", data.size());
+
+	unsigned encodedLengthOfSize = encodedlength_uint32_t(static_cast<uint32_t>(data.size()));
 
 	uint8_t *ret = new uint8_t[1 + encodedLengthOfSize + data.size()];
 
 	ret[0] = type;
 
-	uint32_t len = data.size();
+	uint32_t len = static_cast<uint32_t>(data.size());
 	for (unsigned n = 0; n < encodedLengthOfSize; ++n)
 	{
 		encode_uint32_t(ret[n + 1], len, n);
@@ -120,7 +124,8 @@ uint8_t *NetMessage::rawDataDup() const
 
 size_t NetMessage::rawLen() const
 {
-	return 1 + encodedlength_uint32_t(data.size()) + data.size();
+	ASSERT(data.size() <= std::numeric_limits<uint32_t>::max(), "data.size (%zu) exceeds std::numeric_limits<uint32_t>::max()", data.size());
+	return 1 + encodedlength_uint32_t(static_cast<uint32_t>(data.size())) + data.size();
 }
 
 NetQueue::NetQueue()

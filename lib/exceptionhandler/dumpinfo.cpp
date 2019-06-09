@@ -62,8 +62,13 @@ static std::vector<char> miscData;
 static void dumpstr(const DumpFileHandle file, const char *const str, std::size_t const size)
 {
 #if defined(WZ_OS_WIN)
+	size_t numberOfBytesToWrite = size * sizeof(char);
+	if (numberOfBytesToWrite > MAXDWORD)
+	{
+		numberOfBytesToWrite = MAXDWORD; // truncate (really shouldn't happen)
+	}
 	DWORD lNumberOfBytesWritten;
-	WriteFile(file, str, size, &lNumberOfBytesWritten, nullptr);
+	WriteFile(file, str, static_cast<DWORD>(numberOfBytesToWrite), &lNumberOfBytesWritten, nullptr);
 #else
 	std::size_t written = 0;
 	while (written < size)
@@ -177,7 +182,7 @@ static std::string getProgramPath(const char *programCommand)
 #if defined(WZ_OS_WIN)
 	std::vector<wchar_t> wbuff(PATH_MAX + 1, 0);
 	DWORD moduleFileNameLen = 0;
-	while ((moduleFileNameLen = GetModuleFileNameW(nullptr, &wbuff[0], wbuff.size() - 1)) == (wbuff.size() - 1))
+	while ((moduleFileNameLen = GetModuleFileNameW(nullptr, &wbuff[0], static_cast<DWORD>(wbuff.size() - 1))) == static_cast<DWORD>(wbuff.size() - 1))
 	{
 		wbuff.resize(wbuff.size() * 2);
 	}

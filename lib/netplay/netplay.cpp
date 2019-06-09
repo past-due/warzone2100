@@ -41,6 +41,8 @@
 #include <memory>
 #include <thread>
 #include <atomic>
+#include <limits>
+#include <algorithm>
 
 #include "netplay.h"
 #include "netlog.h"
@@ -112,8 +114,8 @@ std::atomic_int upnp_status;
 
 struct Statistic
 {
-	unsigned sent;
-	unsigned received;
+	size_t sent;
+	size_t received;
 };
 
 struct NETSTATS  // data regarding the last one second or so.
@@ -1262,9 +1264,9 @@ int NETclose()
 
 // ////////////////////////////////////////////////////////////////////////
 // return bytes of data sent recently.
-unsigned NETgetStatistic(NetStatisticType type, bool sent, bool isTotal)
+size_t NETgetStatistic(NetStatisticType type, bool sent, bool isTotal)
 {
-	unsigned Statistic::*statisticType = sent ? &Statistic::sent : &Statistic::received;
+	size_t Statistic::*statisticType = sent ? &Statistic::sent : &Statistic::received;
 	Statistic NETSTATS::*statsType;
 	switch (type)
 	{
@@ -3242,13 +3244,13 @@ struct SyncDebugIntList : public SyncDebugEntry
 		string = s;
 		uint32_t valueBytes[40];
 		numInts = std::min(num, ARRAY_SIZE(valueBytes));
-		for (unsigned n = 0; n < numInts; ++n)
+		for (size_t n = 0; n < numInts; ++n)
 		{
 			valueBytes[n] = htonl(ints[n]);
 		}
 		crc = crcSum(crc, valueBytes, 4 * numInts);
 	}
-	int snprint(char *buf, size_t bufSize, int const *&ints) const
+	size_t snprint(char *buf, size_t bufSize, int const *&ints) const
 	{
 		size_t index = 0;
 		if (index < bufSize)
@@ -3312,7 +3314,7 @@ struct SyncDebugIntList : public SyncDebugEntry
 	}
 
 	char const *string;
-	unsigned numInts;
+	size_t numInts;
 };
 
 struct SyncDebugLog
@@ -3359,7 +3361,7 @@ struct SyncDebugLog
 		intLists.back().set(crc, f, s, buf, num);
 		log.push_back('i');
 	}
-	int snprint(char *buf, size_t bufSize)
+	size_t snprint(char *buf, size_t bufSize)
 	{
 		SyncDebugString const *stringPtr = strings.empty() ? nullptr : &strings[0]; // .empty() check, since &strings[0] is undefined if strings is empty(), even if it's likely to work, anyway.
 		SyncDebugValueChange const *valueChangePtr = valueChanges.empty() ? nullptr : &valueChanges[0];
@@ -3367,7 +3369,7 @@ struct SyncDebugLog
 		char const *charPtr = chars.empty() ? nullptr : &chars[0];
 		int const *intPtr = ints.empty() ? nullptr : &ints[0];
 
-		int index = 0;
+		size_t index = 0;
 		for (size_t n = 0; n < log.size() && (size_t)index < bufSize; ++n)
 		{
 			char type = log[n];
@@ -3397,7 +3399,7 @@ struct SyncDebugLog
 	{
 		return ~crc;  // Invert bits, since everyone else seems to do that with CRCs...
 	}
-	unsigned getNumEntries() const
+	size_t getNumEntries() const
 	{
 		return log.size();
 	}
@@ -3544,7 +3546,13 @@ static void dumpDebugSync(uint8_t *buf, size_t bufLen, uint32_t time, unsigned p
 
 	ssprintf(fname, "logs/desync%u_p%u.txt", time, player);
 	fp = openSaveFile(fname);
-	WZ_PHYSFS_writeBytes(fp, buf, bufLen);
+	size_t bytesWritten = 0;
+	while (bytesWritten < bufLen)
+	{
+		size_t bytesToWrite = std::min(bufLen - bytesWritten, static_cast<size_t>(std::numeric_limits<PHYSFS_uint32>::max()));
+		WZ_PHYSFS_writeBytes(fp, buf + bytesWritten, static_cast<PHYSFS_uint32>(bytesToWrite));
+		bytesWritten += bytesToWrite;
+	}
 	PHYSFS_close(fp);
 
 	debug(LOG_ERROR, "Dumped player %u's sync error at gameTime %u to file: %s%s", player, time, PHYSFS_getRealDir(fname), fname);
@@ -3615,17 +3623,18 @@ bool checkDebugSync(uint32_t checkGameTime, GameCrcType checkCrc)
 
 	size_t bufIndex = 0;
 	// Dump our version, and also erase it, so we only dump it at most once.
-	debug(LOG_ERROR, "Inconsistent sync debug at gameTime %u. My version has %u entries, CRC = 0x%08X.", syncDebugLog[logIndex].getGameTime(), syncDebugLog[logIndex].getNumEntries(), syncDebugLog[logIndex].getCrc());
-	bufIndex += snprintf((char *)debugSyncTmpBuf + bufIndex, ARRAY_SIZE(debugSyncTmpBuf) - bufIndex, "===== BEGIN gameTime=%u, %u entries, CRC 0x%08X =====\n", syncDebugLog[logIndex].getGameTime(), syncDebugLog[logIndex].getNumEntries(), syncDebugLog[logIndex].getCrc());
+	debug(LOG_ERROR, "Inconsistent sync debug at gameTime %u. My version has %zu entries, CRC = 0x%08X.", syncDebugLog[logIndex].getGameTime(), syncDebugLog[logIndex].getNumEntries(), syncDebugLog[logIndex].getCrc());
+	bufIndex += snprintf((char *)debugSyncTmpBuf + bufIndex, ARRAY_SIZE(debugSyncTmpBuf) - bufIndex, "===== BEGIN gameTime=%u, %zu entries, CRC 0x%08X =====\n", syncDebugLog[logIndex].getGameTime(), syncDebugLog[logIndex].getNumEntries(), syncDebugLog[logIndex].getCrc());
 	bufIndex = MIN(bufIndex, ARRAY_SIZE(debugSyncTmpBuf));  // snprintf will not overflow debugSyncTmpBuf, but returns as much as it would have printed if possible.
 	bufIndex += syncDebugLog[logIndex].snprint((char *)debugSyncTmpBuf + bufIndex, ARRAY_SIZE(debugSyncTmpBuf) - bufIndex);
 	bufIndex = MIN(bufIndex, ARRAY_SIZE(debugSyncTmpBuf));  // snprintf will not overflow debugSyncTmpBuf, but returns as much as it would have printed if possible.
-	bufIndex += snprintf((char *)debugSyncTmpBuf + bufIndex, ARRAY_SIZE(debugSyncTmpBuf) - bufIndex, "===== END gameTime=%u, %u entries, CRC 0x%08X =====\n", syncDebugLog[logIndex].getGameTime(), syncDebugLog[logIndex].getNumEntries(), syncDebugLog[logIndex].getCrc());
+	bufIndex += snprintf((char *)debugSyncTmpBuf + bufIndex, ARRAY_SIZE(debugSyncTmpBuf) - bufIndex, "===== END gameTime=%u, %zu entries, CRC 0x%08X =====\n", syncDebugLog[logIndex].getGameTime(), syncDebugLog[logIndex].getNumEntries(), syncDebugLog[logIndex].getCrc());
 	bufIndex = MIN(bufIndex, ARRAY_SIZE(debugSyncTmpBuf));  // snprintf will not overflow debugSyncTmpBuf, but returns as much as it would have printed if possible.
 	if (syncDebugNumDumps < 2)
 	{
 		++syncDebugNumDumps;
-		sendDebugSync(debugSyncTmpBuf, bufIndex, syncDebugLog[logIndex].getGameTime());
+		ASSERT(!(bufIndex > static_cast<size_t>(std::numeric_limits<uint32_t>::max())), "bufIndex: %zu", bufIndex);
+		sendDebugSync(debugSyncTmpBuf, static_cast<uint32_t>(bufIndex), syncDebugLog[logIndex].getGameTime());
 	}
 
 	// Backup correct CRC for checking against remaining players, even though we erased the logs (which were dumped already).

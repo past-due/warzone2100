@@ -36,7 +36,12 @@ WzConfig::~WzConfig()
 		std::ostringstream stream;
 		stream << mRoot.dump(4) << std::endl;
 		std::string jsonString = stream.str();
-		saveFile(mFilename.toUtf8().c_str(), jsonString.c_str(), jsonString.size());
+		size_t stringSize = jsonString.size();
+		if (stringSize > static_cast<size_t>(std::numeric_limits<uint32_t>::max()))
+		{
+			ASSERT(false, "jsonString.size (%zu) exceeds std::numeric_limits<uint32_t>::max()?: %" PRIu32"", stringSize, std::numeric_limits<uint32_t>::max());
+		}
+		saveFile(mFilename.toUtf8().c_str(), jsonString.c_str(), static_cast<uint32_t>(stringSize));
 	}
 	debug(LOG_SAVE, "%s %s", mWarning == ReadAndWrite? "Saving" : "Closing", mFilename.toUtf8().c_str());
 }
@@ -160,7 +165,7 @@ std::vector<WzString> WzConfig::childGroups() const
 	{
 		if (it.value().is_object())
 		{
-			keys.push_back(WzString::fromUtf8(it.key().c_str()));
+			keys.push_back(WzString::fromUtf8(it.key()));
 		}
 	}
 	return keys;
@@ -171,7 +176,7 @@ std::vector<WzString> WzConfig::childKeys() const
 	std::vector<WzString> keys;
 	for (auto it = pCurrentObj->begin(); it != pCurrentObj->end(); ++it)
 	{
-		keys.push_back(WzString::fromUtf8(it.key().c_str()));
+		keys.push_back(WzString::fromUtf8(it.key()));
 	}
 	return keys;
 }
@@ -441,7 +446,7 @@ void WzConfig::nextArrayItem()
 	}
 }
 
-int WzConfig::remainingArrayItems()
+size_t WzConfig::remainingArrayItems()
 {
 	return mArray.size();
 }

@@ -36,7 +36,7 @@
 
 static PHYSFS_file	*pFileHandle = nullptr;
 static uint32_t		packetcount[2][NUM_GAME_PACKETS];
-static uint32_t		packetsize[2][NUM_GAME_PACKETS];
+static size_t		packetsize[2][NUM_GAME_PACKETS];
 
 bool NETstartLogging(void)
 {
@@ -66,7 +66,7 @@ bool NETstartLogging(void)
 		return false;
 	}
 	snprintf(buf, sizeof(buf), "NETPLAY log: %s\n", asctime(newtime));
-	WZ_PHYSFS_writeBytes(pFileHandle, buf, strlen(buf));
+	WZ_PHYSFS_writeBytes(pFileHandle, buf, static_cast<PHYSFS_uint32>(strlen(buf)));
 	return true;
 }
 
@@ -75,7 +75,8 @@ bool NETstopLogging(void)
 	static const char dash_line[] = "-----------------------------------------------------------\n";
 	char buf[256];
 	int i;
-	UDWORD totalBytessent = 0, totalBytesrecv = 0, totalPacketsent = 0, totalPacketrecv = 0;
+	size_t totalBytessent = 0, totalBytesrecv = 0;
+	UDWORD totalPacketsent = 0, totalPacketrecv = 0;
 
 	if (!pFileHandle)
 	{
@@ -91,42 +92,42 @@ bool NETstopLogging(void)
 		}
 		else
 		{
-			snprintf(buf, sizeof(buf), "%-24s:\t received %u times, %u bytes; sent %u times, %u bytes\n", messageTypeToString(i),
+			snprintf(buf, sizeof(buf), "%-24s:\t received %u times, %zu bytes; sent %u times, %zu bytes\n", messageTypeToString(i),
 			         packetcount[1][i], packetsize[1][i], packetcount[0][i], packetsize[0][i]);
 		}
-		WZ_PHYSFS_writeBytes(pFileHandle, buf, strlen(buf));
+		WZ_PHYSFS_writeBytes(pFileHandle, buf, static_cast<PHYSFS_uint32>(strlen(buf)));
 		totalBytessent += packetsize[0][i];
 		totalBytesrecv += packetsize[1][i];
 		totalPacketsent += packetcount[0][i];
 		totalPacketrecv += packetcount[1][i];
 	}
-	snprintf(buf, sizeof(buf), "== Total bytes sent %u, Total bytes received %u ==\n", totalBytessent, totalBytesrecv);
-	WZ_PHYSFS_writeBytes(pFileHandle, buf, strlen(buf));
+	snprintf(buf, sizeof(buf), "== Total bytes sent %zu, Total bytes received %zu ==\n", totalBytessent, totalBytesrecv);
+	WZ_PHYSFS_writeBytes(pFileHandle, buf, static_cast<PHYSFS_uint32>(strlen(buf)));
 	snprintf(buf, sizeof(buf), "== Total packets sent %u, recv %u ==\n", totalPacketsent, totalPacketrecv);
-	WZ_PHYSFS_writeBytes(pFileHandle, buf, strlen(buf));
+	WZ_PHYSFS_writeBytes(pFileHandle, buf, static_cast<PHYSFS_uint32>(strlen(buf)));
 	snprintf(buf, sizeof(buf), "\n-Sync statistics -\n");
-	WZ_PHYSFS_writeBytes(pFileHandle, buf, strlen(buf));
-	WZ_PHYSFS_writeBytes(pFileHandle, dash_line, strlen(dash_line));
+	WZ_PHYSFS_writeBytes(pFileHandle, buf, static_cast<PHYSFS_uint32>(strlen(buf)));
+	WZ_PHYSFS_writeBytes(pFileHandle, dash_line, static_cast<PHYSFS_uint32>(strlen(dash_line)));
 	snprintf(buf, sizeof(buf), "joins: %u, kicks: %u, drops: %u, left %u\n", sync_counter.joins, sync_counter.kicks, sync_counter.drops, sync_counter.left);
-	WZ_PHYSFS_writeBytes(pFileHandle, buf, strlen(buf));
+	WZ_PHYSFS_writeBytes(pFileHandle, buf, static_cast<PHYSFS_uint32>(strlen(buf)));
 	snprintf(buf, sizeof(buf), "banned: %u, cantjoin: %u, rejected: %u\n", sync_counter.banned, sync_counter.cantjoin, sync_counter.rejected);
-	WZ_PHYSFS_writeBytes(pFileHandle, buf, strlen(buf));
+	WZ_PHYSFS_writeBytes(pFileHandle, buf, static_cast<PHYSFS_uint32>(strlen(buf)));
 	if (sync_counter.banned && IPlist)
 	{
 		snprintf(buf, sizeof(buf), "Banned list:\n");
-		WZ_PHYSFS_writeBytes(pFileHandle, buf, strlen(buf));
+		WZ_PHYSFS_writeBytes(pFileHandle, buf, static_cast<PHYSFS_uint32>(strlen(buf)));
 		for (i = 0; i < MAX_BANS; i++)
 		{
 			if (IPlist[i].IPAddress[0] != '\0')
 			{
 				snprintf(buf, sizeof(buf), "player %s, IP: %s\n", IPlist[i].pname, IPlist[i].IPAddress);
-				WZ_PHYSFS_writeBytes(pFileHandle, buf, strlen(buf));
+				WZ_PHYSFS_writeBytes(pFileHandle, buf, static_cast<PHYSFS_uint32>(strlen(buf)));
 			}
 		}
 
 	}
-	WZ_PHYSFS_writeBytes(pFileHandle, dash_line, strlen(dash_line));
-	WZ_PHYSFS_writeBytes(pFileHandle, dash_line, strlen(dash_line));
+	WZ_PHYSFS_writeBytes(pFileHandle, dash_line, static_cast<PHYSFS_uint32>(strlen(dash_line)));
+	WZ_PHYSFS_writeBytes(pFileHandle, dash_line, static_cast<PHYSFS_uint32>(strlen(dash_line)));
 
 	if (!PHYSFS_close(pFileHandle))
 	{
@@ -143,7 +144,7 @@ bool NETstopLogging(void)
  *  \param size, uint32_t, the packet's size
  *  \param received, bool, true if we are receiving a packet, false if we are sending a packet.
 */
-void NETlogPacket(uint8_t type, uint32_t size, bool received)
+void NETlogPacket(uint8_t type, size_t size, bool received)
 {
 	STATIC_ASSERT((1 << (8 * sizeof(type))) == NUM_GAME_PACKETS); // NUM_GAME_PACKETS must be larger than maximum possible type.
 	packetcount[received][type]++;
@@ -179,7 +180,7 @@ bool NETlogEntry(const char *str, UDWORD a, UDWORD b)
 		static const char dash_line[] = "-----------------------------------------------------------\n";
 
 		lastframe = frame;
-		WZ_PHYSFS_writeBytes(pFileHandle, dash_line, strlen(dash_line));
+		WZ_PHYSFS_writeBytes(pFileHandle, dash_line, static_cast<PHYSFS_uint32>(strlen(dash_line)));
 	}
 
 	if (a < NUM_GAME_PACKETS)
@@ -199,13 +200,13 @@ bool NETlogEntry(const char *str, UDWORD a, UDWORD b)
 	if (a == NET_PLAYER_LEAVING || a == NET_PLAYER_DROPPED)
 	{
 		// Write a starry line above NET_LEAVING messages
-		WZ_PHYSFS_writeBytes(pFileHandle, star_line, strlen(star_line));
-		WZ_PHYSFS_writeBytes(pFileHandle, buf, strlen(buf));
-		WZ_PHYSFS_writeBytes(pFileHandle, star_line, strlen(star_line));
+		WZ_PHYSFS_writeBytes(pFileHandle, star_line, static_cast<PHYSFS_uint32>(strlen(star_line)));
+		WZ_PHYSFS_writeBytes(pFileHandle, buf, static_cast<PHYSFS_uint32>(strlen(buf)));
+		WZ_PHYSFS_writeBytes(pFileHandle, star_line, static_cast<PHYSFS_uint32>(strlen(star_line)));
 	}
 	else
 	{
-		WZ_PHYSFS_writeBytes(pFileHandle, buf, strlen(buf));
+		WZ_PHYSFS_writeBytes(pFileHandle, buf, static_cast<PHYSFS_uint32>(strlen(buf)));
 	}
 
 	PHYSFS_flush(pFileHandle);

@@ -94,7 +94,7 @@ Sha256 sha256Sum(void const *data, size_t dataLen)
 
 	sha256_ctx ctx[1];
 	sha256_begin(ctx);
-	sha256_hash((const unsigned char *)data, dataLen, ctx);
+	sha256_hash((const unsigned char *)data, static_cast<unsigned long>(dataLen), ctx);
 	sha256_end(ret.bytes, ctx);
 	return ret;
 }
@@ -130,8 +130,8 @@ std::string Sha256::toString() const
 void Sha256::fromString(std::string const &s)
 {
 	setZero();
-	unsigned nChars = std::min<unsigned>(Bytes * 2, s.size());
-	for (unsigned n = 0; n < nChars; ++n)
+	size_t nChars = std::min<size_t>(Bytes * 2, s.size());
+	for (size_t n = 0; n < nChars; ++n)
 	{
 		unsigned h;
 		unsigned c = s[n];
@@ -647,7 +647,13 @@ bool EcKey::verify(Sig const &sig, void const *data, size_t dataLen) const
 		return false;
 	}
 
-	int verifyResult = uECC_verify(&(EC_KEY_CAST(vKey)->publicKey[0]), (const uint8_t *)data, dataLen, &sig[0], currentECCurve);
+	if (dataLen > std::numeric_limits<unsigned>::max())
+	{
+		debug(LOG_ERROR, "Attempting to verify signature on data length (%zu) exceeding std::numeric_limits<unsigned>::max()=(%u)", dataLen, std::numeric_limits<unsigned>::max());
+		return false;
+	}
+
+	int verifyResult = uECC_verify(&(EC_KEY_CAST(vKey)->publicKey[0]), (const uint8_t *)data, static_cast<unsigned>(dataLen), &sig[0], currentECCurve);
 	if (verifyResult == 0)
 	{
 		debug(LOG_ERROR, "Invalid signature");
@@ -800,9 +806,9 @@ EcKey EcKey::generate()
 std::string base64Encode(std::vector<uint8_t> const &bytes)
 {
 	std::string str((bytes.size() + 2) / 3 * 4, '\0');
-	for (unsigned n = 0; n * 3 < bytes.size(); ++n)
+	for (size_t n = 0; n * 3 < bytes.size(); ++n)
 	{
-		unsigned rem = bytes.size() - n * 3;
+		size_t rem = bytes.size() - n * 3;
 		unsigned block = bytes[0 + n * 3] << 16 | (rem > 1 ? bytes[1 + n * 3] : 0) << 8 | (rem > 2 ? bytes[2 + n * 3] : 0);
 		for (unsigned i = 0; i < 4; ++i)
 		{

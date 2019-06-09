@@ -26,6 +26,9 @@
 #include <physfs.h>
 #include "lib/framework/physfs_ext.h"
 
+#include <limits>
+#include <algorithm>
+
 #define PNG_BYTES_TO_CHECK 8
 
 IMGSaveError IMGSaveError::None = IMGSaveError();
@@ -35,14 +38,26 @@ static void wzpng_read_data(png_structp ctx, png_bytep area, png_size_t size)
 {
 	PHYSFS_file *fileHandle = (PHYSFS_file *)png_get_io_ptr(ctx);
 
-	WZ_PHYSFS_readBytes(fileHandle, area, size);
+	size_t bytesRead = 0;
+	while (bytesRead < size)
+	{
+		size_t bytesToRead = std::min(size - bytesRead, static_cast<size_t>(std::numeric_limits<PHYSFS_uint32>::max()));
+		WZ_PHYSFS_readBytes(fileHandle, area + bytesRead, static_cast<PHYSFS_uint32>(bytesToRead));
+		bytesRead += bytesToRead;
+	}
 }
 
 static void wzpng_write_data(png_structp png_ptr, png_bytep data, png_size_t length)
 {
 	PHYSFS_file *fileHandle = (PHYSFS_file *)png_get_io_ptr(png_ptr);
 
-	WZ_PHYSFS_writeBytes(fileHandle, data, length);
+	size_t bytesWritten = 0;
+	while (bytesWritten < length)
+	{
+		size_t bytesToWrite = std::min(length - bytesWritten, static_cast<size_t>(std::numeric_limits<PHYSFS_uint32>::max()));
+		WZ_PHYSFS_writeBytes(fileHandle, data + bytesWritten, static_cast<PHYSFS_uint32>(bytesToWrite));
+		bytesWritten += bytesToWrite;
+	}
 }
 
 static void wzpng_flush_data(png_structp png_ptr)
