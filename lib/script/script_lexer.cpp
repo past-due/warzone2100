@@ -17,6 +17,9 @@
 	Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
+#if defined( _MSC_VER )
+	#pragma warning( disable : 4267 ) // warning C4267: 'var': conversion from 'size_t' to 'int', possible loss of data
+#endif
 #if defined(__clang__)
 	#pragma clang diagnostic ignored "-Wunneeded-internal-declaration" // warning: function 'yyinput' is not needed and will not be emitted
 #elif defined(__GNUC__)
