@@ -10,10 +10,9 @@ environment:
   - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
     WZ_JOB_ID: release_x86
     # NOTE: Additional environment variables are set later to maintain consistent job identifiers
-  ## NOTE: Unfortunately, 64-bit Windows builds are currently broken because of QScript (see: http://developer.wz2100.net/ticket/4763)
-  ## Whenever that ticket is resolved, the following will build 64-bit:
-  # - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
-  #   WZ_JOB_ID: release_x64
+  # 64-bit (x64) builds
+  - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
+    WZ_JOB_ID: release_x64
 
 # Cache
 # - Maintains a separate cache for each build matrix entry
