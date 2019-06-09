@@ -67,6 +67,7 @@ before_build:
         $env:WZ_VC_TOOLCHAIN = "v141"
         $env:WZ_VC_TARGET_PLATFORMNAME = "Win32"
         $env:WZ_OUTPUT_PLATFORMNAME = "x86"
+        $env:WZ_DEPLOY_ARTIFACTS = "true"
       }
       elseif ($env:WZ_JOB_ID -eq "release_x64") {
         # 64-bit (x64) builds use the latest Qt and VC toolchain (and support Windows 7+)
@@ -77,6 +78,9 @@ before_build:
         $env:WZ_VC_TOOLCHAIN = "v141"
         $env:WZ_VC_TARGET_PLATFORMNAME = "x64"
         $env:WZ_OUTPUT_PLATFORMNAME = "x64"
+        # NOTE: Unfortunately, 64-bit Windows builds are currently broken because of QtScript (see: http://developer.wz2100.net/ticket/4763)
+        # Whenever that ticket is resolved, the following can be changed to "true"
+        $env:WZ_DEPLOY_ARTIFACTS = "skip - 64-bit builds currently broken because of QtScript"
       }
   # Set distributor (if building from the main repo)
   - ps: |
@@ -158,10 +162,28 @@ after_build:
       Write-Host "`nwarzone2100-$($env:WZ_BUILD_DESC)_installer.exe`n  -> SHA512: $((Get-FileHash -LiteralPath "$($env:APPVEYOR_BUILD_FOLDER)\build\warzone2100_installer.exe" -Algorithm SHA512).Hash)`n  -> Size (bytes): $((Get-Item -LiteralPath "$($env:APPVEYOR_BUILD_FOLDER)\build\warzone2100_installer.exe").Length)"
       Write-Host ""
 
-artifacts:
-  - path: warzone2100-*_portable.zip
-    name: Warzone2100 Portable
-  - path: warzone2100-*_installer.zip
-    name: Warzone2100 Installer
-  - path: warzone2100-*.DEBUGSYMBOLS.7z
-    name: Debug Symbols (7z)
+
+  # Artifacts
+  - ps: |
+      if ($env:WZ_DEPLOY_ARTIFACTS -eq "true") {
+        #   - path: warzone2100-*_portable.zip
+        #     name: Warzone2100 Portable
+        Get-ChildItem .\warzone2100-*_portable.zip | % { Push-AppveyorArtifact $_.FullName -FileName $_.Name -DeploymentName "Warzone2100 Portable" }
+        #   - path: warzone2100-*_installer.zip
+        #     name: Warzone2100 Installer
+        Get-ChildItem .\warzone2100-*_installer.zip | % { Push-AppveyorArtifact $_.FullName -FileName $_.Name -DeploymentName "Warzone2100 Installer" }
+        #   - path: warzone2100-*.DEBUGSYMBOLS.7z
+        #     name: Debug Symbols (7z)
+        Get-ChildItem .\warzone2100-*.DEBUGSYMBOLS.7z | % { Push-AppveyorArtifact $_.FullName -FileName $_.Name -DeploymentName "Debug Symbols (7z)" }
+      }
+      else {
+        Write-Host "Skipping deployment of artifacts: $env:WZ_DEPLOY_ARTIFACTS"
+      }
+
+# artifacts:
+#   - path: warzone2100-*_portable.zip
+#     name: Warzone2100 Portable
+#   - path: warzone2100-*_installer.zip
+#     name: Warzone2100 Installer
+#   - path: warzone2100-*.DEBUGSYMBOLS.7z
+#     name: Debug Symbols (7z)
