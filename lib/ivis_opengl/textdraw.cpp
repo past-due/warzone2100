@@ -49,6 +49,7 @@ static float font_colour[4] = {1.f, 1.f, 1.f, 1.f};
 #include "ft2build.h"
 #include <unordered_map>
 #include <memory>
+#include <limits>
 
 #if defined(HB_VERSION_ATLEAST) && HB_VERSION_ATLEAST(1,0,5)
 //	#define WZ_FT_LOAD_FLAGS (FT_LOAD_DEFAULT | FT_LOAD_TARGET_LCD) // Needs further testing on low-DPI displays
@@ -427,14 +428,15 @@ public:
 	{
 		hb_buffer_reset(m_buffer);
 		size_t length = text.text.size();
+		ASSERT(length <= static_cast<size_t>(std::numeric_limits<int>::max()), "length (%zu) exceeds std::numeric_limits<int>::max(): %zu", length, static_cast<size_t>(std::numeric_limits<int>::max()));
 
-		hb_buffer_add_utf8(m_buffer, text.text.c_str(), length, 0, length);
+		hb_buffer_add_utf8(m_buffer, text.text.c_str(), static_cast<int>(length), 0, static_cast<int>(length));
 		hb_buffer_guess_segment_properties(m_buffer);
 		hb_buffer_set_flags(m_buffer, (hb_buffer_flags_t)(HB_BUFFER_FLAG_BOT | HB_BUFFER_FLAG_EOT));
 
 		// harfbuzz shaping
 		std::array<hb_feature_t, 3> features = { {HBFeature::KerningOn, HBFeature::LigatureOn, HBFeature::CligOn} };
-		hb_shape(face.m_font, m_buffer, features.data(), features.size());
+		hb_shape(face.m_font, m_buffer, features.data(), static_cast<unsigned int>(features.size()));
 
 		unsigned int glyphCount;
 		hb_glyph_info_t *glyphInfo = hb_buffer_get_glyph_infos(m_buffer, &glyphCount);

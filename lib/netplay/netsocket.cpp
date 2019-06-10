@@ -36,6 +36,11 @@
 #endif
 #include <zlib.h>
 
+#if defined( _MSC_VER )
+	// TODO: FIXME
+	#pragma warning( disable : 4267 ) // warning C4267: 'var': conversion from 'size_t' to 'int', possible loss of data
+#endif
+
 enum
 {
 	SOCK_CONNECTION,

@@ -88,6 +88,8 @@ void gl_texture::bind()
 
 void gl_texture::upload(const size_t& mip_level, const size_t& offset_x, const size_t& offset_y, const size_t & width, const size_t & height, const gfx_api::pixel_format & buffer_format, const void * data, bool generate_mip_levels /*= false*/)
 {
+	ASSERT(offset_x <= static_cast<size_t>(std::numeric_limits<GLint>::max()), "offset_x (%zu) exceeds std::numeric_limits<GLint>::max(): %zu", offset_x, static_cast<size_t>(std::numeric_limits<GLint>::max()));
+	ASSERT(offset_y <= static_cast<size_t>(std::numeric_limits<GLint>::max()), "offset_y (%zu) exceeds std::numeric_limits<GLint>::max(): %zu", offset_y, static_cast<size_t>(std::numeric_limits<GLint>::max()));
 	ASSERT(width <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "width (%zu) exceeds std::numeric_limits<GLsizei>::max(): %zu", width, static_cast<size_t>(std::numeric_limits<GLsizei>::max()));
 	ASSERT(height <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "height (%zu) exceeds std::numeric_limits<GLsizei>::max(): %zu", height, static_cast<size_t>(std::numeric_limits<GLsizei>::max()));
 	bind();
@@ -100,7 +102,7 @@ void gl_texture::upload(const size_t& mip_level, const size_t& offset_x, const s
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_TRUE);
 	}
-	glTexSubImage2D(GL_TEXTURE_2D, mip_level, offset_x, offset_y, static_cast<GLsizei>(width), static_cast<GLsizei>(height), to_gl(buffer_format), GL_UNSIGNED_BYTE, data);
+	glTexSubImage2D(GL_TEXTURE_2D, mip_level, static_cast<GLint>(offset_x), static_cast<GLint>(offset_y), static_cast<GLsizei>(width), static_cast<GLsizei>(height), to_gl(buffer_format), GL_UNSIGNED_BYTE, data);
 	if(generate_mip_levels && glGenerateMipmap)
 	{
 		glGenerateMipmap(GL_TEXTURE_2D);
