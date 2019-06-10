@@ -19,6 +19,7 @@
 
 #include "lib/framework/frame.h"
 #include "gfx_api_gl.h"
+#include <limits>
 
 static GLenum to_gl(const gfx_api::pixel_format& format)
 {
@@ -87,6 +88,8 @@ void gl_texture::bind()
 
 void gl_texture::upload(const size_t& mip_level, const size_t& offset_x, const size_t& offset_y, const size_t & width, const size_t & height, const gfx_api::pixel_format & buffer_format, const void * data, bool generate_mip_levels /*= false*/)
 {
+	ASSERT(width <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "width (%zu) exceeds std::numeric_limits<GLsizei>::max(): %zu", width, static_cast<size_t>(std::numeric_limits<GLsizei>::max()));
+	ASSERT(height <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "height (%zu) exceeds std::numeric_limits<GLsizei>::max(): %zu", height, static_cast<size_t>(std::numeric_limits<GLsizei>::max()));
 	bind();
 	if(generate_mip_levels && !glGenerateMipmap)
 	{
@@ -97,7 +100,7 @@ void gl_texture::upload(const size_t& mip_level, const size_t& offset_x, const s
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_TRUE);
 	}
-	glTexSubImage2D(GL_TEXTURE_2D, mip_level, offset_x, offset_y, width, height, to_gl(buffer_format), GL_UNSIGNED_BYTE, data);
+	glTexSubImage2D(GL_TEXTURE_2D, mip_level, offset_x, offset_y, static_cast<GLsizei>(width), static_cast<GLsizei>(height), to_gl(buffer_format), GL_UNSIGNED_BYTE, data);
 	if(generate_mip_levels && glGenerateMipmap)
 	{
 		glGenerateMipmap(GL_TEXTURE_2D);
@@ -156,6 +159,8 @@ gl_context::~gl_context()
 
 gfx_api::texture* gl_context::create_texture(const size_t & width, const size_t & height, const gfx_api::pixel_format & internal_format, const std::string& filename)
 {
+	ASSERT(width <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "width (%zu) exceeds std::numeric_limits<GLsizei>::max(): %zu", width, static_cast<size_t>(std::numeric_limits<GLsizei>::max()));
+	ASSERT(height <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "height (%zu) exceeds std::numeric_limits<GLsizei>::max(): %zu", height, static_cast<size_t>(std::numeric_limits<GLsizei>::max()));
 	auto* new_texture = new gl_texture();
 	new_texture->bind();
 	if (!filename.empty() && (GLEW_VERSION_4_3 || GLEW_KHR_debug))
@@ -164,7 +169,7 @@ gfx_api::texture* gl_context::create_texture(const size_t & width, const size_t 
 	}
 	for (unsigned i = 0; i < floor(log(std::max(width, height))) + 1; ++i)
 	{
-		glTexImage2D(GL_TEXTURE_2D, i, to_gl(internal_format), width >> i, height >> i, 0, to_gl(internal_format), GL_UNSIGNED_BYTE, nullptr);
+		glTexImage2D(GL_TEXTURE_2D, i, to_gl(internal_format), static_cast<GLsizei>(width >> i), static_cast<GLsizei>(height >> i), 0, to_gl(internal_format), GL_UNSIGNED_BYTE, nullptr);
 	}
 	return new_texture;
 }

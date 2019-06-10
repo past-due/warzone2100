@@ -733,7 +733,12 @@ void NETbytes(std::vector<uint8_t> *vec, unsigned maxLen)
 	 * unsigned 16-bit integer, not including \0 termination.
 	 */
 
-	uint32_t len = NETgetPacketDir() == PACKET_ENCODE ? vec->size() : 0;
+	uint32_t len = 0;
+	if (NETgetPacketDir() == PACKET_ENCODE)
+	{
+		ASSERT(!(vec->size() > static_cast<size_t>(std::numeric_limits<uint32_t>::max())), "vec->size(): %zu", vec->size());
+		len = static_cast<uint32_t>(vec->size());
+	}
 	queueAuto(len);
 
 	if (len > maxLen)
