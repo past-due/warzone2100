@@ -1398,8 +1398,12 @@ int realmain(int argc, char *argv[])
 			// (currently required for some cleanup) (should modelShutdown() be added to systemShutdown?)
 			stopGameLoop();
 			break;
+		case GS_TITLE_SCREEN:
+			// if showing the title / menus while quitting, stop the title loop
+			// (currently required for some cleanup)
+			stopTitleLoop();
+			break;
 		default:
-			// should be no extra cleanup needed?
 			break;
 	}
 	saveConfig();
