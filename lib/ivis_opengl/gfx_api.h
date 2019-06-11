@@ -113,7 +113,7 @@ namespace gfx_api
 		lines,
 		triangles,
 		triangle_strip,
-		triangle_fan,
+		// NOTE: Do *NOT* support triangle_fan, for portability reasons
 	};
 
 	enum class index_type
