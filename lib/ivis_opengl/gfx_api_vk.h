@@ -21,7 +21,14 @@
 
 #if defined(WZ_VULKAN_ENABLED)
 
+#if defined( _MSC_VER )
+#pragma warning( push )
+#pragma warning( disable : 4191 ) // warning C4191: '<function-style-cast>': unsafe conversion from 'PFN_vkVoidFunction' to 'PFN_vk<...>'
+#endif
 #include <vulkan/vulkan.hpp>
+#if defined( _MSC_VER )
+#pragma warning( pop )
+#endif
 
 #include "lib/framework/frame.h"
 

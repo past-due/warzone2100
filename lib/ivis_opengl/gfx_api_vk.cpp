@@ -2072,7 +2072,7 @@ bool VkRoot::initialize(const gfx_api::backend_Impl_Factory& impl)
 	}
 
 	// Setup dynamic Vulkan loader
-	vkDynLoader.init(inst, _vkGetInstanceProcAddr);
+	vkDynLoader.init(VkInstance(inst), _vkGetInstanceProcAddr);
 
 	// NOTE: From this point on, vkDynLoader *must* be initialized!
 	ASSERT(vkDynLoader.vkGetInstanceProcAddr != nullptr, "vkDynLoader does not appear to be initialized");
@@ -2191,7 +2191,7 @@ bool VkRoot::createLogicalDevice()
 	// This uses vkGetDeviceProcAddr to potentially obtain device-specific function pointers
 	// that bypass dynamic dispatch logic (for increased performance)
 	// See: https://stackoverflow.com/a/35504844
-	vkDynLoader.init(inst, vkDynLoader.vkGetInstanceProcAddr, dev, vkDynLoader.vkGetDeviceProcAddr);
+	vkDynLoader.init(VkInstance(inst), vkDynLoader.vkGetInstanceProcAddr, dev, vkDynLoader.vkGetDeviceProcAddr);
 
 	return true;
 }
