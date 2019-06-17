@@ -8,15 +8,15 @@ param([string]$VCPKG_BUILD_TYPE = "")
 $VCPKG_COMMIT_SHA = "76827951abe0df5f3d172d7b07f17614e7089198";
 
 # WZ Windows dependencies (for vcpkg install)
-$VCPKG_INSTALL_DEPENDENCIES = "physfs harfbuzz libiconv libogg libtheora libvorbis libpng openal-soft glew freetype gettext zlib"
+$VCPKG_INSTALL_DEPENDENCIES = @("physfs", "harfbuzz", "libiconv", "libogg", "libtheora", "libvorbis", "libpng", "openal-soft", "glew", "freetype", "gettext", "zlib")
 If ((-not ([string]::IsNullOrEmpty($env:VULKAN_SDK))) -and (Test-Path $env:VULKAN_SDK -PathType Container))
 {
 	Write-Output "VULKAN_SDK environment variable detected - using SDL2 with Vulkan support";
-	$VCPKG_INSTALL_DEPENDENCIES="$($VCPKG_INSTALL_DEPENDENCIES) sdl2[vulkan]"
+	$VCPKG_INSTALL_DEPENDENCIES += "sdl2[vulkan]"
 }
 Else {
 	Write-Output "VULKAN_SDK not detected - using SDL2 *without* Vulkan support";
-	$VCPKG_INSTALL_DEPENDENCIES="$($VCPKG_INSTALL_DEPENDENCIES) sdl2"
+	$VCPKG_INSTALL_DEPENDENCIES += "sdl2"
 }
 
 # To ensure the proper dump_syms.exe is downloaded, specify the commit + hash
@@ -59,10 +59,9 @@ If (-not ([string]::IsNullOrEmpty($VCPKG_BUILD_TYPE)))
 
 $vcpkg_succeeded = -1;
 $vcpkg_attempts = 0;
-Write-Output "vcpkg install ($VCPKG_INSTALL_DEPENDENCIES)";
 While (($vcpkg_succeeded -ne 0) -and ($vcpkg_attempts -le 2))
 {
-	.\vcpkg install ($VCPKG_INSTALL_DEPENDENCIES);
+	& vcpkg install $VCPKG_INSTALL_DEPENDENCIES;
 	$vcpkg_succeeded = $LastExitCode;
 	$vcpkg_attempts++;
 }
