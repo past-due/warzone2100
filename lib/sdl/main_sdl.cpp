@@ -441,6 +441,7 @@ int wzGetSwapInterval()
 			// Not currently implemented
 			return 0;
 	}
+	return 0; // avoid GCC warning
 }
 #endif
 
