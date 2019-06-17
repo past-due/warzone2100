@@ -1467,7 +1467,7 @@ int realmain(int argc, char *argv[])
 		}
 	}
 
-	if (!wzMainScreenSetup(war_getAntialiasing(), war_getFullscreen(), war_GetVsync()))
+	if (!wzMainScreenSetup(uses_vulkan ? video_backend::vulkan : video_backend::opengl, war_getAntialiasing(), war_getFullscreen(), war_GetVsync()))
 	{
 		return EXIT_FAILURE;
 	}

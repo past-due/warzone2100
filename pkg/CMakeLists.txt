@@ -10,9 +10,13 @@ function(copyFileToDir _file _destDir)
 	)
 endfunction()
 
+if(NOT DEFINED WZ_DIST_LICENSE OR NOT EXISTS "${WZ_DIST_LICENSE}")
+	message(FATAL_ERROR "This file should be included in the project's root CMakeLists.txt, after WZ_DIST_LICENSE is defined.")
+endif()
+
 set(CPACK_PACKAGE_NAME			"Warzone 2100")
 set(CPACK_PACKAGE_VENDOR		"Warzone 2100 Project")
-set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/COPYING")
+set(CPACK_RESOURCE_FILE_LICENSE "${WZ_DIST_LICENSE}")
 set(CPACK_PACKAGE_CHECKSUM		SHA256)
 
 #########################
