@@ -415,9 +415,9 @@ void wzDelay(unsigned int delay)
 #if !defined(WZ_OS_MAC)
 void wzSetSwapInterval(int interval)
 {
-	switch (backend)
+	switch (WZbackend)
 	{
-		case video_backend::gl:
+		case video_backend::opengl:
 			if (SDL_GL_SetSwapInterval(interval) != 0)
 			{
 				debug(LOG_ERROR, "Error: SDL_GL_SetSwapInterval(%d) failed (%s).", interval, SDL_GetError());
@@ -433,9 +433,9 @@ void wzSetSwapInterval(int interval)
 
 int wzGetSwapInterval()
 {
-	switch (backend)
+	switch (WZbackend)
 	{
-		case video_backend::gl:
+		case video_backend::opengl:
 			return SDL_GL_GetSwapInterval();
 		case video_backend::vulkan:
 			// Not currently implemented
