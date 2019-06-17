@@ -36,6 +36,12 @@ configuration:
 install:
   # Initialize Git submodules
   - git submodule update --init --recursive
+  # Download & install Vulkan SDK
+  - ps: Invoke-WebRequest -Uri https://sdk.lunarg.com/sdk/download/1.1.108.0/windows/VulkanSDK-1.1.108.0-Installer.exe?Human=true -OutFile vulkan.exe
+  - cmd: |
+      .\vulkan.exe /S
+      refreshenv
+      echo %VULKAN_SDK%
   # Setup Ruby path (for Asciidoctor gem install)
   - set PATH=C:\Ruby26-x64\bin;%PATH%
   # Install Asciidoctor (for documentation generation)
