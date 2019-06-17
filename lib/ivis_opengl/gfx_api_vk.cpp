@@ -527,7 +527,7 @@ std::vector<uint32_t> VkPSO::readShaderBuf(const std::string& name)
 	ASSERT_OR_RETURN(std::vector<uint32_t>(), filesize < static_cast<PHYSFS_sint64>(std::numeric_limits<PHYSFS_sint32>::max()), "\"%s\" filesize >= std::numeric_limits<PHYSFS_sint32>::max()", name.c_str());
 	ASSERT_OR_RETURN(std::vector<uint32_t>(), static_cast<PHYSFS_uint64>(filesize) < static_cast<PHYSFS_uint64>(std::numeric_limits<size_t>::max()), "\"%s\" filesize >= std::numeric_limits<size_t>::max()", name.c_str());
 
-	auto&& buffer = std::vector<uint32_t>(static_cast<size_t>(filesize / sizeof(uint32_t)));
+	auto buffer = std::vector<uint32_t>(static_cast<size_t>(filesize / sizeof(uint32_t)));
 	WZ_PHYSFS_readBytes(fp, buffer.data(), static_cast<PHYSFS_uint32>(filesize));
 	PHYSFS_close(fp);
 
@@ -651,7 +651,7 @@ std::array<vk::PipelineColorBlendAttachmentState, 1> VkPSO::to_vk(const REND_MOD
 
 vk::PipelineDepthStencilStateCreateInfo VkPSO::to_vk(DEPTH_MODE depth_mode, const gfx_api::stencil_mode& stencil)
 {
-	auto&& state = vk::PipelineDepthStencilStateCreateInfo{};
+	auto state = vk::PipelineDepthStencilStateCreateInfo{};
 	switch (stencil)
 	{
 	case gfx_api::stencil_mode::stencil_disabled:
