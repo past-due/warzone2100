@@ -179,6 +179,7 @@ void gl_texture::unbind()
 
 void gl_texture::upload(const size_t& mip_level, const size_t& offset_x, const size_t& offset_y, const size_t & width, const size_t & height, const gfx_api::pixel_format & buffer_format, const void * data)
 {
+	ASSERT(width > 0 && height > 0, "Attempt to upload texture with width or height of 0 (width: %zu, height: %zu)", width, height);
 	bind();
 	glTexSubImage2D(GL_TEXTURE_2D, mip_level, offset_x, offset_y, width, height, std::get<1>(to_gl(buffer_format)), GL_UNSIGNED_BYTE, data);
 	unbind();
@@ -235,6 +236,7 @@ void gl_buffer::unbind()
 
 void gl_buffer::upload(const size_t & size, const void * data)
 {
+	ASSERT(size > 0, "Attempt to upload buffer of size 0");
 	glBindBuffer(to_gl(usage), buffer);
 	glBufferData(to_gl(usage), size, data, to_gl(hint));
 	buffer_size = size;
@@ -1129,6 +1131,7 @@ void gl_context::disable_all_vertex_buffers()
 
 void gl_context::bind_streamed_vertex_buffers(const void* data, const std::size_t size)
 {
+	ASSERT(size > 0, "bind_streamed_vertex_buffers called with size 0");
 	glBindBuffer(GL_ARRAY_BUFFER, scratchbuffer);
 	if (scratchbuffer_size > 0)
 	{
