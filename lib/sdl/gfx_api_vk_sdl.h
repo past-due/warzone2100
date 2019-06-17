@@ -38,4 +38,10 @@ private:
 	SDL_Window* window;
 };
 
+#else
+
+class gfx_api::backend_Vulkan_Impl
+{
+};
+
 #endif // defined(WZ_VULKAN_ENABLED) && defined(HAVE_SDL_VULKAN_H)
