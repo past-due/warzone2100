@@ -1554,7 +1554,12 @@ static SDL_WindowFlags SDL_backend(const video_backend& backend)
 		case video_backend::opengl:
 			return SDL_WINDOW_OPENGL;
 		case video_backend::vulkan:
+#if SDL_VERSION_ATLEAST(2, 0, 6)
 			return SDL_WINDOW_VULKAN;
+#else
+			debug(LOG_FATAL, "The version of SDL used for compilation does not support SDL_WINDOW_VULKAN");
+			break;
+#endif
 	}
 	return SDL_WindowFlags{};
 }

@@ -1232,8 +1232,17 @@ void VkTexture::upload(const std::size_t& mip_level, const std::size_t& offset_x
 		root->vkDynLoader);
 }
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wcast-align"
+#endif
+
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "3rdparty/stb_image_resize.h"
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 void VkTexture::upload_and_generate_mipmaps(const size_t& offset_x, const size_t& offset_y, const size_t& width, const size_t& height, const gfx_api::pixel_format& buffer_format, const void* data)
 {
