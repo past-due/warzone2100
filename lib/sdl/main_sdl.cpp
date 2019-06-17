@@ -2122,6 +2122,11 @@ void wzMainEventLoop(void)
 	}
 }
 
+void wzPumpEventsWhileLoading()
+{
+	SDL_PumpEvents();
+}
+
 void wzShutdown()
 {
 	// order is important!
