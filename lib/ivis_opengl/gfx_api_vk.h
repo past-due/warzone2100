@@ -42,8 +42,15 @@
 #include "3rdparty/optional.hpp"
 using nonstd::optional;
 
+#if defined( _MSC_VER )
+#pragma warning( push )
+#pragma warning( disable : 4191 ) // warning C4191: '<function-style-cast>': unsafe conversion from 'PFN_vkVoidFunction' to 'PFN_vk<...>'
+#endif
 #include "3rdparty/vkh_renderpasscompat.hpp"
 #include "3rdparty/vkh_info.hpp"
+#if defined( _MSC_VER )
+#pragma warning( pop )
+#endif
 
 namespace gfx_api
 {
