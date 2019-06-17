@@ -10,10 +10,16 @@ cmake_minimum_required(VERSION 3.5)
 set(VCPKG_COMMIT_SHA "76827951abe0df5f3d172d7b07f17614e7089198")
 
 # WZ macOS dependencies (for vcpkg install)
-set(VCPKG_INSTALL_DEPENDENCIES physfs harfbuzz libogg libtheora libvorbis libpng sdl2 glew freetype gettext zlib)
+set(VCPKG_INSTALL_DEPENDENCIES physfs harfbuzz libogg libtheora libvorbis libpng sdl2[vulkan] glew freetype gettext zlib)
 
 # WZ minimum supported macOS deployment target (this is 10.10 because of Qt 5.9.x)
 set(MIN_SUPPORTED_MACOSX_DEPLOYMENT_TARGET "10.10")
+
+# Vulkan SDK
+set(VULKAN_SDK_VERSION "1.1.108.0")
+set(VULKAN_SDK_DL_FILENAME "vulkansdk-macos-${VULKAN_SDK_VERSION}.tar.gz")
+set(VULKAN_SDK_DL_URL "https://sdk.lunarg.com/sdk/download/${VULKAN_SDK_VERSION}/mac/${VULKAN_SDK_DL_FILENAME}?Human=true")
+set(VULKAN_SDK_DL_SHA256 "f493b0e9abc73e80a29fa24ef9bae3c2311513df973ade6ffc56008c30eaf60d")
 
 ########################################################
 
@@ -38,7 +44,37 @@ else()
 endif()
 
 ########################################################
-# 1.) Download & build vcpkg, install dependencies
+# 1.) Download & extract Vulkan SDK
+
+execute_process(COMMAND ${CMAKE_COMMAND} -E echo "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+execute_process(COMMAND ${CMAKE_COMMAND} -E echo "++ Download Vulkan SDK...")
+
+set(_vulkan_sdk_out_dir "vulkansdk-macos")
+
+execute_process(
+	COMMAND ${CMAKE_COMMAND}
+			-DFILENAME=${VULKAN_SDK_DL_FILENAME}
+			-DURL=${VULKAN_SDK_DL_URL}
+			-DEXPECTED_SHA256=${VULKAN_SDK_DL_SHA256}
+			-DOUT_DIR=${_vulkan_sdk_out_dir}
+			-P ${_repoBase}/macosx/configs/FetchPrebuilt.cmake
+	WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+	RESULT_VARIABLE _exstatus
+)
+if(NOT _exstatus EQUAL 0)
+	message(FATAL_ERROR "Failed to download Vulkan SDK")
+endif()
+
+
+# Set VULKAN_SDK environment variable, so vcpkg and CMake pick up the appropriate location
+set(ENV{VULKAN_SDK} "${CMAKE_CURRENT_SOURCE_DIR}/macosx/external/${_vulkan_sdk_out_dir}/macOS")
+message(STATUS "VULKAN_SDK=$ENV{VULKAN_SDK}")
+if(NOT IS_DIRECTORY "$ENV{VULKAN_SDK}")
+	message(FATAL_ERROR "Something went wrong - expected Vulkan SDK output directory does not exist: $ENV{VULKAN_SDK}")
+endif()
+
+########################################################
+# 2.) Download & build vcpkg, install dependencies
 
 execute_process(COMMAND ${CMAKE_COMMAND} -E echo "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
 execute_process(COMMAND ${CMAKE_COMMAND} -E echo "++ Download vcpkg...")
@@ -144,7 +180,7 @@ execute_process(COMMAND "${CMAKE_COMMAND}" -E sleep "1")
 execute_process(COMMAND ${CMAKE_COMMAND} -E echo "++ vcpkg install finished")
 
 ########################################################
-# 2.) CMake configure (generate Xcode project)
+# 3.) CMake configure (generate Xcode project)
 
 set(_additional_configure_arguments "")
 if(DEFINED WZ_DISTRIBUTOR)
