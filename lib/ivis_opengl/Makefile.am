@@ -27,6 +27,7 @@ noinst_HEADERS = \
 
 libivis_opengl_a_SOURCES = \
 	pieblitfunc.cpp \
+	gfx_api.cpp \
 	gfx_api_gl.cpp \
 	piedraw.cpp \
 	piefunc.cpp \
