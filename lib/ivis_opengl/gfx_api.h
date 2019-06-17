@@ -35,11 +35,13 @@ namespace gfx_api
 {
 	// Must be implemented by backend (ex. SDL)
 	class backend_OpenGL_Impl; // see: gfx_api_gl.h
+	class backend_Vulkan_Impl; // see: gfx_api_vk.h
 	class backend_Impl_Factory
 	{
 	public:
 		virtual ~backend_Impl_Factory() {};
 		virtual std::unique_ptr<backend_OpenGL_Impl> createOpenGLBackendImpl() const = 0;
+		virtual std::unique_ptr<backend_Vulkan_Impl> createVulkanBackendImpl() const = 0;
 	};
 	//
 }
