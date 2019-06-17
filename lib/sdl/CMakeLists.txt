@@ -32,8 +32,11 @@ if(SDL2_FOUND)
 	endif()
 
 	if(_sdl2_library)
-		get_target_property(_sdl2_target_include_dir ${_sdl2_library} INTERFACE_INCLUDE_DIRECTORIES)
-		set(_sdl2_include_dir "${_sdl2_target_include_dir}/SDL2") # WORKAROUND
+		get_target_property(_sdl2_include_dir ${_sdl2_library} INTERFACE_INCLUDE_DIRECTORIES)
+		get_filename_component(_last_directory "${_sdl2_include_dir}" NAME)
+		if (NOT _last_directory STREQUAL "SDL2")
+			set(_sdl2_include_dir "${_sdl2_include_dir}/SDL2") # WORKAROUND
+		endif()
 	endif()
 endif()
 
@@ -49,16 +52,26 @@ if(NOT _sdl2_library OR NOT SDL2_FOUND)
 	endif()
 endif()
 
+# Check if SDL2's "SDL_vulkan.h" is available (SDL 2.0.6+)
+INCLUDE (CheckIncludeFileCXX)
+set(_prior_CMAKE_REQUIRED_INCLUDES "${CMAKE_REQUIRED_INCLUDES}")
+set(CMAKE_REQUIRED_INCLUDES "${_sdl2_include_dir}")
+CHECK_INCLUDE_FILE_CXX("SDL_vulkan.h" HAVE_SDL_VULKAN_H)
+set(CMAKE_REQUIRED_INCLUDES "${_prior_CMAKE_REQUIRED_INCLUDES}")
+
 add_library(sdl-backend ${HEADERS} ${SRC})
 if(WZ_TARGET_ADDITIONAL_PROPERTIES)
 	SET_TARGET_PROPERTIES(sdl-backend PROPERTIES ${WZ_TARGET_ADDITIONAL_PROPERTIES})
 endif()
 
-target_link_libraries(sdl-backend PRIVATE framework)
+target_link_libraries(sdl-backend PRIVATE framework ivis-opengl)
 set_property(TARGET sdl-backend PROPERTY FOLDER "lib")
 message( STATUS "Linking to SDL2 library: ${_sdl2_library}" )
 target_link_libraries(sdl-backend PRIVATE ${_sdl2_library})
 target_include_directories(sdl-backend PRIVATE "${_sdl2_include_dir}")
+if(HAVE_SDL_VULKAN_H)
+	target_compile_definitions(sdl-backend PRIVATE "-DHAVE_SDL_VULKAN_H")
+endif()
 
 if(CMAKE_SYSTEM_NAME MATCHES "Windows")
 	if("${_sdl2_main_library}" STREQUAL "")
