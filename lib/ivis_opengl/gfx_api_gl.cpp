@@ -1150,6 +1150,7 @@ void gl_context::bind_streamed_vertex_buffers(const void* data, const std::size_
 void gl_context::bind_index_buffer(gfx_api::buffer& _buffer, const gfx_api::index_type&)
 {
 	auto& buffer = static_cast<gl_buffer&>(_buffer);
+	ASSERT(buffer.usage == gfx_api::buffer::usage::index_buffer, "Passed gfx_api::buffer is not an index buffer");
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer.buffer);
 }
 
@@ -1249,12 +1250,6 @@ int32_t gl_context::get_context_value(const context_value property)
 	GLint value;
 	glGetIntegerv(to_gl(property), &value);
 	return value;
-}
-
-gfx_api::context& gfx_api::context::get()
-{
-	static gl_context ctx;
-	return ctx;
 }
 
 // MARK: gl_context - debug
