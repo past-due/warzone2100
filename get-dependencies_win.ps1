@@ -59,9 +59,10 @@ If (-not ([string]::IsNullOrEmpty($VCPKG_BUILD_TYPE)))
 
 $vcpkg_succeeded = -1;
 $vcpkg_attempts = 0;
+Write-Output "vcpkg install ($VCPKG_INSTALL_DEPENDENCIES)";
 While (($vcpkg_succeeded -ne 0) -and ($vcpkg_attempts -le 2))
 {
-	.\vcpkg install $VCPKG_INSTALL_DEPENDENCIES;
+	.\vcpkg install ($VCPKG_INSTALL_DEPENDENCIES);
 	$vcpkg_succeeded = $LastExitCode;
 	$vcpkg_attempts++;
 }
