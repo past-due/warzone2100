@@ -41,6 +41,9 @@ install:
   # Install Asciidoctor (for documentation generation)
   # NOTE: Specify an explicit Asciidoctor version to help ensure reproducible builds
   - gem install asciidoctor -v 2.0.9 --no-document
+  # Download & install Vulkan SDK
+  - ps: Invoke-WebRequest -Uri https://sdk.lunarg.com/sdk/download/1.1.108.0/windows/VulkanSDK-1.1.108.0-Installer.exe?Human=true -OutFile vulkan.exe
+  - ps: .\vulkan.exe /S
 
 before_build:
   # Set expanded environment variables for release build jobs
