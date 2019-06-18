@@ -76,7 +76,7 @@ namespace WZ_vk {
 	using UniqueImage = vk::UniqueHandle<vk::Image, vk::DispatchLoaderDynamic>;
 	using UniqueImageView = vk::UniqueHandle<vk::ImageView, vk::DispatchLoaderDynamic>;
 	using UniqueSemaphore = vk::UniqueHandle<vk::Semaphore, vk::DispatchLoaderDynamic>;
-};
+}
 
 struct circularHostBuffer
 {
