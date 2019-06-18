@@ -2,7 +2,7 @@ FROM fedora:latest
 
 RUN cat /etc/fedora-release
 
-RUN dnf -y update && dnf clean all
+RUN dnf clean all && dnf -y update && dnf clean all
 RUN dnf -y install git gcc gcc-c++ cmake ninja-build p7zip gettext rubygem-asciidoctor \
  && dnf clean all
 
