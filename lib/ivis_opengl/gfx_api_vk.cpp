@@ -170,7 +170,7 @@ bool checkDeviceExtensionSupport(const vk::PhysicalDevice &device, const std::ve
 static bool getSupportedExtensions(std::vector<VkExtensionProperties> &output, PFN_vkGetInstanceProcAddr _vkGetInstanceProcAddr)
 {
 	ASSERT(_vkGetInstanceProcAddr, "_vkGetInstanceProcAddr must be valid");
-	PFN_vkEnumerateInstanceExtensionProperties _vkEnumerateInstanceExtensionProperties = reinterpret_cast<PFN_vkEnumerateInstanceExtensionProperties>(_vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceExtensionProperties"));
+	PFN_vkEnumerateInstanceExtensionProperties _vkEnumerateInstanceExtensionProperties = reinterpret_cast<PFN_vkEnumerateInstanceExtensionProperties>(reinterpret_cast<void*>(_vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceExtensionProperties")));
 	if (!_vkEnumerateInstanceExtensionProperties)
 	{
 		debug(LOG_ERROR, "Could not find symbol: vkEnumerateInstanceExtensionProperties\n");
@@ -189,7 +189,7 @@ static bool getSupportedExtensions(std::vector<VkExtensionProperties> &output, P
 static bool getInstanceLayerProperties(std::vector<VkLayerProperties> &output, PFN_vkGetInstanceProcAddr _vkGetInstanceProcAddr)
 {
 	ASSERT(_vkGetInstanceProcAddr, "_vkGetInstanceProcAddr must be valid");
-	PFN_vkEnumerateInstanceLayerProperties _vkEnumerateInstanceLayerProperties = reinterpret_cast<PFN_vkEnumerateInstanceLayerProperties>(_vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceLayerProperties"));
+	PFN_vkEnumerateInstanceLayerProperties _vkEnumerateInstanceLayerProperties = reinterpret_cast<PFN_vkEnumerateInstanceLayerProperties>(reinterpret_cast<void*>(_vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceLayerProperties")));
 	if (!_vkEnumerateInstanceLayerProperties)
 	{
 		debug(LOG_ERROR, "Could not find symbol: vkEnumerateInstanceLayerProperties\n");
@@ -459,7 +459,7 @@ size_t buffering_mechanism::currentFrame;
 
 // MARK: Debug Callback
 
-VkBool32 messageCallback(
+VKAPI_ATTR VkBool32 VKAPI_CALL messageCallback(
 	VkDebugReportFlagsEXT flags,
 	VkDebugReportObjectTypeEXT objType,
 	uint64_t srcObject,
@@ -1417,7 +1417,7 @@ bool VkRoot::createVulkanInstance(std::vector<const char*> extensions, std::vect
 	  .setEnabledExtensionCount(static_cast<uint32_t>(extensions.size())
 	);
 
-	PFN_vkCreateInstance _vkCreateInstance = reinterpret_cast<PFN_vkCreateInstance>(_vkGetInstanceProcAddr(nullptr, "vkCreateInstance"));
+	PFN_vkCreateInstance _vkCreateInstance = reinterpret_cast<PFN_vkCreateInstance>(reinterpret_cast<void*>(_vkGetInstanceProcAddr(nullptr, "vkCreateInstance")));
 	if (!_vkCreateInstance)
 	{
 		// Failed to find vkCreateInstance
@@ -1445,21 +1445,21 @@ bool VkRoot::createVulkanInstance(std::vector<const char*> extensions, std::vect
 		return true;
 	}
 
-	CreateDebugReportCallback = (PFN_vkCreateDebugReportCallbackEXT)_vkGetInstanceProcAddr(VkInstance(inst), "vkCreateDebugReportCallbackEXT");
+	CreateDebugReportCallback = reinterpret_cast<PFN_vkCreateDebugReportCallbackEXT>(reinterpret_cast<void*>(_vkGetInstanceProcAddr(VkInstance(inst), "vkCreateDebugReportCallbackEXT")));
 	if (!CreateDebugReportCallback)
 	{
 		// Failed to obtain vkCreateDebugReportCallbackEXT
 		debug(LOG_WARNING, "Could not find symbol: vkCreateDebugReportCallbackEXT\n");
 		return true;
 	}
-	DestroyDebugReportCallback = (PFN_vkDestroyDebugReportCallbackEXT)_vkGetInstanceProcAddr(VkInstance(inst), "vkDestroyDebugReportCallbackEXT");
+	DestroyDebugReportCallback = reinterpret_cast<PFN_vkDestroyDebugReportCallbackEXT>(reinterpret_cast<void*>(_vkGetInstanceProcAddr(VkInstance(inst), "vkDestroyDebugReportCallbackEXT")));
 	if (!DestroyDebugReportCallback)
 	{
 		// Failed to obtain vkDestroyDebugReportCallbackEXT
 		debug(LOG_WARNING, "Could not find symbol: vkDestroyDebugReportCallbackEXT\n");
 		return true;
 	}
-	dbgBreakCallback = (PFN_vkDebugReportMessageEXT)_vkGetInstanceProcAddr(VkInstance(inst), "vkDebugReportMessageEXT");
+	dbgBreakCallback = reinterpret_cast<PFN_vkDebugReportMessageEXT>(reinterpret_cast<void*>(_vkGetInstanceProcAddr(VkInstance(inst), "vkDebugReportMessageEXT")));
 	if (!dbgBreakCallback)
 	{
 		// Failed to obtain vkDebugReportMessageEXT
@@ -1469,7 +1469,7 @@ bool VkRoot::createVulkanInstance(std::vector<const char*> extensions, std::vect
 
 	VkDebugReportCallbackCreateInfoEXT dbgCreateInfo = {};
 	dbgCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CREATE_INFO_EXT;
-	dbgCreateInfo.pfnCallback = (PFN_vkDebugReportCallbackEXT)messageCallback;
+	dbgCreateInfo.pfnCallback = messageCallback;
 	dbgCreateInfo.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT |
 	VK_DEBUG_REPORT_WARNING_BIT_EXT; // |
 	//VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT;
@@ -1759,9 +1759,9 @@ bool VkRoot::createNewSwapchainAndSwapchainSpecificStuff(const vk::Result& reaso
 	if (errorHandlingDepth.size() > maxErrorHandlingDepth)
 	{
 		std::stringstream reasonsStr;
-		for (const auto& reason : errorHandlingDepth)
+		for (const auto& _reason : errorHandlingDepth)
 		{
-			reasonsStr << to_string(reason) << ";";
+			reasonsStr << to_string(_reason) << ";";
 		}
 		debug(LOG_FATAL, "createNewSwapchainAndSwapchainSpecificStuff failed with recursive depth: %zu; [%s]", errorHandlingDepth.size(), reasonsStr.str().c_str());
 		return false;
