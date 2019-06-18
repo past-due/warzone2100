@@ -81,7 +81,7 @@ const uint32_t minRequired_ColorAttachments = 1;
 
 static uint32_t findProperties(const vk::PhysicalDeviceMemoryProperties& memprops, const uint32_t& memoryTypeBits, const vk::MemoryPropertyFlagBits& properties)
 {
-	for (int32_t i = 0; i < memprops.memoryTypeCount; ++i)
+	for (uint32_t i = 0; i < memprops.memoryTypeCount; ++i)
 	{
 		if ((memoryTypeBits & (1 << i)) &&
 			((memprops.memoryTypes[i].propertyFlags & properties) == properties))
