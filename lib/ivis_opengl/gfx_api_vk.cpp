@@ -647,6 +647,8 @@ std::array<vk::PipelineColorBlendAttachmentState, 1> VkPSO::to_vk(const REND_MOD
 	default:
 		debug(LOG_FATAL, "Wrong alpha state");
 	}
+	debug(LOG_FATAL, "Unsupported blend_state");
+	return std::array<vk::PipelineColorBlendAttachmentState, 1>{vk::PipelineColorBlendAttachmentState{}};
 }
 
 vk::PipelineDepthStencilStateCreateInfo VkPSO::to_vk(DEPTH_MODE depth_mode, const gfx_api::stencil_mode& stencil)
@@ -768,6 +770,8 @@ vk::Format VkPSO::to_vk(const gfx_api::vertex_attribute_type& type)
 	case gfx_api::vertex_attribute_type::u8x4_norm:
 		return vk::Format::eR8G8B8A8Unorm;
 	}
+	debug(LOG_FATAL, "Unsupported vertex_attribute_type");
+	return vk::Format::eUndefined;
 }
 
 vk::SamplerCreateInfo VkPSO::to_vk(const gfx_api::sampler_type& type)
@@ -832,6 +836,8 @@ vk::SamplerCreateInfo VkPSO::to_vk(const gfx_api::sampler_type& type)
 			.setAddressModeV(vk::SamplerAddressMode::eClampToEdge)
 			.setAddressModeW(vk::SamplerAddressMode::eClampToEdge);
 	}
+	debug(LOG_FATAL, "Unsupported sampler_type");
+	return vk::SamplerCreateInfo{};
 }
 
 vk::PrimitiveTopology VkPSO::to_vk(const gfx_api::primitive_type& primitive)
@@ -848,6 +854,8 @@ vk::PrimitiveTopology VkPSO::to_vk(const gfx_api::primitive_type& primitive)
 	//       (And is not supported on portability layers, like Vulkan -> DX, or Vulkan -> Metal)
 	//       See: https://www.khronos.org/vulkan/portability-initiative
 	}
+	debug(LOG_FATAL, "Unsupported primitive_type");
+	return vk::PrimitiveTopology{};
 }
 
 VkPSO::VkPSO(vk::Device _dev,
@@ -2335,6 +2343,8 @@ vk::IndexType VkRoot::to_vk(const gfx_api::index_type& index)
 	case gfx_api::index_type::u32:
 		return vk::IndexType::eUint32;
 	}
+	debug(LOG_FATAL, "Unsupported index_type");
+	return vk::IndexType::eNoneNV;
 }
 
 void VkRoot::bind_index_buffer(gfx_api::buffer& index_buffer, const gfx_api::index_type& index)
@@ -2614,6 +2624,8 @@ int32_t VkRoot::get_context_value(const context_value property)
 			// return getMaxUsableSampleCount(physDeviceProps);
 			return 0;
 	}
+	debug(LOG_FATAL, "Unsupported property");
+	return 0;
 }
 
 // DEBUG-handling
