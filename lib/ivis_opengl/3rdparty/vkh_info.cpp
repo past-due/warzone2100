@@ -27,7 +27,7 @@ bool VkhInfo::getInstanceExtensions(std::vector<VkExtensionProperties> &output, 
 {
 	if (!_vkGetInstanceProcAddr) return false;
 
-	PFN_vkEnumerateInstanceExtensionProperties _vkEnumerateInstanceExtensionProperties = reinterpret_cast<PFN_vkEnumerateInstanceExtensionProperties>(_vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceExtensionProperties"));
+	PFN_vkEnumerateInstanceExtensionProperties _vkEnumerateInstanceExtensionProperties = reinterpret_cast<PFN_vkEnumerateInstanceExtensionProperties>(reinterpret_cast<void*>(_vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceExtensionProperties")));
 	if (!_vkEnumerateInstanceExtensionProperties)
 	{
 		// Could not find symbol: vkEnumerateInstanceExtensionProperties
