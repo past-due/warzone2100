@@ -16,6 +16,7 @@
 #pragma warning( push )
 #pragma warning( disable : 4191 ) // warning C4191: '<function-style-cast>': unsafe conversion from 'PFN_vkVoidFunction' to 'PFN_vk<...>'
 #endif
+#define VULKAN_HPP_TYPESAFE_CONVERSION 1
 #include <vulkan/vulkan.hpp>
 #if defined( _MSC_VER )
 #pragma warning( pop )
