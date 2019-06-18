@@ -39,10 +39,11 @@ file(GLOB VK_SHADERS
 set(SHADER_LIST "")
 if(GLSLC)
 	set(_output_dir "${CMAKE_CURRENT_BINARY_DIR}/base/shaders/vk")
-	add_custom_command(OUTPUT "${_output_dir}/"
-		COMMAND ${CMAKE_COMMAND} -E make_directory ${_output_dir}
-		VERBATIM
-	)
+#	add_custom_command(OUTPUT "${_output_dir}/"
+#		COMMAND ${CMAKE_COMMAND} -E make_directory ${_output_dir}
+#		VERBATIM
+#	)
+	file(MAKE_DIRECTORY "${_output_dir}")
 	foreach(SHADER ${VK_SHADERS})
 		get_filename_component(SHADER_FILE_PATH ${SHADER} DIRECTORY)
 		get_filename_component(SHADER_FILE ${SHADER} NAME)
@@ -51,7 +52,7 @@ if(GLSLC)
 			COMMAND "${GLSLC}"
 			ARGS "-c" "${SHADER}" "-o" "${_output_dir}/${_output_name}"
 			WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/base/shaders/vk"
-			DEPENDS "${SHADER}" "${_output_dir}/"
+			DEPENDS "${SHADER}"
 			VERBATIM
 		)
 		list(APPEND SHADER_LIST "${_output_dir}/${_output_name}")
