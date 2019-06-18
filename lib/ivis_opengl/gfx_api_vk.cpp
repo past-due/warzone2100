@@ -1241,15 +1241,22 @@ void VkTexture::upload(const std::size_t& mip_level, const std::size_t& offset_x
 }
 
 #if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wcast-align"
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Wcast-align"
+#endif
+#if defined(__GNUC__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wcast-qual"
 #endif
 
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "3rdparty/stb_image_resize.h"
 
+#if defined(__GNUC__)
+#  pragma GCC diagnostic pop
+#endif
 #if defined(__clang__)
-#pragma clang diagnostic pop
+#  pragma clang diagnostic pop
 #endif
 
 void VkTexture::upload_and_generate_mipmaps(const size_t& offset_x, const size_t& offset_y, const size_t& width, const size_t& height, const gfx_api::pixel_format& buffer_format, const void* data)
@@ -1259,6 +1266,7 @@ void VkTexture::upload_and_generate_mipmaps(const size_t& offset_x, const size_t
 
 	// generate and upload mipmaps
 	const unsigned char * input_pixels = (const unsigned char*)data;
+	void * prev_input_pixels_malloc = nullptr;
 	size_t components = format_size(buffer_format);
 	size_t input_w = width;
 	size_t input_h = height;
@@ -1281,18 +1289,19 @@ void VkTexture::upload_and_generate_mipmaps(const size_t& offset_x, const size_t
 
 		upload(i, offset_x, offset_y, output_w, output_h, buffer_format, (const void*)output_pixels);
 
-		if (i > 1)
+		if (prev_input_pixels_malloc)
 		{
-			free((void *)input_pixels);
+			free(prev_input_pixels_malloc);
 		}
 		input_pixels = output_pixels;
+		prev_input_pixels_malloc = (void *)output_pixels;
 
 		input_w = output_w;
 		input_h = output_h;
 	}
-	if (input_pixels && input_pixels != data)
+	if (prev_input_pixels_malloc)
 	{
-		free((void *)input_pixels);
+		free(prev_input_pixels_malloc);
 	}
 }
 
@@ -1363,13 +1372,14 @@ void VkRoot::createDefaultRenderpass(vk::Format swapchainFormat, vk::Format dept
 			.setStencilLoadOp(vk::AttachmentLoadOp::eClear)
 			.setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
 	};
+	const size_t numColorAttachmentRef = 1;
 	const auto colorAttachmentRef =
-		std::array<vk::AttachmentReference, 1>{
+		std::array<vk::AttachmentReference, numColorAttachmentRef>{
 		vk::AttachmentReference{}
 			.setAttachment(0)
 			.setLayout(vk::ImageLayout::eColorAttachmentOptimal)
 	};
-	static_assert(minRequired_ColorAttachments >= colorAttachmentRef.size(), "minRequired_ColorAttachments must be >= colorAttachmentRef.size()");
+	static_assert(minRequired_ColorAttachments >= numColorAttachmentRef, "minRequired_ColorAttachments must be >= colorAttachmentRef.size()");
 	const auto depthStencilAttachmentRef =
 		vk::AttachmentReference{}
 		.setAttachment(1)
@@ -2080,7 +2090,7 @@ bool VkRoot::initialize(const gfx_api::backend_Impl_Factory& impl)
 	}
 
 	// Setup dynamic Vulkan loader
-	vkDynLoader.init(VkInstance(inst), _vkGetInstanceProcAddr);
+	vkDynLoader.init(VkInstance(inst), _vkGetInstanceProcAddr, VK_NULL_HANDLE, nullptr);
 
 	// NOTE: From this point on, vkDynLoader *must* be initialized!
 	ASSERT(vkDynLoader.vkGetInstanceProcAddr != nullptr, "vkDynLoader does not appear to be initialized");
