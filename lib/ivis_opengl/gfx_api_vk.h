@@ -24,6 +24,7 @@
 #if defined( _MSC_VER )
 #pragma warning( push )
 #pragma warning( disable : 4191 ) // warning C4191: '<function-style-cast>': unsafe conversion from 'PFN_vkVoidFunction' to 'PFN_vk<...>'
+#pragma warning( disable : 2664 ) // warning C2664: 'void vk::DispatchLoaderDynamic::init(VkInstance,PFN_vkGetInstanceProcAddr,VkDevice,PFN_vkGetDeviceProcAddr)': cannot convert argument 1 from 'const vk::Instance' to 'VkInstance'
 #endif
 #include <vulkan/vulkan.hpp>
 #if defined( _MSC_VER )
@@ -149,7 +150,7 @@ struct buffering_mechanism
 	static void swap(vk::Device dev, const vk::DispatchLoaderDynamic& vkDynLoader);
 };
 
-VkBool32 messageCallback(
+VKAPI_ATTR VkBool32 VKAPI_CALL messageCallback(
 						 VkDebugReportFlagsEXT flags,
 						 VkDebugReportObjectTypeEXT objType,
 						 uint64_t srcObject,

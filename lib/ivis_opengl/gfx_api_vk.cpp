@@ -1584,7 +1584,7 @@ vk::PhysicalDevice VkRoot::pickPhysicalDevice()
 	}
 
 	// Use an ordered map to automatically sort candidates by increasing score
-	std::multimap<int, VkPhysicalDevice> candidates;
+	std::multimap<int, vk::PhysicalDevice> candidates;
 
 	for (const auto& device : physicalDevices) {
 		int score = rateDeviceSuitability(device, surface, vkDynLoader);
@@ -2191,7 +2191,7 @@ bool VkRoot::createLogicalDevice()
 	// This uses vkGetDeviceProcAddr to potentially obtain device-specific function pointers
 	// that bypass dynamic dispatch logic (for increased performance)
 	// See: https://stackoverflow.com/a/35504844
-	vkDynLoader.init(VkInstance(inst), vkDynLoader.vkGetInstanceProcAddr, dev, vkDynLoader.vkGetDeviceProcAddr);
+	vkDynLoader.init(VkInstance(inst), vkDynLoader.vkGetInstanceProcAddr, VkDevice(dev), vkDynLoader.vkGetDeviceProcAddr);
 
 	return true;
 }
