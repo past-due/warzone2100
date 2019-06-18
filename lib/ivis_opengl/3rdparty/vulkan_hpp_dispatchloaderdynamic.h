@@ -19,22 +19,34 @@ namespace WZ_vk
     PFN_vkCmdBeginConditionalRenderingEXT vkCmdBeginConditionalRenderingEXT = 0;
     PFN_vkCmdBeginDebugUtilsLabelEXT vkCmdBeginDebugUtilsLabelEXT = 0;
     PFN_vkCmdBeginQuery vkCmdBeginQuery = 0;
+#if defined(VK_EXT_transform_feedback)
     PFN_vkCmdBeginQueryIndexedEXT vkCmdBeginQueryIndexedEXT = 0;
+#endif
     PFN_vkCmdBeginRenderPass vkCmdBeginRenderPass = 0;
     PFN_vkCmdBeginRenderPass2KHR vkCmdBeginRenderPass2KHR = 0;
+#if defined(VK_EXT_transform_feedback)
     PFN_vkCmdBeginTransformFeedbackEXT vkCmdBeginTransformFeedbackEXT = 0;
+#endif
     PFN_vkCmdBindDescriptorSets vkCmdBindDescriptorSets = 0;
     PFN_vkCmdBindIndexBuffer vkCmdBindIndexBuffer = 0;
     PFN_vkCmdBindPipeline vkCmdBindPipeline = 0;
+#if defined(VK_NV_shading_rate_image)
     PFN_vkCmdBindShadingRateImageNV vkCmdBindShadingRateImageNV = 0;
+#endif
+#if defined(VK_EXT_transform_feedback)
     PFN_vkCmdBindTransformFeedbackBuffersEXT vkCmdBindTransformFeedbackBuffersEXT = 0;
+#endif
     PFN_vkCmdBindVertexBuffers vkCmdBindVertexBuffers = 0;
     PFN_vkCmdBlitImage vkCmdBlitImage = 0;
+#if defined(VK_NV_ray_tracing)
     PFN_vkCmdBuildAccelerationStructureNV vkCmdBuildAccelerationStructureNV = 0;
+#endif
     PFN_vkCmdClearAttachments vkCmdClearAttachments = 0;
     PFN_vkCmdClearColorImage vkCmdClearColorImage = 0;
     PFN_vkCmdClearDepthStencilImage vkCmdClearDepthStencilImage = 0;
+#if defined(VK_NV_ray_tracing)
     PFN_vkCmdCopyAccelerationStructureNV vkCmdCopyAccelerationStructureNV = 0;
+#endif
     PFN_vkCmdCopyBuffer vkCmdCopyBuffer = 0;
     PFN_vkCmdCopyBufferToImage vkCmdCopyBufferToImage = 0;
     PFN_vkCmdCopyImage vkCmdCopyImage = 0;
@@ -51,21 +63,33 @@ namespace WZ_vk
     PFN_vkCmdDrawIndexed vkCmdDrawIndexed = 0;
     PFN_vkCmdDrawIndexedIndirect vkCmdDrawIndexedIndirect = 0;
     PFN_vkCmdDrawIndexedIndirectCountAMD vkCmdDrawIndexedIndirectCountAMD = 0;
+#if defined(VK_KHR_draw_indirect_count)
     PFN_vkCmdDrawIndexedIndirectCountKHR vkCmdDrawIndexedIndirectCountKHR = 0;
+#endif
     PFN_vkCmdDrawIndirect vkCmdDrawIndirect = 0;
+#if defined(VK_EXT_transform_feedback)
     PFN_vkCmdDrawIndirectByteCountEXT vkCmdDrawIndirectByteCountEXT = 0;
+#endif
     PFN_vkCmdDrawIndirectCountAMD vkCmdDrawIndirectCountAMD = 0;
+#if defined(VK_KHR_draw_indirect_count)
     PFN_vkCmdDrawIndirectCountKHR vkCmdDrawIndirectCountKHR = 0;
+#endif
+#if defined(VK_NV_mesh_shader)
     PFN_vkCmdDrawMeshTasksIndirectCountNV vkCmdDrawMeshTasksIndirectCountNV = 0;
     PFN_vkCmdDrawMeshTasksIndirectNV vkCmdDrawMeshTasksIndirectNV = 0;
     PFN_vkCmdDrawMeshTasksNV vkCmdDrawMeshTasksNV = 0;
+#endif
     PFN_vkCmdEndConditionalRenderingEXT vkCmdEndConditionalRenderingEXT = 0;
     PFN_vkCmdEndDebugUtilsLabelEXT vkCmdEndDebugUtilsLabelEXT = 0;
     PFN_vkCmdEndQuery vkCmdEndQuery = 0;
+#if defined(VK_EXT_transform_feedback)
     PFN_vkCmdEndQueryIndexedEXT vkCmdEndQueryIndexedEXT = 0;
+#endif
     PFN_vkCmdEndRenderPass vkCmdEndRenderPass = 0;
     PFN_vkCmdEndRenderPass2KHR vkCmdEndRenderPass2KHR = 0;
+#if defined(VK_EXT_transform_feedback)
     PFN_vkCmdEndTransformFeedbackEXT vkCmdEndTransformFeedbackEXT = 0;
+#endif
     PFN_vkCmdExecuteCommands vkCmdExecuteCommands = 0;
     PFN_vkCmdFillBuffer vkCmdFillBuffer = 0;
     PFN_vkCmdInsertDebugUtilsLabelEXT vkCmdInsertDebugUtilsLabelEXT = 0;
@@ -82,14 +106,18 @@ namespace WZ_vk
     PFN_vkCmdResolveImage vkCmdResolveImage = 0;
     PFN_vkCmdSetBlendConstants vkCmdSetBlendConstants = 0;
     PFN_vkCmdSetCheckpointNV vkCmdSetCheckpointNV = 0;
+#if defined(VK_NV_shading_rate_image)
     PFN_vkCmdSetCoarseSampleOrderNV vkCmdSetCoarseSampleOrderNV = 0;
+#endif
     PFN_vkCmdSetDepthBias vkCmdSetDepthBias = 0;
     PFN_vkCmdSetDepthBounds vkCmdSetDepthBounds = 0;
     PFN_vkCmdSetDeviceMask vkCmdSetDeviceMask = 0;
     PFN_vkCmdSetDeviceMaskKHR vkCmdSetDeviceMaskKHR = 0;
     PFN_vkCmdSetDiscardRectangleEXT vkCmdSetDiscardRectangleEXT = 0;
     PFN_vkCmdSetEvent vkCmdSetEvent = 0;
+#if defined(VK_NV_scissor_exclusive)
     PFN_vkCmdSetExclusiveScissorNV vkCmdSetExclusiveScissorNV = 0;
+#endif
     PFN_vkCmdSetLineWidth vkCmdSetLineWidth = 0;
     PFN_vkCmdSetSampleLocationsEXT vkCmdSetSampleLocationsEXT = 0;
     PFN_vkCmdSetScissor vkCmdSetScissor = 0;
@@ -97,12 +125,18 @@ namespace WZ_vk
     PFN_vkCmdSetStencilReference vkCmdSetStencilReference = 0;
     PFN_vkCmdSetStencilWriteMask vkCmdSetStencilWriteMask = 0;
     PFN_vkCmdSetViewport vkCmdSetViewport = 0;
+#if defined(VK_NV_shading_rate_image)
     PFN_vkCmdSetViewportShadingRatePaletteNV vkCmdSetViewportShadingRatePaletteNV = 0;
+#endif
     PFN_vkCmdSetViewportWScalingNV vkCmdSetViewportWScalingNV = 0;
+#if defined(VK_NV_ray_tracing)
     PFN_vkCmdTraceRaysNV vkCmdTraceRaysNV = 0;
+#endif
     PFN_vkCmdUpdateBuffer vkCmdUpdateBuffer = 0;
     PFN_vkCmdWaitEvents vkCmdWaitEvents = 0;
+#if defined(VK_NV_ray_tracing)
     PFN_vkCmdWriteAccelerationStructuresPropertiesNV vkCmdWriteAccelerationStructuresPropertiesNV = 0;
+#endif
     PFN_vkCmdWriteBufferMarkerAMD vkCmdWriteBufferMarkerAMD = 0;
     PFN_vkCmdWriteTimestamp vkCmdWriteTimestamp = 0;
     PFN_vkEndCommandBuffer vkEndCommandBuffer = 0;
@@ -115,15 +149,19 @@ namespace WZ_vk
     PFN_vkAllocateCommandBuffers vkAllocateCommandBuffers = 0;
     PFN_vkAllocateDescriptorSets vkAllocateDescriptorSets = 0;
     PFN_vkAllocateMemory vkAllocateMemory = 0;
+#if defined(VK_NV_ray_tracing)
     PFN_vkBindAccelerationStructureMemoryNV vkBindAccelerationStructureMemoryNV = 0;
+#endif
     PFN_vkBindBufferMemory vkBindBufferMemory = 0;
     PFN_vkBindBufferMemory2 vkBindBufferMemory2 = 0;
     PFN_vkBindBufferMemory2KHR vkBindBufferMemory2KHR = 0;
     PFN_vkBindImageMemory vkBindImageMemory = 0;
     PFN_vkBindImageMemory2 vkBindImageMemory2 = 0;
     PFN_vkBindImageMemory2KHR vkBindImageMemory2KHR = 0;
+#if defined(VK_NV_ray_tracing)
     PFN_vkCompileDeferredNV vkCompileDeferredNV = 0;
     PFN_vkCreateAccelerationStructureNV vkCreateAccelerationStructureNV = 0;
+#endif
     PFN_vkCreateBuffer vkCreateBuffer = 0;
     PFN_vkCreateBufferView vkCreateBufferView = 0;
     PFN_vkCreateCommandPool vkCreateCommandPool = 0;
@@ -143,7 +181,9 @@ namespace WZ_vk
     PFN_vkCreatePipelineCache vkCreatePipelineCache = 0;
     PFN_vkCreatePipelineLayout vkCreatePipelineLayout = 0;
     PFN_vkCreateQueryPool vkCreateQueryPool = 0;
+#if defined(VK_NV_ray_tracing)
     PFN_vkCreateRayTracingPipelinesNV vkCreateRayTracingPipelinesNV = 0;
+#endif
     PFN_vkCreateRenderPass vkCreateRenderPass = 0;
     PFN_vkCreateRenderPass2KHR vkCreateRenderPass2KHR = 0;
     PFN_vkCreateSampler vkCreateSampler = 0;
@@ -156,7 +196,9 @@ namespace WZ_vk
     PFN_vkCreateValidationCacheEXT vkCreateValidationCacheEXT = 0;
     PFN_vkDebugMarkerSetObjectNameEXT vkDebugMarkerSetObjectNameEXT = 0;
     PFN_vkDebugMarkerSetObjectTagEXT vkDebugMarkerSetObjectTagEXT = 0;
+#if defined(VK_NV_ray_tracing)
     PFN_vkDestroyAccelerationStructureNV vkDestroyAccelerationStructureNV = 0;
+#endif
     PFN_vkDestroyBuffer vkDestroyBuffer = 0;
     PFN_vkDestroyBufferView vkDestroyBufferView = 0;
     PFN_vkDestroyCommandPool vkDestroyCommandPool = 0;
@@ -190,18 +232,28 @@ namespace WZ_vk
     PFN_vkFreeCommandBuffers vkFreeCommandBuffers = 0;
     PFN_vkFreeDescriptorSets vkFreeDescriptorSets = 0;
     PFN_vkFreeMemory vkFreeMemory = 0;
+#if defined(VK_NV_ray_tracing)
     PFN_vkGetAccelerationStructureHandleNV vkGetAccelerationStructureHandleNV = 0;
     PFN_vkGetAccelerationStructureMemoryRequirementsNV vkGetAccelerationStructureMemoryRequirementsNV = 0;
+#endif
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
+#if defined(VK_ANDROID_external_memory_android_hardware_buffer)
     PFN_vkGetAndroidHardwareBufferPropertiesANDROID vkGetAndroidHardwareBufferPropertiesANDROID = 0;
+#endif
 #endif /*VK_USE_PLATFORM_ANDROID_KHR*/
+#if defined(VK_EXT_buffer_device_address)
     PFN_vkGetBufferDeviceAddressEXT vkGetBufferDeviceAddressEXT = 0;
+#endif
     PFN_vkGetBufferMemoryRequirements vkGetBufferMemoryRequirements = 0;
     PFN_vkGetBufferMemoryRequirements2 vkGetBufferMemoryRequirements2 = 0;
     PFN_vkGetBufferMemoryRequirements2KHR vkGetBufferMemoryRequirements2KHR = 0;
+#if defined(VK_EXT_calibrated_timestamps)
     PFN_vkGetCalibratedTimestampsEXT vkGetCalibratedTimestampsEXT = 0;
+#endif
     PFN_vkGetDescriptorSetLayoutSupport vkGetDescriptorSetLayoutSupport = 0;
+#if defined(VK_KHR_maintenance3)
     PFN_vkGetDescriptorSetLayoutSupportKHR vkGetDescriptorSetLayoutSupportKHR = 0;
+#endif
     PFN_vkGetDeviceGroupPeerMemoryFeatures vkGetDeviceGroupPeerMemoryFeatures = 0;
     PFN_vkGetDeviceGroupPeerMemoryFeaturesKHR vkGetDeviceGroupPeerMemoryFeaturesKHR = 0;
     PFN_vkGetDeviceGroupPresentCapabilitiesKHR vkGetDeviceGroupPresentCapabilitiesKHR = 0;
@@ -219,7 +271,9 @@ namespace WZ_vk
 #ifdef VK_USE_PLATFORM_WIN32_KHR
     PFN_vkGetFenceWin32HandleKHR vkGetFenceWin32HandleKHR = 0;
 #endif /*VK_USE_PLATFORM_WIN32_KHR*/
+#if defined(VK_EXT_image_drm_format_modifier)
     PFN_vkGetImageDrmFormatModifierPropertiesEXT vkGetImageDrmFormatModifierPropertiesEXT = 0;
+#endif
     PFN_vkGetImageMemoryRequirements vkGetImageMemoryRequirements = 0;
     PFN_vkGetImageMemoryRequirements2 vkGetImageMemoryRequirements2 = 0;
     PFN_vkGetImageMemoryRequirements2KHR vkGetImageMemoryRequirements2KHR = 0;
@@ -227,9 +281,13 @@ namespace WZ_vk
     PFN_vkGetImageSparseMemoryRequirements2 vkGetImageSparseMemoryRequirements2 = 0;
     PFN_vkGetImageSparseMemoryRequirements2KHR vkGetImageSparseMemoryRequirements2KHR = 0;
     PFN_vkGetImageSubresourceLayout vkGetImageSubresourceLayout = 0;
+#if defined(VK_NVX_image_view_handle)
     PFN_vkGetImageViewHandleNVX vkGetImageViewHandleNVX = 0;
+#endif
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
+#if defined(VK_ANDROID_external_memory_android_hardware_buffer)
     PFN_vkGetMemoryAndroidHardwareBufferANDROID vkGetMemoryAndroidHardwareBufferANDROID = 0;
+#endif
 #endif /*VK_USE_PLATFORM_ANDROID_KHR*/
     PFN_vkGetMemoryFdKHR vkGetMemoryFdKHR = 0;
     PFN_vkGetMemoryFdPropertiesKHR vkGetMemoryFdPropertiesKHR = 0;
@@ -246,7 +304,9 @@ namespace WZ_vk
     PFN_vkGetPastPresentationTimingGOOGLE vkGetPastPresentationTimingGOOGLE = 0;
     PFN_vkGetPipelineCacheData vkGetPipelineCacheData = 0;
     PFN_vkGetQueryPoolResults vkGetQueryPoolResults = 0;
+#if defined(VK_NV_ray_tracing)
     PFN_vkGetRayTracingShaderGroupHandlesNV vkGetRayTracingShaderGroupHandlesNV = 0;
+#endif
     PFN_vkGetRefreshCycleDurationGOOGLE vkGetRefreshCycleDurationGOOGLE = 0;
     PFN_vkGetRenderAreaGranularity vkGetRenderAreaGranularity = 0;
     PFN_vkGetSemaphoreFdKHR vkGetSemaphoreFdKHR = 0;
@@ -280,12 +340,16 @@ namespace WZ_vk
     PFN_vkResetDescriptorPool vkResetDescriptorPool = 0;
     PFN_vkResetEvent vkResetEvent = 0;
     PFN_vkResetFences vkResetFences = 0;
+#if defined(VK_EXT_host_query_reset)
     PFN_vkResetQueryPoolEXT vkResetQueryPoolEXT = 0;
+#endif
     PFN_vkSetDebugUtilsObjectNameEXT vkSetDebugUtilsObjectNameEXT = 0;
     PFN_vkSetDebugUtilsObjectTagEXT vkSetDebugUtilsObjectTagEXT = 0;
     PFN_vkSetEvent vkSetEvent = 0;
     PFN_vkSetHdrMetadataEXT vkSetHdrMetadataEXT = 0;
+#if defined(VK_AMD_display_native_hdr)
     PFN_vkSetLocalDimmingAMD vkSetLocalDimmingAMD = 0;
+#endif
     PFN_vkTrimCommandPool vkTrimCommandPool = 0;
     PFN_vkTrimCommandPoolKHR vkTrimCommandPoolKHR = 0;
     PFN_vkUnmapMemory vkUnmapMemory = 0;
@@ -300,7 +364,9 @@ namespace WZ_vk
     PFN_vkCreateDebugReportCallbackEXT vkCreateDebugReportCallbackEXT = 0;
     PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT = 0;
     PFN_vkCreateDisplayPlaneSurfaceKHR vkCreateDisplayPlaneSurfaceKHR = 0;
+#if defined(VK_EXT_headless_surface)
     PFN_vkCreateHeadlessSurfaceEXT vkCreateHeadlessSurfaceEXT = 0;
+#endif
 #ifdef VK_USE_PLATFORM_IOS_MVK
     PFN_vkCreateIOSSurfaceMVK vkCreateIOSSurfaceMVK = 0;
 #endif /*VK_USE_PLATFORM_IOS_MVK*/
@@ -354,7 +420,9 @@ namespace WZ_vk
     PFN_vkGetDisplayPlaneCapabilitiesKHR vkGetDisplayPlaneCapabilitiesKHR = 0;
     PFN_vkGetDisplayPlaneSupportedDisplaysKHR vkGetDisplayPlaneSupportedDisplaysKHR = 0;
     PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT vkGetPhysicalDeviceCalibrateableTimeDomainsEXT = 0;
+#if defined(VK_NV_cooperative_matrix)
     PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesNV vkGetPhysicalDeviceCooperativeMatrixPropertiesNV = 0;
+#endif
     PFN_vkGetPhysicalDeviceDisplayPlaneProperties2KHR vkGetPhysicalDeviceDisplayPlaneProperties2KHR = 0;
     PFN_vkGetPhysicalDeviceDisplayPlanePropertiesKHR vkGetPhysicalDeviceDisplayPlanePropertiesKHR = 0;
     PFN_vkGetPhysicalDeviceDisplayProperties2KHR vkGetPhysicalDeviceDisplayProperties2KHR = 0;
@@ -462,22 +530,34 @@ namespace WZ_vk
       vkCmdBeginConditionalRenderingEXT = PFN_vkCmdBeginConditionalRenderingEXT( device ? vkGetDeviceProcAddr( device, "vkCmdBeginConditionalRenderingEXT" ) : vkGetInstanceProcAddr( instance, "vkCmdBeginConditionalRenderingEXT" ) );
       vkCmdBeginDebugUtilsLabelEXT = PFN_vkCmdBeginDebugUtilsLabelEXT( device ? vkGetDeviceProcAddr( device, "vkCmdBeginDebugUtilsLabelEXT" ) : vkGetInstanceProcAddr( instance, "vkCmdBeginDebugUtilsLabelEXT" ) );
       vkCmdBeginQuery = PFN_vkCmdBeginQuery( device ? vkGetDeviceProcAddr( device, "vkCmdBeginQuery" ) : vkGetInstanceProcAddr( instance, "vkCmdBeginQuery" ) );
+#if defined(VK_EXT_transform_feedback)
       vkCmdBeginQueryIndexedEXT = PFN_vkCmdBeginQueryIndexedEXT( device ? vkGetDeviceProcAddr( device, "vkCmdBeginQueryIndexedEXT" ) : vkGetInstanceProcAddr( instance, "vkCmdBeginQueryIndexedEXT" ) );
+#endif
       vkCmdBeginRenderPass = PFN_vkCmdBeginRenderPass( device ? vkGetDeviceProcAddr( device, "vkCmdBeginRenderPass" ) : vkGetInstanceProcAddr( instance, "vkCmdBeginRenderPass" ) );
       vkCmdBeginRenderPass2KHR = PFN_vkCmdBeginRenderPass2KHR( device ? vkGetDeviceProcAddr( device, "vkCmdBeginRenderPass2KHR" ) : vkGetInstanceProcAddr( instance, "vkCmdBeginRenderPass2KHR" ) );
+#if defined(VK_EXT_transform_feedback)
       vkCmdBeginTransformFeedbackEXT = PFN_vkCmdBeginTransformFeedbackEXT( device ? vkGetDeviceProcAddr( device, "vkCmdBeginTransformFeedbackEXT" ) : vkGetInstanceProcAddr( instance, "vkCmdBeginTransformFeedbackEXT" ) );
+#endif
       vkCmdBindDescriptorSets = PFN_vkCmdBindDescriptorSets( device ? vkGetDeviceProcAddr( device, "vkCmdBindDescriptorSets" ) : vkGetInstanceProcAddr( instance, "vkCmdBindDescriptorSets" ) );
       vkCmdBindIndexBuffer = PFN_vkCmdBindIndexBuffer( device ? vkGetDeviceProcAddr( device, "vkCmdBindIndexBuffer" ) : vkGetInstanceProcAddr( instance, "vkCmdBindIndexBuffer" ) );
       vkCmdBindPipeline = PFN_vkCmdBindPipeline( device ? vkGetDeviceProcAddr( device, "vkCmdBindPipeline" ) : vkGetInstanceProcAddr( instance, "vkCmdBindPipeline" ) );
+#if defined(VK_NV_shading_rate_image)
       vkCmdBindShadingRateImageNV = PFN_vkCmdBindShadingRateImageNV( device ? vkGetDeviceProcAddr( device, "vkCmdBindShadingRateImageNV" ) : vkGetInstanceProcAddr( instance, "vkCmdBindShadingRateImageNV" ) );
+#endif
+#if defined(VK_EXT_transform_feedback)
       vkCmdBindTransformFeedbackBuffersEXT = PFN_vkCmdBindTransformFeedbackBuffersEXT( device ? vkGetDeviceProcAddr( device, "vkCmdBindTransformFeedbackBuffersEXT" ) : vkGetInstanceProcAddr( instance, "vkCmdBindTransformFeedbackBuffersEXT" ) );
+#endif
       vkCmdBindVertexBuffers = PFN_vkCmdBindVertexBuffers( device ? vkGetDeviceProcAddr( device, "vkCmdBindVertexBuffers" ) : vkGetInstanceProcAddr( instance, "vkCmdBindVertexBuffers" ) );
       vkCmdBlitImage = PFN_vkCmdBlitImage( device ? vkGetDeviceProcAddr( device, "vkCmdBlitImage" ) : vkGetInstanceProcAddr( instance, "vkCmdBlitImage" ) );
+#if defined(VK_NV_ray_tracing)
       vkCmdBuildAccelerationStructureNV = PFN_vkCmdBuildAccelerationStructureNV( device ? vkGetDeviceProcAddr( device, "vkCmdBuildAccelerationStructureNV" ) : vkGetInstanceProcAddr( instance, "vkCmdBuildAccelerationStructureNV" ) );
+#endif
       vkCmdClearAttachments = PFN_vkCmdClearAttachments( device ? vkGetDeviceProcAddr( device, "vkCmdClearAttachments" ) : vkGetInstanceProcAddr( instance, "vkCmdClearAttachments" ) );
       vkCmdClearColorImage = PFN_vkCmdClearColorImage( device ? vkGetDeviceProcAddr( device, "vkCmdClearColorImage" ) : vkGetInstanceProcAddr( instance, "vkCmdClearColorImage" ) );
       vkCmdClearDepthStencilImage = PFN_vkCmdClearDepthStencilImage( device ? vkGetDeviceProcAddr( device, "vkCmdClearDepthStencilImage" ) : vkGetInstanceProcAddr( instance, "vkCmdClearDepthStencilImage" ) );
+#if defined(VK_NV_ray_tracing)
       vkCmdCopyAccelerationStructureNV = PFN_vkCmdCopyAccelerationStructureNV( device ? vkGetDeviceProcAddr( device, "vkCmdCopyAccelerationStructureNV" ) : vkGetInstanceProcAddr( instance, "vkCmdCopyAccelerationStructureNV" ) );
+#endif
       vkCmdCopyBuffer = PFN_vkCmdCopyBuffer( device ? vkGetDeviceProcAddr( device, "vkCmdCopyBuffer" ) : vkGetInstanceProcAddr( instance, "vkCmdCopyBuffer" ) );
       vkCmdCopyBufferToImage = PFN_vkCmdCopyBufferToImage( device ? vkGetDeviceProcAddr( device, "vkCmdCopyBufferToImage" ) : vkGetInstanceProcAddr( instance, "vkCmdCopyBufferToImage" ) );
       vkCmdCopyImage = PFN_vkCmdCopyImage( device ? vkGetDeviceProcAddr( device, "vkCmdCopyImage" ) : vkGetInstanceProcAddr( instance, "vkCmdCopyImage" ) );
@@ -494,21 +574,33 @@ namespace WZ_vk
       vkCmdDrawIndexed = PFN_vkCmdDrawIndexed( device ? vkGetDeviceProcAddr( device, "vkCmdDrawIndexed" ) : vkGetInstanceProcAddr( instance, "vkCmdDrawIndexed" ) );
       vkCmdDrawIndexedIndirect = PFN_vkCmdDrawIndexedIndirect( device ? vkGetDeviceProcAddr( device, "vkCmdDrawIndexedIndirect" ) : vkGetInstanceProcAddr( instance, "vkCmdDrawIndexedIndirect" ) );
       vkCmdDrawIndexedIndirectCountAMD = PFN_vkCmdDrawIndexedIndirectCountAMD( device ? vkGetDeviceProcAddr( device, "vkCmdDrawIndexedIndirectCountAMD" ) : vkGetInstanceProcAddr( instance, "vkCmdDrawIndexedIndirectCountAMD" ) );
+#if defined(VK_KHR_draw_indirect_count)
       vkCmdDrawIndexedIndirectCountKHR = PFN_vkCmdDrawIndexedIndirectCountKHR( device ? vkGetDeviceProcAddr( device, "vkCmdDrawIndexedIndirectCountKHR" ) : vkGetInstanceProcAddr( instance, "vkCmdDrawIndexedIndirectCountKHR" ) );
+#endif
       vkCmdDrawIndirect = PFN_vkCmdDrawIndirect( device ? vkGetDeviceProcAddr( device, "vkCmdDrawIndirect" ) : vkGetInstanceProcAddr( instance, "vkCmdDrawIndirect" ) );
+#if defined(VK_EXT_transform_feedback)
       vkCmdDrawIndirectByteCountEXT = PFN_vkCmdDrawIndirectByteCountEXT( device ? vkGetDeviceProcAddr( device, "vkCmdDrawIndirectByteCountEXT" ) : vkGetInstanceProcAddr( instance, "vkCmdDrawIndirectByteCountEXT" ) );
+#endif
       vkCmdDrawIndirectCountAMD = PFN_vkCmdDrawIndirectCountAMD( device ? vkGetDeviceProcAddr( device, "vkCmdDrawIndirectCountAMD" ) : vkGetInstanceProcAddr( instance, "vkCmdDrawIndirectCountAMD" ) );
+#if defined(VK_KHR_draw_indirect_count)
       vkCmdDrawIndirectCountKHR = PFN_vkCmdDrawIndirectCountKHR( device ? vkGetDeviceProcAddr( device, "vkCmdDrawIndirectCountKHR" ) : vkGetInstanceProcAddr( instance, "vkCmdDrawIndirectCountKHR" ) );
+#endif
+#if defined(VK_NV_mesh_shader)
       vkCmdDrawMeshTasksIndirectCountNV = PFN_vkCmdDrawMeshTasksIndirectCountNV( device ? vkGetDeviceProcAddr( device, "vkCmdDrawMeshTasksIndirectCountNV" ) : vkGetInstanceProcAddr( instance, "vkCmdDrawMeshTasksIndirectCountNV" ) );
       vkCmdDrawMeshTasksIndirectNV = PFN_vkCmdDrawMeshTasksIndirectNV( device ? vkGetDeviceProcAddr( device, "vkCmdDrawMeshTasksIndirectNV" ) : vkGetInstanceProcAddr( instance, "vkCmdDrawMeshTasksIndirectNV" ) );
       vkCmdDrawMeshTasksNV = PFN_vkCmdDrawMeshTasksNV( device ? vkGetDeviceProcAddr( device, "vkCmdDrawMeshTasksNV" ) : vkGetInstanceProcAddr( instance, "vkCmdDrawMeshTasksNV" ) );
+#endif
       vkCmdEndConditionalRenderingEXT = PFN_vkCmdEndConditionalRenderingEXT( device ? vkGetDeviceProcAddr( device, "vkCmdEndConditionalRenderingEXT" ) : vkGetInstanceProcAddr( instance, "vkCmdEndConditionalRenderingEXT" ) );
       vkCmdEndDebugUtilsLabelEXT = PFN_vkCmdEndDebugUtilsLabelEXT( device ? vkGetDeviceProcAddr( device, "vkCmdEndDebugUtilsLabelEXT" ) : vkGetInstanceProcAddr( instance, "vkCmdEndDebugUtilsLabelEXT" ) );
       vkCmdEndQuery = PFN_vkCmdEndQuery( device ? vkGetDeviceProcAddr( device, "vkCmdEndQuery" ) : vkGetInstanceProcAddr( instance, "vkCmdEndQuery" ) );
+#if defined(VK_EXT_transform_feedback)
       vkCmdEndQueryIndexedEXT = PFN_vkCmdEndQueryIndexedEXT( device ? vkGetDeviceProcAddr( device, "vkCmdEndQueryIndexedEXT" ) : vkGetInstanceProcAddr( instance, "vkCmdEndQueryIndexedEXT" ) );
+#endif
       vkCmdEndRenderPass = PFN_vkCmdEndRenderPass( device ? vkGetDeviceProcAddr( device, "vkCmdEndRenderPass" ) : vkGetInstanceProcAddr( instance, "vkCmdEndRenderPass" ) );
       vkCmdEndRenderPass2KHR = PFN_vkCmdEndRenderPass2KHR( device ? vkGetDeviceProcAddr( device, "vkCmdEndRenderPass2KHR" ) : vkGetInstanceProcAddr( instance, "vkCmdEndRenderPass2KHR" ) );
+#if defined(VK_EXT_transform_feedback)
       vkCmdEndTransformFeedbackEXT = PFN_vkCmdEndTransformFeedbackEXT( device ? vkGetDeviceProcAddr( device, "vkCmdEndTransformFeedbackEXT" ) : vkGetInstanceProcAddr( instance, "vkCmdEndTransformFeedbackEXT" ) );
+#endif
       vkCmdExecuteCommands = PFN_vkCmdExecuteCommands( device ? vkGetDeviceProcAddr( device, "vkCmdExecuteCommands" ) : vkGetInstanceProcAddr( instance, "vkCmdExecuteCommands" ) );
       vkCmdFillBuffer = PFN_vkCmdFillBuffer( device ? vkGetDeviceProcAddr( device, "vkCmdFillBuffer" ) : vkGetInstanceProcAddr( instance, "vkCmdFillBuffer" ) );
       vkCmdInsertDebugUtilsLabelEXT = PFN_vkCmdInsertDebugUtilsLabelEXT( device ? vkGetDeviceProcAddr( device, "vkCmdInsertDebugUtilsLabelEXT" ) : vkGetInstanceProcAddr( instance, "vkCmdInsertDebugUtilsLabelEXT" ) );
@@ -525,14 +617,18 @@ namespace WZ_vk
       vkCmdResolveImage = PFN_vkCmdResolveImage( device ? vkGetDeviceProcAddr( device, "vkCmdResolveImage" ) : vkGetInstanceProcAddr( instance, "vkCmdResolveImage" ) );
       vkCmdSetBlendConstants = PFN_vkCmdSetBlendConstants( device ? vkGetDeviceProcAddr( device, "vkCmdSetBlendConstants" ) : vkGetInstanceProcAddr( instance, "vkCmdSetBlendConstants" ) );
       vkCmdSetCheckpointNV = PFN_vkCmdSetCheckpointNV( device ? vkGetDeviceProcAddr( device, "vkCmdSetCheckpointNV" ) : vkGetInstanceProcAddr( instance, "vkCmdSetCheckpointNV" ) );
+#if defined(VK_NV_shading_rate_image)
       vkCmdSetCoarseSampleOrderNV = PFN_vkCmdSetCoarseSampleOrderNV( device ? vkGetDeviceProcAddr( device, "vkCmdSetCoarseSampleOrderNV" ) : vkGetInstanceProcAddr( instance, "vkCmdSetCoarseSampleOrderNV" ) );
+#endif
       vkCmdSetDepthBias = PFN_vkCmdSetDepthBias( device ? vkGetDeviceProcAddr( device, "vkCmdSetDepthBias" ) : vkGetInstanceProcAddr( instance, "vkCmdSetDepthBias" ) );
       vkCmdSetDepthBounds = PFN_vkCmdSetDepthBounds( device ? vkGetDeviceProcAddr( device, "vkCmdSetDepthBounds" ) : vkGetInstanceProcAddr( instance, "vkCmdSetDepthBounds" ) );
       vkCmdSetDeviceMask = PFN_vkCmdSetDeviceMask( device ? vkGetDeviceProcAddr( device, "vkCmdSetDeviceMask" ) : vkGetInstanceProcAddr( instance, "vkCmdSetDeviceMask" ) );
       vkCmdSetDeviceMaskKHR = PFN_vkCmdSetDeviceMaskKHR( device ? vkGetDeviceProcAddr( device, "vkCmdSetDeviceMaskKHR" ) : vkGetInstanceProcAddr( instance, "vkCmdSetDeviceMaskKHR" ) );
       vkCmdSetDiscardRectangleEXT = PFN_vkCmdSetDiscardRectangleEXT( device ? vkGetDeviceProcAddr( device, "vkCmdSetDiscardRectangleEXT" ) : vkGetInstanceProcAddr( instance, "vkCmdSetDiscardRectangleEXT" ) );
       vkCmdSetEvent = PFN_vkCmdSetEvent( device ? vkGetDeviceProcAddr( device, "vkCmdSetEvent" ) : vkGetInstanceProcAddr( instance, "vkCmdSetEvent" ) );
+#if defined(VK_NV_scissor_exclusive)
       vkCmdSetExclusiveScissorNV = PFN_vkCmdSetExclusiveScissorNV( device ? vkGetDeviceProcAddr( device, "vkCmdSetExclusiveScissorNV" ) : vkGetInstanceProcAddr( instance, "vkCmdSetExclusiveScissorNV" ) );
+#endif
       vkCmdSetLineWidth = PFN_vkCmdSetLineWidth( device ? vkGetDeviceProcAddr( device, "vkCmdSetLineWidth" ) : vkGetInstanceProcAddr( instance, "vkCmdSetLineWidth" ) );
       vkCmdSetSampleLocationsEXT = PFN_vkCmdSetSampleLocationsEXT( device ? vkGetDeviceProcAddr( device, "vkCmdSetSampleLocationsEXT" ) : vkGetInstanceProcAddr( instance, "vkCmdSetSampleLocationsEXT" ) );
       vkCmdSetScissor = PFN_vkCmdSetScissor( device ? vkGetDeviceProcAddr( device, "vkCmdSetScissor" ) : vkGetInstanceProcAddr( instance, "vkCmdSetScissor" ) );
@@ -540,12 +636,18 @@ namespace WZ_vk
       vkCmdSetStencilReference = PFN_vkCmdSetStencilReference( device ? vkGetDeviceProcAddr( device, "vkCmdSetStencilReference" ) : vkGetInstanceProcAddr( instance, "vkCmdSetStencilReference" ) );
       vkCmdSetStencilWriteMask = PFN_vkCmdSetStencilWriteMask( device ? vkGetDeviceProcAddr( device, "vkCmdSetStencilWriteMask" ) : vkGetInstanceProcAddr( instance, "vkCmdSetStencilWriteMask" ) );
       vkCmdSetViewport = PFN_vkCmdSetViewport( device ? vkGetDeviceProcAddr( device, "vkCmdSetViewport" ) : vkGetInstanceProcAddr( instance, "vkCmdSetViewport" ) );
+#if defined(VK_NV_shading_rate_image)
       vkCmdSetViewportShadingRatePaletteNV = PFN_vkCmdSetViewportShadingRatePaletteNV( device ? vkGetDeviceProcAddr( device, "vkCmdSetViewportShadingRatePaletteNV" ) : vkGetInstanceProcAddr( instance, "vkCmdSetViewportShadingRatePaletteNV" ) );
+#endif
       vkCmdSetViewportWScalingNV = PFN_vkCmdSetViewportWScalingNV( device ? vkGetDeviceProcAddr( device, "vkCmdSetViewportWScalingNV" ) : vkGetInstanceProcAddr( instance, "vkCmdSetViewportWScalingNV" ) );
+#if defined(VK_NV_ray_tracing)
       vkCmdTraceRaysNV = PFN_vkCmdTraceRaysNV( device ? vkGetDeviceProcAddr( device, "vkCmdTraceRaysNV" ) : vkGetInstanceProcAddr( instance, "vkCmdTraceRaysNV" ) );
+#endif
       vkCmdUpdateBuffer = PFN_vkCmdUpdateBuffer( device ? vkGetDeviceProcAddr( device, "vkCmdUpdateBuffer" ) : vkGetInstanceProcAddr( instance, "vkCmdUpdateBuffer" ) );
       vkCmdWaitEvents = PFN_vkCmdWaitEvents( device ? vkGetDeviceProcAddr( device, "vkCmdWaitEvents" ) : vkGetInstanceProcAddr( instance, "vkCmdWaitEvents" ) );
+#if defined(VK_NV_ray_tracing)
       vkCmdWriteAccelerationStructuresPropertiesNV = PFN_vkCmdWriteAccelerationStructuresPropertiesNV( device ? vkGetDeviceProcAddr( device, "vkCmdWriteAccelerationStructuresPropertiesNV" ) : vkGetInstanceProcAddr( instance, "vkCmdWriteAccelerationStructuresPropertiesNV" ) );
+#endif
       vkCmdWriteBufferMarkerAMD = PFN_vkCmdWriteBufferMarkerAMD( device ? vkGetDeviceProcAddr( device, "vkCmdWriteBufferMarkerAMD" ) : vkGetInstanceProcAddr( instance, "vkCmdWriteBufferMarkerAMD" ) );
       vkCmdWriteTimestamp = PFN_vkCmdWriteTimestamp( device ? vkGetDeviceProcAddr( device, "vkCmdWriteTimestamp" ) : vkGetInstanceProcAddr( instance, "vkCmdWriteTimestamp" ) );
       vkEndCommandBuffer = PFN_vkEndCommandBuffer( device ? vkGetDeviceProcAddr( device, "vkEndCommandBuffer" ) : vkGetInstanceProcAddr( instance, "vkEndCommandBuffer" ) );
@@ -558,15 +660,19 @@ namespace WZ_vk
       vkAllocateCommandBuffers = PFN_vkAllocateCommandBuffers( device ? vkGetDeviceProcAddr( device, "vkAllocateCommandBuffers" ) : vkGetInstanceProcAddr( instance, "vkAllocateCommandBuffers" ) );
       vkAllocateDescriptorSets = PFN_vkAllocateDescriptorSets( device ? vkGetDeviceProcAddr( device, "vkAllocateDescriptorSets" ) : vkGetInstanceProcAddr( instance, "vkAllocateDescriptorSets" ) );
       vkAllocateMemory = PFN_vkAllocateMemory( device ? vkGetDeviceProcAddr( device, "vkAllocateMemory" ) : vkGetInstanceProcAddr( instance, "vkAllocateMemory" ) );
+#if defined(VK_NV_ray_tracing)
       vkBindAccelerationStructureMemoryNV = PFN_vkBindAccelerationStructureMemoryNV( device ? vkGetDeviceProcAddr( device, "vkBindAccelerationStructureMemoryNV" ) : vkGetInstanceProcAddr( instance, "vkBindAccelerationStructureMemoryNV" ) );
+#endif
       vkBindBufferMemory = PFN_vkBindBufferMemory( device ? vkGetDeviceProcAddr( device, "vkBindBufferMemory" ) : vkGetInstanceProcAddr( instance, "vkBindBufferMemory" ) );
       vkBindBufferMemory2 = PFN_vkBindBufferMemory2( device ? vkGetDeviceProcAddr( device, "vkBindBufferMemory2" ) : vkGetInstanceProcAddr( instance, "vkBindBufferMemory2" ) );
       vkBindBufferMemory2KHR = PFN_vkBindBufferMemory2KHR( device ? vkGetDeviceProcAddr( device, "vkBindBufferMemory2KHR" ) : vkGetInstanceProcAddr( instance, "vkBindBufferMemory2KHR" ) );
       vkBindImageMemory = PFN_vkBindImageMemory( device ? vkGetDeviceProcAddr( device, "vkBindImageMemory" ) : vkGetInstanceProcAddr( instance, "vkBindImageMemory" ) );
       vkBindImageMemory2 = PFN_vkBindImageMemory2( device ? vkGetDeviceProcAddr( device, "vkBindImageMemory2" ) : vkGetInstanceProcAddr( instance, "vkBindImageMemory2" ) );
       vkBindImageMemory2KHR = PFN_vkBindImageMemory2KHR( device ? vkGetDeviceProcAddr( device, "vkBindImageMemory2KHR" ) : vkGetInstanceProcAddr( instance, "vkBindImageMemory2KHR" ) );
+#if defined(VK_NV_ray_tracing)
       vkCompileDeferredNV = PFN_vkCompileDeferredNV( device ? vkGetDeviceProcAddr( device, "vkCompileDeferredNV" ) : vkGetInstanceProcAddr( instance, "vkCompileDeferredNV" ) );
       vkCreateAccelerationStructureNV = PFN_vkCreateAccelerationStructureNV( device ? vkGetDeviceProcAddr( device, "vkCreateAccelerationStructureNV" ) : vkGetInstanceProcAddr( instance, "vkCreateAccelerationStructureNV" ) );
+#endif
       vkCreateBuffer = PFN_vkCreateBuffer( device ? vkGetDeviceProcAddr( device, "vkCreateBuffer" ) : vkGetInstanceProcAddr( instance, "vkCreateBuffer" ) );
       vkCreateBufferView = PFN_vkCreateBufferView( device ? vkGetDeviceProcAddr( device, "vkCreateBufferView" ) : vkGetInstanceProcAddr( instance, "vkCreateBufferView" ) );
       vkCreateCommandPool = PFN_vkCreateCommandPool( device ? vkGetDeviceProcAddr( device, "vkCreateCommandPool" ) : vkGetInstanceProcAddr( instance, "vkCreateCommandPool" ) );
@@ -586,7 +692,9 @@ namespace WZ_vk
       vkCreatePipelineCache = PFN_vkCreatePipelineCache( device ? vkGetDeviceProcAddr( device, "vkCreatePipelineCache" ) : vkGetInstanceProcAddr( instance, "vkCreatePipelineCache" ) );
       vkCreatePipelineLayout = PFN_vkCreatePipelineLayout( device ? vkGetDeviceProcAddr( device, "vkCreatePipelineLayout" ) : vkGetInstanceProcAddr( instance, "vkCreatePipelineLayout" ) );
       vkCreateQueryPool = PFN_vkCreateQueryPool( device ? vkGetDeviceProcAddr( device, "vkCreateQueryPool" ) : vkGetInstanceProcAddr( instance, "vkCreateQueryPool" ) );
+#if defined(VK_NV_ray_tracing)
       vkCreateRayTracingPipelinesNV = PFN_vkCreateRayTracingPipelinesNV( device ? vkGetDeviceProcAddr( device, "vkCreateRayTracingPipelinesNV" ) : vkGetInstanceProcAddr( instance, "vkCreateRayTracingPipelinesNV" ) );
+#endif
       vkCreateRenderPass = PFN_vkCreateRenderPass( device ? vkGetDeviceProcAddr( device, "vkCreateRenderPass" ) : vkGetInstanceProcAddr( instance, "vkCreateRenderPass" ) );
       vkCreateRenderPass2KHR = PFN_vkCreateRenderPass2KHR( device ? vkGetDeviceProcAddr( device, "vkCreateRenderPass2KHR" ) : vkGetInstanceProcAddr( instance, "vkCreateRenderPass2KHR" ) );
       vkCreateSampler = PFN_vkCreateSampler( device ? vkGetDeviceProcAddr( device, "vkCreateSampler" ) : vkGetInstanceProcAddr( instance, "vkCreateSampler" ) );
@@ -599,7 +707,9 @@ namespace WZ_vk
       vkCreateValidationCacheEXT = PFN_vkCreateValidationCacheEXT( device ? vkGetDeviceProcAddr( device, "vkCreateValidationCacheEXT" ) : vkGetInstanceProcAddr( instance, "vkCreateValidationCacheEXT" ) );
       vkDebugMarkerSetObjectNameEXT = PFN_vkDebugMarkerSetObjectNameEXT( device ? vkGetDeviceProcAddr( device, "vkDebugMarkerSetObjectNameEXT" ) : vkGetInstanceProcAddr( instance, "vkDebugMarkerSetObjectNameEXT" ) );
       vkDebugMarkerSetObjectTagEXT = PFN_vkDebugMarkerSetObjectTagEXT( device ? vkGetDeviceProcAddr( device, "vkDebugMarkerSetObjectTagEXT" ) : vkGetInstanceProcAddr( instance, "vkDebugMarkerSetObjectTagEXT" ) );
+#if defined(VK_NV_ray_tracing)
       vkDestroyAccelerationStructureNV = PFN_vkDestroyAccelerationStructureNV( device ? vkGetDeviceProcAddr( device, "vkDestroyAccelerationStructureNV" ) : vkGetInstanceProcAddr( instance, "vkDestroyAccelerationStructureNV" ) );
+#endif
       vkDestroyBuffer = PFN_vkDestroyBuffer( device ? vkGetDeviceProcAddr( device, "vkDestroyBuffer" ) : vkGetInstanceProcAddr( instance, "vkDestroyBuffer" ) );
       vkDestroyBufferView = PFN_vkDestroyBufferView( device ? vkGetDeviceProcAddr( device, "vkDestroyBufferView" ) : vkGetInstanceProcAddr( instance, "vkDestroyBufferView" ) );
       vkDestroyCommandPool = PFN_vkDestroyCommandPool( device ? vkGetDeviceProcAddr( device, "vkDestroyCommandPool" ) : vkGetInstanceProcAddr( instance, "vkDestroyCommandPool" ) );
@@ -633,18 +743,28 @@ namespace WZ_vk
       vkFreeCommandBuffers = PFN_vkFreeCommandBuffers( device ? vkGetDeviceProcAddr( device, "vkFreeCommandBuffers" ) : vkGetInstanceProcAddr( instance, "vkFreeCommandBuffers" ) );
       vkFreeDescriptorSets = PFN_vkFreeDescriptorSets( device ? vkGetDeviceProcAddr( device, "vkFreeDescriptorSets" ) : vkGetInstanceProcAddr( instance, "vkFreeDescriptorSets" ) );
       vkFreeMemory = PFN_vkFreeMemory( device ? vkGetDeviceProcAddr( device, "vkFreeMemory" ) : vkGetInstanceProcAddr( instance, "vkFreeMemory" ) );
+#if defined(VK_NV_ray_tracing)
       vkGetAccelerationStructureHandleNV = PFN_vkGetAccelerationStructureHandleNV( device ? vkGetDeviceProcAddr( device, "vkGetAccelerationStructureHandleNV" ) : vkGetInstanceProcAddr( instance, "vkGetAccelerationStructureHandleNV" ) );
       vkGetAccelerationStructureMemoryRequirementsNV = PFN_vkGetAccelerationStructureMemoryRequirementsNV( device ? vkGetDeviceProcAddr( device, "vkGetAccelerationStructureMemoryRequirementsNV" ) : vkGetInstanceProcAddr( instance, "vkGetAccelerationStructureMemoryRequirementsNV" ) );
+#endif
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
+#if defined(VK_ANDROID_external_memory_android_hardware_buffer)
       vkGetAndroidHardwareBufferPropertiesANDROID = PFN_vkGetAndroidHardwareBufferPropertiesANDROID( device ? vkGetDeviceProcAddr( device, "vkGetAndroidHardwareBufferPropertiesANDROID" ) : vkGetInstanceProcAddr( instance, "vkGetAndroidHardwareBufferPropertiesANDROID" ) );
+#endif
 #endif /*VK_USE_PLATFORM_ANDROID_KHR*/
+#if defined(VK_EXT_buffer_device_address)
       vkGetBufferDeviceAddressEXT = PFN_vkGetBufferDeviceAddressEXT( device ? vkGetDeviceProcAddr( device, "vkGetBufferDeviceAddressEXT" ) : vkGetInstanceProcAddr( instance, "vkGetBufferDeviceAddressEXT" ) );
+#endif
       vkGetBufferMemoryRequirements = PFN_vkGetBufferMemoryRequirements( device ? vkGetDeviceProcAddr( device, "vkGetBufferMemoryRequirements" ) : vkGetInstanceProcAddr( instance, "vkGetBufferMemoryRequirements" ) );
       vkGetBufferMemoryRequirements2 = PFN_vkGetBufferMemoryRequirements2( device ? vkGetDeviceProcAddr( device, "vkGetBufferMemoryRequirements2" ) : vkGetInstanceProcAddr( instance, "vkGetBufferMemoryRequirements2" ) );
       vkGetBufferMemoryRequirements2KHR = PFN_vkGetBufferMemoryRequirements2KHR( device ? vkGetDeviceProcAddr( device, "vkGetBufferMemoryRequirements2KHR" ) : vkGetInstanceProcAddr( instance, "vkGetBufferMemoryRequirements2KHR" ) );
+#if defined(VK_EXT_calibrated_timestamps)
       vkGetCalibratedTimestampsEXT = PFN_vkGetCalibratedTimestampsEXT( device ? vkGetDeviceProcAddr( device, "vkGetCalibratedTimestampsEXT" ) : vkGetInstanceProcAddr( instance, "vkGetCalibratedTimestampsEXT" ) );
+#endif
       vkGetDescriptorSetLayoutSupport = PFN_vkGetDescriptorSetLayoutSupport( device ? vkGetDeviceProcAddr( device, "vkGetDescriptorSetLayoutSupport" ) : vkGetInstanceProcAddr( instance, "vkGetDescriptorSetLayoutSupport" ) );
+#if defined(VK_KHR_maintenance3)
       vkGetDescriptorSetLayoutSupportKHR = PFN_vkGetDescriptorSetLayoutSupportKHR( device ? vkGetDeviceProcAddr( device, "vkGetDescriptorSetLayoutSupportKHR" ) : vkGetInstanceProcAddr( instance, "vkGetDescriptorSetLayoutSupportKHR" ) );
+#endif
       vkGetDeviceGroupPeerMemoryFeatures = PFN_vkGetDeviceGroupPeerMemoryFeatures( device ? vkGetDeviceProcAddr( device, "vkGetDeviceGroupPeerMemoryFeatures" ) : vkGetInstanceProcAddr( instance, "vkGetDeviceGroupPeerMemoryFeatures" ) );
       vkGetDeviceGroupPeerMemoryFeaturesKHR = PFN_vkGetDeviceGroupPeerMemoryFeaturesKHR( device ? vkGetDeviceProcAddr( device, "vkGetDeviceGroupPeerMemoryFeaturesKHR" ) : vkGetInstanceProcAddr( instance, "vkGetDeviceGroupPeerMemoryFeaturesKHR" ) );
       vkGetDeviceGroupPresentCapabilitiesKHR = PFN_vkGetDeviceGroupPresentCapabilitiesKHR( device ? vkGetDeviceProcAddr( device, "vkGetDeviceGroupPresentCapabilitiesKHR" ) : vkGetInstanceProcAddr( instance, "vkGetDeviceGroupPresentCapabilitiesKHR" ) );
@@ -661,7 +781,9 @@ namespace WZ_vk
 #ifdef VK_USE_PLATFORM_WIN32_KHR
       vkGetFenceWin32HandleKHR = PFN_vkGetFenceWin32HandleKHR( device ? vkGetDeviceProcAddr( device, "vkGetFenceWin32HandleKHR" ) : vkGetInstanceProcAddr( instance, "vkGetFenceWin32HandleKHR" ) );
 #endif /*VK_USE_PLATFORM_WIN32_KHR*/
+#if defined(VK_EXT_image_drm_format_modifier)
       vkGetImageDrmFormatModifierPropertiesEXT = PFN_vkGetImageDrmFormatModifierPropertiesEXT( device ? vkGetDeviceProcAddr( device, "vkGetImageDrmFormatModifierPropertiesEXT" ) : vkGetInstanceProcAddr( instance, "vkGetImageDrmFormatModifierPropertiesEXT" ) );
+#endif
       vkGetImageMemoryRequirements = PFN_vkGetImageMemoryRequirements( device ? vkGetDeviceProcAddr( device, "vkGetImageMemoryRequirements" ) : vkGetInstanceProcAddr( instance, "vkGetImageMemoryRequirements" ) );
       vkGetImageMemoryRequirements2 = PFN_vkGetImageMemoryRequirements2( device ? vkGetDeviceProcAddr( device, "vkGetImageMemoryRequirements2" ) : vkGetInstanceProcAddr( instance, "vkGetImageMemoryRequirements2" ) );
       vkGetImageMemoryRequirements2KHR = PFN_vkGetImageMemoryRequirements2KHR( device ? vkGetDeviceProcAddr( device, "vkGetImageMemoryRequirements2KHR" ) : vkGetInstanceProcAddr( instance, "vkGetImageMemoryRequirements2KHR" ) );
@@ -669,9 +791,13 @@ namespace WZ_vk
       vkGetImageSparseMemoryRequirements2 = PFN_vkGetImageSparseMemoryRequirements2( device ? vkGetDeviceProcAddr( device, "vkGetImageSparseMemoryRequirements2" ) : vkGetInstanceProcAddr( instance, "vkGetImageSparseMemoryRequirements2" ) );
       vkGetImageSparseMemoryRequirements2KHR = PFN_vkGetImageSparseMemoryRequirements2KHR( device ? vkGetDeviceProcAddr( device, "vkGetImageSparseMemoryRequirements2KHR" ) : vkGetInstanceProcAddr( instance, "vkGetImageSparseMemoryRequirements2KHR" ) );
       vkGetImageSubresourceLayout = PFN_vkGetImageSubresourceLayout( device ? vkGetDeviceProcAddr( device, "vkGetImageSubresourceLayout" ) : vkGetInstanceProcAddr( instance, "vkGetImageSubresourceLayout" ) );
+#if defined(VK_NVX_image_view_handle)
       vkGetImageViewHandleNVX = PFN_vkGetImageViewHandleNVX( device ? vkGetDeviceProcAddr( device, "vkGetImageViewHandleNVX" ) : vkGetInstanceProcAddr( instance, "vkGetImageViewHandleNVX" ) );
+#endif
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
+#if defined(VK_ANDROID_external_memory_android_hardware_buffer)
       vkGetMemoryAndroidHardwareBufferANDROID = PFN_vkGetMemoryAndroidHardwareBufferANDROID( device ? vkGetDeviceProcAddr( device, "vkGetMemoryAndroidHardwareBufferANDROID" ) : vkGetInstanceProcAddr( instance, "vkGetMemoryAndroidHardwareBufferANDROID" ) );
+#endif
 #endif /*VK_USE_PLATFORM_ANDROID_KHR*/
       vkGetMemoryFdKHR = PFN_vkGetMemoryFdKHR( device ? vkGetDeviceProcAddr( device, "vkGetMemoryFdKHR" ) : vkGetInstanceProcAddr( instance, "vkGetMemoryFdKHR" ) );
       vkGetMemoryFdPropertiesKHR = PFN_vkGetMemoryFdPropertiesKHR( device ? vkGetDeviceProcAddr( device, "vkGetMemoryFdPropertiesKHR" ) : vkGetInstanceProcAddr( instance, "vkGetMemoryFdPropertiesKHR" ) );
@@ -688,7 +814,9 @@ namespace WZ_vk
       vkGetPastPresentationTimingGOOGLE = PFN_vkGetPastPresentationTimingGOOGLE( device ? vkGetDeviceProcAddr( device, "vkGetPastPresentationTimingGOOGLE" ) : vkGetInstanceProcAddr( instance, "vkGetPastPresentationTimingGOOGLE" ) );
       vkGetPipelineCacheData = PFN_vkGetPipelineCacheData( device ? vkGetDeviceProcAddr( device, "vkGetPipelineCacheData" ) : vkGetInstanceProcAddr( instance, "vkGetPipelineCacheData" ) );
       vkGetQueryPoolResults = PFN_vkGetQueryPoolResults( device ? vkGetDeviceProcAddr( device, "vkGetQueryPoolResults" ) : vkGetInstanceProcAddr( instance, "vkGetQueryPoolResults" ) );
+#if defined(VK_NV_ray_tracing)
       vkGetRayTracingShaderGroupHandlesNV = PFN_vkGetRayTracingShaderGroupHandlesNV( device ? vkGetDeviceProcAddr( device, "vkGetRayTracingShaderGroupHandlesNV" ) : vkGetInstanceProcAddr( instance, "vkGetRayTracingShaderGroupHandlesNV" ) );
+#endif
       vkGetRefreshCycleDurationGOOGLE = PFN_vkGetRefreshCycleDurationGOOGLE( device ? vkGetDeviceProcAddr( device, "vkGetRefreshCycleDurationGOOGLE" ) : vkGetInstanceProcAddr( instance, "vkGetRefreshCycleDurationGOOGLE" ) );
       vkGetRenderAreaGranularity = PFN_vkGetRenderAreaGranularity( device ? vkGetDeviceProcAddr( device, "vkGetRenderAreaGranularity" ) : vkGetInstanceProcAddr( instance, "vkGetRenderAreaGranularity" ) );
       vkGetSemaphoreFdKHR = PFN_vkGetSemaphoreFdKHR( device ? vkGetDeviceProcAddr( device, "vkGetSemaphoreFdKHR" ) : vkGetInstanceProcAddr( instance, "vkGetSemaphoreFdKHR" ) );
@@ -722,12 +850,16 @@ namespace WZ_vk
       vkResetDescriptorPool = PFN_vkResetDescriptorPool( device ? vkGetDeviceProcAddr( device, "vkResetDescriptorPool" ) : vkGetInstanceProcAddr( instance, "vkResetDescriptorPool" ) );
       vkResetEvent = PFN_vkResetEvent( device ? vkGetDeviceProcAddr( device, "vkResetEvent" ) : vkGetInstanceProcAddr( instance, "vkResetEvent" ) );
       vkResetFences = PFN_vkResetFences( device ? vkGetDeviceProcAddr( device, "vkResetFences" ) : vkGetInstanceProcAddr( instance, "vkResetFences" ) );
+#if defined(VK_EXT_host_query_reset)
       vkResetQueryPoolEXT = PFN_vkResetQueryPoolEXT( device ? vkGetDeviceProcAddr( device, "vkResetQueryPoolEXT" ) : vkGetInstanceProcAddr( instance, "vkResetQueryPoolEXT" ) );
+#endif
       vkSetDebugUtilsObjectNameEXT = PFN_vkSetDebugUtilsObjectNameEXT( device ? vkGetDeviceProcAddr( device, "vkSetDebugUtilsObjectNameEXT" ) : vkGetInstanceProcAddr( instance, "vkSetDebugUtilsObjectNameEXT" ) );
       vkSetDebugUtilsObjectTagEXT = PFN_vkSetDebugUtilsObjectTagEXT( device ? vkGetDeviceProcAddr( device, "vkSetDebugUtilsObjectTagEXT" ) : vkGetInstanceProcAddr( instance, "vkSetDebugUtilsObjectTagEXT" ) );
       vkSetEvent = PFN_vkSetEvent( device ? vkGetDeviceProcAddr( device, "vkSetEvent" ) : vkGetInstanceProcAddr( instance, "vkSetEvent" ) );
       vkSetHdrMetadataEXT = PFN_vkSetHdrMetadataEXT( device ? vkGetDeviceProcAddr( device, "vkSetHdrMetadataEXT" ) : vkGetInstanceProcAddr( instance, "vkSetHdrMetadataEXT" ) );
+#if defined(VK_AMD_display_native_hdr)
       vkSetLocalDimmingAMD = PFN_vkSetLocalDimmingAMD( device ? vkGetDeviceProcAddr( device, "vkSetLocalDimmingAMD" ) : vkGetInstanceProcAddr( instance, "vkSetLocalDimmingAMD" ) );
+#endif
       vkTrimCommandPool = PFN_vkTrimCommandPool( device ? vkGetDeviceProcAddr( device, "vkTrimCommandPool" ) : vkGetInstanceProcAddr( instance, "vkTrimCommandPool" ) );
       vkTrimCommandPoolKHR = PFN_vkTrimCommandPoolKHR( device ? vkGetDeviceProcAddr( device, "vkTrimCommandPoolKHR" ) : vkGetInstanceProcAddr( instance, "vkTrimCommandPoolKHR" ) );
       vkUnmapMemory = PFN_vkUnmapMemory( device ? vkGetDeviceProcAddr( device, "vkUnmapMemory" ) : vkGetInstanceProcAddr( instance, "vkUnmapMemory" ) );
@@ -742,7 +874,9 @@ namespace WZ_vk
       vkCreateDebugReportCallbackEXT = PFN_vkCreateDebugReportCallbackEXT( vkGetInstanceProcAddr( instance, "vkCreateDebugReportCallbackEXT" ) );
       vkCreateDebugUtilsMessengerEXT = PFN_vkCreateDebugUtilsMessengerEXT( vkGetInstanceProcAddr( instance, "vkCreateDebugUtilsMessengerEXT" ) );
       vkCreateDisplayPlaneSurfaceKHR = PFN_vkCreateDisplayPlaneSurfaceKHR( vkGetInstanceProcAddr( instance, "vkCreateDisplayPlaneSurfaceKHR" ) );
+#if defined(VK_EXT_headless_surface)
       vkCreateHeadlessSurfaceEXT = PFN_vkCreateHeadlessSurfaceEXT( vkGetInstanceProcAddr( instance, "vkCreateHeadlessSurfaceEXT" ) );
+#endif
 #ifdef VK_USE_PLATFORM_IOS_MVK
       vkCreateIOSSurfaceMVK = PFN_vkCreateIOSSurfaceMVK( vkGetInstanceProcAddr( instance, "vkCreateIOSSurfaceMVK" ) );
 #endif /*VK_USE_PLATFORM_IOS_MVK*/
@@ -795,7 +929,9 @@ namespace WZ_vk
       vkGetDisplayPlaneCapabilitiesKHR = PFN_vkGetDisplayPlaneCapabilitiesKHR( vkGetInstanceProcAddr( instance, "vkGetDisplayPlaneCapabilitiesKHR" ) );
       vkGetDisplayPlaneSupportedDisplaysKHR = PFN_vkGetDisplayPlaneSupportedDisplaysKHR( vkGetInstanceProcAddr( instance, "vkGetDisplayPlaneSupportedDisplaysKHR" ) );
       vkGetPhysicalDeviceCalibrateableTimeDomainsEXT = PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT( vkGetInstanceProcAddr( instance, "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT" ) );
+#if defined(VK_NV_cooperative_matrix)
       vkGetPhysicalDeviceCooperativeMatrixPropertiesNV = PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesNV( vkGetInstanceProcAddr( instance, "vkGetPhysicalDeviceCooperativeMatrixPropertiesNV" ) );
+#endif
       vkGetPhysicalDeviceDisplayPlaneProperties2KHR = PFN_vkGetPhysicalDeviceDisplayPlaneProperties2KHR( vkGetInstanceProcAddr( instance, "vkGetPhysicalDeviceDisplayPlaneProperties2KHR" ) );
       vkGetPhysicalDeviceDisplayPlanePropertiesKHR = PFN_vkGetPhysicalDeviceDisplayPlanePropertiesKHR( vkGetInstanceProcAddr( instance, "vkGetPhysicalDeviceDisplayPlanePropertiesKHR" ) );
       vkGetPhysicalDeviceDisplayProperties2KHR = PFN_vkGetPhysicalDeviceDisplayProperties2KHR( vkGetInstanceProcAddr( instance, "vkGetPhysicalDeviceDisplayProperties2KHR" ) );
