@@ -1399,7 +1399,7 @@ void VkRoot::createDefaultRenderpass(vk::Format swapchainFormat, vk::Format dept
 // Attempts to create a Vulkan instance (vk::Instance) with the specified extensions and layers
 // If successful, sets the following variable in VkRoot:
 //	- inst (vk::Instance)
-bool VkRoot::createVulkanInstance(std::vector<const char*> extensions, std::vector<const char*> layers, PFN_vkGetInstanceProcAddr _vkGetInstanceProcAddr)
+bool VkRoot::createVulkanInstance(std::vector<const char*> extensions, std::vector<const char*> _layers, PFN_vkGetInstanceProcAddr _vkGetInstanceProcAddr)
 {
 	const auto appInfo = vk::ApplicationInfo()
 	.setPApplicationName("Warzone2100")
@@ -1410,8 +1410,8 @@ bool VkRoot::createVulkanInstance(std::vector<const char*> extensions, std::vect
 
 	// Now we can make the Vulkan instance
 	vk::InstanceCreateInfo createInfo = vk::InstanceCreateInfo()
-	  .setPpEnabledLayerNames(layers.data())
-	  .setEnabledLayerCount(layers.size())
+	  .setPpEnabledLayerNames(_layers.data())
+	  .setEnabledLayerCount(_layers.size())
 	  .setPApplicationInfo(&appInfo)
 	  .setPpEnabledExtensionNames(extensions.data())
 	  .setEnabledExtensionCount(static_cast<uint32_t>(extensions.size())
@@ -2431,7 +2431,7 @@ VkRoot::AcquireNextSwapchainImageResult VkRoot::acquireNextSwapchainImage()
 	try {
 		acquireNextImageResult = dev.acquireNextImageKHR(swapchain, -1, buffering_mechanism::get_current_resources().imageAcquireSemaphore, vk::Fence{}, vkDynLoader);
 	}
-	catch (vk::OutOfDateKHRError &e)
+	catch (vk::OutOfDateKHRError&)
 	{
 		debug(LOG_3D, "vk::Device::acquireNextImageKHR: ErrorOutOfDateKHR - must recreate swapchain");
 		if (createNewSwapchainAndSwapchainSpecificStuff(vk::Result::eErrorOutOfDateKHR))
@@ -2440,7 +2440,7 @@ VkRoot::AcquireNextSwapchainImageResult VkRoot::acquireNextSwapchainImage()
 		}
 		return AcquireNextSwapchainImageResult::eUnhandledFailure;
 	}
-	catch (vk::SurfaceLostKHRError &e)
+	catch (vk::SurfaceLostKHRError&)
 	{
 		debug(LOG_3D, "vk::Device::acquireNextImageKHR: ErrorSurfaceLostKHR - must recreate surface + swapchain");
 		// recreate surface + swapchain
@@ -2450,7 +2450,7 @@ VkRoot::AcquireNextSwapchainImageResult VkRoot::acquireNextSwapchainImage()
 		}
 		return AcquireNextSwapchainImageResult::eUnhandledFailure;
 	}
-	catch (vk::SystemError &e)
+	catch (vk::SystemError& e)
 	{
 		debug(LOG_ERROR, "vk::Device::acquireNextImageKHR: unhandled error: %s", e.what());
 		return AcquireNextSwapchainImageResult::eUnhandledFailure;
@@ -2523,20 +2523,20 @@ void VkRoot::flip(int clearMode)
 	try {
 		presentResult = presentQueue.presentKHR(presentInfo, vkDynLoader);
 	}
-	catch (vk::OutOfDateKHRError &e)
+	catch (vk::OutOfDateKHRError&)
 	{
 		debug(LOG_3D, "vk::Queue::presentKHR: ErrorOutOfDateKHR - must recreate swapchain");
 		createNewSwapchainAndSwapchainSpecificStuff(vk::Result::eErrorOutOfDateKHR);
 		return; // end processing this flip
 	}
-	catch (vk::SurfaceLostKHRError &e)
+	catch (vk::SurfaceLostKHRError&)
 	{
 		debug(LOG_3D, "vk::Queue::presentKHR: ErrorSurfaceLostKHR - must recreate surface + swapchain");
 		// recreate surface + swapchain
 		handleSurfaceLost();
 		return; // end processing this flip
 	}
-	catch (vk::SystemError &e)
+	catch (vk::SystemError& e)
 	{
 		debug(LOG_ERROR, "vk::Queue::presentKHR: unhandled error: %s", e.what());
 	}
