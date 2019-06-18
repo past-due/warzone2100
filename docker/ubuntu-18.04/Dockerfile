@@ -7,12 +7,12 @@ RUN apt-get -u update \
  && rm -rf /var/lib/apt/lists/*
 
 # Install Vulkan SDK
-RUN DEBIAN_FRONTEND=noninteractive apt-get -y install libvulkan-dev
-#ADD https://packages.lunarg.com/lunarg-signing-key-pub.asc /tmp
-#ADD https://packages.lunarg.com/vulkan/1.1.108/lunarg-vulkan-1.1.108-bionic.list /etc/apt/sources.list.d
-#RUN apt-key add /tmp/lunarg-signing-key-pub.asc \
-# && apt update
-# && apt install vulkan-sdk
+#RUN DEBIAN_FRONTEND=noninteractive apt-get -y install libvulkan-dev
+ADD https://packages.lunarg.com/lunarg-signing-key-pub.asc /tmp
+ADD https://packages.lunarg.com/vulkan/1.1.108/lunarg-vulkan-1.1.108-bionic.list /etc/apt/sources.list.d
+RUN apt-key add /tmp/lunarg-signing-key-pub.asc \
+ && apt update
+ && apt install vulkan-sdk
 
 WORKDIR /code
 CMD ["sh"]
