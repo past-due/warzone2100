@@ -24,8 +24,8 @@
 #if defined( _MSC_VER )
 #pragma warning( push )
 #pragma warning( disable : 4191 ) // warning C4191: '<function-style-cast>': unsafe conversion from 'PFN_vkVoidFunction' to 'PFN_vk<...>'
-#pragma warning( disable : 2664 ) // warning C2664: 'void vk::DispatchLoaderDynamic::init(VkInstance,PFN_vkGetInstanceProcAddr,VkDevice,PFN_vkGetDeviceProcAddr)': cannot convert argument 1 from 'const vk::Instance' to 'VkInstance'
 #endif
+#define VULKAN_HPP_TYPESAFE_CONVERSION 1
 #include <vulkan/vulkan.hpp>
 #if defined( _MSC_VER )
 #pragma warning( pop )
