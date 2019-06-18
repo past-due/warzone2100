@@ -1463,21 +1463,21 @@ bool VkRoot::createVulkanInstance(std::vector<const char*> extensions, std::vect
 		return true;
 	}
 
-	CreateDebugReportCallback = reinterpret_cast<PFN_vkCreateDebugReportCallbackEXT>(reinterpret_cast<void*>(_vkGetInstanceProcAddr(VkInstance(inst), "vkCreateDebugReportCallbackEXT")));
+	CreateDebugReportCallback = reinterpret_cast<PFN_vkCreateDebugReportCallbackEXT>(reinterpret_cast<void*>(_vkGetInstanceProcAddr(static_cast<VkInstance>(inst), "vkCreateDebugReportCallbackEXT")));
 	if (!CreateDebugReportCallback)
 	{
 		// Failed to obtain vkCreateDebugReportCallbackEXT
 		debug(LOG_WARNING, "Could not find symbol: vkCreateDebugReportCallbackEXT\n");
 		return true;
 	}
-	DestroyDebugReportCallback = reinterpret_cast<PFN_vkDestroyDebugReportCallbackEXT>(reinterpret_cast<void*>(_vkGetInstanceProcAddr(VkInstance(inst), "vkDestroyDebugReportCallbackEXT")));
+	DestroyDebugReportCallback = reinterpret_cast<PFN_vkDestroyDebugReportCallbackEXT>(reinterpret_cast<void*>(_vkGetInstanceProcAddr(static_cast<VkInstance>(inst), "vkDestroyDebugReportCallbackEXT")));
 	if (!DestroyDebugReportCallback)
 	{
 		// Failed to obtain vkDestroyDebugReportCallbackEXT
 		debug(LOG_WARNING, "Could not find symbol: vkDestroyDebugReportCallbackEXT\n");
 		return true;
 	}
-	dbgBreakCallback = reinterpret_cast<PFN_vkDebugReportMessageEXT>(reinterpret_cast<void*>(_vkGetInstanceProcAddr(VkInstance(inst), "vkDebugReportMessageEXT")));
+	dbgBreakCallback = reinterpret_cast<PFN_vkDebugReportMessageEXT>(reinterpret_cast<void*>(_vkGetInstanceProcAddr(static_cast<VkInstance>(inst), "vkDebugReportMessageEXT")));
 	if (!dbgBreakCallback)
 	{
 		// Failed to obtain vkDebugReportMessageEXT
@@ -1493,7 +1493,7 @@ bool VkRoot::createVulkanInstance(std::vector<const char*> extensions, std::vect
 	//VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT;
 
 	const VkResult err = CreateDebugReportCallback(
-												   VkInstance(inst),
+												   static_cast<VkInstance>(inst),
 												   &dbgCreateInfo,
 												   nullptr,
 												   &msgCallback);
@@ -1658,7 +1658,7 @@ void VkRoot::shutdown()
 	// destroy debug callback
 	if(msgCallback)
 	{
-		DestroyDebugReportCallback(VkInstance(inst), msgCallback, nullptr);
+		DestroyDebugReportCallback(static_cast<VkInstance>(inst), msgCallback, nullptr);
 	}
 
 	// destroy instance
@@ -2090,7 +2090,7 @@ bool VkRoot::initialize(const gfx_api::backend_Impl_Factory& impl)
 	}
 
 	// Setup dynamic Vulkan loader
-	vkDynLoader.init(VkInstance(inst), _vkGetInstanceProcAddr, VK_NULL_HANDLE, nullptr);
+	vkDynLoader.init(static_cast<VkInstance>(inst), _vkGetInstanceProcAddr, static_cast<VkDevice>(vk::Device()), nullptr);
 
 	// NOTE: From this point on, vkDynLoader *must* be initialized!
 	ASSERT(vkDynLoader.vkGetInstanceProcAddr != nullptr, "vkDynLoader does not appear to be initialized");
@@ -2138,7 +2138,7 @@ bool VkRoot::createSurface()
 	ASSERT(inst, "Instance is null");
 
 	VkSurfaceKHR _surface{};
-	if (!backend_impl->createWindowSurface(VkInstance(inst), &_surface))
+	if (!backend_impl->createWindowSurface(static_cast<VkInstance>(inst), &_surface))
 	{
 		debug(LOG_ERROR, "backend_impl->createWindowSurface() failed");
 		return false;
@@ -2209,7 +2209,7 @@ bool VkRoot::createLogicalDevice()
 	// This uses vkGetDeviceProcAddr to potentially obtain device-specific function pointers
 	// that bypass dynamic dispatch logic (for increased performance)
 	// See: https://stackoverflow.com/a/35504844
-	vkDynLoader.init(VkInstance(inst), vkDynLoader.vkGetInstanceProcAddr, VkDevice(dev), vkDynLoader.vkGetDeviceProcAddr);
+	vkDynLoader.init(static_cast<VkInstance>(inst), vkDynLoader.vkGetInstanceProcAddr, static_cast<VkDevice>(dev), vkDynLoader.vkGetDeviceProcAddr);
 
 	return true;
 }
