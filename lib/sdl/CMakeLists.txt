@@ -42,6 +42,22 @@ if(SDL2_FOUND)
 	endif()
 
 	if(_sdl2_library)
+		if(VCPKG_TOOLCHAIN)
+			# vcpkg workaround to link the Release version of SDL2 on Windows
+			# for MinSizeRel and RelWithDebInfo configs
+			set_target_properties(${_sdl2_library} PROPERTIES
+				MAP_IMPORTED_CONFIG_MINSIZEREL Release
+				MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release
+			)
+			message(STATUS "Mapped imported configs for target: ${_sdl2_library}")
+			if (TARGET SDL2::SDL2main)
+				set_target_properties(SDL2::SDL2main PROPERTIES
+					MAP_IMPORTED_CONFIG_MINSIZEREL Release
+					MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release
+				)
+			endif()
+		endif()
+
 		get_target_property(_sdl2_include_dir ${_sdl2_library} INTERFACE_INCLUDE_DIRECTORIES)
 		get_filename_component(_last_directory "${_sdl2_include_dir}" NAME)
 		if (NOT _last_directory STREQUAL "SDL2")
