@@ -26,7 +26,9 @@ public:
 	SDL_gfx_api_Impl_Factory(SDL_Window* window);
 
 	virtual std::unique_ptr<gfx_api::backend_OpenGL_Impl> createOpenGLBackendImpl() const override;
+#if defined(WZ_VULKAN_ENABLED)
 	virtual std::unique_ptr<gfx_api::backend_Vulkan_Impl> createVulkanBackendImpl() const override;
+#endif
 
 private:
 	SDL_Window* window;

@@ -33,16 +33,16 @@ std::unique_ptr<gfx_api::backend_OpenGL_Impl> SDL_gfx_api_Impl_Factory::createOp
 	return std::unique_ptr<gfx_api::backend_OpenGL_Impl>(new sdl_OpenGL_Impl(window));
 }
 
+#if defined(WZ_VULKAN_ENABLED)
 std::unique_ptr<gfx_api::backend_Vulkan_Impl> SDL_gfx_api_Impl_Factory::createVulkanBackendImpl() const
 {
-#if defined(WZ_VULKAN_ENABLED) && defined(HAVE_SDL_VULKAN_H)
+#if defined(HAVE_SDL_VULKAN_H)
 	return std::unique_ptr<gfx_api::backend_Vulkan_Impl>(new sdl_Vulkan_Impl(window));
-#else
-	#if !defined(HAVE_SDL_VULKAN_H)
+#else // !defined(HAVE_SDL_VULKAN_H)
 	SDL_version compiled_version;
 	SDL_VERSION(&compiled_version);
 	debug(LOG_ERROR, "The version of SDL used for compilation (%u.%u.%u) did not have the SDL_vulkan.h header", (unsigned int)compiled_version.major, (unsigned int)compiled_version.minor, (unsigned int)compiled_version.patch);
-	#endif
 	return std::unique_ptr<gfx_api::backend_Vulkan_Impl>();
 #endif
 }
+#endif
