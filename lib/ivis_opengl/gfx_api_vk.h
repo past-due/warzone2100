@@ -467,4 +467,14 @@ public:
 	virtual void shutdown() override;
 };
 
+#else // !defined(WZ_VULKAN_ENABLED)
+
+namespace gfx_api
+{
+	class backend_Vulkan_Impl
+	{
+		// empty - Vulkan is disabled
+	};
+}
+
 #endif // defined(WZ_VULKAN_ENABLED)
