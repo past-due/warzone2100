@@ -147,19 +147,21 @@ struct templatedState
 {
 	SHADER_MODE shader = SHADER_NONE;
 	const iIMDShape * shape = nullptr;
+	int pieFlag = 0;
 
 	templatedState()
-	: shader(SHADER_NONE), shape(nullptr)
+	: shader(SHADER_NONE), shape(nullptr), pieFlag(0)
 	{ }
 
-	templatedState(SHADER_MODE shader, const iIMDShape * shape)
-	: shader(shader), shape(shape)
+	templatedState(SHADER_MODE shader, const iIMDShape * shape, int pieFlag)
+	: shader(shader), shape(shape), pieFlag(pieFlag)
 	{ }
 
 	bool operator==(const templatedState& rhs) const
 	{
 		return (shader == rhs.shader)
-		&& (shape == rhs.shape);
+		&& (shape == rhs.shape)
+		&& (pieFlag == rhs.pieFlag);
 	}
 	bool operator!=(const templatedState& rhs) const
 	{
@@ -170,7 +172,7 @@ struct templatedState
 template<SHADER_MODE shader, typename AdditivePSO, typename AlphaPSO, typename PremultipliedPSO, typename OpaquePSO>
 static void draw3dShapeTemplated(const templatedState &lastState, const PIELIGHT &colour, const PIELIGHT &teamcolour, const float& stretch, const int& ecmState, const float& timestate, const glm::mat4 & matrix, glm::vec4 &sceneColor, glm::vec4 &ambient, glm::vec4 &diffuse, glm::vec4 &specular, const iIMDShape * shape, int pieFlag, int frame)
 {
-	templatedState currentState = templatedState(shader, shape);
+	templatedState currentState = templatedState(shader, shape, pieFlag);
 
 	auto* tcmask = shape->tcmaskpage != iV_TEX_INVALID ? &pie_Texture(shape->tcmaskpage) : nullptr;
 	auto* normalmap = shape->normalpage != iV_TEX_INVALID ? &pie_Texture(shape->normalpage) : nullptr;
@@ -275,7 +277,7 @@ static templatedState pie_Draw3DShape2(const templatedState &lastState, const iI
 
 	frame %= std::max<int>(1, shape->numFrames);
 
-	templatedState currentState = templatedState((light) ? SHADER_COMPONENT : SHADER_NOLIGHT, shape);
+	templatedState currentState = templatedState((light) ? SHADER_COMPONENT : SHADER_NOLIGHT, shape, pieFlag);
 	if (currentState != lastState)
 	{
 		gfx_api::context::get().bind_index_buffer(*shape->buffers[VBO_INDEX], gfx_api::index_type::u16);
