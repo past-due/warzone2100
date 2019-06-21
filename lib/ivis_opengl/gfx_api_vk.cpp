@@ -421,6 +421,11 @@ uint32_t circularHostBuffer::alloc(uint32_t amount, uint32_t align)
 	return std::get<0>(oldAndNewPos);
 }
 
+void circularHostBuffer::incrementFrame()
+{
+	gpuReadLocation = hostWriteLocation - 1;
+}
+
 // MARK: perFrameResources_t
 
 perFrameResources_t::perFrameResources_t(vk::Device& _dev, const VmaAllocator& allocator, const uint32_t& graphicsQueueFamilyIndex, const VKDispatchLoaderDynamic& vkDynLoader) :
@@ -525,8 +530,10 @@ void buffering_mechanism::swap(vk::Device dev, const VKDispatchLoaderDynamic& vk
 
 	// This currently makes the assumption that we have only two in-flight frames
 	ASSERT(perFrameResources.size() <= 2, "Current circularHostBuffer impl doesn't support more than 2 in-flight frames");
-	buffering_mechanism::dynamicUniformBuffer->gpuReadLocation = buffering_mechanism::dynamicUniformBuffer->hostWriteLocation - 1;
-	buffering_mechanism::scratchBuffer->gpuReadLocation = buffering_mechanism::scratchBuffer->hostWriteLocation - 1;
+//	buffering_mechanism::dynamicUniformBuffer->gpuReadLocation = buffering_mechanism::dynamicUniformBuffer->hostWriteLocation - 1;
+//	buffering_mechanism::scratchBuffer->gpuReadLocation = buffering_mechanism::scratchBuffer->hostWriteLocation - 1;
+	buffering_mechanism::dynamicUniformBuffer->incrementFrame();
+	buffering_mechanism::scratchBuffer->incrementFrame();
 
 	dev.waitForFences({ buffering_mechanism::get_current_resources().previousSubmission }, true, -1, vkDynLoader);
 	dev.resetFences({ buffering_mechanism::get_current_resources().previousSubmission }, vkDynLoader);
