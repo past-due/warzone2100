@@ -48,6 +48,23 @@
 #include <unordered_set>
 #include <map>
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wcast-align"
+#pragma clang diagnostic ignored "-Wtautological-compare"
+#pragma clang diagnostic ignored "-Wunused-variable"
+#pragma clang diagnostic ignored "-Wmissing-field-initializers"
+#pragma clang diagnostic ignored "-Wreorder"
+#pragma clang diagnostic ignored "-Wconditional-uninitialized"
+#pragma clang diagnostic ignored "-Wunused-private-field"
+#endif
+#define VMA_IMPLEMENTATION
+#define VMA_STATIC_VULKAN_FUNCTIONS 0
+#include "3rdparty/vk_mem_alloc.h"
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+
 const size_t MAX_FRAMES_IN_FLIGHT = 2;
 
 const std::vector<const char*> instanceExtensions = {
@@ -345,8 +362,8 @@ uint32_t circularHostBuffer::alloc(uint32_t amount, uint32_t align)
 
 // MARK: perFrameResources_t
 
-perFrameResources_t::perFrameResources_t(vk::Device& _dev, const uint32_t& graphicsQueueFamilyIndex, const VKDispatchLoaderDynamic& vkDynLoader) :
-	dev(_dev), pVkDynLoader(&vkDynLoader)
+perFrameResources_t::perFrameResources_t(vk::Device& _dev, const VmaAllocator& allocator, const uint32_t& graphicsQueueFamilyIndex, const VKDispatchLoaderDynamic& vkDynLoader) :
+	dev(_dev), allocator(allocator), pVkDynLoader(&vkDynLoader)
 {
 	const auto& descriptorSize =
 		std::array<vk::DescriptorPoolSize, 2> {
@@ -389,9 +406,18 @@ void perFrameResources_t::clean()
 {
 	buffer_to_delete.clear();
 	image_view_to_delete.clear();
+	for (auto image : image_to_delete)
+	{
+		dev.destroyImage(image, nullptr, *pVkDynLoader);
+	}
 	image_to_delete.clear();
 	memory_to_free.clear();
 	perPSO_dynamicUniformBufferDescriptorSets.clear();
+	for (auto allocation : vmamemory_to_free)
+	{
+		vmaFreeMemory(allocator, allocation);
+	}
+	vmamemory_to_free.clear();
 }
 
 perFrameResources_t::~perFrameResources_t()
@@ -401,6 +427,7 @@ perFrameResources_t::~perFrameResources_t()
 	dev.destroyFence(previousSubmission, nullptr, *pVkDynLoader);
 	dev.destroySemaphore(imageAcquireSemaphore, nullptr, *pVkDynLoader);
 	dev.destroySemaphore(renderFinishedSemaphore, nullptr, *pVkDynLoader);
+	clean();
 }
 
 perFrameResources_t& buffering_mechanism::get_current_resources()
@@ -410,13 +437,13 @@ perFrameResources_t& buffering_mechanism::get_current_resources()
 
 // MARK: buffering_mechanism
 
-void buffering_mechanism::init(vk::Device dev, size_t swapChainImageCount, const uint32_t& graphicsQueueFamilyIndex, const VKDispatchLoaderDynamic& vkDynLoader)
+void buffering_mechanism::init(vk::Device dev, const VmaAllocator& allocator, size_t swapChainImageCount, const uint32_t& graphicsQueueFamilyIndex, const VKDispatchLoaderDynamic& vkDynLoader)
 {
 	currentFrame = 0;
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
 	{
-		perFrameResources.emplace_back(new perFrameResources_t(dev, graphicsQueueFamilyIndex, vkDynLoader));
+		perFrameResources.emplace_back(new perFrameResources_t(dev, allocator, graphicsQueueFamilyIndex, vkDynLoader));
 	}
 
 	dev.resetFences({ buffering_mechanism::get_current_resources().previousSubmission }, vkDynLoader);
@@ -1124,30 +1151,52 @@ VkTexture::VkTexture(const VkRoot& root, const std::size_t& mipmap_count, const 
 {
 	ASSERT(width > 0 && height > 0, "0 width/height textures are unsupported");
 
-	object = root.dev.createImageUnique(
-		vk::ImageCreateInfo{}
-		.setArrayLayers(1)
-		.setExtent(vk::Extent3D(width, height, 1))
-		.setImageType(vk::ImageType::e2D)
-		.setMipLevels(mipmap_count)
-		.setTiling(vk::ImageTiling::eOptimal)
-		.setFormat(internal_format)
-		.setUsage(vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled)
-		.setInitialLayout(vk::ImageLayout::eUndefined)
-		.setSamples(vk::SampleCountFlagBits::e1)
-		, nullptr, root.vkDynLoader
-	);
-	const auto& memreq = dev.getImageMemoryRequirements(*object, root.vkDynLoader);
-	memory = dev.allocateMemoryUnique(
-		vk::MemoryAllocateInfo{}
-		.setAllocationSize(memreq.size)
-		.setMemoryTypeIndex(findProperties(root.memprops, memreq.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal))
-		, nullptr, root.vkDynLoader
-	);
-	dev.bindImageMemory(*object, *memory, 0, root.vkDynLoader);
+//	object = root.dev.createImageUnique(
+//		vk::ImageCreateInfo{}
+//		.setArrayLayers(1)
+//		.setExtent(vk::Extent3D(width, height, 1))
+//		.setImageType(vk::ImageType::e2D)
+//		.setMipLevels(mipmap_count)
+//		.setTiling(vk::ImageTiling::eOptimal)
+//		.setFormat(internal_format)
+//		.setUsage(vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled)
+//		.setInitialLayout(vk::ImageLayout::eUndefined)
+//		.setSamples(vk::SampleCountFlagBits::e1)
+//		, nullptr, root.vkDynLoader
+//	);
+//	const auto& memreq = dev.getImageMemoryRequirements(*object, root.vkDynLoader);
+//	memory = dev.allocateMemoryUnique(
+//		vk::MemoryAllocateInfo{}
+//		.setAllocationSize(memreq.size)
+//		.setMemoryTypeIndex(findProperties(root.memprops, memreq.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal))
+//		, nullptr, root.vkDynLoader
+//	);
+//	dev.bindImageMemory(*object, *memory, 0, root.vkDynLoader);
+
+	auto imageCreateInfo = vk::ImageCreateInfo{}
+	.setArrayLayers(1)
+	.setExtent(vk::Extent3D(width, height, 1))
+	.setImageType(vk::ImageType::e2D)
+	.setMipLevels(mipmap_count)
+	.setTiling(vk::ImageTiling::eOptimal)
+	.setFormat(internal_format)
+	.setUsage(vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled)
+	.setInitialLayout(vk::ImageLayout::eUndefined)
+	.setSamples(vk::SampleCountFlagBits::e1);
+
+	VmaAllocationCreateInfo allocInfo = {};
+	allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+	vk::Result result = static_cast<vk::Result>(vmaCreateImage(root.allocator, reinterpret_cast<const VkImageCreateInfo*>( &imageCreateInfo ), &allocInfo, reinterpret_cast<VkImage*>( &object ), &allocation, nullptr));
+	if (result != vk::Result::eSuccess)
+	{
+		// Failed to allocate memory!
+		throwResultException( result, "vmaCreateImage" );
+	}
+
 	view = dev.createImageViewUnique(
 		vk::ImageViewCreateInfo{}
-		.setImage(*object)
+		.setImage(object)
 		.setViewType(vk::ImageViewType::e2D)
 		.setFormat(internal_format)
 		.setComponents(vk::ComponentMapping())
@@ -1162,7 +1211,8 @@ VkTexture::~VkTexture()
 	auto& frameResources = buffering_mechanism::get_current_resources();
 	frameResources.image_view_to_delete.emplace_back(std::move(view));
 	frameResources.image_to_delete.emplace_back(std::move(object));
-	frameResources.memory_to_free.emplace_back(std::move(memory));
+//	frameResources.memory_to_free.emplace_back(std::move(memory));
+	frameResources.vmamemory_to_free.push_back(allocation);
 }
 
 void VkTexture::bind() {}
@@ -1208,14 +1258,14 @@ void VkTexture::upload(const std::size_t& mip_level, const std::size_t& offset_x
 		vk::DependencyFlags{}, {}, {},
 		{
 			vk::ImageMemoryBarrier{}
-				.setImage(*object)
+				.setImage(object)
 				.setSubresourceRange(vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, mip_level, 1, 0, 1))
 				.setOldLayout(vk::ImageLayout::eUndefined)
 				.setNewLayout(vk::ImageLayout::eTransferDstOptimal)
 				.setDstAccessMask(vk::AccessFlagBits::eTransferWrite)
 		},
 		root->vkDynLoader);
-	cmdBuffer.copyBufferToImage(buffering_mechanism::scratchBuffer->buffer, *object, vk::ImageLayout::eTransferDstOptimal,
+	cmdBuffer.copyBufferToImage(buffering_mechanism::scratchBuffer->buffer, object, vk::ImageLayout::eTransferDstOptimal,
 		{
 		vk::BufferImageCopy{}
 			.setBufferOffset(offset)
@@ -1230,7 +1280,7 @@ void VkTexture::upload(const std::size_t& mip_level, const std::size_t& offset_x
 		vk::DependencyFlags{}, {}, {},
 		{
 			vk::ImageMemoryBarrier{}
-				.setImage(*object)
+				.setImage(object)
 				.setSubresourceRange(vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, mip_level, 1, 0, 1))
 				.setOldLayout(vk::ImageLayout::eTransferDstOptimal)
 				.setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
@@ -1641,6 +1691,12 @@ void VkRoot::shutdown()
 	}
 	createdPipelines.clear();
 
+	// destroy allocator
+	if (allocator != VK_NULL_HANDLE)
+	{
+		vmaDestroyAllocator(allocator);
+	}
+
 	// destroy logical device
 	if (dev)
 	{
@@ -1848,6 +1904,7 @@ bool VkRoot::createSwapchain()
 	ASSERT(physicalDevice, "Physical device is null");
 	ASSERT(surface, "Surface is null");
 	ASSERT(dev, "Logical device is null");
+	ASSERT(allocator != VK_NULL_HANDLE, "Allocator is null");
 	ASSERT(graphicsQueue, "Graphics queue not initialized");
 	ASSERT(presentQueue, "Presentation queue not initialized");
 	ASSERT(queueFamilyIndices.isComplete(), "Did not receive complete indices from findQueueFamilies");
@@ -1930,7 +1987,7 @@ bool VkRoot::createSwapchain()
 				   });
 	//
 
-	buffering_mechanism::init(dev, MAX_FRAMES_IN_FLIGHT, queueFamilyIndices.graphicsFamily.value(), vkDynLoader);
+	buffering_mechanism::init(dev, allocator, MAX_FRAMES_IN_FLIGHT, queueFamilyIndices.graphicsFamily.value(), vkDynLoader);
 
 	// createDepthStencilImage
 	vk::Format depthFormat = findDepthFormat(physicalDevice, vkDynLoader);
@@ -2121,6 +2178,12 @@ bool VkRoot::initialize(const gfx_api::backend_Impl_Factory& impl)
 		return false;
 	}
 
+	if (!createAllocator())
+	{
+		debug(LOG_ERROR, "createAllocator() failed");
+		return false;
+	}
+
 	getQueues();
 
 	if (!createSwapchain())
@@ -2212,6 +2275,47 @@ bool VkRoot::createLogicalDevice()
 	vkDynLoader.init(static_cast<VkInstance>(inst), vkDynLoader.vkGetInstanceProcAddr, static_cast<VkDevice>(dev), vkDynLoader.vkGetDeviceProcAddr);
 
 	return true;
+}
+
+bool VkRoot::createAllocator()
+{
+	ASSERT(physicalDevice, "Physical device is null");
+	ASSERT(dev, "Logical device is null");
+
+	VmaVulkanFunctions vulkanFunctions;
+	vulkanFunctions.vkGetPhysicalDeviceProperties = vkDynLoader.vkGetPhysicalDeviceProperties;
+	vulkanFunctions.vkGetPhysicalDeviceMemoryProperties = vkDynLoader.vkGetPhysicalDeviceMemoryProperties;
+	vulkanFunctions.vkAllocateMemory = vkDynLoader.vkAllocateMemory;
+	vulkanFunctions.vkFreeMemory = vkDynLoader.vkFreeMemory;
+	vulkanFunctions.vkMapMemory = vkDynLoader.vkMapMemory;
+	vulkanFunctions.vkUnmapMemory = vkDynLoader.vkUnmapMemory;
+	vulkanFunctions.vkFlushMappedMemoryRanges = vkDynLoader.vkFlushMappedMemoryRanges;
+	vulkanFunctions.vkInvalidateMappedMemoryRanges = vkDynLoader.vkInvalidateMappedMemoryRanges;
+	vulkanFunctions.vkBindBufferMemory = vkDynLoader.vkBindBufferMemory;
+	vulkanFunctions.vkBindImageMemory = vkDynLoader.vkBindImageMemory;
+	vulkanFunctions.vkGetBufferMemoryRequirements = vkDynLoader.vkGetBufferMemoryRequirements;
+	vulkanFunctions.vkGetImageMemoryRequirements = vkDynLoader.vkGetImageMemoryRequirements;
+	vulkanFunctions.vkCreateBuffer = vkDynLoader.vkCreateBuffer;
+	vulkanFunctions.vkDestroyBuffer = vkDynLoader.vkDestroyBuffer;
+	vulkanFunctions.vkCreateImage = vkDynLoader.vkCreateImage;
+	vulkanFunctions.vkDestroyImage = vkDynLoader.vkDestroyImage;
+	vulkanFunctions.vkCmdCopyBuffer = vkDynLoader.vkCmdCopyBuffer;
+#if VMA_DEDICATED_ALLOCATION
+	vulkanFunctions.vkGetBufferMemoryRequirements2KHR = vkDynLoader.vkGetBufferMemoryRequirements2KHR;
+	vulkanFunctions.vkGetImageMemoryRequirements2KHR = vkDynLoader.vkGetImageMemoryRequirements2KHR;
+#endif
+
+	VmaAllocatorCreateInfo allocatorInfo = {};
+	allocatorInfo.physicalDevice = physicalDevice;
+	allocatorInfo.device = dev;
+	allocatorInfo.pVulkanFunctions = &vulkanFunctions;
+
+	VkResult result = vmaCreateAllocator(&allocatorInfo, &allocator);
+	if (result != VK_SUCCESS)
+	{
+		debug(LOG_ERROR, "vmaCreateAllocator failed with error: %s", to_string(static_cast<vk::Result>(result)).c_str());
+	}
+	return result == VK_SUCCESS;
 }
 
 void VkRoot::getQueues()

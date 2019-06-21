@@ -50,6 +50,7 @@ using nonstd::optional;
 #endif
 #include "3rdparty/vkh_renderpasscompat.hpp"
 #include "3rdparty/vkh_info.hpp"
+#include "3rdparty/vk_mem_alloc.h"
 #if defined( _MSC_VER )
 #pragma warning( pop )
 #endif
@@ -113,6 +114,7 @@ struct VkPSO; // forward-declare
 struct perFrameResources_t
 {
 	vk::Device dev;
+	VmaAllocator allocator;
 	vk::DescriptorPool descriptorPool;
 	uint32_t numalloc;
 	vk::CommandPool pool;
@@ -120,9 +122,10 @@ struct perFrameResources_t
 	vk::CommandBuffer cmdCopy;
 	vk::Fence previousSubmission;
 	std::vector<WZ_vk::UniqueBuffer> buffer_to_delete;
-	std::vector<WZ_vk::UniqueImage> image_to_delete;
+	std::vector</*WZ_vk::UniqueImage*/vk::Image> image_to_delete;
 	std::vector<WZ_vk::UniqueImageView> image_view_to_delete;
 	std::vector<WZ_vk::UniqueDeviceMemory> memory_to_free;
+	std::vector<VmaAllocation> vmamemory_to_free;
 
 	vk::Semaphore imageAcquireSemaphore;
 	vk::Semaphore renderFinishedSemaphore;
@@ -132,7 +135,7 @@ struct perFrameResources_t
 	perFrameResources_t( const perFrameResources_t& other ) = delete; // non construction-copyable
 	perFrameResources_t& operator=( const perFrameResources_t& ) = delete; // non copyable
 
-	perFrameResources_t(vk::Device& _dev, const uint32_t& graphicsQueueIndex, const VKDispatchLoaderDynamic& vkDynLoader);
+	perFrameResources_t(vk::Device& _dev, const VmaAllocator& allocator, const uint32_t& graphicsQueueIndex, const VKDispatchLoaderDynamic& vkDynLoader);
 	void clean();
 	~perFrameResources_t();
 
@@ -153,7 +156,7 @@ struct buffering_mechanism
 
 	static perFrameResources_t& get_current_resources();
 	static perFrameResources_t* get_current_resources_pt();
-	static void init(vk::Device dev, size_t swapchainImageCount, const uint32_t& graphicsQueueFamilyIndex, const VKDispatchLoaderDynamic& vkDynLoader);
+	static void init(vk::Device dev, const VmaAllocator& allocator, size_t swapchainImageCount, const uint32_t& graphicsQueueFamilyIndex, const VKDispatchLoaderDynamic& vkDynLoader);
 	static void destroy(vk::Device dev, const VKDispatchLoaderDynamic& vkDynLoader);
 	static void swap(vk::Device dev, const VKDispatchLoaderDynamic& vkDynLoader);
 };
@@ -278,11 +281,14 @@ private:
 struct VkTexture final : public gfx_api::texture
 {
 	vk::Device dev;
-	WZ_vk::UniqueImage object;
+//	WZ_vk::UniqueImage object;
+	vk::Image object;
 	WZ_vk::UniqueImageView view;
-	WZ_vk::UniqueDeviceMemory memory;
+//	WZ_vk::UniqueDeviceMemory memory;
+	VmaAllocation allocation;
 	vk::Format internal_format;
 	size_t mipmap_levels;
+
 
 	static size_t format_size(const gfx_api::pixel_format& format);
 
@@ -345,6 +351,9 @@ struct VkRoot final : gfx_api::context
 	vk::Queue graphicsQueue;
 	vk::Queue presentQueue;
 	bool queueSupportsTimestamps = false;
+
+	// allocator
+	VmaAllocator allocator = VK_NULL_HANDLE;
 
 	// swapchain
 	vk::Extent2D swapchainSize;
@@ -409,6 +418,7 @@ private:
 	// pickPhysicalDevice();
 	void getQueueFamiliesInfo();
 	bool createLogicalDevice();
+	bool createAllocator();
 	void getQueues();
 	bool createSwapchain();
 	void rebuildPipelinesIfNecessary();
