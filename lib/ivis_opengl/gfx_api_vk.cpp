@@ -2023,7 +2023,7 @@ bool VkRoot::createSwapchain()
 	//
 
 	setupSwapchainImages();
-	buffering_mechanism::scratchBuffer = std::unique_ptr<circularHostBuffer>(new circularHostBuffer(dev, memprops, 1024 * 1024 * 128, vkDynLoader, vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eVertexBuffer));
+	buffering_mechanism::scratchBuffer = std::unique_ptr<circularHostBuffer>(new circularHostBuffer(dev, memprops, 1024 * 1024 * 256, vkDynLoader, vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eVertexBuffer));
 
 	buffering_mechanism::dynamicUniformBuffer = std::unique_ptr<circularHostBuffer>(new circularHostBuffer(dev, memprops, physDeviceProps.limits.minUniformBufferOffsetAlignment * 1024 * 512, vkDynLoader, vk::BufferUsageFlagBits::eUniformBuffer));
 	buffering_mechanism::pDynamicUniformBufferMapped = dev.mapMemory(buffering_mechanism::dynamicUniformBuffer->memory, 0, buffering_mechanism::dynamicUniformBuffer->size, vk::MemoryMapFlags(), vkDynLoader);
