@@ -346,6 +346,7 @@ struct VkRoot final : gfx_api::context
 	bool supports_rgb = false;
 
 	QueueFamilyIndices queueFamilyIndices;
+	std::vector<const char*> enabledDeviceExtensions;
 	vk::Device dev;
 	vk::SurfaceKHR surface;
 	vk::Queue graphicsQueue;

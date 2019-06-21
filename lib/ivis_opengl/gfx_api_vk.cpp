@@ -75,6 +75,11 @@ const std::vector<const char*> deviceExtensions = {
 	VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
 
+const std::vector<const char*> optionalDeviceExtensions = {
+	VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
+	VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME
+};
+
 const std::vector<vk::Format> supportedDepthFormats = {
 	vk::Format::eD32SfloatS8Uint,
 	vk::Format::eD24UnormS8Uint
@@ -169,6 +174,30 @@ SwapChainSupportDetails querySwapChainSupport(const vk::PhysicalDevice &device, 
 	details.presentModes = device.getSurfacePresentModesKHR(surface, vkDynLoader);
 
 	return details;
+}
+
+std::vector<const char*> findSupportedDeviceExtensions(const vk::PhysicalDevice &device, const std::vector<const char*> &desiredExtensions, const VKDispatchLoaderDynamic &vkDynLoader)
+{
+	const auto availableExtensions = device.enumerateDeviceExtensionProperties(nullptr, vkDynLoader); // TODO: handle thrown error?
+	std::unordered_set<std::string> supportedExtensionNames;
+	for (auto & extension : availableExtensions) {
+		supportedExtensionNames.insert(extension.extensionName);
+	}
+
+	std::vector<const char*> foundExtensions;
+	for (const char* extensionName : desiredExtensions) {
+
+		if(supportedExtensionNames.find(extensionName) != supportedExtensionNames.end())
+		{
+			foundExtensions.push_back(extensionName);
+		}
+		else
+		{
+			debug(LOG_3D, "Vulkan: Did not find device extension: %s", extensionName);
+		}
+	}
+
+	return foundExtensions;
 }
 
 bool checkDeviceExtensionSupport(const vk::PhysicalDevice &device, const std::vector<const char*> &desiredExtensions, const VKDispatchLoaderDynamic &vkDynLoader)
@@ -277,7 +306,7 @@ bool checkValidationLayerSupport(PFN_vkGetInstanceProcAddr _vkGetInstanceProcAdd
 	return true;
 }
 
-bool getSupportedDebugExtensions(std::vector<const char*> &output, PFN_vkGetInstanceProcAddr _vkGetInstanceProcAddr)
+bool findSupportedExtensions(std::vector<const char*> extensionsToFind, std::vector<const char*> &output, PFN_vkGetInstanceProcAddr _vkGetInstanceProcAddr)
 {
 	std::vector<VkExtensionProperties> supportedExtensions;
 	if (!getSupportedExtensions(supportedExtensions, _vkGetInstanceProcAddr))
@@ -290,21 +319,53 @@ bool getSupportedDebugExtensions(std::vector<const char*> &output, PFN_vkGetInst
 		supportedExtensionNames.insert(extension.extensionName);
 	}
 
-	std::vector<const char*> supportedDebugExtensions;
-	for (const char* extensionName : debugAdditionalExtensions) {
+	std::vector<const char*> foundExtensions;
+	for (const char* extensionName : extensionsToFind) {
 
 		if(supportedExtensionNames.find(extensionName) != supportedExtensionNames.end())
 		{
-			supportedDebugExtensions.push_back(extensionName);
+			foundExtensions.push_back(extensionName);
 		}
 		else
 		{
-			debug(LOG_WARNING, "Vulkan: Desired debug extension \"%s\" is not supported - disabling", extensionName);
+			debug(LOG_3D, "Vulkan: Did not find extension: %s", extensionName);
 		}
 	}
 
-	output = supportedDebugExtensions;
+	output = foundExtensions;
 	return true;
+}
+
+bool getSupportedDebugExtensions(std::vector<const char*> &output, PFN_vkGetInstanceProcAddr _vkGetInstanceProcAddr)
+{
+	return findSupportedExtensions(debugAdditionalExtensions, output, _vkGetInstanceProcAddr);
+
+//	std::vector<VkExtensionProperties> supportedExtensions;
+//	if (!getSupportedExtensions(supportedExtensions, _vkGetInstanceProcAddr))
+//	{
+//		// Failed to get supported extensions
+//		return false;
+//	}
+//	std::unordered_set<std::string> supportedExtensionNames;
+//	for (auto & extension : supportedExtensions) {
+//		supportedExtensionNames.insert(extension.extensionName);
+//	}
+//
+//	std::vector<const char*> supportedDebugExtensions;
+//	for (const char* extensionName : debugAdditionalExtensions) {
+//
+//		if(supportedExtensionNames.find(extensionName) != supportedExtensionNames.end())
+//		{
+//			supportedDebugExtensions.push_back(extensionName);
+//		}
+//		else
+//		{
+//			debug(LOG_WARNING, "Vulkan: Desired debug extension \"%s\" is not supported - disabling", extensionName);
+//		}
+//	}
+//
+//	output = supportedDebugExtensions;
+//	return true;
 }
 
 // MARK: circularHostBuffer
@@ -2230,6 +2291,11 @@ bool VkRoot::createLogicalDevice()
 
 	ASSERT(queueFamilyIndices.isComplete(), "Did not receive complete indices from findQueueFamilies");
 
+	// determine extensions to use
+	enabledDeviceExtensions = deviceExtensions;
+	auto supportedOptionalExtensions = findSupportedDeviceExtensions(physicalDevice, optionalDeviceExtensions, vkDynLoader);
+	enabledDeviceExtensions.insert(std::end(enabledDeviceExtensions), supportedOptionalExtensions.begin(), supportedOptionalExtensions.end());
+
 	// create logical device
 	std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
 	std::set<uint32_t> uniqueQueueFamilies = {queueFamilyIndices.graphicsFamily.value(), queueFamilyIndices.presentFamily.value()};
@@ -2253,8 +2319,8 @@ bool VkRoot::createLogicalDevice()
 		vk::DeviceCreateInfo{}
 		.setEnabledLayerCount(static_cast<uint32_t>(layers.size()))
 		.setPpEnabledLayerNames(layers.data())
-		.setEnabledExtensionCount(static_cast<uint32_t>(deviceExtensions.size()))
-		.setPpEnabledExtensionNames(deviceExtensions.data())
+		.setEnabledExtensionCount(static_cast<uint32_t>(enabledDeviceExtensions.size()))
+		.setPpEnabledExtensionNames(enabledDeviceExtensions.data())
 		.setPEnabledFeatures(&enabledFeatures)
 		.setQueueCreateInfoCount(static_cast<uint32_t>(queueCreateInfos.size()))
 		.setPQueueCreateInfos(queueCreateInfos.data())
@@ -2309,6 +2375,16 @@ bool VkRoot::createAllocator()
 	allocatorInfo.physicalDevice = physicalDevice;
 	allocatorInfo.device = dev;
 	allocatorInfo.pVulkanFunctions = &vulkanFunctions;
+	allocatorInfo.flags |= VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT;
+
+	bool enabled_VK_KHR_get_memory_requirements2 = std::find_if(enabledDeviceExtensions.begin(), enabledDeviceExtensions.end(),
+														 [](const char *extensionName) { return (strcmp(extensionName, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME) == 0);}) != enabledDeviceExtensions.end();
+	bool enabled_VK_KHR_dedicated_allocation = std::find_if(enabledDeviceExtensions.begin(), enabledDeviceExtensions.end(),
+																[](const char *extensionName) { return (strcmp(extensionName, VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME) == 0);}) != enabledDeviceExtensions.end();
+	if (enabled_VK_KHR_get_memory_requirements2 && enabled_VK_KHR_dedicated_allocation)
+	{
+		allocatorInfo.flags |= VMA_ALLOCATOR_CREATE_KHR_DEDICATED_ALLOCATION_BIT;
+	}
 
 	VkResult result = vmaCreateAllocator(&allocatorInfo, &allocator);
 	if (result != VK_SUCCESS)
