@@ -1842,6 +1842,11 @@ vk::PresentModeKHR chooseSwapPresentMode(const std::vector<vk::PresentModeKHR>& 
 	return presentMode;
 }
 
+template <typename T>
+T clamp(const T& n, const T& lower, const T& upper) {
+	return std::max(lower, std::min(n, upper));
+}
+
 bool VkRoot::createSwapchain()
 {
 	ASSERT(backend_impl, "Backend implementation is null");
@@ -1861,9 +1866,23 @@ bool VkRoot::createSwapchain()
 
 	int w, h;
 	backend_impl->getDrawableSize(&w, &h);
-	swapchainSize.width = w;
-	swapchainSize.height = h;
-	ASSERT(swapchainSize.width > 0 && swapchainSize.height > 0, "swapchain dimensions: %d x %d", w, h);
+	ASSERT(w > 0 && h > 0, "getDrawableSize returned: %d x %d", w, h);
+	vk::Extent2D drawableSize;
+	drawableSize.width = static_cast<uint32_t>(w);
+	drawableSize.height = static_cast<uint32_t>(h);
+	// clamp drawableSize to VkSurfaceCapabilitiesKHR minImageExtent / maxImageExtent
+	// see: https://bugzilla.libsdl.org/show_bug.cgi?id=4671
+	swapchainSize.width = clamp(drawableSize.width, swapChainSupport.capabilities.minImageExtent.width, swapChainSupport.capabilities.maxImageExtent.width);
+	swapchainSize.height = clamp(drawableSize.height, swapChainSupport.capabilities.minImageExtent.height, swapChainSupport.capabilities.maxImageExtent.height);
+	ASSERT(swapchainSize.width > 0 && swapchainSize.height > 0, "swapchain dimensions: %" PRIu32" x %" PRIu32"", swapchainSize.width, swapchainSize.height);
+	if (drawableSize != swapchainSize)
+	{
+		debug(LOG_3D, "Clamped drawableSize (%" PRIu32" x %" PRIu32") to minImageExtent (%" PRIu32" x %" PRIu32") & maxImageExtent (%" PRIu32" x %" PRIu32"): swapchainSize (%" PRIu32" x %" PRIu32")",
+			  drawableSize.width, drawableSize.height,
+			  swapChainSupport.capabilities.minImageExtent.width, swapChainSupport.capabilities.minImageExtent.height,
+			  swapChainSupport.capabilities.maxImageExtent.width, swapChainSupport.capabilities.maxImageExtent.height,
+			  swapchainSize.width, swapchainSize.height);
+	}
 
 	// pick swapchain image count
 	uint32_t swapchainDesiredImageCount = swapChainSupport.capabilities.minImageCount + 1;
