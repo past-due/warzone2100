@@ -99,6 +99,8 @@ struct circularHostBuffer
 	circularHostBuffer(vk::Device &d, vk::PhysicalDeviceMemoryProperties memprops, uint32_t s, const VKDispatchLoaderDynamic& vkDynLoader, const vk::BufferUsageFlags& usageFlags);
 	~circularHostBuffer();
 
+	void incrementFrame();
+
 private:
 	static bool isBetween(uint32_t rangeBegin, uint32_t rangeEnd, uint32_t position);
 	static std::tuple<uint32_t, uint32_t> getWritePosAndNewWriteLocation(uint32_t currentWritePos, uint32_t amount, uint32_t totalSize, uint32_t align);
