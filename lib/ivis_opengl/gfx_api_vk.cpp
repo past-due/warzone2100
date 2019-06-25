@@ -1067,8 +1067,12 @@ void VkBuf::upload(const size_t & size, const void * data)
 	update(0, size, data);
 }
 
-void VkBuf::update(const size_t & start, const size_t & width, const void * data)
+void VkBuf::update(const size_t & start, const size_t & width, const void * data, const update_flag flag)
 {
+	size_t current_FrameNum = gfx_api::context::get().current_FrameNum();
+	ASSERT(flag == update_flag::non_overlapping_updates_promise || (lastUploaded_FrameNum != current_FrameNum), "Attempt to upload to buffer more than once per frame");
+	lastUploaded_FrameNum = current_FrameNum;
+
 	ASSERT(start < buffer_size, "Starting offset (%zu) is past end of buffer (length: %zu)", start, buffer_size);
 	ASSERT(start + width <= buffer_size, "Attempt to write past end of buffer");
 	if (width == 0)
@@ -2042,6 +2046,8 @@ bool VkRoot::initialize(const gfx_api::backend_Impl_Factory& impl)
 {
 	debug(LOG_3D, "VkRoot::initialize()");
 
+	frameNum = 1;
+
 	// obtain backend_Vulkan_Impl from impl
 	backend_impl = impl.createVulkanBackendImpl();
 	if (!backend_impl)
@@ -2510,6 +2516,8 @@ VkRoot::AcquireNextSwapchainImageResult VkRoot::acquireNextSwapchainImage()
 
 void VkRoot::flip(int clearMode)
 {
+	frameNum = std::max<size_t>(frameNum + 1, 1);
+
 	currentPSO = nullptr;
 	buffering_mechanism::get_current_resources().cmdDraw.endRenderPass(vkDynLoader);
 	buffering_mechanism::get_current_resources().cmdDraw.end(vkDynLoader);
@@ -2736,6 +2744,11 @@ bool VkRoot::getScreenshot(iV_Image &output)
 {
 	// TODO: Implement
 	return false;
+}
+
+const size_t& VkRoot::current_FrameNum() const
+{
+	return frameNum;
 }
 
 #endif // defined(WZ_VULKAN_ENABLED)

@@ -258,13 +258,14 @@ struct VkBuf final : public gfx_api::buffer
 	WZ_vk::UniqueBuffer object;
 	WZ_vk::UniqueDeviceMemory memory;
 	size_t buffer_size = 0;
+	size_t lastUploaded_FrameNum = 0;
 
 	VkBuf(vk::Device _dev, const gfx_api::buffer::usage&, const VkRoot& root);
 
 	virtual ~VkBuf() override;
 
 	virtual void upload(const size_t & size, const void * data) override;
-	virtual void update(const size_t & start, const size_t & size, const void * data) override;
+	virtual void update(const size_t & start, const size_t & size, const void * data, const update_flag flag = update_flag::none) override;
 
 	virtual void bind() override;
 
@@ -378,6 +379,8 @@ struct VkRoot final : gfx_api::context
 	const size_t maxErrorHandlingDepth = 10;
 	std::vector<vk::Result> errorHandlingDepth;
 
+	size_t frameNum = 0;
+
 public:
 	VkRoot(bool _debug);
 	~VkRoot();
@@ -465,6 +468,7 @@ public:
 	virtual bool getScreenshot(iV_Image &output) override;
 	virtual void handleWindowSizeChange(unsigned int oldWidth, unsigned int oldHeight, unsigned int newWidth, unsigned int newHeight) override;
 	virtual void shutdown() override;
+	virtual const size_t& current_FrameNum() const override;
 };
 
 #endif // defined(WZ_VULKAN_ENABLED)
