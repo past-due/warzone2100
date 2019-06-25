@@ -48,23 +48,6 @@
 #include <unordered_set>
 #include <map>
 
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wcast-align"
-#pragma clang diagnostic ignored "-Wtautological-compare"
-#pragma clang diagnostic ignored "-Wunused-variable"
-#pragma clang diagnostic ignored "-Wmissing-field-initializers"
-#pragma clang diagnostic ignored "-Wreorder"
-#pragma clang diagnostic ignored "-Wconditional-uninitialized"
-#pragma clang diagnostic ignored "-Wunused-private-field"
-#endif
-#define VMA_IMPLEMENTATION
-#define VMA_STATIC_VULKAN_FUNCTIONS 0
-#include "3rdparty/vk_mem_alloc.h"
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
-
 const size_t MAX_FRAMES_IN_FLIGHT = 2;
 
 const std::vector<const char*> instanceExtensions = {
