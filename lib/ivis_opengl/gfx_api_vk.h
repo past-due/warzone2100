@@ -87,28 +87,84 @@ namespace WZ_vk {
 	using UniqueSemaphore = vk::UniqueHandle<vk::Semaphore, VKDispatchLoaderDynamic>;
 }
 
-struct circularHostBuffer
+inline void hash_combine(std::size_t& seed) { }
+
+template <typename T, typename... Rest>
+inline void hash_combine(std::size_t& seed, const T& v, Rest... rest) {
+	std::hash<T> hasher;
+#if SIZE_MAX >= UINT64_MAX
+	seed ^= hasher(v) + 0x9e3779b97f4a7c15L + (seed<<6) + (seed>>2);
+#else
+	seed ^= hasher(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
+#endif
+	hash_combine(seed, rest...);
+}
+namespace std {
+	template <>
+	struct hash<vk::DescriptorBufferInfo>
+	{
+		std::size_t operator()(const vk::DescriptorBufferInfo& k) const
+		{
+			std::size_t h = 0;
+			hash_combine(h, static_cast<VkBuffer>(k.buffer), k.offset, k.range);
+			return h;
+		}
+	};
+}
+
+struct BlockBufferAllocator
 {
-	vk::Buffer buffer;
-	vk::DeviceMemory memory;
-	vk::Device &dev;
-	uint32_t gpuReadLocation;
-	uint32_t hostWriteLocation;
-	uint32_t size;
-
-	circularHostBuffer(vk::Device &d, vk::PhysicalDeviceMemoryProperties memprops, uint32_t s, const VKDispatchLoaderDynamic& vkDynLoader, const vk::BufferUsageFlags& usageFlags);
-	~circularHostBuffer();
-
-	void incrementFrame();
+	BlockBufferAllocator(VmaAllocator allocator, uint32_t minimumBlockSize, const vk::BufferUsageFlags& usageFlags, const VmaAllocationCreateInfo& allocInfo, bool autoMap = false);
+	BlockBufferAllocator(VmaAllocator allocator, uint32_t minimumBlockSize, const vk::BufferUsageFlags& usageFlags, const VmaMemoryUsage usage, bool autoMap = false);
+	~BlockBufferAllocator();
 
 private:
-	static bool isBetween(uint32_t rangeBegin, uint32_t rangeEnd, uint32_t position);
 	static std::tuple<uint32_t, uint32_t> getWritePosAndNewWriteLocation(uint32_t currentWritePos, uint32_t amount, uint32_t totalSize, uint32_t align);
+
+	void allocateNewBlock(uint32_t minimumSize);
+
+	struct Block
+	{
+		vk::Buffer buffer;
+		VmaAllocation allocation = VK_NULL_HANDLE;
+		uint32_t size = 0;
+		void *pMappedMemory = nullptr;
+	};
+
 public:
-	uint32_t alloc(uint32_t amount, uint32_t align);
+	struct AllocationResult
+	{
+		vk::Buffer buffer;
+		uint32_t offset;
+
+		AllocationResult(const Block& block, const uint32_t offset)
+		: buffer(block.buffer)
+		, offset(offset)
+		, block(block)
+		{ }
+
+		const Block& block;
+	};
+	AllocationResult alloc(uint32_t amount, uint32_t align);
+	void * mapMemory(AllocationResult memoryAllocation);
+	void unmapMemory(AllocationResult memoryAllocation);
+	void unmapAutomappedMemory();
+	void flushMemory();
+	void clean();
 
 private:
-	const VKDispatchLoaderDynamic *pVkDynLoader;
+	VmaAllocator allocator;
+	const uint32_t minimumBlockSize;
+	const vk::BufferUsageFlags usageFlags;
+	VmaAllocationCreateInfo allocInfo;
+
+	std::vector<Block> blocks;
+	uint64_t totalCapacity = 0;
+	uint32_t currentWritePosInLastBlock = 0;
+
+	uint32_t minimumFirstBlockSize = 0;
+
+	const bool autoMap = false;
 };
 
 struct VkPSO; // forward-declare
@@ -123,16 +179,20 @@ struct perFrameResources_t
 	vk::CommandBuffer cmdDraw;
 	vk::CommandBuffer cmdCopy;
 	vk::Fence previousSubmission;
-	std::vector<WZ_vk::UniqueBuffer> buffer_to_delete;
+	std::vector</*WZ_vk::UniqueBuffer*/vk::Buffer> buffer_to_delete;
 	std::vector</*WZ_vk::UniqueImage*/vk::Image> image_to_delete;
 	std::vector<WZ_vk::UniqueImageView> image_view_to_delete;
-	std::vector<WZ_vk::UniqueDeviceMemory> memory_to_free;
 	std::vector<VmaAllocation> vmamemory_to_free;
 
 	vk::Semaphore imageAcquireSemaphore;
 	vk::Semaphore renderFinishedSemaphore;
 
-	std::unordered_map<VkPSO *, vk::DescriptorSet> perPSO_dynamicUniformBufferDescriptorSets;
+	BlockBufferAllocator stagingBufferAllocator;
+	BlockBufferAllocator streamedVertexBufferAllocator;
+	BlockBufferAllocator uniformBufferAllocator;
+
+	typedef std::unordered_map<vk::DescriptorBufferInfo, vk::DescriptorSet> DynamicUniformBufferDescriptorSets;
+	std::unordered_map<VkPSO *, DynamicUniformBufferDescriptorSets> perPSO_dynamicUniformBufferDescriptorSets;
 
 	perFrameResources_t( const perFrameResources_t& other ) = delete; // non construction-copyable
 	perFrameResources_t& operator=( const perFrameResources_t& ) = delete; // non copyable
@@ -147,11 +207,6 @@ private:
 
 struct buffering_mechanism
 {
-	static std::unique_ptr<circularHostBuffer> dynamicUniformBuffer; // NEW
-	static void * pDynamicUniformBufferMapped;
-
-	static std::unique_ptr<circularHostBuffer> scratchBuffer;
-
 	static std::vector<std::unique_ptr<perFrameResources_t>> perFrameResources;
 
 	static size_t currentFrame;
@@ -260,8 +315,10 @@ struct VkBuf final : public gfx_api::buffer
 {
 	vk::Device dev;
 	gfx_api::buffer::usage usage;
-	WZ_vk::UniqueBuffer object;
-	WZ_vk::UniqueDeviceMemory memory;
+//	WZ_vk::UniqueBuffer object;
+//	WZ_vk::UniqueDeviceMemory memory;
+	vk::Buffer object;
+	VmaAllocation allocation = VK_NULL_HANDLE;
 	size_t buffer_size = 0;
 	size_t lastUploaded_FrameNum = 0;
 
@@ -275,7 +332,7 @@ struct VkBuf final : public gfx_api::buffer
 	virtual void bind() override;
 
 private:
-	void allocateBufferObject(const std::size_t& width);
+	void allocateBufferObject(const std::size_t& size);
 
 private:
 	const VkRoot* root;
@@ -288,7 +345,7 @@ struct VkTexture final : public gfx_api::texture
 	vk::Image object;
 	WZ_vk::UniqueImageView view;
 //	WZ_vk::UniqueDeviceMemory memory;
-	VmaAllocation allocation;
+	VmaAllocation allocation = VK_NULL_HANDLE;
 	vk::Format internal_format;
 	size_t mipmap_levels;
 

@@ -48,23 +48,6 @@
 #include <unordered_set>
 #include <map>
 
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wcast-align"
-#pragma clang diagnostic ignored "-Wtautological-compare"
-#pragma clang diagnostic ignored "-Wunused-variable"
-#pragma clang diagnostic ignored "-Wmissing-field-initializers"
-#pragma clang diagnostic ignored "-Wreorder"
-#pragma clang diagnostic ignored "-Wconditional-uninitialized"
-#pragma clang diagnostic ignored "-Wunused-private-field"
-#endif
-#define VMA_IMPLEMENTATION
-#define VMA_STATIC_VULKAN_FUNCTIONS 0
-#include "3rdparty/vk_mem_alloc.h"
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
-
 const size_t MAX_FRAMES_IN_FLIGHT = 2;
 
 const std::vector<const char*> instanceExtensions = {
@@ -368,40 +351,35 @@ bool getSupportedDebugExtensions(std::vector<const char*> &output, PFN_vkGetInst
 //	return true;
 }
 
-// MARK: circularHostBuffer
+// MARK: BlockBufferAllocator
 
-circularHostBuffer::circularHostBuffer(vk::Device &d, vk::PhysicalDeviceMemoryProperties memprops, uint32_t s, const VKDispatchLoaderDynamic& vkDynLoader, const vk::BufferUsageFlags& usageFlags)
-	: dev(d), gpuReadLocation(s - 1), hostWriteLocation(0), size(s), pVkDynLoader(&vkDynLoader)
+BlockBufferAllocator::BlockBufferAllocator(VmaAllocator allocator, uint32_t minimumBlockSize, const vk::BufferUsageFlags& usageFlags, const VmaAllocationCreateInfo& allocInfo, bool autoMap /* = false */)
+: allocator(allocator), minimumBlockSize(minimumBlockSize), usageFlags(usageFlags), allocInfo(allocInfo), autoMap(autoMap)
+{ }
+
+BlockBufferAllocator::BlockBufferAllocator(VmaAllocator allocator, uint32_t minimumBlockSize, const vk::BufferUsageFlags& usageFlags, const VmaMemoryUsage usage, bool autoMap /* = false */)
+: allocator(allocator), minimumBlockSize(minimumBlockSize), usageFlags(usageFlags), autoMap(autoMap)
 {
-	buffer = dev.createBuffer(
-		vk::BufferCreateInfo{}
-		.setSize(s)
-		.setUsage(usageFlags)
-		, nullptr, *pVkDynLoader
-	);
-	const auto& memreq = dev.getBufferMemoryRequirements(buffer, *pVkDynLoader);
-	memory = dev.allocateMemory(
-		vk::MemoryAllocateInfo{}
-		.setAllocationSize(memreq.size)
-		.setMemoryTypeIndex(findProperties(memprops, memreq.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostCoherent))
-		, nullptr, *pVkDynLoader
-	);
-	dev.bindBufferMemory(buffer, memory, 0, *pVkDynLoader);
+	VmaAllocationCreateInfo tmpAllocInfo = { };
+	tmpAllocInfo.usage = usage;
+	allocInfo = tmpAllocInfo;
 }
 
-circularHostBuffer::~circularHostBuffer()
+BlockBufferAllocator::~BlockBufferAllocator()
 {
-	dev.freeMemory(memory, nullptr, *pVkDynLoader);
-	dev.destroyBuffer(buffer, nullptr, *pVkDynLoader);
+	if (autoMap)
+	{
+		unmapAutomappedMemory();
+	}
+	for (auto& block : blocks)
+	{
+		ASSERT(block.pMappedMemory == nullptr, "Likely missing a call to unmapAutomappedMemory");
+		vmaDestroyBuffer(allocator, block.buffer, block.allocation);
+	}
+	blocks.clear();
 }
 
-bool circularHostBuffer::isBetween(uint32_t rangeBegin, uint32_t rangeEnd, uint32_t position)
-{
-	return !(rangeBegin > position ||
-		position >= rangeEnd);
-}
-
-std::tuple<uint32_t, uint32_t> circularHostBuffer::getWritePosAndNewWriteLocation(uint32_t currentWritePos, uint32_t amount, uint32_t totalSize, uint32_t align)
+std::tuple<uint32_t, uint32_t> BlockBufferAllocator::getWritePosAndNewWriteLocation(uint32_t currentWritePos, uint32_t amount, uint32_t totalSize, uint32_t align)
 {
 	assert(amount < totalSize);
 	currentWritePos = ((currentWritePos + align - 1) / align) * align;
@@ -412,24 +390,171 @@ std::tuple<uint32_t, uint32_t> circularHostBuffer::getWritePosAndNewWriteLocatio
 	return std::make_tuple(0u, amount);
 }
 
-uint32_t circularHostBuffer::alloc(uint32_t amount, uint32_t align)
+void BlockBufferAllocator::allocateNewBlock(uint32_t minimumSize)
 {
-	const auto& oldAndNewPos = getWritePosAndNewWriteLocation(hostWriteLocation, amount, size, align);
-	if (isBetween(std::get<0>(oldAndNewPos), std::get<1>(oldAndNewPos), gpuReadLocation))
-		throw;
-	hostWriteLocation = std::get<1>(oldAndNewPos);
-	return std::get<0>(oldAndNewPos);
+	uint32_t newBlockSize = std::max({minimumSize, (blocks.empty() ? minimumFirstBlockSize : 0), minimumBlockSize, (totalCapacity < static_cast<uint64_t>(std::numeric_limits<uint32_t>::max())) ? static_cast<uint32_t>(totalCapacity) : std::numeric_limits<uint32_t>::max()});
+	auto bufferCreateInfo = vk::BufferCreateInfo{}
+		.setSize(newBlockSize)
+		.setUsage(usageFlags);
+
+	totalCapacity += newBlockSize;
+
+	Block newBlock;
+	newBlock.size = newBlockSize;
+	vk::Result result = static_cast<vk::Result>(vmaCreateBuffer(allocator, reinterpret_cast<const VkBufferCreateInfo*>( &bufferCreateInfo ), &allocInfo, reinterpret_cast<VkBuffer*>( &newBlock.buffer ), &newBlock.allocation, nullptr));
+	if (result != vk::Result::eSuccess)
+	{
+		// Failed to allocate memory!
+		throwResultException( result, "vmaCreateBuffer" );
+	}
+
+	if (autoMap)
+	{
+		vmaMapMemory(allocator, newBlock.allocation, &newBlock.pMappedMemory);
+	}
+
+	blocks.push_back(newBlock);
+	currentWritePosInLastBlock = 0;
 }
 
-void circularHostBuffer::incrementFrame()
+BlockBufferAllocator::AllocationResult BlockBufferAllocator::alloc(uint32_t amount, uint32_t align)
 {
-	gpuReadLocation = hostWriteLocation - 1;
+	if (!blocks.empty())
+	{
+		const uint32_t lastBlockSize = blocks.back().size;
+		if (amount < lastBlockSize)
+		{
+			// attempt to see if this request fits in the remaining size in the last block
+			uint32_t newWritePos = ((currentWritePosInLastBlock + align - 1) / align) * align;
+			if (newWritePos + amount < lastBlockSize)
+			{
+				currentWritePosInLastBlock = newWritePos + amount;
+				return BlockBufferAllocator::AllocationResult(blocks.back(), newWritePos);
+			}
+		}
+	}
+
+	// otherwise, allocate a new block
+	allocateNewBlock(amount);
+	uint32_t newWritePos = 0;
+	ASSERT(newWritePos + amount <= blocks.back().size, "Failed to allocate new block");
+	currentWritePosInLastBlock = newWritePos + amount;
+	return BlockBufferAllocator::AllocationResult(blocks.back(), newWritePos);
+}
+
+void * BlockBufferAllocator::mapMemory(AllocationResult memoryAllocation)
+{
+	void* mappedData = nullptr;
+	if (memoryAllocation.block.pMappedMemory)
+	{
+		mappedData = memoryAllocation.block.pMappedMemory;
+	}
+	else
+	{
+		vmaMapMemory(allocator, memoryAllocation.block.allocation, &mappedData);
+	}
+	if (memoryAllocation.offset > 0)
+	{
+		return reinterpret_cast<uint8_t*>(mappedData) + memoryAllocation.offset;
+	}
+	else
+	{
+		return mappedData;
+	}
+}
+
+void BlockBufferAllocator::unmapMemory(AllocationResult memoryAllocation)
+{
+	if (memoryAllocation.block.pMappedMemory)
+	{
+		// no-op - call unmapAutomappedMemory instead
+		return;
+	}
+	vmaUnmapMemory(allocator, memoryAllocation.block.allocation);
+}
+
+void BlockBufferAllocator::unmapAutomappedMemory()
+{
+	ASSERT(autoMap, "Only useful when autoMap == true");
+	for (auto& block : blocks)
+	{
+		if (block.pMappedMemory)
+		{
+			vmaUnmapMemory(allocator, block.allocation);
+			block.pMappedMemory = nullptr;
+		}
+	}
+}
+
+void BlockBufferAllocator::flushMemory()
+{
+	for (auto& block : blocks)
+	{
+		vmaFlushAllocation(allocator, block.allocation, 0, VK_WHOLE_SIZE);
+	}
+}
+
+void BlockBufferAllocator::clean()
+{
+	uint64_t totalMemoryAllocated = 0;
+	uint64_t totalMemoryUsed = 0;
+	for (auto& block : blocks)
+	{
+		totalMemoryAllocated += static_cast<uint64_t>(block.size);
+	}
+	if (!blocks.empty())
+	{
+		totalMemoryUsed = totalMemoryAllocated - (blocks.back().size - currentWritePosInLastBlock);
+	}
+
+	uint32_t old_minimumFirstBlockSize = minimumFirstBlockSize;
+	if (blocks.size() > 1)
+	{
+		minimumFirstBlockSize = totalMemoryAllocated;
+	}
+	else if (totalMemoryUsed < (minimumFirstBlockSize / 4))
+	{
+		minimumFirstBlockSize = minimumFirstBlockSize / 2;
+	}
+
+	if ((old_minimumFirstBlockSize != minimumFirstBlockSize) && (minimumFirstBlockSize > minimumBlockSize))
+	{
+		// free all existing blocks
+		for (auto& block : blocks)
+		{
+			ASSERT(block.pMappedMemory == nullptr, "Likely missing a call to unmapAutomappedMemory");
+			vmaDestroyBuffer(allocator, block.buffer, block.allocation);
+		}
+		blocks.clear();
+	}
+
+	ASSERT(blocks.size() <= 1, "Should either be 0 or 1 retained block");
+
+	if (autoMap)
+	{
+		// re-map blocks that were retained
+		for (auto& block : blocks)
+		{
+			if (block.pMappedMemory == nullptr)
+			{
+				vmaMapMemory(allocator, block.allocation, &block.pMappedMemory);
+			}
+		}
+	}
+
+	currentWritePosInLastBlock = 0;
+	totalCapacity = (!blocks.empty()) ? blocks.back().size : 0;
 }
 
 // MARK: perFrameResources_t
 
-perFrameResources_t::perFrameResources_t(vk::Device& _dev, const VmaAllocator& allocator, const uint32_t& graphicsQueueFamilyIndex, const VKDispatchLoaderDynamic& vkDynLoader) :
-	dev(_dev), allocator(allocator), pVkDynLoader(&vkDynLoader)
+perFrameResources_t::perFrameResources_t(vk::Device& _dev, const VmaAllocator& allocator, const uint32_t& graphicsQueueFamilyIndex, const VKDispatchLoaderDynamic& vkDynLoader)
+	: dev(_dev)
+	, allocator(allocator)
+	, stagingBufferAllocator(allocator, 1024 * 1024, vk::BufferUsageFlagBits::eTransferSrc, VMA_MEMORY_USAGE_CPU_ONLY)
+	, streamedVertexBufferAllocator(allocator, 128 * 1024, vk::BufferUsageFlagBits::eVertexBuffer, VMA_MEMORY_USAGE_CPU_TO_GPU)
+	, uniformBufferAllocator(allocator, 1024 * 1024, vk::BufferUsageFlagBits::eUniformBuffer, VMA_MEMORY_USAGE_CPU_TO_GPU, true)
+	, pVkDynLoader(&vkDynLoader)
 {
 	const auto& descriptorSize =
 		std::array<vk::DescriptorPoolSize, 2> {
@@ -470,6 +595,14 @@ perFrameResources_t::perFrameResources_t(vk::Device& _dev, const VmaAllocator& a
 
 void perFrameResources_t::clean()
 {
+	stagingBufferAllocator.clean();
+	streamedVertexBufferAllocator.clean();
+	uniformBufferAllocator.clean();
+
+	for (auto buffer : buffer_to_delete)
+	{
+		dev.destroyBuffer(buffer, nullptr, *pVkDynLoader);
+	}
 	buffer_to_delete.clear();
 	image_view_to_delete.clear();
 	for (auto image : image_to_delete)
@@ -477,7 +610,6 @@ void perFrameResources_t::clean()
 		dev.destroyImage(image, nullptr, *pVkDynLoader);
 	}
 	image_to_delete.clear();
-	memory_to_free.clear();
 	perPSO_dynamicUniformBufferDescriptorSets.clear();
 	for (auto allocation : vmamemory_to_free)
 	{
@@ -518,22 +650,12 @@ void buffering_mechanism::init(vk::Device dev, const VmaAllocator& allocator, si
 void buffering_mechanism::destroy(vk::Device dev, const VKDispatchLoaderDynamic& vkDynLoader)
 {
 	perFrameResources.clear();
-	dynamicUniformBuffer.reset(nullptr);
-	buffering_mechanism::pDynamicUniformBufferMapped = nullptr;
-	scratchBuffer.reset(nullptr);
 	currentFrame = 0;
 }
 
 void buffering_mechanism::swap(vk::Device dev, const VKDispatchLoaderDynamic& vkDynLoader)
 {
 	currentFrame = (currentFrame < (perFrameResources.size() - 1)) ? currentFrame + 1 : 0;
-
-	// This currently makes the assumption that we have only two in-flight frames
-	ASSERT(perFrameResources.size() <= 2, "Current circularHostBuffer impl doesn't support more than 2 in-flight frames");
-//	buffering_mechanism::dynamicUniformBuffer->gpuReadLocation = buffering_mechanism::dynamicUniformBuffer->hostWriteLocation - 1;
-//	buffering_mechanism::scratchBuffer->gpuReadLocation = buffering_mechanism::scratchBuffer->hostWriteLocation - 1;
-	buffering_mechanism::dynamicUniformBuffer->incrementFrame();
-	buffering_mechanism::scratchBuffer->incrementFrame();
 
 	dev.waitForFences({ buffering_mechanism::get_current_resources().previousSubmission }, true, -1, vkDynLoader);
 	dev.resetFences({ buffering_mechanism::get_current_resources().previousSubmission }, vkDynLoader);
@@ -546,9 +668,6 @@ void buffering_mechanism::swap(vk::Device dev, const VKDispatchLoaderDynamic& vk
 
 // MARK: Definitions of statics
 
-std::unique_ptr<circularHostBuffer> buffering_mechanism::dynamicUniformBuffer;
-void * buffering_mechanism::pDynamicUniformBufferMapped = nullptr;
-std::unique_ptr<circularHostBuffer> buffering_mechanism::scratchBuffer;
 std::vector<std::unique_ptr<perFrameResources_t>> buffering_mechanism::perFrameResources;
 size_t buffering_mechanism::currentFrame;
 
@@ -1125,34 +1244,37 @@ inline vk::BufferUsageFlags to_vk(const gfx_api::buffer::usage& usage)
 	return vk::BufferUsageFlags(); // silence warning
 }
 
-void VkBuf::allocateBufferObject(const std::size_t& width)
+void VkBuf::allocateBufferObject(const std::size_t& size)
 {
-	if (buffer_size == width)
+	if (buffer_size == size)
 	{
 		return;
 	}
-	const auto& size = std::max(width, static_cast<size_t>(4u));
+
 	buffering_mechanism::get_current_resources().buffer_to_delete.emplace_back(std::move(object));
-	object = dev.createBufferUnique(
-									vk::BufferCreateInfo{}
-									.setSize(size)
-									.setUsage(to_vk(usage) | vk::BufferUsageFlagBits::eTransferDst)
-									, nullptr, root->vkDynLoader);
-	const auto memreq = dev.getBufferMemoryRequirements(*object, root->vkDynLoader);
-	buffering_mechanism::get_current_resources().memory_to_free.emplace_back(std::move(memory));
-	memory = dev.allocateMemoryUnique(
-									  vk::MemoryAllocateInfo{}
-									  .setAllocationSize(memreq.size)
-									  .setMemoryTypeIndex(findProperties(root->memprops, memreq.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal))
-									  , nullptr, root->vkDynLoader);
-	dev.bindBufferMemory(*object, *memory, 0, root->vkDynLoader);
+	buffering_mechanism::get_current_resources().vmamemory_to_free.push_back(allocation);
+
+	auto bufferCreateInfo = vk::BufferCreateInfo{}
+		.setSize(size)
+		.setUsage(to_vk(usage) | vk::BufferUsageFlagBits::eTransferDst);
+
+	VmaAllocationCreateInfo allocInfo = {};
+	allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+	vk::Result result = static_cast<vk::Result>(vmaCreateBuffer(root->allocator, reinterpret_cast<const VkBufferCreateInfo*>( &bufferCreateInfo ), &allocInfo, reinterpret_cast<VkBuffer*>( &object ), &allocation, nullptr));
+	if (result != vk::Result::eSuccess)
+	{
+		// Failed to allocate memory!
+		throwResultException( result, "vmaCreateBuffer" );
+	}
+
 	buffer_size = size;
 }
 
 VkBuf::~VkBuf()
 {
 	buffering_mechanism::get_current_resources().buffer_to_delete.emplace_back(std::move(object));
-	buffering_mechanism::get_current_resources().memory_to_free.emplace_back(std::move(memory));
+	buffering_mechanism::get_current_resources().vmamemory_to_free.push_back(allocation);
 }
 
 void VkBuf::upload(const size_t & size, const void * data)
@@ -1162,27 +1284,29 @@ void VkBuf::upload(const size_t & size, const void * data)
 	update(0, size, data);
 }
 
-void VkBuf::update(const size_t & start, const size_t & width, const void * data, const update_flag flag)
+void VkBuf::update(const size_t & start, const size_t & size, const void * data, const update_flag flag)
 {
 	size_t current_FrameNum = gfx_api::context::get().current_FrameNum();
 	ASSERT(flag == update_flag::non_overlapping_updates_promise || (lastUploaded_FrameNum != current_FrameNum), "Attempt to upload to buffer more than once per frame");
 	lastUploaded_FrameNum = current_FrameNum;
 
 	ASSERT(start < buffer_size, "Starting offset (%zu) is past end of buffer (length: %zu)", start, buffer_size);
-	ASSERT(start + width <= buffer_size, "Attempt to write past end of buffer");
-	if (width == 0)
+	ASSERT(start + size <= buffer_size, "Attempt to write past end of buffer");
+	if (size == 0)
 	{
 		debug(LOG_WARNING, "Attempt to update buffer with 0 bytes of new data");
 		return;
 	}
-	const auto& size = width; //std::max(width, static_cast<size_t>(4));
-	const auto& scratch_offset = buffering_mechanism::scratchBuffer->alloc(size, 2);
-	const auto mappedMem = dev.mapMemory(buffering_mechanism::scratchBuffer->memory, scratch_offset, size, vk::MemoryMapFlags(), root->vkDynLoader);
+
+	auto& frameResources = buffering_mechanism::get_current_resources();
+
+	const auto stagingMemory = frameResources.stagingBufferAllocator.alloc(size, 2);
+	const auto mappedMem = frameResources.stagingBufferAllocator.mapMemory(stagingMemory);
 	ASSERT(mappedMem != nullptr, "Failed to map memory");
 	memcpy(mappedMem, data, size);
-	dev.unmapMemory(buffering_mechanism::scratchBuffer->memory, root->vkDynLoader);
+	frameResources.stagingBufferAllocator.unmapMemory(stagingMemory);
 	const auto& cmdBuffer = buffering_mechanism::get_current_resources().cmdCopy;
-	cmdBuffer.copyBuffer(buffering_mechanism::scratchBuffer->buffer, *object, { vk::BufferCopy(scratch_offset, start, size) }, root->vkDynLoader);
+	cmdBuffer.copyBuffer(stagingMemory.buffer, object, { vk::BufferCopy(stagingMemory.offset, start, size) }, root->vkDynLoader);
 }
 
 void VkBuf::bind() {}
@@ -1283,7 +1407,6 @@ VkTexture::~VkTexture()
 	auto& frameResources = buffering_mechanism::get_current_resources();
 	frameResources.image_view_to_delete.emplace_back(std::move(view));
 	frameResources.image_to_delete.emplace_back(std::move(object));
-//	frameResources.memory_to_free.emplace_back(std::move(memory));
 	frameResources.vmamemory_to_free.push_back(allocation);
 }
 
@@ -1293,8 +1416,11 @@ void VkTexture::upload(const std::size_t& mip_level, const std::size_t& offset_x
 {
 	ASSERT(width > 0 && height > 0, "Attempt to upload texture with width or height of 0 (width: %zu, height: %zu)", width, height);
 	size_t dynamicAlignment = std::max(0x4 * format_size(internal_format), static_cast<size_t>(root->physDeviceProps.limits.optimalBufferCopyOffsetAlignment));
-	const auto offset = buffering_mechanism::scratchBuffer->alloc(width * height * format_size(internal_format), dynamicAlignment);
-	auto* mappedMem = reinterpret_cast<uint8_t*>(dev.mapMemory(buffering_mechanism::scratchBuffer->memory, offset, width * height * format_size(internal_format), vk::MemoryMapFlags(), root->vkDynLoader));
+	auto& frameResources = buffering_mechanism::get_current_resources();
+	const size_t stagingBufferSize = width * height * format_size(internal_format);
+	const auto stagingMemory = frameResources.stagingBufferAllocator.alloc(stagingBufferSize, dynamicAlignment);
+
+	auto* mappedMem = reinterpret_cast<uint8_t*>(frameResources.stagingBufferAllocator.mapMemory(stagingMemory));
 	ASSERT(mappedMem != nullptr, "Failed to map memory");
 	auto* srcMem = reinterpret_cast<const uint8_t*>(data);
 
@@ -1323,7 +1449,8 @@ void VkTexture::upload(const std::size_t& mip_level, const std::size_t& offset_x
 		}
 	}
 
-	dev.unmapMemory(buffering_mechanism::scratchBuffer->memory, root->vkDynLoader);
+	frameResources.stagingBufferAllocator.unmapMemory(stagingMemory);
+
 	const auto& cmdBuffer = buffering_mechanism::get_current_resources().cmdCopy;
 	// TODO: Should this be eBottomOfPipe, eTopOfPipe, or something else? // FIXME
 	cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
@@ -1337,10 +1464,10 @@ void VkTexture::upload(const std::size_t& mip_level, const std::size_t& offset_x
 				.setDstAccessMask(vk::AccessFlagBits::eTransferWrite)
 		},
 		root->vkDynLoader);
-	cmdBuffer.copyBufferToImage(buffering_mechanism::scratchBuffer->buffer, object, vk::ImageLayout::eTransferDstOptimal,
+	cmdBuffer.copyBufferToImage(stagingMemory.buffer, object, vk::ImageLayout::eTransferDstOptimal,
 		{
 		vk::BufferImageCopy{}
-			.setBufferOffset(offset)
+			.setBufferOffset(stagingMemory.offset)
 			.setBufferImageHeight(height)
 			.setBufferRowLength(width)
 			.setImageOffset(vk::Offset3D(offset_x, offset_y, 0))
@@ -2114,10 +2241,6 @@ bool VkRoot::createSwapchain()
 	//
 
 	setupSwapchainImages();
-	buffering_mechanism::scratchBuffer = std::unique_ptr<circularHostBuffer>(new circularHostBuffer(dev, memprops, 1024 * 1024 * 256, vkDynLoader, vk::BufferUsageFlagBits::eTransferSrc | vk::BufferUsageFlagBits::eVertexBuffer));
-
-	buffering_mechanism::dynamicUniformBuffer = std::unique_ptr<circularHostBuffer>(new circularHostBuffer(dev, memprops, physDeviceProps.limits.minUniformBufferOffsetAlignment * 1024 * 512, vkDynLoader, vk::BufferUsageFlagBits::eUniformBuffer));
-	buffering_mechanism::pDynamicUniformBufferMapped = dev.mapMemory(buffering_mechanism::dynamicUniformBuffer->memory, 0, buffering_mechanism::dynamicUniformBuffer->size, vk::MemoryMapFlags(), vkDynLoader);
 
 	createDefaultRenderpass(surfaceFormat.format, depthFormat);
 
@@ -2451,7 +2574,7 @@ void VkRoot::bind_vertex_buffers(const std::size_t& first, const std::vector<std
 	std::transform(vertex_buffers_offset.begin(), vertex_buffers_offset.end(), std::back_inserter(temp),
 		[](vertex_buffers_offset_type& input) {
 			ASSERT(static_cast<const VkBuf *>(std::get<0>(input))->usage == gfx_api::buffer::usage::vertex_buffer, "bind_vertex_buffers called with non-vertex-buffer");
-			return *static_cast<const VkBuf *>(std::get<0>(input))->object;
+			return static_cast<const VkBuf *>(std::get<0>(input))->object;
 		});
 	auto&& offsets = std::vector<VkDeviceSize>{};
 	std::transform(vertex_buffers_offset.begin(), vertex_buffers_offset.end(), std::back_inserter(offsets),
@@ -2472,12 +2595,13 @@ void VkRoot::disable_all_vertex_buffers()
 void VkRoot::bind_streamed_vertex_buffers(const void* data, const std::size_t size)
 {
 	ASSERT(size > 0, "bind_streamed_vertex_buffers called with size 0");
-	const auto& offset = buffering_mechanism::scratchBuffer->alloc(size, 16);
-	const auto mappedPtr = dev.mapMemory(buffering_mechanism::scratchBuffer->memory, offset, size, vk::MemoryMapFlags(), vkDynLoader);
+	auto& frameResources = buffering_mechanism::get_current_resources();
+	const auto streamedMemory = frameResources.streamedVertexBufferAllocator.alloc(size, 16);
+	const auto mappedPtr = frameResources.streamedVertexBufferAllocator.mapMemory(streamedMemory);
 	ASSERT(mappedPtr != nullptr, "Failed to map memory");
 	memcpy(mappedPtr, data, size);
-	dev.unmapMemory(buffering_mechanism::scratchBuffer->memory, vkDynLoader);
-	buffering_mechanism::get_current_resources().cmdDraw.bindVertexBuffers(0, { buffering_mechanism::scratchBuffer->buffer }, { offset }, vkDynLoader);
+	frameResources.streamedVertexBufferAllocator.unmapMemory(streamedMemory);
+	buffering_mechanism::get_current_resources().cmdDraw.bindVertexBuffers(0, { streamedMemory.buffer }, { streamedMemory.offset }, vkDynLoader);
 }
 
 void VkRoot::setupSwapchainImages()
@@ -2573,7 +2697,7 @@ void VkRoot::bind_index_buffer(gfx_api::buffer& index_buffer, const gfx_api::ind
 {
 	auto& casted_buf = static_cast<VkBuf&>(index_buffer);
 	ASSERT(casted_buf.usage == gfx_api::buffer::usage::index_buffer, "Passed gfx_api::buffer is not an index buffer");
-	buffering_mechanism::get_current_resources().cmdDraw.bindIndexBuffer(*casted_buf.object, 0, to_vk(index), vkDynLoader);
+	buffering_mechanism::get_current_resources().cmdDraw.bindIndexBuffer(casted_buf.object, 0, to_vk(index), vkDynLoader);
 }
 
 void VkRoot::unbind_index_buffer(gfx_api::buffer&)
@@ -2615,19 +2739,24 @@ void VkRoot::bind_textures(const std::vector<gfx_api::texture_input>& attribute_
 
 void VkRoot::set_constants(const void* buffer, const std::size_t& size)
 {
-	const auto offset = buffering_mechanism::dynamicUniformBuffer->alloc(size, physDeviceProps.limits.minUniformBufferOffsetAlignment);
-	ASSERT(buffering_mechanism::pDynamicUniformBufferMapped != nullptr, "Expected pDynamicUniformBufferMapped to be mapped");
-	memcpy(reinterpret_cast<uint8_t*>(buffering_mechanism::pDynamicUniformBufferMapped) + offset, buffer, size);
+	const auto stagingMemory = buffering_mechanism::get_current_resources().uniformBufferAllocator.alloc(size, physDeviceProps.limits.minUniformBufferOffsetAlignment);
+	void * pDynamicUniformBufferMapped = buffering_mechanism::get_current_resources().uniformBufferAllocator.mapMemory(stagingMemory);
+	memcpy(reinterpret_cast<uint8_t*>(pDynamicUniformBufferMapped), buffer, size);
 
-	const auto bufferInfo = vk::DescriptorBufferInfo(buffering_mechanism::dynamicUniformBuffer->buffer, 0, size);
+	const auto bufferInfo = vk::DescriptorBufferInfo(stagingMemory.buffer, 0, size);
 
 	std::vector<vk::DescriptorSet> sets;
-	auto perFrame_perPSO_dynamicUniformDescriptorSet = buffering_mechanism::get_current_resources().perPSO_dynamicUniformBufferDescriptorSets.find(currentPSO);
-	if (perFrame_perPSO_dynamicUniformDescriptorSet != buffering_mechanism::get_current_resources().perPSO_dynamicUniformBufferDescriptorSets.end())
+	auto perFrame_perPSO_dynamicUniformDescriptorSets = buffering_mechanism::get_current_resources().perPSO_dynamicUniformBufferDescriptorSets.find(currentPSO);
+	if (perFrame_perPSO_dynamicUniformDescriptorSets != buffering_mechanism::get_current_resources().perPSO_dynamicUniformBufferDescriptorSets.end())
 	{
-		sets.push_back(perFrame_perPSO_dynamicUniformDescriptorSet->second);
+		auto perFrame_perPSO_dynamicUniformDescriptorSet = perFrame_perPSO_dynamicUniformDescriptorSets->second.find(bufferInfo);
+		if (perFrame_perPSO_dynamicUniformDescriptorSet != perFrame_perPSO_dynamicUniformDescriptorSets->second.end())
+		{
+			sets.push_back(perFrame_perPSO_dynamicUniformDescriptorSet->second);
+		}
 	}
-	else
+
+	if (sets.empty())
 	{
 		sets = allocateDescriptorSets(currentPSO->cbuffer_set_layout);
 		const auto descriptorWrite = std::array<vk::WriteDescriptorSet, 1>{
@@ -2639,10 +2768,10 @@ void VkRoot::set_constants(const void* buffer, const std::size_t& size)
 				.setDstSet(sets[0])
 		};
 		dev.updateDescriptorSets(descriptorWrite, {}, vkDynLoader);
-		buffering_mechanism::get_current_resources().perPSO_dynamicUniformBufferDescriptorSets[currentPSO] = sets[0];
+		buffering_mechanism::get_current_resources().perPSO_dynamicUniformBufferDescriptorSets[currentPSO] = perFrameResources_t::DynamicUniformBufferDescriptorSets({{ bufferInfo, sets[0] }});
 	}
 	buffering_mechanism::get_current_resources().cmdDraw.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, currentPSO->layout, 0,
-	sets, {offset}, vkDynLoader);
+	sets, {stagingMemory.offset}, vkDynLoader);
 }
 
 void VkRoot::bind_pipeline(gfx_api::pipeline_state_object* pso, bool /*notextures*/)
@@ -2720,8 +2849,9 @@ void VkRoot::flip(int clearMode)
 
 	buffering_mechanism::get_current_resources().cmdCopy.end(vkDynLoader);
 
-	buffering_mechanism::pDynamicUniformBufferMapped = nullptr;
-	dev.unmapMemory(buffering_mechanism::dynamicUniformBuffer->memory, vkDynLoader);
+	buffering_mechanism::get_current_resources().uniformBufferAllocator.flushMemory();
+	buffering_mechanism::get_current_resources().uniformBufferAllocator.unmapAutomappedMemory();
+	buffering_mechanism::get_current_resources().streamedVertexBufferAllocator.flushMemory();
 
 	const auto executableCmdBuffer = std::array<vk::CommandBuffer, 2>{buffering_mechanism::get_current_resources().cmdCopy, buffering_mechanism::get_current_resources().cmdDraw}; // copy before render
 	const vk::PipelineStageFlags waitStage = vk::PipelineStageFlagBits::eColorAttachmentOutput; //vk::PipelineStageFlagBits::eAllCommands;
@@ -2787,7 +2917,6 @@ void VkRoot::flip(int clearMode)
 		return; // end processing this flip
 	}
 
-	buffering_mechanism::pDynamicUniformBufferMapped = dev.mapMemory(buffering_mechanism::dynamicUniformBuffer->memory, 0, buffering_mechanism::dynamicUniformBuffer->size, vk::MemoryMapFlags(), vkDynLoader);
 	int w, h;
 	backend_impl->getDrawableSize(&w, &h);
 	if (w != (int)swapchainSize.width || h != (int)swapchainSize.height)

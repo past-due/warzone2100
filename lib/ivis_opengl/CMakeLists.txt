@@ -52,6 +52,8 @@ find_package(GLEW 1.5.2 REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(Harfbuzz 1.0 REQUIRED)
 
+include(CheckCXXCompilerFlag)
+
 add_library(ivis-opengl ${HEADERS} ${SRC})
 set_property(TARGET ivis-opengl PROPERTY FOLDER "lib")
 if(WZ_TARGET_ADDITIONAL_PROPERTIES)
@@ -65,6 +67,13 @@ if(Vulkan_FOUND AND TARGET glsl_compilation)
 	target_include_directories(ivis-opengl PUBLIC ${Vulkan_INCLUDE_DIRS}) # For now, make the include path public so the backend (ex. SDL) can access type declarations
 	target_sources(ivis-opengl PRIVATE "3rdparty/vkh_renderpasscompat.cpp" "3rdparty/vkh_renderpasscompat.hpp")
 	target_sources(ivis-opengl PRIVATE "3rdparty/vkh_info.cpp" "3rdparty/vkh_info.hpp")
+
+	target_sources(ivis-opengl PRIVATE "3rdparty/vk_mem_alloc.cpp" "3rdparty/vk_mem_alloc.h")
+	CHECK_CXX_COMPILER_FLAG(-Wno-pedantic COMPILER_SUPPORTS_WNO_PEDANTIC)
+	if(COMPILER_SUPPORTS_WNO_PEDANTIC)
+		set_source_files_properties("3rdparty/vk_mem_alloc.cpp" PROPERTIES COMPILE_FLAGS -Wno-pedantic)
+	endif()
+
 	# Do *NOT* link to the Vulkan library - should be loaded dynamically
 	# target_link_libraries(ivis-opengl PRIVATE ${Vulkan_LIBRARIES})
 	add_dependencies(ivis-opengl glsl_compilation)
