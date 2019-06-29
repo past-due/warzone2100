@@ -451,7 +451,10 @@ ScriptDebugger::ScriptDebugger(const MODELMAP &models, QStandardItemModel *trigg
 
 void ScriptDebugger::debuggerClosed()
 {
-	jsDebugShutdown();
+	// Asynchronously trigger a jsDebugShutdown (on the main thread) outside of signal processing
+	wzAsyncExecOnMainThread([] {
+		jsDebugShutdown();
+	});
 }
 
 void ScriptDebugger::attachScriptClicked()
