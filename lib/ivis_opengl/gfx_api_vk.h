@@ -270,7 +270,7 @@ struct VkBuf final : public gfx_api::buffer
 	virtual ~VkBuf() override;
 
 	virtual void upload(const size_t & size, const void * data) override;
-	virtual void update(const size_t & start, const size_t & size, const void * data) override;
+	virtual void update(const size_t & start, const size_t & size, const void * data, const update_flag flag = update_flag::none) override;
 
 	virtual void bind() override;
 

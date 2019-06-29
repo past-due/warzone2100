@@ -1145,10 +1145,10 @@ void VkBuf::upload(const size_t & size, const void * data)
 	update(0, size, data);
 }
 
-void VkBuf::update(const size_t & start, const size_t & width, const void * data)
+void VkBuf::update(const size_t & start, const size_t & width, const void * data, const update_flag flag)
 {
 	size_t current_FrameNum = gfx_api::context::get().current_FrameNum();
-	ASSERT(lastUploaded_FrameNum != current_FrameNum, "Attempt to upload to buffer more than once per frame");
+	ASSERT(flag == update_flag::non_overlapping_updates_promise || (lastUploaded_FrameNum != current_FrameNum), "Attempt to upload to buffer more than once per frame");
 	lastUploaded_FrameNum = current_FrameNum;
 
 	ASSERT(start < buffer_size, "Starting offset (%zu) is past end of buffer (length: %zu)", start, buffer_size);
