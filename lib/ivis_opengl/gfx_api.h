@@ -105,6 +105,15 @@ namespace gfx_api
 		//       (i.e. Don't re-use a buffer instance for different data in the same frame - use separate buffer instances.)
 		virtual void upload(const size_t& size, const void* data) = 0;
 
+		enum class update_flag {
+			// Default behavior
+			none,
+
+			// This flag disables asserts caused by multiple updates to a single buffer instance in a single frame
+			// *ONLY* use if you are certain the updates are non-overlapping
+			non_overlapping_updates_promise
+		};
+
 		// Update `size` bytes in the existing data store, from the `start` offset, using the data at `data`.
 		// - The `start` offset must be within the range of the existing data store (0 to buffer_size - 1, inclusive).
 		// - The `size` of the data specified (+ the offset) must not attempt to write past the end of the existing data store.
@@ -115,7 +124,7 @@ namespace gfx_api
 		//       hence re-using a single buffer instance for different data may lead to anything using that buffer (in that frame)
 		//       seeing only the last-written data in the buffer.
 		//       (i.e. Don't re-use a buffer instance for different data in the same frame - use separate buffer instances.)
-		virtual void update(const size_t& start, const size_t& size, const void* data) = 0;
+		virtual void update(const size_t& start, const size_t& size, const void* data, const update_flag flag = update_flag::none) = 0;
 
 		virtual void bind() = 0;
 
