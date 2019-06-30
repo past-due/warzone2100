@@ -453,6 +453,10 @@ perFrameResources_t::perFrameResources_t(vk::Device& _dev, const VmaAllocator& a
 
 void perFrameResources_t::clean()
 {
+	for (auto buffer : buffer_to_delete)
+	{
+		dev.destroyBuffer(buffer, nullptr, *pVkDynLoader);
+	}
 	buffer_to_delete.clear();
 	image_view_to_delete.clear();
 	for (auto image : image_to_delete)
@@ -460,7 +464,6 @@ void perFrameResources_t::clean()
 		dev.destroyImage(image, nullptr, *pVkDynLoader);
 	}
 	image_to_delete.clear();
-	memory_to_free.clear();
 	perPSO_dynamicUniformBufferDescriptorSets.clear();
 	for (auto allocation : vmamemory_to_free)
 	{
@@ -1115,27 +1118,31 @@ void VkBuf::allocateBufferObject(const std::size_t& width)
 		return;
 	}
 	const auto& size = std::max(width, static_cast<size_t>(4u));
+
 	buffering_mechanism::get_current_resources().buffer_to_delete.emplace_back(std::move(object));
-	object = dev.createBufferUnique(
-									vk::BufferCreateInfo{}
-									.setSize(size)
-									.setUsage(to_vk(usage) | vk::BufferUsageFlagBits::eTransferDst)
-									, nullptr, root->vkDynLoader);
-	const auto memreq = dev.getBufferMemoryRequirements(*object, root->vkDynLoader);
-	buffering_mechanism::get_current_resources().memory_to_free.emplace_back(std::move(memory));
-	memory = dev.allocateMemoryUnique(
-									  vk::MemoryAllocateInfo{}
-									  .setAllocationSize(memreq.size)
-									  .setMemoryTypeIndex(findProperties(root->memprops, memreq.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal))
-									  , nullptr, root->vkDynLoader);
-	dev.bindBufferMemory(*object, *memory, 0, root->vkDynLoader);
+	buffering_mechanism::get_current_resources().vmamemory_to_free.push_back(allocation);
+
+	auto bufferCreateInfo = vk::BufferCreateInfo{}
+		.setSize(size)
+		.setUsage(to_vk(usage) | vk::BufferUsageFlagBits::eTransferDst);
+
+	VmaAllocationCreateInfo allocInfo = {};
+	allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+	vk::Result result = static_cast<vk::Result>(vmaCreateBuffer(root->allocator, reinterpret_cast<const VkBufferCreateInfo*>( &bufferCreateInfo ), &allocInfo, reinterpret_cast<VkBuffer*>( &object ), &allocation, nullptr));
+	if (result != vk::Result::eSuccess)
+	{
+		// Failed to allocate memory!
+		throwResultException( result, "vmaCreateBuffer" );
+	}
+
 	buffer_size = size;
 }
 
 VkBuf::~VkBuf()
 {
 	buffering_mechanism::get_current_resources().buffer_to_delete.emplace_back(std::move(object));
-	buffering_mechanism::get_current_resources().memory_to_free.emplace_back(std::move(memory));
+	buffering_mechanism::get_current_resources().vmamemory_to_free.push_back(allocation);
 }
 
 void VkBuf::upload(const size_t & size, const void * data)
@@ -1165,7 +1172,7 @@ void VkBuf::update(const size_t & start, const size_t & width, const void * data
 	memcpy(mappedMem, data, size);
 	dev.unmapMemory(buffering_mechanism::scratchBuffer->memory, root->vkDynLoader);
 	const auto& cmdBuffer = buffering_mechanism::get_current_resources().cmdCopy;
-	cmdBuffer.copyBuffer(buffering_mechanism::scratchBuffer->buffer, *object, { vk::BufferCopy(scratch_offset, start, size) }, root->vkDynLoader);
+	cmdBuffer.copyBuffer(buffering_mechanism::scratchBuffer->buffer, object, { vk::BufferCopy(scratch_offset, start, size) }, root->vkDynLoader);
 }
 
 void VkBuf::bind() {}
@@ -1266,7 +1273,6 @@ VkTexture::~VkTexture()
 	auto& frameResources = buffering_mechanism::get_current_resources();
 	frameResources.image_view_to_delete.emplace_back(std::move(view));
 	frameResources.image_to_delete.emplace_back(std::move(object));
-//	frameResources.memory_to_free.emplace_back(std::move(memory));
 	frameResources.vmamemory_to_free.push_back(allocation);
 }
 
@@ -2434,7 +2440,7 @@ void VkRoot::bind_vertex_buffers(const std::size_t& first, const std::vector<std
 	std::transform(vertex_buffers_offset.begin(), vertex_buffers_offset.end(), std::back_inserter(temp),
 		[](vertex_buffers_offset_type& input) {
 			ASSERT(static_cast<const VkBuf *>(std::get<0>(input))->usage == gfx_api::buffer::usage::vertex_buffer, "bind_vertex_buffers called with non-vertex-buffer");
-			return *static_cast<const VkBuf *>(std::get<0>(input))->object;
+			return static_cast<const VkBuf *>(std::get<0>(input))->object;
 		});
 	auto&& offsets = std::vector<VkDeviceSize>{};
 	std::transform(vertex_buffers_offset.begin(), vertex_buffers_offset.end(), std::back_inserter(offsets),
@@ -2556,7 +2562,7 @@ void VkRoot::bind_index_buffer(gfx_api::buffer& index_buffer, const gfx_api::ind
 {
 	auto& casted_buf = static_cast<VkBuf&>(index_buffer);
 	ASSERT(casted_buf.usage == gfx_api::buffer::usage::index_buffer, "Passed gfx_api::buffer is not an index buffer");
-	buffering_mechanism::get_current_resources().cmdDraw.bindIndexBuffer(*casted_buf.object, 0, to_vk(index), vkDynLoader);
+	buffering_mechanism::get_current_resources().cmdDraw.bindIndexBuffer(casted_buf.object, 0, to_vk(index), vkDynLoader);
 }
 
 void VkRoot::unbind_index_buffer(gfx_api::buffer&)

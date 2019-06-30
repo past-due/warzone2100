@@ -123,10 +123,9 @@ struct perFrameResources_t
 	vk::CommandBuffer cmdDraw;
 	vk::CommandBuffer cmdCopy;
 	vk::Fence previousSubmission;
-	std::vector<WZ_vk::UniqueBuffer> buffer_to_delete;
+	std::vector</*WZ_vk::UniqueBuffer*/vk::Buffer> buffer_to_delete;
 	std::vector</*WZ_vk::UniqueImage*/vk::Image> image_to_delete;
 	std::vector<WZ_vk::UniqueImageView> image_view_to_delete;
-	std::vector<WZ_vk::UniqueDeviceMemory> memory_to_free;
 	std::vector<VmaAllocation> vmamemory_to_free;
 
 	vk::Semaphore imageAcquireSemaphore;
@@ -260,8 +259,10 @@ struct VkBuf final : public gfx_api::buffer
 {
 	vk::Device dev;
 	gfx_api::buffer::usage usage;
-	WZ_vk::UniqueBuffer object;
-	WZ_vk::UniqueDeviceMemory memory;
+//	WZ_vk::UniqueBuffer object;
+//	WZ_vk::UniqueDeviceMemory memory;
+	vk::Buffer object;
+	VmaAllocation allocation = VK_NULL_HANDLE;
 	size_t buffer_size = 0;
 	size_t lastUploaded_FrameNum = 0;
 
@@ -288,7 +289,7 @@ struct VkTexture final : public gfx_api::texture
 	vk::Image object;
 	WZ_vk::UniqueImageView view;
 //	WZ_vk::UniqueDeviceMemory memory;
-	VmaAllocation allocation;
+	VmaAllocation allocation = VK_NULL_HANDLE;
 	vk::Format internal_format;
 	size_t mipmap_levels;
 
