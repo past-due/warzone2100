@@ -276,7 +276,7 @@ struct VkBuf final : public gfx_api::buffer
 	virtual void bind() override;
 
 private:
-	void allocateBufferObject(const std::size_t& width);
+	void allocateBufferObject(const std::size_t& size);
 
 private:
 	const VkRoot* root;

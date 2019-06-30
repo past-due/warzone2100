@@ -1111,13 +1111,12 @@ inline vk::BufferUsageFlags to_vk(const gfx_api::buffer::usage& usage)
 	return vk::BufferUsageFlags(); // silence warning
 }
 
-void VkBuf::allocateBufferObject(const std::size_t& width)
+void VkBuf::allocateBufferObject(const std::size_t& size)
 {
-	if (buffer_size == width)
+	if (buffer_size == size)
 	{
 		return;
 	}
-	const auto& size = std::max(width, static_cast<size_t>(4u));
 
 	buffering_mechanism::get_current_resources().buffer_to_delete.emplace_back(std::move(object));
 	buffering_mechanism::get_current_resources().vmamemory_to_free.push_back(allocation);
