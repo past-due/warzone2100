@@ -1151,20 +1151,19 @@ void VkBuf::upload(const size_t & size, const void * data)
 	update(0, size, data);
 }
 
-void VkBuf::update(const size_t & start, const size_t & width, const void * data, const update_flag flag)
+void VkBuf::update(const size_t & start, const size_t & size, const void * data, const update_flag flag)
 {
 	size_t current_FrameNum = gfx_api::context::get().current_FrameNum();
 	ASSERT(flag == update_flag::non_overlapping_updates_promise || (lastUploaded_FrameNum != current_FrameNum), "Attempt to upload to buffer more than once per frame");
 	lastUploaded_FrameNum = current_FrameNum;
 
 	ASSERT(start < buffer_size, "Starting offset (%zu) is past end of buffer (length: %zu)", start, buffer_size);
-	ASSERT(start + width <= buffer_size, "Attempt to write past end of buffer");
-	if (width == 0)
+	ASSERT(start + size <= buffer_size, "Attempt to write past end of buffer");
+	if (size == 0)
 	{
 		debug(LOG_WARNING, "Attempt to update buffer with 0 bytes of new data");
 		return;
 	}
-	const auto& size = width; //std::max(width, static_cast<size_t>(4));
 	const auto& scratch_offset = buffering_mechanism::scratchBuffer->alloc(size, 2);
 	const auto mappedMem = dev.mapMemory(buffering_mechanism::scratchBuffer->memory, scratch_offset, size, vk::MemoryMapFlags(), root->vkDynLoader);
 	ASSERT(mappedMem != nullptr, "Failed to map memory");
