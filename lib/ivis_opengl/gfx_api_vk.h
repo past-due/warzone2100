@@ -87,6 +87,31 @@ namespace WZ_vk {
 	using UniqueSemaphore = vk::UniqueHandle<vk::Semaphore, VKDispatchLoaderDynamic>;
 }
 
+inline void hash_combine(std::size_t& seed) { }
+
+template <typename T, typename... Rest>
+inline void hash_combine(std::size_t& seed, const T& v, Rest... rest) {
+	std::hash<T> hasher;
+#if SIZE_MAX >= UINT64_MAX
+	seed ^= hasher(v) + 0x9e3779b97f4a7c15L + (seed<<6) + (seed>>2);
+#else
+	seed ^= hasher(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
+#endif
+	hash_combine(seed, rest...);
+}
+namespace std {
+	template <>
+	struct hash<vk::DescriptorBufferInfo>
+	{
+		std::size_t operator()(const vk::DescriptorBufferInfo& k) const
+		{
+			std::size_t h = 0;
+			hash_combine(h, static_cast<VkBuffer>(k.buffer), k.offset, k.range);
+			return h;
+		}
+	};
+}
+
 struct circularHostBuffer
 {
 	vk::Buffer buffer;
@@ -131,7 +156,8 @@ struct perFrameResources_t
 	vk::Semaphore imageAcquireSemaphore;
 	vk::Semaphore renderFinishedSemaphore;
 
-	std::unordered_map<VkPSO *, vk::DescriptorSet> perPSO_dynamicUniformBufferDescriptorSets;
+	typedef std::unordered_map<vk::DescriptorBufferInfo, vk::DescriptorSet> DynamicUniformBufferDescriptorSets;
+	std::unordered_map<VkPSO *, DynamicUniformBufferDescriptorSets> perPSO_dynamicUniformBufferDescriptorSets;
 
 	perFrameResources_t( const perFrameResources_t& other ) = delete; // non construction-copyable
 	perFrameResources_t& operator=( const perFrameResources_t& ) = delete; // non copyable

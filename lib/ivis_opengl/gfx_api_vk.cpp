@@ -2609,12 +2609,17 @@ void VkRoot::set_constants(const void* buffer, const std::size_t& size)
 	const auto bufferInfo = vk::DescriptorBufferInfo(buffering_mechanism::dynamicUniformBuffer->buffer, 0, size);
 
 	std::vector<vk::DescriptorSet> sets;
-	auto perFrame_perPSO_dynamicUniformDescriptorSet = buffering_mechanism::get_current_resources().perPSO_dynamicUniformBufferDescriptorSets.find(currentPSO);
-	if (perFrame_perPSO_dynamicUniformDescriptorSet != buffering_mechanism::get_current_resources().perPSO_dynamicUniformBufferDescriptorSets.end())
+	auto perFrame_perPSO_dynamicUniformDescriptorSets = buffering_mechanism::get_current_resources().perPSO_dynamicUniformBufferDescriptorSets.find(currentPSO);
+	if (perFrame_perPSO_dynamicUniformDescriptorSets != buffering_mechanism::get_current_resources().perPSO_dynamicUniformBufferDescriptorSets.end())
 	{
-		sets.push_back(perFrame_perPSO_dynamicUniformDescriptorSet->second);
+		auto perFrame_perPSO_dynamicUniformDescriptorSet = perFrame_perPSO_dynamicUniformDescriptorSets->second.find(bufferInfo);
+		if (perFrame_perPSO_dynamicUniformDescriptorSet != perFrame_perPSO_dynamicUniformDescriptorSets->second.end())
+		{
+			sets.push_back(perFrame_perPSO_dynamicUniformDescriptorSet->second);
+		}
 	}
-	else
+
+	if (sets.empty())
 	{
 		sets = allocateDescriptorSets(currentPSO->cbuffer_set_layout);
 		const auto descriptorWrite = std::array<vk::WriteDescriptorSet, 1>{
@@ -2626,7 +2631,7 @@ void VkRoot::set_constants(const void* buffer, const std::size_t& size)
 				.setDstSet(sets[0])
 		};
 		dev.updateDescriptorSets(descriptorWrite, {}, vkDynLoader);
-		buffering_mechanism::get_current_resources().perPSO_dynamicUniformBufferDescriptorSets[currentPSO] = sets[0];
+		buffering_mechanism::get_current_resources().perPSO_dynamicUniformBufferDescriptorSets[currentPSO] = perFrameResources_t::DynamicUniformBufferDescriptorSets({{ bufferInfo, sets[0] }});
 	}
 	buffering_mechanism::get_current_resources().cmdDraw.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, currentPSO->layout, 0,
 	sets, {offset}, vkDynLoader);
