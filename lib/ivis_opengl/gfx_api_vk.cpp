@@ -644,7 +644,8 @@ void buffering_mechanism::init(vk::Device dev, const VmaAllocator& allocator, si
 		perFrameResources.emplace_back(new perFrameResources_t(dev, allocator, graphicsQueueFamilyIndex, vkDynLoader));
 	}
 
-	dev.resetFences({ buffering_mechanism::get_current_resources().previousSubmission }, vkDynLoader);
+	const auto fences = std::array<vk::Fence, 1> { buffering_mechanism::get_current_resources().previousSubmission };
+	dev.resetFences(fences, vkDynLoader);
 }
 
 void buffering_mechanism::destroy(vk::Device dev, const VKDispatchLoaderDynamic& vkDynLoader)
@@ -657,8 +658,9 @@ void buffering_mechanism::swap(vk::Device dev, const VKDispatchLoaderDynamic& vk
 {
 	currentFrame = (currentFrame < (perFrameResources.size() - 1)) ? currentFrame + 1 : 0;
 
-	dev.waitForFences({ buffering_mechanism::get_current_resources().previousSubmission }, true, -1, vkDynLoader);
-	dev.resetFences({ buffering_mechanism::get_current_resources().previousSubmission }, vkDynLoader);
+	const auto fences = std::array<vk::Fence, 1> { buffering_mechanism::get_current_resources().previousSubmission };
+	dev.waitForFences(fences, true, -1, vkDynLoader);
+	dev.resetFences(fences, vkDynLoader);
 	dev.resetDescriptorPool(buffering_mechanism::get_current_resources().descriptorPool, vk::DescriptorPoolResetFlags(), vkDynLoader);
 	dev.resetCommandPool(buffering_mechanism::get_current_resources().pool, vk::CommandPoolResetFlagBits{}, vkDynLoader);
 
@@ -1306,7 +1308,8 @@ void VkBuf::update(const size_t & start, const size_t & size, const void * data,
 	memcpy(mappedMem, data, size);
 	frameResources.stagingBufferAllocator.unmapMemory(stagingMemory);
 	const auto& cmdBuffer = buffering_mechanism::get_current_resources().cmdCopy;
-	cmdBuffer.copyBuffer(stagingMemory.buffer, object, { vk::BufferCopy(stagingMemory.offset, start, size) }, root->vkDynLoader);
+	const auto copyRegions = std::array<vk::BufferCopy, 1> { vk::BufferCopy(stagingMemory.offset, start, size) };
+	cmdBuffer.copyBuffer(stagingMemory.buffer, object, copyRegions, root->vkDynLoader);
 }
 
 void VkBuf::bind() {}
@@ -1452,20 +1455,18 @@ void VkTexture::upload(const std::size_t& mip_level, const std::size_t& offset_x
 	frameResources.stagingBufferAllocator.unmapMemory(stagingMemory);
 
 	const auto& cmdBuffer = buffering_mechanism::get_current_resources().cmdCopy;
+	const auto imageMemoryBarriers_BeforeCopy = std::array<vk::ImageMemoryBarrier, 1> {
+		vk::ImageMemoryBarrier{}
+			.setImage(object)
+			.setSubresourceRange(vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, mip_level, 1, 0, 1))
+			.setOldLayout(vk::ImageLayout::eUndefined)
+			.setNewLayout(vk::ImageLayout::eTransferDstOptimal)
+			.setDstAccessMask(vk::AccessFlagBits::eTransferWrite)
+	};
 	// TODO: Should this be eBottomOfPipe, eTopOfPipe, or something else? // FIXME
 	cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer,
-		vk::DependencyFlags{}, {}, {},
-		{
-			vk::ImageMemoryBarrier{}
-				.setImage(object)
-				.setSubresourceRange(vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, mip_level, 1, 0, 1))
-				.setOldLayout(vk::ImageLayout::eUndefined)
-				.setNewLayout(vk::ImageLayout::eTransferDstOptimal)
-				.setDstAccessMask(vk::AccessFlagBits::eTransferWrite)
-		},
-		root->vkDynLoader);
-	cmdBuffer.copyBufferToImage(stagingMemory.buffer, object, vk::ImageLayout::eTransferDstOptimal,
-		{
+		vk::DependencyFlags{}, nullptr, nullptr, imageMemoryBarriers_BeforeCopy, root->vkDynLoader);
+	const auto bufferImageCopyRegions = std::array<vk::BufferImageCopy, 1> {
 		vk::BufferImageCopy{}
 			.setBufferOffset(stagingMemory.offset)
 			.setBufferImageHeight(height)
@@ -1473,20 +1474,19 @@ void VkTexture::upload(const std::size_t& mip_level, const std::size_t& offset_x
 			.setImageOffset(vk::Offset3D(offset_x, offset_y, 0))
 			.setImageSubresource(vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, mip_level, 0, 1))
 			.setImageExtent(vk::Extent3D(width, height, 1))
-		},
-		root->vkDynLoader);
+	};
+	cmdBuffer.copyBufferToImage(stagingMemory.buffer, object, vk::ImageLayout::eTransferDstOptimal, bufferImageCopyRegions, root->vkDynLoader);
+	const auto imageMemoryBarriers_AfterCopy = std::array<vk::ImageMemoryBarrier, 1> {
+		vk::ImageMemoryBarrier{}
+			.setImage(object)
+			.setSubresourceRange(vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, mip_level, 1, 0, 1))
+			.setOldLayout(vk::ImageLayout::eTransferDstOptimal)
+			.setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
+			.setNewLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+			.setDstAccessMask(vk::AccessFlagBits::eShaderRead)
+	};
 	cmdBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader,
-		vk::DependencyFlags{}, {}, {},
-		{
-			vk::ImageMemoryBarrier{}
-				.setImage(object)
-				.setSubresourceRange(vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, mip_level, 1, 0, 1))
-				.setOldLayout(vk::ImageLayout::eTransferDstOptimal)
-				.setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
-				.setNewLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
-				.setDstAccessMask(vk::AccessFlagBits::eShaderRead)
-		},
-		root->vkDynLoader);
+		vk::DependencyFlags{}, nullptr, nullptr, imageMemoryBarriers_AfterCopy, root->vkDynLoader);
 }
 
 #if defined(__clang__)
@@ -2601,7 +2601,9 @@ void VkRoot::bind_streamed_vertex_buffers(const void* data, const std::size_t si
 	ASSERT(mappedPtr != nullptr, "Failed to map memory");
 	memcpy(mappedPtr, data, size);
 	frameResources.streamedVertexBufferAllocator.unmapMemory(streamedMemory);
-	buffering_mechanism::get_current_resources().cmdDraw.bindVertexBuffers(0, { streamedMemory.buffer }, { streamedMemory.offset }, vkDynLoader);
+	const auto buffers = std::array<vk::Buffer, 1> { streamedMemory.buffer };
+	const auto offsets = std::array<vk::DeviceSize, 1> { streamedMemory.offset };
+	buffering_mechanism::get_current_resources().cmdDraw.bindVertexBuffers(0, buffers, offsets, vkDynLoader);
 }
 
 void VkRoot::setupSwapchainImages()
@@ -2619,17 +2621,16 @@ void VkRoot::setupSwapchainImages()
 		.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit)
 		, vkDynLoader
 	);
-	internalCommandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eAllCommands,
-		vk::DependencyFlagBits{}, {}, {},
-		{
-			vk::ImageMemoryBarrier{}
+	const auto imageMemoryBarriers_DepthStencilImage = std::array<vk::ImageMemoryBarrier, 1> {
+		vk::ImageMemoryBarrier{}
 			.setOldLayout(vk::ImageLayout::eUndefined)
 			.setNewLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal)
 			.setImage(depthStencilImage)
 			.setSubresourceRange(vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil, 0, 1, 0, 1))
 			.setDstAccessMask(vk::AccessFlagBits::eDepthStencilAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite)
-		}
-		, vkDynLoader);
+	};
+	internalCommandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlagBits::eAllCommands,
+		vk::DependencyFlagBits{}, nullptr, nullptr, imageMemoryBarriers_DepthStencilImage, vkDynLoader);
 
 	internalCommandBuffer.end(vkDynLoader);
 	graphicsQueue.submit(
@@ -2733,8 +2734,8 @@ void VkRoot::bind_textures(const std::vector<gfx_api::texture_input>& attribute_
 		);
 		i++;
 	}
-	dev.updateDescriptorSets(write_info, {}, vkDynLoader);
-	buffering_mechanism::get_current_resources().cmdDraw.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, currentPSO->layout, 1, set, {}, vkDynLoader);
+	dev.updateDescriptorSets(write_info, nullptr, vkDynLoader);
+	buffering_mechanism::get_current_resources().cmdDraw.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, currentPSO->layout, 1, set, nullptr, vkDynLoader);
 }
 
 void VkRoot::set_constants(const void* buffer, const std::size_t& size)
@@ -2767,11 +2768,11 @@ void VkRoot::set_constants(const void* buffer, const std::size_t& size)
 				.setPBufferInfo(&bufferInfo)
 				.setDstSet(sets[0])
 		};
-		dev.updateDescriptorSets(descriptorWrite, {}, vkDynLoader);
+		dev.updateDescriptorSets(descriptorWrite, nullptr, vkDynLoader);
 		buffering_mechanism::get_current_resources().perPSO_dynamicUniformBufferDescriptorSets[currentPSO] = perFrameResources_t::DynamicUniformBufferDescriptorSets({{ bufferInfo, sets[0] }});
 	}
-	buffering_mechanism::get_current_resources().cmdDraw.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, currentPSO->layout, 0,
-	sets, {stagingMemory.offset}, vkDynLoader);
+	const auto dynamicOffsets = std::array<uint32_t, 1> { stagingMemory.offset };
+	buffering_mechanism::get_current_resources().cmdDraw.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, currentPSO->layout, 0, sets, dynamicOffsets, vkDynLoader);
 }
 
 void VkRoot::bind_pipeline(gfx_api::pipeline_state_object* pso, bool /*notextures*/)
@@ -2839,13 +2840,15 @@ void VkRoot::flip(int clearMode)
 	buffering_mechanism::get_current_resources().cmdDraw.end(vkDynLoader);
 
 	// Add memory barrier at end of cmdCopy
-	const auto memoryBarrier = vk::MemoryBarrier{}
-		.setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
-		.setDstAccessMask(vk::AccessFlagBits::eIndexRead | vk::AccessFlagBits::eVertexAttributeRead | vk::AccessFlagBits::eUniformRead );
+	const auto memoryBarriers = std::array<vk::MemoryBarrier, 1> {
+		vk::MemoryBarrier{}
+			.setSrcAccessMask(vk::AccessFlagBits::eTransferWrite)
+			.setDstAccessMask(vk::AccessFlagBits::eIndexRead | vk::AccessFlagBits::eVertexAttributeRead | vk::AccessFlagBits::eUniformRead )
+	};
 
 	buffering_mechanism::get_current_resources().cmdCopy.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer,
 																		 vk::PipelineStageFlagBits::eDrawIndirect | vk::PipelineStageFlagBits::eVertexInput | vk::PipelineStageFlagBits::eVertexShader,
-																		 vk::DependencyFlagBits{}, { memoryBarrier }, {}, {}, vkDynLoader);
+																		 vk::DependencyFlagBits{}, memoryBarriers, nullptr, nullptr, vkDynLoader);
 
 	buffering_mechanism::get_current_resources().cmdCopy.end(vkDynLoader);
 
@@ -2946,9 +2949,14 @@ void VkRoot::startRenderPass()
 		.setRenderArea(vk::Rect2D(vk::Offset2D(), swapchainSize)),
 		vk::SubpassContents::eInline,
 		vkDynLoader);
-	buffering_mechanism::get_current_resources().cmdDraw.setViewport(0, { vk::Viewport{}.setHeight(swapchainSize.height).setWidth(swapchainSize.width).setMinDepth(0.f).setMaxDepth(1.f) },
-		vkDynLoader);
-	buffering_mechanism::get_current_resources().cmdDraw.setScissor(0, { vk::Rect2D{}.setExtent(swapchainSize) }, vkDynLoader);
+	const auto viewports = std::array<vk::Viewport, 1> {
+		vk::Viewport{}.setHeight(swapchainSize.height).setWidth(swapchainSize.width).setMinDepth(0.f).setMaxDepth(1.f)
+	};
+	buffering_mechanism::get_current_resources().cmdDraw.setViewport(0, viewports, vkDynLoader);
+	const auto scissors = std::array<vk::Rect2D, 1> {
+		vk::Rect2D{}.setExtent(swapchainSize)
+	};
+	buffering_mechanism::get_current_resources().cmdDraw.setScissor(0, scissors, vkDynLoader);
 }
 
 void VkRoot::set_polygon_offset(const float& offset, const float& slope)
@@ -2958,8 +2966,10 @@ void VkRoot::set_polygon_offset(const float& offset, const float& slope)
 
 void VkRoot::set_depth_range(const float& min, const float& max)
 {
-	buffering_mechanism::get_current_resources().cmdDraw.setViewport(0, { vk::Viewport{}.setHeight(swapchainSize.height).setWidth(swapchainSize.width).setMinDepth(min).setMaxDepth(max) },
-		vkDynLoader);
+	const auto viewports = std::array<vk::Viewport, 1> {
+		vk::Viewport{}.setHeight(swapchainSize.height).setWidth(swapchainSize.width).setMinDepth(min).setMaxDepth(max)
+	};
+	buffering_mechanism::get_current_resources().cmdDraw.setViewport(0, viewports, vkDynLoader);
 }
 
 int32_t VkRoot::get_context_value(const context_value property)
