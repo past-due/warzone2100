@@ -112,28 +112,59 @@ namespace std {
 	};
 }
 
-struct circularHostBuffer
+struct BlockBufferAllocator
 {
-	vk::Buffer buffer;
-	vk::DeviceMemory memory;
-	vk::Device &dev;
-	uint32_t gpuReadLocation;
-	uint32_t hostWriteLocation;
-	uint32_t size;
-
-	circularHostBuffer(vk::Device &d, vk::PhysicalDeviceMemoryProperties memprops, uint32_t s, const VKDispatchLoaderDynamic& vkDynLoader, const vk::BufferUsageFlags& usageFlags);
-	~circularHostBuffer();
-
-	void incrementFrame();
+	BlockBufferAllocator(VmaAllocator allocator, uint32_t minimumBlockSize, const vk::BufferUsageFlags& usageFlags, const VmaAllocationCreateInfo& allocInfo, bool autoMap = false);
+	BlockBufferAllocator(VmaAllocator allocator, uint32_t minimumBlockSize, const vk::BufferUsageFlags& usageFlags, const VmaMemoryUsage usage, bool autoMap = false);
+	~BlockBufferAllocator();
 
 private:
-	static bool isBetween(uint32_t rangeBegin, uint32_t rangeEnd, uint32_t position);
 	static std::tuple<uint32_t, uint32_t> getWritePosAndNewWriteLocation(uint32_t currentWritePos, uint32_t amount, uint32_t totalSize, uint32_t align);
+
+	void allocateNewBlock(uint32_t minimumSize);
+
+	struct Block
+	{
+		vk::Buffer buffer;
+		VmaAllocation allocation = VK_NULL_HANDLE;
+		uint32_t size = 0;
+		void *pMappedMemory = nullptr;
+	};
+
 public:
-	uint32_t alloc(uint32_t amount, uint32_t align);
+	struct AllocationResult
+	{
+		vk::Buffer buffer;
+		uint32_t offset;
+
+		AllocationResult(const Block& block, const uint32_t offset)
+		: buffer(block.buffer)
+		, offset(offset)
+		, block(block)
+		{ }
+
+		const Block& block;
+	};
+	AllocationResult alloc(uint32_t amount, uint32_t align);
+	void * mapMemory(AllocationResult memoryAllocation);
+	void unmapMemory(AllocationResult memoryAllocation);
+	void unmapAutomappedMemory();
+	void flushMemory();
+	void clean();
 
 private:
-	const VKDispatchLoaderDynamic *pVkDynLoader;
+	VmaAllocator allocator;
+	const uint32_t minimumBlockSize;
+	const vk::BufferUsageFlags usageFlags;
+	VmaAllocationCreateInfo allocInfo;
+
+	std::vector<Block> blocks;
+	uint64_t totalCapacity = 0;
+	uint32_t currentWritePosInLastBlock = 0;
+
+	uint32_t minimumFirstBlockSize = 0;
+
+	const bool autoMap = false;
 };
 
 struct VkPSO; // forward-declare
@@ -156,6 +187,10 @@ struct perFrameResources_t
 	vk::Semaphore imageAcquireSemaphore;
 	vk::Semaphore renderFinishedSemaphore;
 
+	BlockBufferAllocator stagingBufferAllocator;
+	BlockBufferAllocator streamedVertexBufferAllocator;
+	BlockBufferAllocator uniformBufferAllocator;
+
 	typedef std::unordered_map<vk::DescriptorBufferInfo, vk::DescriptorSet> DynamicUniformBufferDescriptorSets;
 	std::unordered_map<VkPSO *, DynamicUniformBufferDescriptorSets> perPSO_dynamicUniformBufferDescriptorSets;
 
@@ -172,11 +207,6 @@ private:
 
 struct buffering_mechanism
 {
-	static std::unique_ptr<circularHostBuffer> dynamicUniformBuffer; // NEW
-	static void * pDynamicUniformBufferMapped;
-
-	static std::unique_ptr<circularHostBuffer> scratchBuffer;
-
 	static std::vector<std::unique_ptr<perFrameResources_t>> perFrameResources;
 
 	static size_t currentFrame;
