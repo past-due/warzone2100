@@ -27,7 +27,6 @@
 #endif
 #define VULKAN_HPP_TYPESAFE_CONVERSION 1
 #include <vulkan/vulkan.hpp>
-#include "3rdparty/vulkan_hpp_dispatchloaderdynamic.h"
 #if defined( _MSC_VER )
 #pragma warning( pop )
 #endif
@@ -55,12 +54,7 @@ using nonstd::optional;
 #pragma warning( pop )
 #endif
 
-#if VK_HEADER_VERSION <= 108
-// Use the DispatchLoaderDynamic from 108
-using VKDispatchLoaderDynamic = WZ_vk::DispatchLoaderDynamic;
-#else
 using VKDispatchLoaderDynamic = vk::DispatchLoaderDynamic;
-#endif
 
 namespace gfx_api
 {
