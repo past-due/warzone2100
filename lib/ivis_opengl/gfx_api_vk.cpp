@@ -24,7 +24,7 @@
 // To maintain compatibility with as many systems as possible:
 // 1.) Ensure Vulkan 1.0 compatibility
 // 2.) Avoid *requiring* anything outside of the scope of the "Vulkan Portable Subset"
-// 3.) All calls to Vulkan APIs should use dynamic dispatch (see the uses of VKDispatchLoaderDynamic in this file)
+// 3.) All calls to Vulkan APIs should use dynamic dispatch (see the uses of vk::DispatchLoaderDynamic in this file)
 // 4.) Test with the Vulkan validation layers enabled (run WZ with --gfxdebug)
 //
 // #2 means the following things are currently best avoided:
@@ -95,7 +95,7 @@ static uint32_t findProperties(const vk::PhysicalDeviceMemoryProperties& memprop
 	return -1;
 }
 
-vk::Format findSupportedFormat(const vk::PhysicalDevice& physicalDevice, const std::vector<vk::Format>& candidates, vk::ImageTiling tiling, vk::FormatFeatureFlags features, const VKDispatchLoaderDynamic& vkDynLoader) {
+vk::Format findSupportedFormat(const vk::PhysicalDevice& physicalDevice, const std::vector<vk::Format>& candidates, vk::ImageTiling tiling, vk::FormatFeatureFlags features, const vk::DispatchLoaderDynamic& vkDynLoader) {
 	for (vk::Format format : candidates) {
 		vk::FormatProperties props;
 		physicalDevice.getFormatProperties(format, &props, vkDynLoader);
@@ -110,7 +110,7 @@ vk::Format findSupportedFormat(const vk::PhysicalDevice& physicalDevice, const s
 	throw std::runtime_error("failed to find supported format!");
 }
 
-QueueFamilyIndices findQueueFamilies(const vk::PhysicalDevice &device, const vk::SurfaceKHR &surface, const VKDispatchLoaderDynamic &vkDynLoader)
+QueueFamilyIndices findQueueFamilies(const vk::PhysicalDevice &device, const vk::SurfaceKHR &surface, const vk::DispatchLoaderDynamic &vkDynLoader)
 {
 	QueueFamilyIndices indices;
 
@@ -148,7 +148,7 @@ QueueFamilyIndices findQueueFamilies(const vk::PhysicalDevice &device, const vk:
 	return indices;
 }
 
-SwapChainSupportDetails querySwapChainSupport(const vk::PhysicalDevice &device, const vk::SurfaceKHR &surface, const VKDispatchLoaderDynamic &vkDynLoader)
+SwapChainSupportDetails querySwapChainSupport(const vk::PhysicalDevice &device, const vk::SurfaceKHR &surface, const vk::DispatchLoaderDynamic &vkDynLoader)
 {
 	SwapChainSupportDetails details;
 
@@ -159,7 +159,7 @@ SwapChainSupportDetails querySwapChainSupport(const vk::PhysicalDevice &device, 
 	return details;
 }
 
-std::vector<const char*> findSupportedDeviceExtensions(const vk::PhysicalDevice &device, const std::vector<const char*> &desiredExtensions, const VKDispatchLoaderDynamic &vkDynLoader)
+std::vector<const char*> findSupportedDeviceExtensions(const vk::PhysicalDevice &device, const std::vector<const char*> &desiredExtensions, const vk::DispatchLoaderDynamic &vkDynLoader)
 {
 	const auto availableExtensions = device.enumerateDeviceExtensionProperties(nullptr, vkDynLoader); // TODO: handle thrown error?
 	std::unordered_set<std::string> supportedExtensionNames;
@@ -183,7 +183,7 @@ std::vector<const char*> findSupportedDeviceExtensions(const vk::PhysicalDevice 
 	return foundExtensions;
 }
 
-bool checkDeviceExtensionSupport(const vk::PhysicalDevice &device, const std::vector<const char*> &desiredExtensions, const VKDispatchLoaderDynamic &vkDynLoader)
+bool checkDeviceExtensionSupport(const vk::PhysicalDevice &device, const std::vector<const char*> &desiredExtensions, const vk::DispatchLoaderDynamic &vkDynLoader)
 {
 	const auto availableExtensions = device.enumerateDeviceExtensionProperties(nullptr, vkDynLoader); // TODO: handle thrown error?
 
@@ -251,7 +251,7 @@ VkSampleCountFlagBits getMaxUsableSampleCount(const vk::PhysicalDeviceProperties
 	return VK_SAMPLE_COUNT_1_BIT;
 }
 
-vk::Format findDepthFormat(const vk::PhysicalDevice& physicalDevice, const VKDispatchLoaderDynamic& vkDynLoader)
+vk::Format findDepthFormat(const vk::PhysicalDevice& physicalDevice, const vk::DispatchLoaderDynamic& vkDynLoader)
 {
 	return findSupportedFormat(
 		physicalDevice,
@@ -518,7 +518,7 @@ void BlockBufferAllocator::clean()
 
 // MARK: perFrameResources_t
 
-perFrameResources_t::perFrameResources_t(vk::Device& _dev, const VmaAllocator& allocator, const uint32_t& graphicsQueueFamilyIndex, const VKDispatchLoaderDynamic& vkDynLoader)
+perFrameResources_t::perFrameResources_t(vk::Device& _dev, const VmaAllocator& allocator, const uint32_t& graphicsQueueFamilyIndex, const vk::DispatchLoaderDynamic& vkDynLoader)
 	: dev(_dev)
 	, allocator(allocator)
 	, stagingBufferAllocator(allocator, 1024 * 1024, vk::BufferUsageFlagBits::eTransferSrc, VMA_MEMORY_USAGE_CPU_ONLY)
@@ -605,7 +605,7 @@ perFrameResources_t& buffering_mechanism::get_current_resources()
 
 // MARK: buffering_mechanism
 
-void buffering_mechanism::init(vk::Device dev, const VmaAllocator& allocator, size_t swapChainImageCount, const uint32_t& graphicsQueueFamilyIndex, const VKDispatchLoaderDynamic& vkDynLoader)
+void buffering_mechanism::init(vk::Device dev, const VmaAllocator& allocator, size_t swapChainImageCount, const uint32_t& graphicsQueueFamilyIndex, const vk::DispatchLoaderDynamic& vkDynLoader)
 {
 	currentFrame = 0;
 
@@ -618,13 +618,13 @@ void buffering_mechanism::init(vk::Device dev, const VmaAllocator& allocator, si
 	dev.resetFences(fences, vkDynLoader);
 }
 
-void buffering_mechanism::destroy(vk::Device dev, const VKDispatchLoaderDynamic& vkDynLoader)
+void buffering_mechanism::destroy(vk::Device dev, const vk::DispatchLoaderDynamic& vkDynLoader)
 {
 	perFrameResources.clear();
 	currentFrame = 0;
 }
 
-void buffering_mechanism::swap(vk::Device dev, const VKDispatchLoaderDynamic& vkDynLoader)
+void buffering_mechanism::swap(vk::Device dev, const vk::DispatchLoaderDynamic& vkDynLoader)
 {
 	currentFrame = (currentFrame < (perFrameResources.size() - 1)) ? currentFrame + 1 : 0;
 
@@ -720,7 +720,7 @@ std::vector<uint32_t> VkPSO::readShaderBuf(const std::string& name)
 	return buffer;
 }
 
-vk::ShaderModule VkPSO::get_module(const std::string& name, const VKDispatchLoaderDynamic& vkDynLoader)
+vk::ShaderModule VkPSO::get_module(const std::string& name, const vk::DispatchLoaderDynamic& vkDynLoader)
 {
 	const auto& tmp = readShaderBuf(name);
 	return dev.createShaderModule(
@@ -1050,7 +1050,7 @@ VkPSO::VkPSO(vk::Device _dev,
 	vk::RenderPass rp,
 	const std::shared_ptr<VkhRenderPassCompat>& renderpass_compat,
 	vk::SampleCountFlagBits rasterizationSamples,
-	const VKDispatchLoaderDynamic& _vkDynLoader
+	const vk::DispatchLoaderDynamic& _vkDynLoader
 	) : dev(_dev), pVkDynLoader(&_vkDynLoader), renderpass_compat(renderpass_compat)
 {
 	const gfx_api::state_description& state_desc = createInfo.state_desc;
@@ -1726,7 +1726,7 @@ bool VkRoot::createVulkanInstance(std::vector<const char*> extensions, std::vect
 }
 
 // WZ-specific functions for rating / determining requirements
-int rateDeviceSuitability(const vk::PhysicalDevice &device, const vk::SurfaceKHR &surface, const VKDispatchLoaderDynamic &vkDynLoader)
+int rateDeviceSuitability(const vk::PhysicalDevice &device, const vk::SurfaceKHR &surface, const vk::DispatchLoaderDynamic &vkDynLoader)
 {
 	const auto deviceProperties = device.getProperties(vkDynLoader);
 	const auto deviceFeatures = device.getFeatures(vkDynLoader);

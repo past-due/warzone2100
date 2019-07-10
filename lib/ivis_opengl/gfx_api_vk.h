@@ -54,8 +54,6 @@ using nonstd::optional;
 #pragma warning( pop )
 #endif
 
-using VKDispatchLoaderDynamic = vk::DispatchLoaderDynamic;
-
 namespace gfx_api
 {
 	class backend_Vulkan_Impl
@@ -74,11 +72,11 @@ namespace gfx_api
 }
 
 namespace WZ_vk {
-	using UniqueBuffer = vk::UniqueHandle<vk::Buffer, VKDispatchLoaderDynamic>;
-	using UniqueDeviceMemory = vk::UniqueHandle<vk::DeviceMemory, VKDispatchLoaderDynamic>;
-	using UniqueImage = vk::UniqueHandle<vk::Image, VKDispatchLoaderDynamic>;
-	using UniqueImageView = vk::UniqueHandle<vk::ImageView, VKDispatchLoaderDynamic>;
-	using UniqueSemaphore = vk::UniqueHandle<vk::Semaphore, VKDispatchLoaderDynamic>;
+	using UniqueBuffer = vk::UniqueHandle<vk::Buffer, vk::DispatchLoaderDynamic>;
+	using UniqueDeviceMemory = vk::UniqueHandle<vk::DeviceMemory, vk::DispatchLoaderDynamic>;
+	using UniqueImage = vk::UniqueHandle<vk::Image, vk::DispatchLoaderDynamic>;
+	using UniqueImageView = vk::UniqueHandle<vk::ImageView, vk::DispatchLoaderDynamic>;
+	using UniqueSemaphore = vk::UniqueHandle<vk::Semaphore, vk::DispatchLoaderDynamic>;
 }
 
 inline void hash_combine(std::size_t& seed) { }
@@ -191,12 +189,12 @@ struct perFrameResources_t
 	perFrameResources_t( const perFrameResources_t& other ) = delete; // non construction-copyable
 	perFrameResources_t& operator=( const perFrameResources_t& ) = delete; // non copyable
 
-	perFrameResources_t(vk::Device& _dev, const VmaAllocator& allocator, const uint32_t& graphicsQueueIndex, const VKDispatchLoaderDynamic& vkDynLoader);
+	perFrameResources_t(vk::Device& _dev, const VmaAllocator& allocator, const uint32_t& graphicsQueueIndex, const vk::DispatchLoaderDynamic& vkDynLoader);
 	void clean();
 	~perFrameResources_t();
 
 private:
-	const VKDispatchLoaderDynamic *pVkDynLoader;
+	const vk::DispatchLoaderDynamic *pVkDynLoader;
 };
 
 struct buffering_mechanism
@@ -207,9 +205,9 @@ struct buffering_mechanism
 
 	static perFrameResources_t& get_current_resources();
 	static perFrameResources_t* get_current_resources_pt();
-	static void init(vk::Device dev, const VmaAllocator& allocator, size_t swapchainImageCount, const uint32_t& graphicsQueueFamilyIndex, const VKDispatchLoaderDynamic& vkDynLoader);
-	static void destroy(vk::Device dev, const VKDispatchLoaderDynamic& vkDynLoader);
-	static void swap(vk::Device dev, const VKDispatchLoaderDynamic& vkDynLoader);
+	static void init(vk::Device dev, const VmaAllocator& allocator, size_t swapchainImageCount, const uint32_t& graphicsQueueFamilyIndex, const vk::DispatchLoaderDynamic& vkDynLoader);
+	static void destroy(vk::Device dev, const vk::DispatchLoaderDynamic& vkDynLoader);
+	static void swap(vk::Device dev, const vk::DispatchLoaderDynamic& vkDynLoader);
 };
 
 VKAPI_ATTR VkBool32 VKAPI_CALL messageCallback(
@@ -259,7 +257,7 @@ struct VkPSO final
 	vk::ShaderModule vertexShader;
 	vk::ShaderModule fragmentShader;
 	vk::Device dev;
-	const VKDispatchLoaderDynamic* pVkDynLoader;
+	const vk::DispatchLoaderDynamic* pVkDynLoader;
 	std::vector<vk::Sampler> samplers;
 
 	std::shared_ptr<VkhRenderPassCompat> renderpass_compat;
@@ -268,7 +266,7 @@ private:
 	// Read shader into text buffer
 	static std::vector<uint32_t> readShaderBuf(const std::string& name);
 
-	vk::ShaderModule get_module(const std::string& name, const VKDispatchLoaderDynamic& vkDynLoader);
+	vk::ShaderModule get_module(const std::string& name, const vk::DispatchLoaderDynamic& vkDynLoader);
 
 	static std::array<vk::PipelineShaderStageCreateInfo, 2> get_stages(const vk::ShaderModule& vertexModule, const vk::ShaderModule& fragmentModule);
 
@@ -291,7 +289,7 @@ public:
 		  vk::RenderPass rp,
 		  const std::shared_ptr<VkhRenderPassCompat>& renderpass_compat,
 		  vk::SampleCountFlagBits rasterizationSamples,
-		  const VKDispatchLoaderDynamic& _vkDynLoader
+		  const vk::DispatchLoaderDynamic& _vkDynLoader
 		  );
 
 	~VkPSO();
@@ -390,7 +388,7 @@ struct VkRoot final : gfx_api::context
 
 	vk::Instance inst;
 	std::vector<const char*> layers;
-	VKDispatchLoaderDynamic vkDynLoader;
+	vk::DispatchLoaderDynamic vkDynLoader;
 
 	// physical device (and info)
 	vk::PhysicalDevice physicalDevice;
