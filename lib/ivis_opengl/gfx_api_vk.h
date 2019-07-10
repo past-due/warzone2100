@@ -143,7 +143,7 @@ public:
 	void * mapMemory(AllocationResult memoryAllocation);
 	void unmapMemory(AllocationResult memoryAllocation);
 	void unmapAutomappedMemory();
-	void flushMemory();
+	void flushAutomappedMemory();
 	void clean();
 
 private:

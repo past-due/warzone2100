@@ -486,10 +486,12 @@ void BlockBufferAllocator::unmapAutomappedMemory()
 	}
 }
 
-void BlockBufferAllocator::flushMemory()
+void BlockBufferAllocator::flushAutomappedMemory()
 {
+	ASSERT(autoMap, "Only useful when autoMap == true");
 	for (auto& block : blocks)
 	{
+		ASSERT(block.pMappedMemory != nullptr, "Block must still be (auto-)mapped");
 		vmaFlushAllocation(allocator, block.allocation, 0, VK_WHOLE_SIZE);
 	}
 }
@@ -552,7 +554,7 @@ perFrameResources_t::perFrameResources_t(vk::Device& _dev, const VmaAllocator& a
 	: dev(_dev)
 	, allocator(allocator)
 	, stagingBufferAllocator(allocator, 1024 * 1024, vk::BufferUsageFlagBits::eTransferSrc, VMA_MEMORY_USAGE_CPU_ONLY)
-	, streamedVertexBufferAllocator(allocator, 128 * 1024, vk::BufferUsageFlagBits::eVertexBuffer, VMA_MEMORY_USAGE_CPU_TO_GPU)
+	, streamedVertexBufferAllocator(allocator, 128 * 1024, vk::BufferUsageFlagBits::eVertexBuffer, VMA_MEMORY_USAGE_CPU_TO_GPU, true)
 	, uniformBufferAllocator(allocator, 1024 * 1024, vk::BufferUsageFlagBits::eUniformBuffer, VMA_MEMORY_USAGE_CPU_TO_GPU, true)
 	, pVkDynLoader(&vkDynLoader)
 {
@@ -2852,9 +2854,10 @@ void VkRoot::flip(int clearMode)
 
 	buffering_mechanism::get_current_resources().cmdCopy.end(vkDynLoader);
 
-	buffering_mechanism::get_current_resources().uniformBufferAllocator.flushMemory();
+	buffering_mechanism::get_current_resources().uniformBufferAllocator.flushAutomappedMemory();
 	buffering_mechanism::get_current_resources().uniformBufferAllocator.unmapAutomappedMemory();
-	buffering_mechanism::get_current_resources().streamedVertexBufferAllocator.flushMemory();
+	buffering_mechanism::get_current_resources().streamedVertexBufferAllocator.flushAutomappedMemory();
+	buffering_mechanism::get_current_resources().streamedVertexBufferAllocator.unmapAutomappedMemory();
 
 	const auto executableCmdBuffer = std::array<vk::CommandBuffer, 2>{buffering_mechanism::get_current_resources().cmdCopy, buffering_mechanism::get_current_resources().cmdDraw}; // copy before render
 	const vk::PipelineStageFlags waitStage = vk::PipelineStageFlagBits::eColorAttachmentOutput; //vk::PipelineStageFlagBits::eAllCommands;
