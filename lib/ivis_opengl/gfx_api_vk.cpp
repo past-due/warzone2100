@@ -50,8 +50,8 @@
 
 const size_t MAX_FRAMES_IN_FLIGHT = 2;
 
-const std::vector<const char*> instanceExtensions = {
-	VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
+const std::vector<const char*> optionalInstanceExtensions = {
+	VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME	// used for Vulkan info output
 };
 
 const std::vector<const char*> deviceExtensions = {
@@ -196,7 +196,7 @@ bool checkDeviceExtensionSupport(const vk::PhysicalDevice &device, const std::ve
 	return requiredExtensions.empty();
 }
 
-static bool getSupportedExtensions(std::vector<VkExtensionProperties> &output, PFN_vkGetInstanceProcAddr _vkGetInstanceProcAddr)
+static bool getSupportedInstanceExtensions(std::vector<VkExtensionProperties> &output, PFN_vkGetInstanceProcAddr _vkGetInstanceProcAddr)
 {
 	ASSERT(_vkGetInstanceProcAddr, "_vkGetInstanceProcAddr must be valid");
 	PFN_vkEnumerateInstanceExtensionProperties _vkEnumerateInstanceExtensionProperties = reinterpret_cast<PFN_vkEnumerateInstanceExtensionProperties>(reinterpret_cast<void*>(_vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceExtensionProperties")));
@@ -289,10 +289,10 @@ bool checkValidationLayerSupport(PFN_vkGetInstanceProcAddr _vkGetInstanceProcAdd
 	return true;
 }
 
-bool findSupportedExtensions(std::vector<const char*> extensionsToFind, std::vector<const char*> &output, PFN_vkGetInstanceProcAddr _vkGetInstanceProcAddr)
+bool findSupportedInstanceExtensions(std::vector<const char*> extensionsToFind, std::vector<const char*> &output, PFN_vkGetInstanceProcAddr _vkGetInstanceProcAddr)
 {
 	std::vector<VkExtensionProperties> supportedExtensions;
-	if (!getSupportedExtensions(supportedExtensions, _vkGetInstanceProcAddr))
+	if (!getSupportedInstanceExtensions(supportedExtensions, _vkGetInstanceProcAddr))
 	{
 		// Failed to get supported extensions
 		return false;
@@ -317,38 +317,6 @@ bool findSupportedExtensions(std::vector<const char*> extensionsToFind, std::vec
 
 	output = foundExtensions;
 	return true;
-}
-
-bool getSupportedDebugExtensions(std::vector<const char*> &output, PFN_vkGetInstanceProcAddr _vkGetInstanceProcAddr)
-{
-	return findSupportedExtensions(debugAdditionalExtensions, output, _vkGetInstanceProcAddr);
-
-//	std::vector<VkExtensionProperties> supportedExtensions;
-//	if (!getSupportedExtensions(supportedExtensions, _vkGetInstanceProcAddr))
-//	{
-//		// Failed to get supported extensions
-//		return false;
-//	}
-//	std::unordered_set<std::string> supportedExtensionNames;
-//	for (auto & extension : supportedExtensions) {
-//		supportedExtensionNames.insert(extension.extensionName);
-//	}
-//
-//	std::vector<const char*> supportedDebugExtensions;
-//	for (const char* extensionName : debugAdditionalExtensions) {
-//
-//		if(supportedExtensionNames.find(extensionName) != supportedExtensionNames.end())
-//		{
-//			supportedDebugExtensions.push_back(extensionName);
-//		}
-//		else
-//		{
-//			debug(LOG_WARNING, "Vulkan: Desired debug extension \"%s\" is not supported - disabling", extensionName);
-//		}
-//	}
-//
-//	output = supportedDebugExtensions;
-//	return true;
 }
 
 // MARK: BlockBufferAllocator
@@ -2345,7 +2313,7 @@ bool VkRoot::initialize(const gfx_api::backend_Impl_Factory& impl)
 		{
 			// determine if desired debug extensions are available
 			std::vector<const char*> supportedDebugExtensions;
-			if (!getSupportedDebugExtensions(supportedDebugExtensions, _vkGetInstanceProcAddr))
+			if (!findSupportedInstanceExtensions(debugAdditionalExtensions, supportedDebugExtensions, _vkGetInstanceProcAddr))
 			{
 				debug(LOG_ERROR, "Failed to retrieve supported debug extensions");
 				return false;
@@ -2355,8 +2323,14 @@ bool VkRoot::initialize(const gfx_api::backend_Impl_Factory& impl)
 	}
 // end debugLayer handling
 
-	// add other required instance extensions
-	extensions.insert(std::end(extensions), instanceExtensions.begin(), instanceExtensions.end());
+	// add other optional instance extensions
+	std::vector<const char*> supportedOptionalInstanceExtensions;
+	if (!findSupportedInstanceExtensions(optionalInstanceExtensions, supportedOptionalInstanceExtensions, _vkGetInstanceProcAddr))
+	{
+		debug(LOG_ERROR, "Failed to retrieve supported optional instance extensions");
+		return false;
+	}
+	extensions.insert(std::end(extensions), supportedOptionalInstanceExtensions.begin(), supportedOptionalInstanceExtensions.end());
 
 	if (!createVulkanInstance(extensions, layers, _vkGetInstanceProcAddr))
 	{
@@ -2370,7 +2344,9 @@ bool VkRoot::initialize(const gfx_api::backend_Impl_Factory& impl)
 	// NOTE: From this point on, vkDynLoader *must* be initialized!
 	ASSERT(vkDynLoader.vkGetInstanceProcAddr != nullptr, "vkDynLoader does not appear to be initialized");
 
-	debugInfo.Output_PhysicalDevices(inst, true, vkDynLoader);
+	bool getProperties2Available = std::find_if(extensions.begin(), extensions.end(),
+												[](const char *extensionName) { return (strcmp(extensionName, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) == 0);}) != extensions.end();
+	debugInfo.Output_PhysicalDevices(inst, getProperties2Available, vkDynLoader);
 
 	if (!createSurface())
 	{
