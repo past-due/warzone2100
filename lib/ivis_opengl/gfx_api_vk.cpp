@@ -90,7 +90,9 @@ static uint32_t findProperties(const vk::PhysicalDeviceMemoryProperties& memprop
 	{
 		if ((memoryTypeBits & (1 << i)) &&
 			((memprops.memoryTypes[i].propertyFlags & properties) == properties))
+		{
 			return i;
+		}
 	}
 	return -1;
 }
