@@ -96,13 +96,17 @@ static uint32_t findProperties(const vk::PhysicalDeviceMemoryProperties& memprop
 }
 
 vk::Format findSupportedFormat(const vk::PhysicalDevice& physicalDevice, const std::vector<vk::Format>& candidates, vk::ImageTiling tiling, vk::FormatFeatureFlags features, const vk::DispatchLoaderDynamic& vkDynLoader) {
-	for (vk::Format format : candidates) {
+	for (vk::Format format : candidates)
+	{
 		vk::FormatProperties props;
 		physicalDevice.getFormatProperties(format, &props, vkDynLoader);
 
-		if (tiling == vk::ImageTiling::eLinear && (props.linearTilingFeatures & features) == features) {
+		if (tiling == vk::ImageTiling::eLinear && (props.linearTilingFeatures & features) == features)
+		{
 			return format;
-		} else if (tiling == vk::ImageTiling::eOptimal && (props.optimalTilingFeatures & features) == features) {
+		}
+		else if (tiling == vk::ImageTiling::eOptimal && (props.optimalTilingFeatures & features) == features)
+		{
 			return format;
 		}
 	}
@@ -119,7 +123,8 @@ QueueFamilyIndices findQueueFamilies(const vk::PhysicalDevice &device, const vk:
 	uint32_t i = 0;
 	for (const auto& queueFamily : queueFamilies)
 	{
-		if (queueFamily.queueCount > 0 && (queueFamily.queueFlags & vk::QueueFlagBits::eGraphics)) {
+		if (queueFamily.queueCount > 0 && (queueFamily.queueFlags & vk::QueueFlagBits::eGraphics))
+		{
 			indices.graphicsFamily = i;
 		}
 
@@ -134,11 +139,13 @@ QueueFamilyIndices findQueueFamilies(const vk::PhysicalDevice &device, const vk:
 			debug(LOG_ERROR, "getSurfaceSupportKHR failed: %s", e.what());
 		}
 
-		if (queueFamily.queueCount > 0 && presentSupport) {
+		if (queueFamily.queueCount > 0 && presentSupport)
+		{
 			indices.presentFamily = i;
 		}
 
-		if (indices.isComplete()) {
+		if (indices.isComplete())
+		{
 			break;
 		}
 
@@ -163,13 +170,14 @@ std::vector<const char*> findSupportedDeviceExtensions(const vk::PhysicalDevice 
 {
 	const auto availableExtensions = device.enumerateDeviceExtensionProperties(nullptr, vkDynLoader); // TODO: handle thrown error?
 	std::unordered_set<std::string> supportedExtensionNames;
-	for (auto & extension : availableExtensions) {
+	for (auto & extension : availableExtensions)
+	{
 		supportedExtensionNames.insert(extension.extensionName);
 	}
 
 	std::vector<const char*> foundExtensions;
-	for (const char* extensionName : desiredExtensions) {
-
+	for (const char* extensionName : desiredExtensions)
+	{
 		if(supportedExtensionNames.find(extensionName) != supportedExtensionNames.end())
 		{
 			foundExtensions.push_back(extensionName);
@@ -189,7 +197,8 @@ bool checkDeviceExtensionSupport(const vk::PhysicalDevice &device, const std::ve
 
 	std::unordered_set<std::string> requiredExtensions(desiredExtensions.begin(), desiredExtensions.end());
 
-	for (const auto& extension : availableExtensions) {
+	for (const auto& extension : availableExtensions)
+	{
 		requiredExtensions.erase(extension.extensionName);
 	}
 
@@ -271,17 +280,21 @@ bool checkValidationLayerSupport(PFN_vkGetInstanceProcAddr _vkGetInstanceProcAdd
 		return false;
 	}
 
-	for (const char* layerName : validationLayers) {
+	for (const char* layerName : validationLayers)
+	{
 		bool layerFound = false;
 
-		for (const auto& layerProperties : availableLayers) {
-			if (strcmp(layerName, layerProperties.layerName) == 0) {
+		for (const auto& layerProperties : availableLayers)
+		{
+			if (strcmp(layerName, layerProperties.layerName) == 0)
+			{
 				layerFound = true;
 				break;
 			}
 		}
 
-		if (!layerFound) {
+		if (!layerFound)
+		{
 			return false;
 		}
 	}
@@ -298,12 +311,14 @@ bool findSupportedInstanceExtensions(std::vector<const char*> extensionsToFind, 
 		return false;
 	}
 	std::unordered_set<std::string> supportedExtensionNames;
-	for (auto & extension : supportedExtensions) {
+	for (auto & extension : supportedExtensions)
+	{
 		supportedExtensionNames.insert(extension.extensionName);
 	}
 
 	std::vector<const char*> foundExtensions;
-	for (const char* extensionName : extensionsToFind) {
+	for (const char* extensionName : extensionsToFind)
+	{
 
 		if(supportedExtensionNames.find(extensionName) != supportedExtensionNames.end())
 		{
@@ -1735,7 +1750,8 @@ int rateDeviceSuitability(const vk::PhysicalDevice &device, const vk::SurfaceKHR
 	int score = 0;
 
 	// Discrete GPUs have a significant performance advantage
-	if (deviceProperties.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) {
+	if (deviceProperties.deviceType == vk::PhysicalDeviceType::eDiscreteGpu)
+	{
 		score += 100000; // picked a number greater than the max seen maxImageDimension2D value: https://vulkan.gpuinfo.org/displaydevicelimit.php?name=maxImageDimension2D
 	}
 
@@ -1743,55 +1759,58 @@ int rateDeviceSuitability(const vk::PhysicalDevice &device, const vk::SurfaceKHR
 	score += deviceProperties.limits.maxImageDimension2D;
 
 	// Requires: limits.maxDescriptorSetUniformBuffers >= minRequired_DescriptorSetUniformBuffers
-	if (deviceProperties.limits.maxDescriptorSetUniformBuffers < minRequired_DescriptorSetUniformBuffers) {
+	if (deviceProperties.limits.maxDescriptorSetUniformBuffers < minRequired_DescriptorSetUniformBuffers)
+	{
 		return 0;
 	}
 
 	// Requires: limits.maxDescriptorSetUniformBuffersDynamic >= minRequired_DescriptorSetUniformBuffersDynamic
-	if (deviceProperties.limits.maxDescriptorSetUniformBuffersDynamic < minRequired_DescriptorSetUniformBuffersDynamic) {
+	if (deviceProperties.limits.maxDescriptorSetUniformBuffersDynamic < minRequired_DescriptorSetUniformBuffersDynamic)
+	{
 		return 0;
 	}
 
 	// Requires: limits.maxBoundDescriptorSets >= minRequired_BoundDescriptorSets
-	if (deviceProperties.limits.maxBoundDescriptorSets < minRequired_BoundDescriptorSets) {
+	if (deviceProperties.limits.maxBoundDescriptorSets < minRequired_BoundDescriptorSets)
+	{
 		return 0;
 	}
 
 	// Requires: limits.maxViewports >= minRequired_Viewports
-	if (deviceProperties.limits.maxViewports < minRequired_Viewports) {
+	if (deviceProperties.limits.maxViewports < minRequired_Viewports)
+	{
 		return 0;
 	}
 
 	// Requires: limits.maxColorAttachments >= minRequired_ColorAttachments
-	if (deviceProperties.limits.maxColorAttachments < minRequired_ColorAttachments) {
+	if (deviceProperties.limits.maxColorAttachments < minRequired_ColorAttachments)
+	{
 		return 0;
 	}
 
 	// Requires: samplerAnisotropy
-	if (!deviceFeatures.samplerAnisotropy) {
+	if (!deviceFeatures.samplerAnisotropy)
+	{
 		return 0;
 	}
 
 	// depthBiasClamp - desired, but not required
-	if (deviceFeatures.depthBiasClamp) {
+	if (deviceFeatures.depthBiasClamp)
+	{
 		score += 10;
 	}
 
 	// Ensure device has required queue families
 	QueueFamilyIndices indices = findQueueFamilies(device, surface, vkDynLoader);
-	if (!indices.isComplete()) {
+	if (!indices.isComplete())
+	{
 		return 0;
 	}
-	if (indices.graphicsFamily.value() == indices.presentFamily.value()) {
+	if (indices.graphicsFamily.value() == indices.presentFamily.value())
+	{
 		// For performance reasons: prefer a physical device that supports drawing and presentation in the same queue
 		score += 100;
 	}
-//	else
-//	{
-//		// For now, only support if the graphicsFamily and presentFamily indices are the same
-//		// TODO: Remove this block once we support separate graphicsFamily and presentFamily queues
-//		return 0;
-//	}
 
 	// Check that device supports `deviceExtensions`
 	if (!checkDeviceExtensionSupport(device, deviceExtensions, vkDynLoader))
@@ -1824,15 +1843,19 @@ vk::PhysicalDevice VkRoot::pickPhysicalDevice()
 	// Use an ordered map to automatically sort candidates by increasing score
 	std::multimap<int, vk::PhysicalDevice> candidates;
 
-	for (const auto& device : physicalDevices) {
+	for (const auto& device : physicalDevices)
+	{
 		int score = rateDeviceSuitability(device, surface, vkDynLoader);
 		candidates.insert(std::make_pair(score, device));
 	}
 
 	// Check if the best candidate is suitable at all
-	if (candidates.rbegin()->first > 0) {
+	if (candidates.rbegin()->first > 0)
+	{
 		return candidates.rbegin()->second;
-	} else {
+	}
+	else
+	{
 		throw std::runtime_error("Failed to find a suitable GPU!");
 	}
 }
@@ -2141,7 +2164,7 @@ bool VkRoot::createSwapchain()
 		.setImageFormat(surfaceFormat.format)
 		.setImageColorSpace(surfaceFormat.colorSpace)
 		.setImageSharingMode(vk::SharingMode::eExclusive)
-		.setOldSwapchain(/*buffering_mechanism::*/swapchain);
+		.setOldSwapchain(swapchain);
 
 	// Handle separate graphicsFamily and presentFamily indices (i.e. separate graphics and presentation queues)
 	uint32_t queueFamilyIndicesU32[] = {queueFamilyIndices.graphicsFamily.value(), queueFamilyIndices.presentFamily.value()};
