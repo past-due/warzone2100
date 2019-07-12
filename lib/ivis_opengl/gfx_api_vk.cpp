@@ -2122,6 +2122,7 @@ bool VkRoot::createSwapchain()
 	SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice, surface, vkDynLoader);
 
 	vk::PresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
+	debug(LOG_3D, "Using present mode: %s", to_string(presentMode).c_str());
 
 	int w, h;
 	backend_impl->getDrawableSize(&w, &h);
@@ -2153,6 +2154,7 @@ bool VkRoot::createSwapchain()
 
 	// pick surface format
 	surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
+	debug(LOG_3D, "Using surface format: %s - %s", to_string(surfaceFormat.format).c_str(), to_string(surfaceFormat.colorSpace).c_str());
 
 	vk::SwapchainCreateInfoKHR createSwapchainInfo = vk::SwapchainCreateInfoKHR{}
 		.setSurface(surface)
@@ -2172,6 +2174,7 @@ bool VkRoot::createSwapchain()
 	uint32_t queueFamilyIndicesU32[] = {queueFamilyIndices.graphicsFamily.value(), queueFamilyIndices.presentFamily.value()};
 	if (queueFamilyIndices.graphicsFamily != queueFamilyIndices.presentFamily)
 	{
+		debug(LOG_3D, "Using separate graphics (%" PRIu32") and presentation (%" PRIu32") queue families", queueFamilyIndices.graphicsFamily.value(), queueFamilyIndices.presentFamily.value());
 		createSwapchainInfo.setImageSharingMode(vk::SharingMode::eConcurrent);
 		createSwapchainInfo.setQueueFamilyIndexCount(2);
 		createSwapchainInfo.setPQueueFamilyIndices(queueFamilyIndicesU32);
@@ -2191,10 +2194,9 @@ bool VkRoot::createSwapchain()
 		dev.destroySwapchainKHR(createSwapchainInfo.oldSwapchain, nullptr, vkDynLoader);
 	}
 
-	// TODO: Debug output swapchainDesiredImageCount vs actual count?
-
 	// createSwapchainImageViews
 	std::vector<vk::Image> swapchainImages = dev.getSwapchainImagesKHR(swapchain, vkDynLoader);
+	debug(LOG_3D, "Requested swapchain minImageCount: %" PRIu32", received: %zu", swapchainDesiredImageCount, swapchainImages.size());
 	std::transform(swapchainImages.begin(), swapchainImages.end(), std::back_inserter(swapchainImageView),
 				   [&](const vk::Image& img) {
 					   return dev.createImageView(
