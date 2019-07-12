@@ -111,6 +111,32 @@ void VkhInfo::Output_SurfaceInformation(const vk::PhysicalDevice& physicalDevice
 	buf << "- supportedUsageFlags: " << to_string(surfaceCapabilities.supportedUsageFlags) << "\n";
 	buf << "\n";
 
+	// Surface Formats
+	const auto surfaceFormats = physicalDevice.getSurfaceFormatsKHR(surface, vkDynLoader);
+
+	buf << "Surface Formats:\n";
+	buf << "-------------------------\n";
+	size_t idx = 0;
+	for (const auto& format : surfaceFormats)
+	{
+		buf << " - [" << idx << "]: " << to_string(format.format) << " - " << to_string(format.colorSpace) << "\n";
+		++idx;
+	}
+	buf << "\n";
+
+	// Present Modes
+	const auto presentModes = physicalDevice.getSurfacePresentModesKHR(surface, vkDynLoader);
+
+	buf << "Surface Present Modes:\n";
+	buf << "-------------------------\n";
+	idx = 0;
+	for (const auto& presentMode : presentModes)
+	{
+		buf << " - [" << idx << "]: " << to_string(presentMode) << "\n";
+		++idx;
+	}
+	buf << "\n";
+
 	if (outputHandler)
 	{
 		outputHandler(buf.str());
