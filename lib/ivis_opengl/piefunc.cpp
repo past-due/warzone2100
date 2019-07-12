@@ -100,10 +100,12 @@ void pie_SetViewingWindow(Vector3i *v, PIELIGHT colour)
 
 void pie_DrawViewingWindow(const glm::mat4 &modelViewProjectionMatrix)
 {
-	gfx_api::RadarViewPSO::get().bind();
-	gfx_api::RadarViewPSO::get().bind_constants({ modelViewProjectionMatrix });
-	radarViewGfx[0]->draw<gfx_api::RadarViewPSO>(modelViewProjectionMatrix);
-	radarViewGfx[1]->draw<gfx_api::RadarViewPSO>(modelViewProjectionMatrix);
+	gfx_api::RadarViewInsideFillPSO::get().bind();
+	gfx_api::RadarViewInsideFillPSO::get().bind_constants({ modelViewProjectionMatrix });
+	radarViewGfx[0]->draw<gfx_api::RadarViewInsideFillPSO>(modelViewProjectionMatrix);
+	gfx_api::RadarViewOutlinePSO::get().bind();
+	gfx_api::RadarViewOutlinePSO::get().bind_constants({ modelViewProjectionMatrix });
+	radarViewGfx[1]->draw<gfx_api::RadarViewOutlinePSO>(modelViewProjectionMatrix);
 }
 
 void pie_ViewingWindow_Shutdown()

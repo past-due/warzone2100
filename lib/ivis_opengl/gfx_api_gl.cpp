@@ -113,6 +113,8 @@ static GLenum to_gl(const gfx_api::primitive_type& primitive)
 	{
 		case gfx_api::primitive_type::lines:
 			return GL_LINES;
+		case gfx_api::primitive_type::line_strip:
+			return GL_LINE_STRIP;
 		case gfx_api::primitive_type::triangles:
 			return GL_TRIANGLES;
 		case gfx_api::primitive_type::triangle_strip:
