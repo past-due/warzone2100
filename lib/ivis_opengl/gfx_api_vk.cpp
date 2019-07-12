@@ -1049,6 +1049,8 @@ vk::PrimitiveTopology VkPSO::to_vk(const gfx_api::primitive_type& primitive)
 	{
 	case gfx_api::primitive_type::lines:
 		return vk::PrimitiveTopology::eLineList;
+	case gfx_api::primitive_type::line_strip:
+		return vk::PrimitiveTopology::eLineStrip;
 	case gfx_api::primitive_type::triangles:
 		return vk::PrimitiveTopology::eTriangleList;
 	case gfx_api::primitive_type::triangle_strip:
