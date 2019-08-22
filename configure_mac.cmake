@@ -10,7 +10,7 @@ cmake_minimum_required(VERSION 3.5)
 set(VCPKG_COMMIT_SHA "300e21d59ebfe42e118cf4e97887f0680fbcfa2f")
 
 # WZ macOS dependencies (for vcpkg install)
-set(VCPKG_INSTALL_DEPENDENCIES physfs harfbuzz libogg libtheora libvorbis libpng sdl2[vulkan] glew freetype gettext zlib)
+set(VCPKG_INSTALL_DEPENDENCIES physfs harfbuzz libogg libtheora libvorbis libpng sdl2[vulkan] freetype gettext zlib)
 
 # WZ minimum supported macOS deployment target (this is 10.10 because of Qt 5.9.x)
 set(MIN_SUPPORTED_MACOSX_DEPLOYMENT_TARGET "10.10")

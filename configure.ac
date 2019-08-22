@@ -407,9 +407,12 @@ PKG_CHECK_MODULES([OPENAL], [openal >= 0.0.8])
 PKG_CHECK_MODULES([VORBIS], [vorbis >= 1.1])
 PKG_CHECK_MODULES([VORBISFILE], [vorbisfile >= 1.1])
 
-PKG_CHECK_MODULES([GLEW], [glew >= 1.5.2])
-
 # Checks for libraries:
+
+# libdl required for glad
+AC_SEARCH_LIBS([dlopen], [dl dld], [], [
+  AC_MSG_ERROR([unable to find dlopen()])
+])
 
 # check for nearbyint()
 AC_CHECK_LIB(m, nearbyint, [MATH_LIB=""], AC_MSG_ERROR([nearbyint not found.]))
@@ -477,6 +480,8 @@ WZ_CPPFLAGS="${WZ_CPPFLAGS} -I\$(top_srcdir)/3rdparty"
 WZ_CPPFLAGS="${WZ_CPPFLAGS} -I\$(top_srcdir)/3rdparty/glm"
 # miniupnpc
 WZ_CPPFLAGS="${WZ_CPPFLAGS} -I\$(top_srcdir)/3rdparty/miniupnp"
+# glad
+WZ_CPPFLAGS="${WZ_CPPFLAGS} -I\$(top_srcdir)/3rdparty/glad/include"
 
 
 AC_SUBST([WZ_CPPFLAGS], [${WZ_CPPFLAGS}])
