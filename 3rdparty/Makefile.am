@@ -17,6 +17,15 @@ noinst_HEADERS = \
 sha_libsha2_a_SOURCES = \
 	sha/sha2.c
 
+# glad
+
+noinst_LIBRARIES += glad/libglad.a
+noinst_HEADERS += \
+	glad/include/glad/glad.h \
+	glad/include/KHR/khrplatform.h
+
+glad_libglad_a_SOURCES = \
+	glad/src/glad.c
 
 # utf8proc
 
