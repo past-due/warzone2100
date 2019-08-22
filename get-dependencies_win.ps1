@@ -8,7 +8,7 @@ param([string]$VCPKG_BUILD_TYPE = "")
 $VCPKG_COMMIT_SHA = "2fc37d513a59d50f471b895c0f5d2c1f53456a6a";
 
 # WZ Windows dependencies (for vcpkg install)
-$VCPKG_INSTALL_DEPENDENCIES = @("physfs", "harfbuzz", "libiconv", "libogg", "libtheora", "libvorbis", "libpng", "openal-soft", "glew", "freetype", "gettext", "zlib", "curl[winssl]", "libsodium")
+$VCPKG_INSTALL_DEPENDENCIES = @("physfs", "harfbuzz", "libiconv", "libogg", "libtheora", "libvorbis", "libpng", "openal-soft", "freetype", "gettext", "zlib", "curl[winssl]", "libsodium")
 If ((-not ([string]::IsNullOrEmpty($env:VULKAN_SDK))) -and (Test-Path $env:VULKAN_SDK -PathType Container))
 {
 	Write-Output "VULKAN_SDK environment variable detected - using SDL2 with Vulkan support";
