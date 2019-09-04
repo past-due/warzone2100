@@ -40,8 +40,6 @@ jobs:
         sudo bundle install --gemfile="macosx/BuildBot/Gemfile"
         cmake --version
     - name: CMake Build
-      env:
-        MACOSX_DEPLOYMENT_TARGET: 10.10
       run: |
         source build_tools/ci/travis/export_build_output_desc.sh
-        macosx/BuildBot/travis_cmake_build.sh "${WZ_BUILD_DESC_PREFIX}-" "tmp/wz_upload"
+        MACOSX_DEPLOYMENT_TARGET=10.10 macosx/BuildBot/travis_cmake_build.sh "${WZ_BUILD_DESC_PREFIX}-" "tmp/wz_upload"
