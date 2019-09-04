@@ -24,8 +24,6 @@ jobs:
   macOS-10-14:
     name: macOS (CMake) [Xcode 10.2.1, macOS 10.14 SDK]
     runs-on: macOS-10.14
-    env:
-      MACOSX_DEPLOYMENT_TARGET: 10.10
     
     steps:
     - uses: actions/checkout@v1
@@ -42,7 +40,8 @@ jobs:
         sudo bundle install --gemfile="macosx/BuildBot/Gemfile"
         cmake --version
     - name: CMake Build
+      env:
+        MACOSX_DEPLOYMENT_TARGET: 10.10
       run: |
         source build_tools/ci/travis/export_build_output_desc.sh
         macosx/BuildBot/travis_cmake_build.sh "${WZ_BUILD_DESC_PREFIX}-" "tmp/wz_upload"
-        
