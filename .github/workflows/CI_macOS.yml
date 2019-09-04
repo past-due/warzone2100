@@ -6,7 +6,6 @@ jobs:
   xcode-9-4:
     name: Xcode 9.4.1 [macOS 10.13 SDK]
     runs-on: macOS-10.14
-    
     steps:
     - uses: actions/checkout@v1
     - name: Init Git Submodules
@@ -29,7 +28,6 @@ jobs:
   xcode-10-2:
     name: Xcode 10.2.1 [macOS 10.14 SDK]
     runs-on: macOS-10.14
-    
     steps:
     - uses: actions/checkout@v1
     - name: Init Git Submodules
