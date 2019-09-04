@@ -6,7 +6,6 @@ jobs:
   fedora-latest-gcc:
     name: :LATEST (CMake) [GCC]
     runs-on: ubuntu-latest
-    
     steps:
     - uses: actions/checkout@v1
     - name: Init Git Submodules
@@ -24,7 +23,6 @@ jobs:
   fedora-latest-gcc-m32:
     name: :LATEST (CMake) [GCC -m32]
     runs-on: ubuntu-latest
-    
     steps:
     - uses: actions/checkout@v1
     - name: Init Git Submodules
