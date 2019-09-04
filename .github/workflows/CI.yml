@@ -9,14 +9,40 @@ jobs:
     
     steps:
     - uses: actions/checkout@v1
+    - name: Init Git Submodules
+      run: git submodule update --init --recursive
     - name: Build the Docker image
       run: |
         cd docker/ubuntu-18.04/
         docker build -t ubuntu .
         cd ../..
     - name: CMake Configure
-      run: |
-        echo $(pwd)
-        docker run --rm -e "CI=true" -e GITHUB_WORKFLOW -e GITHUB_ACTION -e GITHUB_REPOSITORY -e "GITHUB_WORKSPACE=/code" -e GITHUB_SHA -e GITHUB_REF -e GITHUB_HEAD_REF -e GITHUB_BASE_REF -e MAKEFLAGS -v $(pwd):/code ubuntu cmake '-H.' -Bbuild -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWZ_ENABLE_WARNINGS:BOOL=ON -G"Ninja"
+      run: docker run --rm -e "CI=true" -e GITHUB_WORKFLOW -e GITHUB_ACTION -e GITHUB_REPOSITORY -e "GITHUB_WORKSPACE=/code" -e GITHUB_SHA -e GITHUB_REF -e GITHUB_HEAD_REF -e GITHUB_BASE_REF -e MAKEFLAGS -v $(pwd):/code ubuntu cmake '-H.' -Bbuild -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWZ_ENABLE_WARNINGS:BOOL=ON -G"Ninja"
     - name: CMake Build
       run: docker run --rm -e "CI=true" -e GITHUB_WORKFLOW -e GITHUB_ACTION -e GITHUB_REPOSITORY -e "GITHUB_WORKSPACE=/code" -e GITHUB_SHA -e GITHUB_REF -e GITHUB_HEAD_REF -e GITHUB_BASE_REF -e MAKEFLAGS -v $(pwd):/code ubuntu cmake --build build
+
+  macOS-10-14:
+    name: macOS (CMake) [Xcode 10.2.1, macOS 10.14 SDK]
+    runs-on: macOS-10.14
+    env:
+      MACOSX_DEPLOYMENT_TARGET: 10.10
+    
+    steps:
+    - uses: actions/checkout@v1
+    - name: Init Git Submodules
+      run: git submodule update --init --recursive
+    - name: Set Xcode version
+      run: sudo xcode-select -switch /Applications/Xcode_10.2.1.app
+    - name: Install Prereqs
+      run: |
+        brew install cmake
+        brew install gettext
+        sudo gem install asciidoctor -v 2.0.9 --no-document
+        brew install gcc
+        sudo bundle install --gemfile="macosx/BuildBot/Gemfile"
+        cmake --version
+    - name: CMake Build
+      run: |
+        source build_tools/ci/travis/export_build_output_desc.sh
+        macosx/BuildBot/travis_cmake_build.sh "${WZ_BUILD_DESC_PREFIX}-" "tmp/wz_upload"
+        
