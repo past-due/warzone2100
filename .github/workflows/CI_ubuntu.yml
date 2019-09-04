@@ -6,7 +6,6 @@ jobs:
   ubuntu-16-04-gcc:
     name: Ubuntu 16.04 (CMake) [GCC]
     runs-on: ubuntu-16.04
-    
     steps:
     - uses: actions/checkout@v1
     - name: Init Git Submodules
@@ -24,7 +23,6 @@ jobs:
   ubuntu-18-04-gcc:
     name: Ubuntu 18.04 (CMake) [GCC]
     runs-on: ubuntu-18.04
-    
     steps:
     - uses: actions/checkout@v1
     - name: Init Git Submodules
@@ -42,7 +40,6 @@ jobs:
   ubuntu-18-04-clang:
     name: Ubuntu 18.04 (CMake) [Clang]
     runs-on: ubuntu-18.04
-    
     steps:
     - uses: actions/checkout@v1
     - name: Init Git Submodules
