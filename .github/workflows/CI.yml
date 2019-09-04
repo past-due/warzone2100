@@ -12,8 +12,8 @@ jobs:
     - name: Build the Docker image
       run: |
         cd docker/ubuntu-18.04/
-        && docker build -t ubuntu .
-        && cd ../..
+        docker build -t ubuntu .
+        cd ../..
     - name: CMake Configure
       run: |
         echo $(pwd)
