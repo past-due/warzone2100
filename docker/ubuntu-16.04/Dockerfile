@@ -2,9 +2,10 @@ FROM ubuntu:16.04
 
 RUN cat /etc/lsb-release
 
-RUN apt-get -u update \
+RUN apt-get clean \
+ && apt-get -u update \
  && apt-get -y install build-essential automake ninja-build pkg-config libpng12-dev libopenal-dev libphysfs-dev libvorbis-dev libtheora-dev libglew1.5-dev libxrandr-dev zip unzip qtscript5-dev qt5-default libfribidi-dev libfreetype6-dev libharfbuzz-dev libfontconfig1-dev docbook-xsl xsltproc asciidoc gettext git cmake sudo \
- && rm -rf /var/lib/apt/lists/*
+ && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Download, build, & install SDL 2.0.5 from source
 # For why --enable-mir-shared=no is needed, see: https://bugzilla.libsdl.org/show_bug.cgi?id=3539
