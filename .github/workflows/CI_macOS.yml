@@ -22,7 +22,7 @@ jobs:
         cmake --version
     - name: CMake Build
       run: |
-        source build_tools/ci/travis/export_build_output_desc.sh
+        source build_tools/ci/githubactions/export_build_output_desc.sh
         MACOSX_DEPLOYMENT_TARGET=10.10 macosx/BuildBot/travis_cmake_build.sh "${WZ_BUILD_DESC_PREFIX}-" "tmp/wz_upload"
 
   xcode-10-2:
@@ -48,5 +48,5 @@ jobs:
         cmake --version
     - name: CMake Build
       run: |
-        source build_tools/ci/travis/export_build_output_desc.sh
+        source build_tools/ci/githubactions/export_build_output_desc.sh
         MACOSX_DEPLOYMENT_TARGET=10.10 macosx/BuildBot/travis_cmake_build.sh "${WZ_BUILD_DESC_PREFIX}-" "tmp/wz_upload"
