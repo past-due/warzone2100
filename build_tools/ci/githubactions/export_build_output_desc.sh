@@ -20,7 +20,7 @@ if [ -z "${GITHUB_REF}" ]; then
 fi
 
 # Extract branch / tag from GITHUB_REF
-# (examples: GITHUB_REF=refs/heads/master, GITHUB_REF=refs/tags/v3.3.0)
+# (examples: GITHUB_REF=refs/heads/master, GITHUB_REF=refs/tags/v3.3.0, GITHUB_REF=refs/pull/3/merge (for a pull_request event))
 ref_tmp=${GITHUB_REF#*/} ## throw away the first part of the ref
 ref_type=${ref_tmp%%/*} ## extract the second element of the ref (heads or tags)
 ref_value=${ref_tmp#*/} ## extract the third+ elements of the ref (master or v3.3.0)
@@ -31,14 +31,12 @@ if [ "$ref_type" == "tags" ]; then
 	TAG_SANITIZED="$(echo "${ref_value}" | sed -e 's:/:_:g' -e 's:-:_:g')"
 	export WZ_BUILD_DESC_PREFIX="${TAG_SANITIZED}"
 else
+	GIT_BRANCH="${ref_value}"
+
 	if [ -n "${GITHUB_HEAD_REF}" ]; then
 		# Use the head ref's branch name
-		ref_tmp=${GITHUB_HEAD_REF#*/} ## throw away the first part of the ref
-		ref_type=${ref_tmp%%/*} ## extract the second element of the ref (heads or tags)
-		ref_value=${ref_tmp#*/} ## extract the third+ elements of the ref (master or v3.3.0)
+		GIT_BRANCH="${GITHUB_HEAD_REF}"
 	fi
-
-	GIT_BRANCH="${ref_value}"
 
 	# Replace "/" so the GIT_BRANCH can be used in a filename
 	GIT_BRANCH_SANITIZED="$(echo "${GIT_BRANCH}" | sed -e 's:/:_:g' -e 's:-:_:g')"
