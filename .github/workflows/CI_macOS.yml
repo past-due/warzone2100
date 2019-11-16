@@ -1,0 +1,52 @@
+name: macOS
+
+on: [push, pull_request]
+
+jobs:
+  xcode-9-4:
+    name: Xcode 9.4.1 [macOS 10.13 SDK]
+    runs-on: macOS-10.14
+    steps:
+    - uses: actions/checkout@v1
+    - name: Init Git Submodules
+      run: git submodule update --init --recursive
+    - name: Set Xcode version
+      run: sudo xcode-select -switch /Applications/Xcode_9.4.1.app
+    - name: Install Prereqs
+      run: |
+        brew install cmake
+        brew install gettext
+        sudo gem install asciidoctor -v 2.0.9 --no-document
+        brew install gcc
+        sudo bundle install --gemfile="macosx/BuildBot/Gemfile"
+        cmake --version
+    - name: CMake Build
+      run: |
+        source build_tools/ci/githubactions/export_build_output_desc.sh
+        MACOSX_DEPLOYMENT_TARGET=10.10 macosx/BuildBot/travis_cmake_build.sh "${WZ_BUILD_DESC_PREFIX}-" "tmp/wz_upload"
+
+  xcode-10-2:
+    name: Xcode 10.2.1 [macOS 10.14 SDK]
+    runs-on: macOS-10.14
+    steps:
+    - uses: actions/checkout@v1
+    - name: Init Git Submodules
+      run: git submodule update --init --recursive
+    - name: Debug Output
+      run: |
+        echo "GITHUB_REF=${GITHUB_REF}"
+        echo "GITHUB_HEAD_REF=${GITHUB_HEAD_REF}"
+    - name: Set Xcode version
+      run: sudo xcode-select -switch /Applications/Xcode_10.2.1.app
+    - name: Install Prereqs
+      run: |
+        brew install cmake
+        brew install gettext
+        sudo gem install asciidoctor -v 2.0.9 --no-document
+        brew install gcc
+        sudo bundle install --gemfile="macosx/BuildBot/Gemfile"
+        cmake --version
+    - name: CMake Build
+      run: |
+        source build_tools/ci/githubactions/export_build_output_desc.sh
+        MACOSX_DEPLOYMENT_TARGET=10.10 macosx/BuildBot/travis_cmake_build.sh "${WZ_BUILD_DESC_PREFIX}-" "tmp/wz_upload"
