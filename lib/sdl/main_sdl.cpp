@@ -299,6 +299,7 @@ void SDL_WZBackend_GetDrawableSize(SDL_Window* window,
 	switch (WZbackend)
 	{
 		case video_backend::opengl:
+		case video_backend::opengles:
 			return SDL_GL_GetDrawableSize(window, w, h);
 		case video_backend::vulkan:
 #if defined(HAVE_SDL_VULKAN_H)
@@ -425,6 +426,7 @@ void wzSetSwapInterval(int interval)
 	switch (WZbackend)
 	{
 		case video_backend::opengl:
+		case video_backend::opengles:
 			if (SDL_GL_SetSwapInterval(interval) != 0)
 			{
 				debug(LOG_ERROR, "Error: SDL_GL_SetSwapInterval(%d) failed (%s).", interval, SDL_GetError());
@@ -443,6 +445,7 @@ int wzGetSwapInterval()
 	switch (WZbackend)
 	{
 		case video_backend::opengl:
+		case video_backend::opengles:
 			return SDL_GL_GetSwapInterval();
 		case video_backend::vulkan:
 			// Not currently implemented
@@ -1565,6 +1568,7 @@ static SDL_WindowFlags SDL_backend(const video_backend& backend)
 	switch (backend)
 	{
 		case video_backend::opengl:
+		case video_backend::opengles:
 			return SDL_WINDOW_OPENGL;
 		case video_backend::vulkan:
 #if SDL_VERSION_ATLEAST(2, 0, 6)
@@ -1583,6 +1587,8 @@ std::string to_string(const video_backend& backend)
 	{
 		case video_backend::opengl:
 			return "OpenGL";
+		case video_backend::opengles:
+			return "OpenGL ES";
 		case video_backend::vulkan:
 			return "Vulkan";
 	}
@@ -1592,7 +1598,7 @@ std::string to_string(const video_backend& backend)
 // This stage, we handle display mode setting
 bool wzMainScreenSetup(const video_backend& backend, int antialiasing, bool fullscreen, bool vsync, bool highDPI)
 {
-	bool useOpenGLES = false;
+	const bool useOpenGLES = (backend == video_backend::opengles);
 
 	// Output linked SDL version
 	char buf[512];
@@ -1633,7 +1639,7 @@ bool wzMainScreenSetup(const video_backend& backend, int antialiasing, bool full
 
 	WZbackend = backend;
 
-	if(backend == video_backend::opengl)
+	if(backend == video_backend::opengl || backend == video_backend::opengles)
 	{
 		// Set OpenGL attributes before creating the SDL Window
 
