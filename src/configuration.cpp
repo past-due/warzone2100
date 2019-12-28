@@ -55,6 +55,7 @@
 #include "texture.h"
 #include "warzoneconfig.h"
 #include "titleui/titleui.h"
+#include "lib/framework/wzapp.h"
 
 #include <type_traits>
 
@@ -231,6 +232,21 @@ bool loadConfig()
 		pie_SetVideoBufferDepth(ini.value("bpp").toInt());
 	}
 	setFavoriteStructs(ini.value("favoriteStructs").toString().toUtf8().constData());
+
+	video_backend gfxBackend;
+	if (ini.contains("gfxbackend"))
+	{
+		if (!video_backend_from_str(ini.value("gfxbackend").toString().toUtf8().constData(), gfxBackend))
+		{
+			gfxBackend = wzGetDefaultGfxBackendForCurrentSystem();
+			debug(LOG_WARNING, "Unsupported / invalid gfxbackend value: %s; defaulting to: %s", ini.value("gfxbackend").toString().toUtf8().constData(), to_string(gfxBackend).c_str());
+		}
+	}
+	else
+	{
+		gfxBackend = wzGetDefaultGfxBackendForCurrentSystem();
+	}
+	war_setGfxBackend(gfxBackend);
 	return true;
 }
 
@@ -317,6 +333,7 @@ bool saveConfig()
 	}
 	ini.setValue("colourMP", war_getMPcolour());
 	ini.setValue("favoriteStructs", getFavoriteStructs().toUtf8().c_str());
+	ini.setValue("gfxbackend", to_string(war_getGfxBackend()).c_str());
 	ini.sync();
 	return true;
 }
