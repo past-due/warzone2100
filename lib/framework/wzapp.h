@@ -99,6 +99,7 @@ WZ_DECL_NONNULL(2, 3) void wzDisplayDialog(DialogType type, const char *title, c
 
 std::vector<screeninfo> wzAvailableResolutions();
 std::vector<unsigned int> wzAvailableDisplayScales();
+std::vector<video_backend> wzAvailableGfxBackends();
 void wzSetSwapInterval(int swap);
 int wzGetSwapInterval();
 WzString wzGetSelection();
