@@ -85,6 +85,7 @@
 #include "ai.h"
 #include "advvis.h"
 #include "loadsave.h"
+#include "wzapi.h"
 
 #define ALL_PLAYERS -1
 #define ALLIES -2
@@ -1172,6 +1173,348 @@ bool writeLabels(const char *filename)
 	}
 	return true;
 }
+
+// ----------------------------------------------------------------------------------------
+
+	class qtscript_execution_context : public wzapi::execution_context
+	{
+	private:
+		QScriptContext *context = nullptr;
+		QScriptEngine *engine = nullptr;
+	public:
+		qtscript_execution_context(QScriptContext *context, QScriptEngine *engine)
+		: context(context), engine(engine)
+		{ }
+		~qtscript_execution_context() { }
+	public:
+		virtual int player() const override
+		{
+			return engine->globalObject().property("me").toInt32();
+		}
+
+		virtual void throwError(const char *expr, int line, const char *function) const override
+		{
+			context->throwError(QScriptContext::ReferenceError, QString(expr) +  " failed in " + QString(function) + " at line " + QString::number(line));
+		}
+	};
+
+	namespace
+	{
+		template<typename T>
+		struct unbox {
+			//T operator()(size_t& idx, QScriptContext *context) const;
+		};
+
+		template<>
+		struct unbox<int>
+		{
+			int operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			{
+				if (context->argumentCount() < idx)
+					return {};
+				return context->argument(idx++).toInt32();
+			}
+		};
+
+		template<>
+		struct unbox<unsigned int>
+		{
+			unsigned int operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			{
+				if (context->argumentCount() < idx)
+					return {};
+				return context->argument(idx++).toUInt32();
+			}
+		};
+
+		template<>
+		struct unbox<bool>
+		{
+			bool operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			{
+				if (context->argumentCount() < idx)
+					return {};
+				return 	context->argument(idx++).toBool();
+			}
+		};
+
+
+
+		template<>
+		struct unbox<float>
+		{
+			float operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			{
+				if (context->argumentCount() < idx)
+					return {};
+				return context->argument(idx++).toNumber();
+			}
+		};
+
+		template<>
+		struct unbox<optional<float>>
+		{
+			optional<float> operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			{
+				if (context->argumentCount() < idx)
+					return {};
+				return optional<float>(context->argument(idx++).toNumber());
+			}
+		};
+
+		template<>
+		struct unbox<const DROID*>
+		{
+			const DROID* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			{
+				if (context->argumentCount() < idx)
+					return {};
+				QScriptValue droidVal = context->argument(idx++);
+				int id = droidVal.property("id").toInt32();
+				int player = droidVal.property("player").toInt32();
+				return IdToDroid(id, player);
+			}
+		};
+
+		template<>
+		struct unbox<std::string>
+		{
+			std::string operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			{
+				if (context->argumentCount() < idx)
+					return {};
+				return context->argument(idx++).toString().toStdString();//.toUtf8();
+//				auto&& tmp2 = tmp.constData();
+//				if (strcmp(tmp2, "Crate") == 0)
+//				{
+//					printf("here");
+//				}
+//				auto* result = (char*)stack_space;
+//				strcpy(result, tmp.constData());
+//				stack_space = (char*)stack_space + strlen(tmp) + 1;
+//
+//				return result;
+			}
+		};
+
+		template<>
+		struct unbox<DROID*>
+		{
+			DROID* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			{
+				if (context->argumentCount() < idx)
+					return {};
+				QScriptValue droidVal = context->argument(idx++);
+				int id = droidVal.property("id").toInt32();
+				int player = droidVal.property("player").toInt32();
+				return IdToDroid(id, player);
+			}
+		};
+
+//		template<>
+//		struct unbox<wzapi::execution_context>
+//		{
+//			qtscript_execution_context operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)
+//			{
+//				if (context->argumentCount() < idx)
+//					return qtscript_execution_context(nullptr);
+//				idx--;
+//				return qtscript_execution_context(engine);
+//			};
+//		};
+
+		template<>
+		struct unbox<wzapi::structure_id_player>
+		{
+			wzapi::structure_id_player operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			{
+				if (context->argumentCount() < idx)
+					return {};
+				QScriptValue structVal = context->argument(idx++);
+				int id = structVal.property("id").toInt32();
+				int player = structVal.property("player").toInt32();
+				return { id, player };
+			}
+		};
+
+
+//		template<>
+//		struct unbox<droid_id_player>
+//		{
+//			droid_id_player operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, void*& stack_space)
+//			{
+//				if (context->argumentCount() < idx)
+//					return {};
+//				QScriptValue droidVal = context->argument(idx--);
+//				int id = droidVal.property("id").toInt32();
+//				int player = droidVal.property("player").toInt32();
+//				return { id, player };
+//			}
+//		};
+//
+//		template<>
+//		struct unbox<object_id_player_type>
+//		{
+//			object_id_player_type operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, void*& stack_space)
+//			{
+//				if (context->argumentCount() < idx)
+//					return {};
+//				QScriptValue objVal = context->argument(idx--);
+//				int id = objVal.property("id").toInt32();
+//				int player = objVal.property("player").toInt32();
+//				OBJECT_TYPE type = (OBJECT_TYPE)objVal.property("type").toInt32();
+//				return { id, player, type };
+//			}
+//		};
+//
+//		template<>
+//		struct unbox<wzapi::me>
+//		{
+//			wzapi::me operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, void*& stack_space)
+//			{
+//				if (context->argumentCount() < idx)
+//					return {};
+//				idx++;
+//				return { engine->globalObject().property("me").toInt32() };
+//			}
+//		};
+//
+//		template<>
+//		struct unbox<wzapi::me_or_specified_player>
+//		{
+//			wzapi::me_or_specified_player operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, void*& stack_space)
+//			{
+////				const auto& tmp = context->argumentCount();
+//				if (context->argumentCount() < idx)
+//					return {};
+//				if (context->argumentCount() > idx--)
+//				{
+//					return { context->argument(idx + 1).toInt32() };
+//				}
+//				return { engine->globalObject().property("me").toInt32() };
+//			}
+//		};
+//
+//		template<>
+//		struct unbox<string_list>
+//		{
+//			string_list operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, void*& stack_space)
+//			{
+//				if (context->argumentCount() < idx)
+//					return {};
+//				QScriptValue list = context->argument(idx--);
+//				if (list.isArray())
+//				{
+//					size_t length = list.property("length").toInt32();
+//					// Should be allocated in some function local stack...
+//					const char** result = (const char**)malloc(length * sizeof(const char*));
+//					for (int k = 0; k < length; k++)
+//					{
+//						QString str = list.property(k).toString();
+//						char* ptr = (char*)malloc(str.length() * sizeof(char));
+//						strcpy(ptr, str.toUtf8().constData());
+//						result[k] = ptr;
+//					}
+//					return { result, length };
+//				}
+//				return { };
+//			}
+//		};
+
+		template<typename T>
+		QScriptValue box(T a, QScriptEngine*)
+		{
+			return a;
+		}
+
+//		QScriptValue box(FEATURE* psFeature, QScriptEngine* engine)
+//		{
+//			return convFeature(psFeature, engine);
+//		}
+//
+//		QScriptValue box(STRUCTURE* psStruct, QScriptEngine* engine)
+//		{
+//			return convStructure(psStruct, engine);
+//		}
+
+		QScriptValue box(wzapi::no_return_value, QScriptEngine* engine)
+		{
+			return QScriptValue();
+		}
+
+//		QScriptValue box(optional_position pos, QScriptEngine* engine)
+//		{
+//			if (!pos.valid)
+//				return {};
+//			QScriptValue retval = engine->newObject();
+//			retval.setProperty("x", pos.x, QScriptValue::ReadOnly);
+//			retval.setProperty("y", pos.y, QScriptValue::ReadOnly);
+//			retval.setProperty("type", SCRIPT_POSITION, QScriptValue::ReadOnly);
+//			return retval;
+//		}
+
+//		template<typename R, typename...Args>
+//		QScriptValue wrap_(R(*f)(Args...), QScriptContext *context, QScriptEngine *engine)
+//		{
+//			uint8_t stack_space[10000];
+//			void* stack_ptr = stack_space;
+//			size_t idx = sizeof...(Args) - 1;
+//			return box(f(unbox<Args>{}(idx, context, engine, stack_ptr)...), engine);
+//		}
+
+		#include <cstddef>
+		#include <tuple>
+		#include <type_traits>
+		#include <utility>
+
+		template<size_t N>
+		struct Apply {
+			template<typename F, typename T, typename... A>
+			static inline auto apply(F && f, T && t, A &&... a)
+				-> decltype(Apply<N-1>::apply(
+					::std::forward<F>(f), ::std::forward<T>(t),
+					::std::get<N-1>(::std::forward<T>(t)), ::std::forward<A>(a)...
+				))
+			{
+				return Apply<N-1>::apply(::std::forward<F>(f), ::std::forward<T>(t),
+					::std::get<N-1>(::std::forward<T>(t)), ::std::forward<A>(a)...
+				);
+			}
+		};
+
+		template<>
+		struct Apply<0> {
+			template<typename F, typename T, typename... A>
+			static inline auto apply(F && f, T &&, A &&... a)
+				-> decltype(::std::forward<F>(f)(::std::forward<A>(a)...))
+			{
+				return ::std::forward<F>(f)(::std::forward<A>(a)...);
+			}
+		};
+
+		template<typename F, typename T>
+		inline auto apply(F && f, T && t)
+			-> decltype(Apply< ::std::tuple_size<
+				typename ::std::decay<T>::type
+			>::value>::apply(::std::forward<F>(f), ::std::forward<T>(t)))
+		{
+			return Apply< ::std::tuple_size<
+				typename ::std::decay<T>::type
+			>::value>::apply(::std::forward<F>(f), ::std::forward<T>(t));
+		}
+
+		template<typename R, typename...Args>
+		QScriptValue wrap_(R(*f)(const wzapi::execution_context&, Args...), QScriptContext *context, QScriptEngine *engine)
+		{
+			//uint8_t stack_space[10000];
+			//void* stack_ptr = stack_space;
+			size_t idx = 0; //sizeof...(Args) - 1;
+//			return box(f(unbox<Args>{}(idx, context, engine)...), engine);
+			qtscript_execution_context execution_context(context, engine);
+			return box(apply(f, std::tuple<const wzapi::execution_context&, Args...>{static_cast<const wzapi::execution_context&>(execution_context), unbox<Args>{}(idx, context, engine)...}), engine);
+		}
+
+	}
 
 // ----------------------------------------------------------------------------------------
 // Script functions
@@ -2756,38 +3099,40 @@ static QScriptValue js_terrainType(QScriptContext *context, QScriptEngine *)
 //--
 //-- Give a droid an order to do something. (3.2+ only)
 //--
-static QScriptValue js_orderDroid(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_orderDroid(QScriptContext *context, QScriptEngine *engine)
 {
 	QScriptValue droidVal = context->argument(0);
 	int id = droidVal.property("id").toInt32();
 	int player = droidVal.property("player").toInt32();
-	DROID *psDroid = IdToDroid(id, player);
-	SCRIPT_ASSERT(context, psDroid, "Droid id %d not found belonging to player %d", id, player);
+//	DROID *psDroid = IdToDroid(id, player);
+//	SCRIPT_ASSERT(context, psDroid, "Droid id %d not found belonging to player %d", id, player);
 	DROID_ORDER order = (DROID_ORDER)context->argument(1).toInt32();
-	SCRIPT_ASSERT(context, order == DORDER_HOLD || order == DORDER_RTR || order == DORDER_STOP
-	              || order == DORDER_RTB || order == DORDER_REARM || order == DORDER_RECYCLE,
-	              "Invalid order: %s", getDroidOrderName(order));
-	DROID_ORDER_DATA *droidOrder = &psDroid->order;
-	if (droidOrder->type == order)
-	{
-		return QScriptValue(true);
-	}
-	if (order == DORDER_REARM)
-	{
-		if (STRUCTURE *psStruct = findNearestReArmPad(psDroid, psDroid->psBaseStruct, false))
-		{
-			orderDroidObj(psDroid, order, psStruct, ModeQueue);
-		}
-		else
-		{
-			orderDroid(psDroid, DORDER_RTB, ModeQueue);
-		}
-	}
-	else
-	{
-		orderDroid(psDroid, order, ModeQueue);
-	}
-	return QScriptValue(true);
+//	SCRIPT_ASSERT(context, order == DORDER_HOLD || order == DORDER_RTR || order == DORDER_STOP
+//	              || order == DORDER_RTB || order == DORDER_REARM || order == DORDER_RECYCLE,
+//	              "Invalid order: %s", getDroidOrderName(order));
+//	DROID_ORDER_DATA *droidOrder = &psDroid->order;
+//	if (droidOrder->type == order)
+//	{
+//		return QScriptValue(true);
+//	}
+//	if (order == DORDER_REARM)
+//	{
+//		if (STRUCTURE *psStruct = findNearestReArmPad(psDroid, psDroid->psBaseStruct, false))
+//		{
+//			orderDroidObj(psDroid, order, psStruct, ModeQueue);
+//		}
+//		else
+//		{
+//			orderDroid(psDroid, DORDER_RTB, ModeQueue);
+//		}
+//	}
+//	else
+//	{
+//		orderDroid(psDroid, order, ModeQueue);
+//	}
+//	return QScriptValue(true);
+	debug(LOG_3D, "droid.id=%d, droid.player=%d, order=%d", id, player, (int)order);
+	return wrap_(wzapi::orderDroid, context, engine);
 }
 
 //-- ## orderDroidObj(droid, order, object)
@@ -2822,7 +3167,7 @@ static QScriptValue js_orderDroidObj(QScriptContext *context, QScriptEngine *)
 //--
 //-- Give a droid an order to build something at the given position. Returns true if allowed.
 //--
-static QScriptValue js_orderDroidBuild(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_orderDroidBuild(QScriptContext *context, QScriptEngine *engine)
 {
 	QScriptValue droidVal = context->argument(0);
 	int id = droidVal.property("id").toInt32();
@@ -2833,8 +3178,8 @@ static QScriptValue js_orderDroidBuild(QScriptContext *context, QScriptEngine *)
 	int index = getStructStatFromName(QStringToWzString(statName));
 	SCRIPT_ASSERT(context, index >= 0, "%s not found", statName.toUtf8().constData());
 	STRUCTURE_STATS	*psStats = &asStructureStats[index];
-	int x = context->argument(3).toInt32();
-	int y = context->argument(4).toInt32();
+//	int x = context->argument(3).toInt32();
+//	int y = context->argument(4).toInt32();
 	uint16_t direction = 0;
 
 	SCRIPT_ASSERT(context, order == DORDER_BUILD, "Invalid order");
@@ -2843,13 +3188,15 @@ static QScriptValue js_orderDroidBuild(QScriptContext *context, QScriptEngine *)
 	{
 		direction = DEG(context->argument(5).toNumber());
 	}
-	DROID_ORDER_DATA *droidOrder = &psDroid->order;
-	if (droidOrder->type == order && psDroid->actionPos.x == world_coord(x) && psDroid->actionPos.y == world_coord(y))
-	{
-		return QScriptValue(true);
-	}
-	orderDroidStatsLocDir(psDroid, order, psStats, world_coord(x) + TILE_UNITS / 2, world_coord(y) + TILE_UNITS / 2, direction, ModeQueue);
-	return QScriptValue(true);
+//	DROID_ORDER_DATA *droidOrder = &psDroid->order;
+//	if (droidOrder->type == order && psDroid->actionPos.x == world_coord(x) && psDroid->actionPos.y == world_coord(y))
+//	{
+//		return QScriptValue(true);
+//	}
+//	orderDroidStatsLocDir(psDroid, order, psStats, world_coord(x) + TILE_UNITS / 2, world_coord(y) + TILE_UNITS / 2, direction, ModeQueue);
+//	return QScriptValue(true);
+	debug(LOG_3D, "droid.id=%d, droid.player=%d, order=%d, statName=%s", psDroid->id, (int)psDroid->player, (int)order, statName.toUtf8().constData());
+	return wrap_(wzapi::orderDroidBuild, context, engine);
 }
 
 //-- ## orderDroidLoc(droid, order, x, y)
@@ -3640,7 +3987,8 @@ static QScriptValue js_allianceExistsBetween(QScriptContext *context, QScriptEng
 static QScriptValue js_translate(QScriptContext *context, QScriptEngine *engine)
 {
 	// The redundant QString cast is a workaround for a Qt5 bug, the QScriptValue(char const *) constructor interprets as Latin1 instead of UTF-8!
-	return QScriptValue(QString(gettext(context->argument(0).toString().toUtf8().constData())));
+	return wrap_(wzapi::translate, context, engine);
+//	return QScriptValue(QString(wzapi::translate(context->argument(0).toString().toUtf8().constData())));
 }
 
 //-- ## playerPower(player)
@@ -4316,18 +4664,13 @@ static QScriptValue js_chat(QScriptContext *context, QScriptEngine *engine)
 //--
 static QScriptValue js_setAlliance(QScriptContext *context, QScriptEngine *engine)
 {
-	int player1 = context->argument(0).toInt32();
-	int player2 = context->argument(1).toInt32();
-	bool value = context->argument(2).toBool();
-	if (value)
-	{
-		formAlliance(player1, player2, true, false, true);
-	}
-	else
-	{
-		breakAlliance(player1, player2, true, true);
-	}
-	return QScriptValue(true);
+//	int player1 = context->argument(0).toInt32();
+//	int player2 = context->argument(1).toInt32();
+//	bool value = context->argument(2).toBool();
+//
+//	debug(LOG_3D, "player1: %d, player2: %d, value: %d", player1, player2, (int)value);
+	return wrap_(wzapi::setAlliance, context, engine);
+//	return wzapi::setAlliance(player1, player2, value);
 }
 
 //-- ## sendAllianceRequest(player)
@@ -4336,13 +4679,15 @@ static QScriptValue js_setAlliance(QScriptContext *context, QScriptEngine *engin
 //--
 static QScriptValue js_sendAllianceRequest(QScriptContext *context, QScriptEngine *engine)
 {
-	if (!alliancesFixed(game.alliance))
-	{
-		int player1 = engine->globalObject().property("me").toInt32();
-		int player2 = context->argument(0).toInt32();
-		requestAlliance(player1, player2, true, true);
-	}
-	return QScriptValue();
+	return wrap_(wzapi::sendAllianceRequest, context, engine);
+//	if (!alliancesFixed(game.alliance))
+//	{
+//		int player1 = engine->globalObject().property("me").toInt32();
+//		int player2 = context->argument(0).toInt32();
+//		requestAlliance(player1, player2, true, true);
+//	}
+//	wzapi::sendAllianceRequest();
+//	return QScriptValue();
 }
 
 //-- ## setAssemblyPoint(structure, x, y)
@@ -4351,18 +4696,19 @@ static QScriptValue js_sendAllianceRequest(QScriptContext *context, QScriptEngin
 //--
 static QScriptValue js_setAssemblyPoint(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue structVal = context->argument(0);
-	int id = structVal.property("id").toInt32();
-	int player = structVal.property("player").toInt32();
-	STRUCTURE *psStruct = IdToStruct(id, player);
-	SCRIPT_ASSERT(context, psStruct, "No such structure id %d belonging to player %d", id, player);
-	int x = context->argument(1).toInt32();
-	int y = context->argument(2).toInt32();
-	SCRIPT_ASSERT(context, psStruct->pStructureType->type == REF_FACTORY
-	              || psStruct->pStructureType->type == REF_CYBORG_FACTORY
-	              || psStruct->pStructureType->type == REF_VTOL_FACTORY, "Structure not a factory");
-	setAssemblyPoint(((FACTORY *)psStruct->pFunctionality)->psAssemblyPoint, x, y, player, true);
-	return QScriptValue(true);
+//	QScriptValue structVal = context->argument(0);
+//	int id = structVal.property("id").toInt32();
+//	int player = structVal.property("player").toInt32();
+//	STRUCTURE *psStruct = IdToStruct(id, player);
+//	SCRIPT_ASSERT(context, psStruct, "No such structure id %d belonging to player %d", id, player);
+//	int x = context->argument(1).toInt32();
+//	int y = context->argument(2).toInt32();
+//	SCRIPT_ASSERT(context, psStruct->pStructureType->type == REF_FACTORY
+//	              || psStruct->pStructureType->type == REF_CYBORG_FACTORY
+//	              || psStruct->pStructureType->type == REF_VTOL_FACTORY, "Structure not a factory");
+//	setAssemblyPoint(((FACTORY *)psStruct->pFunctionality)->psAssemblyPoint, x, y, player, true);
+//	return QScriptValue(true);
+	return wrap_(wzapi::setAssemblyPoint, context, engine);
 }
 
 //-- ## hackNetOff()
@@ -4591,13 +4937,14 @@ static QScriptValue js_hackRemoveMessage(QScriptContext *context, QScriptEngine 
 //--
 //-- Move the position of the Sun, which in turn moves where shadows are cast. (3.2+ only)
 //--
-static QScriptValue js_setSunPosition(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_setSunPosition(QScriptContext *context, QScriptEngine *engine)
 {
-	float x = context->argument(0).toNumber();
-	float y = context->argument(1).toNumber();
-	float z = context->argument(2).toNumber();
-	setTheSun(Vector3f(x, y, z));
-	return QScriptValue();
+//	float x = context->argument(0).toNumber();
+//	float y = context->argument(1).toNumber();
+//	float z = context->argument(2).toNumber();
+//	setTheSun(Vector3f(x, y, z));
+//	return QScriptValue();
+	return wrap_(wzapi::setSunPosition, context, engine);
 }
 
 //-- ## setSunIntensity(ambient r, g, b, diffuse r, g, b, specular r, g, b)
@@ -4875,10 +5222,11 @@ static QScriptValue js_removeSpotter(QScriptContext *context, QScriptEngine *)
 //-- run on all network peers in the same game frame. If it is called on just one peer (such as would be
 //-- the case for AIs, for instance), then game sync will break. (3.2+ only)
 //--
-static QScriptValue js_syncRandom(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_syncRandom(QScriptContext *context, QScriptEngine * engine)
 {
-	uint32_t limit = context->argument(0).toInt32();
-	return QScriptValue(gameRand(limit));
+	return wrap_(wzapi::syncRandom, context, engine);
+//	uint32_t limit = context->argument(0).toInt32();
+//	return QScriptValue(wzapi::syncRandom(limit));
 }
 
 //-- ## syncRequest(req_id, x, y[, obj[, obj2]])
@@ -6142,9 +6490,9 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 	engine->globalObject().setProperty("Upgrades", upgrades, QScriptValue::ReadOnly | QScriptValue::Undeletable);
 
 	// Register functions to the script engine here
-	engine->globalObject().setProperty("_", engine->newFunction(js_translate));
+	engine->globalObject().setProperty("_", engine->newFunction(js_translate)); // WZAPI
 	engine->globalObject().setProperty("dump", engine->newFunction(js_dump));
-	engine->globalObject().setProperty("syncRandom", engine->newFunction(js_syncRandom));
+	engine->globalObject().setProperty("syncRandom", engine->newFunction(js_syncRandom)); // WZAPI
 	engine->globalObject().setProperty("label", engine->newFunction(js_getObject)); // deprecated
 	engine->globalObject().setProperty("getObject", engine->newFunction(js_getObject));
 	engine->globalObject().setProperty("addLabel", engine->newFunction(js_addLabel));
@@ -6154,10 +6502,10 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 	engine->globalObject().setProperty("enumGateways", engine->newFunction(js_enumGateways));
 	engine->globalObject().setProperty("enumTemplates", engine->newFunction(js_enumTemplates));
 	engine->globalObject().setProperty("makeTemplate", engine->newFunction(js_makeTemplate));
-	engine->globalObject().setProperty("setAlliance", engine->newFunction(js_setAlliance));
-	engine->globalObject().setProperty("sendAllianceRequest", engine->newFunction(js_sendAllianceRequest));
-	engine->globalObject().setProperty("setAssemblyPoint", engine->newFunction(js_setAssemblyPoint));
-	engine->globalObject().setProperty("setSunPosition", engine->newFunction(js_setSunPosition));
+	engine->globalObject().setProperty("setAlliance", engine->newFunction(js_setAlliance)); // WZAPI
+	engine->globalObject().setProperty("sendAllianceRequest", engine->newFunction(js_sendAllianceRequest)); // WZAPI
+	engine->globalObject().setProperty("setAssemblyPoint", engine->newFunction(js_setAssemblyPoint)); // WZAPI
+	engine->globalObject().setProperty("setSunPosition", engine->newFunction(js_setSunPosition)); // WZAPI
 	engine->globalObject().setProperty("setSunIntensity", engine->newFunction(js_setSunIntensity));
 	engine->globalObject().setProperty("setWeather", engine->newFunction(js_setWeather));
 	engine->globalObject().setProperty("setSky", engine->newFunction(js_setSky));
@@ -6228,9 +6576,9 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 	engine->globalObject().setProperty("droidCanReach", engine->newFunction(js_droidCanReach));
 	engine->globalObject().setProperty("propulsionCanReach", engine->newFunction(js_propulsionCanReach));
 	engine->globalObject().setProperty("terrainType", engine->newFunction(js_terrainType));
-	engine->globalObject().setProperty("orderDroidBuild", engine->newFunction(js_orderDroidBuild));
+	engine->globalObject().setProperty("orderDroidBuild", engine->newFunction(js_orderDroidBuild)); // WZAPI
 	engine->globalObject().setProperty("orderDroidObj", engine->newFunction(js_orderDroidObj));
-	engine->globalObject().setProperty("orderDroid", engine->newFunction(js_orderDroid));
+	engine->globalObject().setProperty("orderDroid", engine->newFunction(js_orderDroid)); // WZAPI
 	engine->globalObject().setProperty("buildDroid", engine->newFunction(js_buildDroid));
 	engine->globalObject().setProperty("addDroid", engine->newFunction(js_addDroid));
 	engine->globalObject().setProperty("addDroidToTransporter", engine->newFunction(js_addDroidToTransporter));
