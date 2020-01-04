@@ -3180,14 +3180,14 @@ static QScriptValue js_orderDroidBuild(QScriptContext *context, QScriptEngine *e
 	STRUCTURE_STATS	*psStats = &asStructureStats[index];
 //	int x = context->argument(3).toInt32();
 //	int y = context->argument(4).toInt32();
-	uint16_t direction = 0;
+//	uint16_t direction = 0;
 
 	SCRIPT_ASSERT(context, order == DORDER_BUILD, "Invalid order");
 	SCRIPT_ASSERT(context, psStats->id.compare("A0ADemolishStructure") != 0, "Cannot build demolition");
-	if (context->argumentCount() > 5)
-	{
-		direction = DEG(context->argument(5).toNumber());
-	}
+//	if (context->argumentCount() > 5)
+//	{
+//		direction = DEG(context->argument(5).toNumber());
+//	}
 //	DROID_ORDER_DATA *droidOrder = &psDroid->order;
 //	if (droidOrder->type == order && psDroid->actionPos.x == world_coord(x) && psDroid->actionPos.y == world_coord(y))
 //	{
