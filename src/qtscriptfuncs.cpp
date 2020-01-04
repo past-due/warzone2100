@@ -1695,6 +1695,9 @@ bool writeLabels(const char *filename)
 			>::value>::apply(::std::forward<F>(f), ::std::forward<T>(t));
 		}
 
+		MSVC_PRAGMA(warning( push )) // see matching "pop" below
+		MSVC_PRAGMA(warning( disable : 4189 )) // disable "warning C4189: 'idx': local variable is initialized but not referenced"
+		
 		template<typename R, typename...Args>
 		QScriptValue wrap_(R(*f)(const wzapi::execution_context&, Args...), QScriptContext *context, QScriptEngine *engine)
 		{
@@ -1705,6 +1708,8 @@ bool writeLabels(const char *filename)
 			qtscript_execution_context execution_context(context, engine);
 			return box(apply(f, std::tuple<const wzapi::execution_context&, Args...>{static_cast<const wzapi::execution_context&>(execution_context), unbox<Args>{}(idx, context, engine)...}), engine);
 		}
+
+		MSVC_PRAGMA(warning( pop ))
 
 	}
 
