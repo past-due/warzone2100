@@ -961,9 +961,9 @@ QScriptValue convMax(const BASE_OBJECT *psObj, QScriptEngine *engine)
 	}
 	switch (psObj->type)
 	{
-	case OBJ_DROID: return convDroid((DROID *)psObj, engine);
-	case OBJ_STRUCTURE: return convStructure((STRUCTURE *)psObj, engine);
-	case OBJ_FEATURE: return convFeature((FEATURE *)psObj, engine);
+	case OBJ_DROID: return convDroid((const DROID *)psObj, engine);
+	case OBJ_STRUCTURE: return convStructure((const STRUCTURE *)psObj, engine);
+	case OBJ_FEATURE: return convFeature((const FEATURE *)psObj, engine);
 	default: ASSERT(false, "No such supported object type"); return convObj(psObj, engine);
 	}
 }
@@ -1703,7 +1703,7 @@ bool writeLabels(const char *filename)
 		{
 			//uint8_t stack_space[10000];
 			//void* stack_ptr = stack_space;
-			size_t idx = 0; //sizeof...(Args) - 1;
+			size_t idx WZ_DECL_UNUSED = 0; //sizeof...(Args) - 1;
 //			return box(f(unbox<Args>{}(idx, context, engine)...), engine);
 			qtscript_execution_context execution_context(context, engine);
 			return box(apply(f, std::tuple<const wzapi::execution_context&, Args...>{static_cast<const wzapi::execution_context&>(execution_context), unbox<Args>{}(idx, context, engine)...}), engine);
