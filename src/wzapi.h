@@ -41,8 +41,8 @@ namespace wzapi
 
 	struct object_id_player_type
 	{
-		int id = -1;
-		int player = -1;
+		int id;
+		int player;
 		OBJECT_TYPE type;
 	};
 
@@ -92,6 +92,18 @@ namespace wzapi
 	bool orderDroidBuild(WZAPI_PARAMS(DROID* psDroid, int order, std::string statName, int x, int y, optional<float> direction));
 	bool setAssemblyPoint(WZAPI_PARAMS(structure_id_player structVal, int x, int y));
 	bool setSunPosition(WZAPI_PARAMS(float x, float y, float z));
+	bool setSunIntensity(WZAPI_PARAMS(float ambient_r, float ambient_g, float ambient_b, float diffuse_r, float diffuse_g, float diffuse_b, float specular_r, float specular_g, float specular_b));
+	bool setWeather(WZAPI_PARAMS(int weather));
+	bool setSky(WZAPI_PARAMS(std::string page, float wind, float scale));
+	bool cameraSlide(WZAPI_PARAMS(float x, float y));
+	bool cameraZoom(WZAPI_PARAMS(float z, float speed));
+	bool cameraTrack(WZAPI_PARAMS(optional<DROID *> targetDroid));
+	uint32_t addSpotter(WZAPI_PARAMS(int x, int y, int player, int range, bool radar, uint32_t expiry));
+	bool removeSpotter(WZAPI_PARAMS(uint32_t id));
+	bool syncRequest(WZAPI_PARAMS(int32_t req_id, int32_t x, int32_t y, optional<const BASE_OBJECT *> _psObj, optional<const BASE_OBJECT *> _psObj2));
+	bool replaceTexture(WZAPI_PARAMS(std::string oldfile, std::string newfile));
+	bool changePlayerColour(WZAPI_PARAMS(int player, int colour));
+	bool setHealth(WZAPI_PARAMS(object_id_player_type objVal, int health));
 }
 
 #endif

@@ -1251,16 +1251,16 @@ bool writeLabels(const char *filename)
 			}
 		};
 
-		template<>
-		struct unbox<optional<float>>
-		{
-			optional<float> operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
-			{
-				if (context->argumentCount() < idx)
-					return {};
-				return optional<float>(context->argument(idx++).toNumber());
-			}
-		};
+//		template<>
+//		struct unbox<optional<float>>
+//		{
+//			optional<float> operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+//			{
+//				if (context->argumentCount() < idx)
+//					return {};
+//				return optional<float>(context->argument(idx++).toNumber());
+//			}
+//		};
 
 		template<>
 		struct unbox<const DROID*>
@@ -1275,6 +1275,25 @@ bool writeLabels(const char *filename)
 				return IdToDroid(id, player);
 			}
 		};
+
+		template<>
+		struct unbox<const BASE_OBJECT*>
+		{
+			const BASE_OBJECT* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			{
+				if (context->argumentCount() < idx)
+					return {};
+				QScriptValue objVal = context->argument(idx++);
+				int oid = objVal.property("id").toInt32();
+				int oplayer = objVal.property("player").toInt32();
+				OBJECT_TYPE otype = (OBJECT_TYPE)objVal.property("type").toInt32();
+				BASE_OBJECT* psObj = IdToObject(otype, oid, oplayer);
+				// TODO: Handle asserting if failed to find object here - how to do so? Would want to pass down the calling function name?
+//				SCRIPT_ASSERT(context, psObj, "No such object id %d belonging to player %d", oid, oplayer);
+				return psObj;
+			}
+		};
+
 
 		template<>
 		struct unbox<std::string>
@@ -1308,6 +1327,31 @@ bool writeLabels(const char *filename)
 				int id = droidVal.property("id").toInt32();
 				int player = droidVal.property("player").toInt32();
 				return IdToDroid(id, player);
+			}
+		};
+
+//		template<>
+//		struct unbox<optional<DROID*>>
+//		{
+//			optional<DROID*> operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+//			{
+//				if (context->argumentCount() < idx)
+//					return {};
+//				QScriptValue droidVal = context->argument(idx++);
+//				int id = droidVal.property("id").toInt32();
+//				int player = droidVal.property("player").toInt32();
+//				return optional<DROID*>(IdToDroid(id, player));
+//			}
+//		};
+
+		template<typename OptionalType>
+		struct unbox<optional<OptionalType>>
+		{
+			optional<OptionalType> operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			{
+				if (context->argumentCount() < idx)
+					return {};
+				return optional<OptionalType>(unbox<OptionalType>()(idx, context, engine));
 			}
 		};
 
@@ -1352,20 +1396,20 @@ bool writeLabels(const char *filename)
 //			}
 //		};
 //
-//		template<>
-//		struct unbox<object_id_player_type>
-//		{
-//			object_id_player_type operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, void*& stack_space)
-//			{
-//				if (context->argumentCount() < idx)
-//					return {};
-//				QScriptValue objVal = context->argument(idx--);
-//				int id = objVal.property("id").toInt32();
-//				int player = objVal.property("player").toInt32();
-//				OBJECT_TYPE type = (OBJECT_TYPE)objVal.property("type").toInt32();
-//				return { id, player, type };
-//			}
-//		};
+		template<>
+		struct unbox<wzapi::object_id_player_type>
+		{
+			wzapi::object_id_player_type operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine) //, void*& stack_space)
+			{
+				if (context->argumentCount() < idx)
+					return {};
+				QScriptValue objVal = context->argument(idx++);
+				int id = objVal.property("id").toInt32();
+				int player = objVal.property("player").toInt32();
+				OBJECT_TYPE type = (OBJECT_TYPE)objVal.property("type").toInt32();
+				return { id, player, type };
+			}
+		};
 //
 //		template<>
 //		struct unbox<wzapi::me>
@@ -4951,52 +4995,55 @@ static QScriptValue js_setSunPosition(QScriptContext *context, QScriptEngine *en
 //--
 //-- Set the ambient, diffuse and specular colour intensities of the Sun lighting source. (3.2+ only)
 //--
-static QScriptValue js_setSunIntensity(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_setSunIntensity(QScriptContext *context, QScriptEngine *engine)
 {
-	float ambient[4];
-	float diffuse[4];
-	float specular[4];
-	ambient[0] = context->argument(0).toNumber();
-	ambient[1] = context->argument(1).toNumber();
-	ambient[2] = context->argument(2).toNumber();
-	ambient[3] = 1.0f;
-	diffuse[0] = context->argument(3).toNumber();
-	diffuse[1] = context->argument(4).toNumber();
-	diffuse[2] = context->argument(5).toNumber();
-	diffuse[3] = 1.0f;
-	specular[0] = context->argument(6).toNumber();
-	specular[1] = context->argument(7).toNumber();
-	specular[2] = context->argument(8).toNumber();
-	specular[3] = 1.0f;
-	pie_Lighting0(LIGHT_AMBIENT, ambient);
-	pie_Lighting0(LIGHT_DIFFUSE, diffuse);
-	pie_Lighting0(LIGHT_SPECULAR, specular);
-	return QScriptValue();
+//	float ambient[4];
+//	float diffuse[4];
+//	float specular[4];
+//	ambient[0] = context->argument(0).toNumber();
+//	ambient[1] = context->argument(1).toNumber();
+//	ambient[2] = context->argument(2).toNumber();
+//	ambient[3] = 1.0f;
+//	diffuse[0] = context->argument(3).toNumber();
+//	diffuse[1] = context->argument(4).toNumber();
+//	diffuse[2] = context->argument(5).toNumber();
+//	diffuse[3] = 1.0f;
+//	specular[0] = context->argument(6).toNumber();
+//	specular[1] = context->argument(7).toNumber();
+//	specular[2] = context->argument(8).toNumber();
+//	specular[3] = 1.0f;
+//	pie_Lighting0(LIGHT_AMBIENT, ambient);
+//	pie_Lighting0(LIGHT_DIFFUSE, diffuse);
+//	pie_Lighting0(LIGHT_SPECULAR, specular);
+//	return QScriptValue();
+	return wrap_(wzapi::setSunIntensity, context, engine);
 }
 
 //-- ## setWeather(weather type)
 //--
 //-- Set the current weather. This should be one of WEATHER_RAIN, WEATHER_SNOW or WEATHER_CLEAR. (3.2+ only)
 //--
-static QScriptValue js_setWeather(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_setWeather(QScriptContext *context, QScriptEngine *engine)
 {
-	WT_CLASS weather = (WT_CLASS)context->argument(0).toInt32();
-	SCRIPT_ASSERT(context, weather >= 0 && weather <= WT_NONE, "Bad weather type");
-	atmosSetWeatherType(weather);
-	return QScriptValue();
+//	WT_CLASS weather = (WT_CLASS)context->argument(0).toInt32();
+//	SCRIPT_ASSERT(context, weather >= 0 && weather <= WT_NONE, "Bad weather type");
+//	atmosSetWeatherType(weather);
+//	return QScriptValue();
+	return wrap_(wzapi::setWeather, context, engine);
 }
 
 //-- ## setSky(texture file, wind speed, skybox scale)
 //--
 //-- Change the skybox. (3.2+ only)
 //--
-static QScriptValue js_setSky(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_setSky(QScriptContext *context, QScriptEngine *engine)
 {
-	QString page = context->argument(0).toString();
-	float wind = context->argument(1).toNumber();
-	float scale = context->argument(2).toNumber();
-	setSkyBox(page.toUtf8().constData(), wind, scale);
-	return QScriptValue();
+//	QString page = context->argument(0).toString();
+//	float wind = context->argument(1).toNumber();
+//	float scale = context->argument(2).toNumber();
+//	setSkyBox(page.toUtf8().constData(), wind, scale);
+//	return QScriptValue();
+	return wrap_(wzapi::setSky, context, engine);
 }
 
 //-- ## hackDoNotSave(name)
@@ -5083,50 +5130,53 @@ static QScriptValue js_hackMarkTiles(QScriptContext *context, QScriptEngine *)
 //--
 //-- Slide the camera over to the given position on the map. (3.2+ only)
 //--
-static QScriptValue js_cameraSlide(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_cameraSlide(QScriptContext *context, QScriptEngine *engine)
 {
-	float x = context->argument(0).toNumber();
-	float y = context->argument(1).toNumber();
-	requestRadarTrack(x, y);
-	return QScriptValue();
+//	float x = context->argument(0).toNumber();
+//	float y = context->argument(1).toNumber();
+//	requestRadarTrack(x, y);
+//	return QScriptValue();
+	return wrap_(wzapi::cameraSlide, context, engine);
 }
 
 //-- ## cameraZoom(z, speed)
 //--
 //-- Slide the camera to the given zoom distance. Normal camera zoom ranges between 500 and 5000. (3.2+ only)
 //--
-static QScriptValue js_cameraZoom(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_cameraZoom(QScriptContext *context, QScriptEngine *engine)
 {
-	float z = context->argument(0).toNumber();
-	float speed = context->argument(1).toNumber();
-	setZoom(speed, z);
-	return QScriptValue();
+//	float z = context->argument(0).toNumber();
+//	float speed = context->argument(1).toNumber();
+//	setZoom(speed, z);
+//	return QScriptValue();
+	return wrap_(wzapi::cameraZoom, context, engine);
 }
 
 //-- ## cameraTrack(droid)
 //--
 //-- Make the camera follow the given droid object around. Pass in a null object to stop. (3.2+ only)
 //--
-static QScriptValue js_cameraTrack(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_cameraTrack(QScriptContext *context, QScriptEngine *engine)
 {
-	if (context->argument(0).isNull())
-	{
-		setWarCamActive(false);
-	}
-	else
-	{
-		QScriptValue droidVal = context->argument(0);
-		int id = droidVal.property("id").toInt32();
-		int player = droidVal.property("player").toInt32();
-		DROID *targetDroid = IdToDroid(id, player);
-		SCRIPT_ASSERT(context, targetDroid, "No such droid id %d belonging to player %d", id, player);
-		for (DROID *psDroid = apsDroidLists[selectedPlayer]; psDroid != nullptr; psDroid = psDroid->psNext)
-		{
-			psDroid->selected = (psDroid == targetDroid); // select only the target droid
-		}
-		setWarCamActive(true);
-	}
-	return QScriptValue();
+//	if (context->argument(0).isNull())
+//	{
+//		setWarCamActive(false);
+//	}
+//	else
+//	{
+//		QScriptValue droidVal = context->argument(0);
+//		int id = droidVal.property("id").toInt32();
+//		int player = droidVal.property("player").toInt32();
+//		DROID *targetDroid = IdToDroid(id, player);
+//		SCRIPT_ASSERT(context, targetDroid, "No such droid id %d belonging to player %d", id, player);
+//		for (DROID *psDroid = apsDroidLists[selectedPlayer]; psDroid != nullptr; psDroid = psDroid->psNext)
+//		{
+//			psDroid->selected = (psDroid == targetDroid); // select only the target droid
+//		}
+//		setWarCamActive(true);
+//	}
+//	return QScriptValue();
+	return wrap_(wzapi::cameraTrack, context, engine);
 }
 
 //-- ## setHealth(object, health)
@@ -5134,34 +5184,35 @@ static QScriptValue js_cameraTrack(QScriptContext *context, QScriptEngine *)
 //-- Change the health of the given game object, in percentage. Does not take care of network sync, so for multiplayer games,
 //-- needs wrapping in a syncRequest. (3.2.3+ only.)
 //--
-static QScriptValue js_setHealth(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_setHealth(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue objVal = context->argument(0);
-	int health = context->argument(1).toInt32();
-	SCRIPT_ASSERT(context, health >= 1, "Bad health value %d", health);
-	int id = objVal.property("id").toInt32();
-	int player = objVal.property("player").toInt32();
-	OBJECT_TYPE type = (OBJECT_TYPE)objVal.property("type").toInt32();
-	SCRIPT_ASSERT(context, type == OBJ_DROID || type == OBJ_STRUCTURE || type == OBJ_FEATURE, "Bad object type");
-	if (type == OBJ_DROID)
-	{
-		DROID *psDroid = IdToDroid(id, player);
-		SCRIPT_ASSERT(context, psDroid, "No such droid id %d belonging to player %d", id, player);
-		psDroid->body = health * (double)psDroid->originalBody / 100;
-	}
-	else if (type == OBJ_STRUCTURE)
-	{
-		STRUCTURE *psStruct = IdToStruct(id, player);
-		SCRIPT_ASSERT(context, psStruct, "No such structure id %d belonging to player %d", id, player);
-		psStruct->body = health * MAX(1, structureBody(psStruct)) / 100;
-	}
-	else
-	{
-		FEATURE *psFeat = IdToFeature(id, player);
-		SCRIPT_ASSERT(context, psFeat, "No such feature id %d belonging to player %d", id, player);
-		psFeat->body = health * psFeat->psStats->body / 100;
-	}
-	return QScriptValue();
+//	QScriptValue objVal = context->argument(0);
+//	int health = context->argument(1).toInt32();
+//	SCRIPT_ASSERT(context, health >= 1, "Bad health value %d", health);
+//	int id = objVal.property("id").toInt32();
+//	int player = objVal.property("player").toInt32();
+//	OBJECT_TYPE type = (OBJECT_TYPE)objVal.property("type").toInt32();
+//	SCRIPT_ASSERT(context, type == OBJ_DROID || type == OBJ_STRUCTURE || type == OBJ_FEATURE, "Bad object type");
+//	if (type == OBJ_DROID)
+//	{
+//		DROID *psDroid = IdToDroid(id, player);
+//		SCRIPT_ASSERT(context, psDroid, "No such droid id %d belonging to player %d", id, player);
+//		psDroid->body = health * (double)psDroid->originalBody / 100;
+//	}
+//	else if (type == OBJ_STRUCTURE)
+//	{
+//		STRUCTURE *psStruct = IdToStruct(id, player);
+//		SCRIPT_ASSERT(context, psStruct, "No such structure id %d belonging to player %d", id, player);
+//		psStruct->body = health * MAX(1, structureBody(psStruct)) / 100;
+//	}
+//	else
+//	{
+//		FEATURE *psFeat = IdToFeature(id, player);
+//		SCRIPT_ASSERT(context, psFeat, "No such feature id %d belonging to player %d", id, player);
+//		psFeat->body = health * psFeat->psStats->body / 100;
+//	}
+//	return QScriptValue();
+	return wrap_(wzapi::setHealth, context, engine);
 }
 
 //-- ## setObjectFlag(object, flag, value)
@@ -5193,27 +5244,29 @@ static QScriptValue js_setObjectFlag(QScriptContext *context, QScriptEngine *)
 //-- by ECM jammers. ```expiry```, if non-zero, is the game time at which the spotter shall automatically be
 //-- removed. The function returns a unique ID that can be used to remove the spotter with ```removeSpotter```. (3.2+ only)
 //--
-static QScriptValue js_addSpotter(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_addSpotter(QScriptContext *context, QScriptEngine *engine)
 {
-	int x = context->argument(0).toInt32();
-	int y = context->argument(1).toInt32();
-	int player = context->argument(2).toInt32();
-	int range = context->argument(3).toInt32();
-	bool radar = context->argument(4).toBool();
-	uint32_t expiry = context->argument(5).toUInt32();
-	uint32_t id = addSpotter(x, y, player, range, radar, expiry);
-	return QScriptValue(id);
+//	int x = context->argument(0).toInt32();
+//	int y = context->argument(1).toInt32();
+//	int player = context->argument(2).toInt32();
+//	int range = context->argument(3).toInt32();
+//	bool radar = context->argument(4).toBool();
+//	uint32_t expiry = context->argument(5).toUInt32();
+//	uint32_t id = addSpotter(x, y, player, range, radar, expiry);
+//	return QScriptValue(id);
+	return wrap_(wzapi::addSpotter, context, engine);
 }
 
 //-- ## removeSpotter(id)
 //--
 //-- Remove a spotter given its unique ID. (3.2+ only)
 //--
-static QScriptValue js_removeSpotter(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_removeSpotter(QScriptContext *context, QScriptEngine *engine)
 {
-	uint32_t id = context->argument(0).toUInt32();
-	removeSpotter(id);
-	return QScriptValue();
+//	uint32_t id = context->argument(0).toUInt32();
+//	removeSpotter(id);
+//	return QScriptValue();
+	return wrap_(wzapi::removeSpotter, context, engine);
 }
 
 //-- ## syncRandom(limit)
@@ -5235,32 +5288,33 @@ static QScriptValue js_syncRandom(QScriptContext *context, QScriptEngine * engin
 //-- Must be caught in an eventSyncRequest() function. All sync requests must be validated when received, and always
 //-- take care only to define sync requests that can be validated against cheating. (3.2+ only)
 //--
-static QScriptValue js_syncRequest(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_syncRequest(QScriptContext *context, QScriptEngine *engine)
 {
-	int32_t req_id = context->argument(0).toInt32();
-	int32_t x = world_coord(context->argument(1).toInt32());
-	int32_t y = world_coord(context->argument(2).toInt32());
-	BASE_OBJECT *psObj = nullptr, *psObj2 = nullptr;
-	if (context->argumentCount() > 3)
-	{
-		QScriptValue objVal = context->argument(3);
-		int oid = objVal.property("id").toInt32();
-		int oplayer = objVal.property("player").toInt32();
-		OBJECT_TYPE otype = (OBJECT_TYPE)objVal.property("type").toInt32();
-		psObj = IdToObject(otype, oid, oplayer);
-		SCRIPT_ASSERT(context, psObj, "No such object id %d belonging to player %d", oid, oplayer);
-	}
-	if (context->argumentCount() > 4)
-	{
-		QScriptValue objVal = context->argument(4);
-		int oid = objVal.property("id").toInt32();
-		int oplayer = objVal.property("player").toInt32();
-		OBJECT_TYPE otype = (OBJECT_TYPE)objVal.property("type").toInt32();
-		psObj2 = IdToObject(otype, oid, oplayer);
-		SCRIPT_ASSERT(context, psObj2, "No such object id %d belonging to player %d", oid, oplayer);
-	}
-	sendSyncRequest(req_id, x, y, psObj, psObj2);
-	return QScriptValue();
+//	int32_t req_id = context->argument(0).toInt32();
+//	int32_t x = world_coord(context->argument(1).toInt32());
+//	int32_t y = world_coord(context->argument(2).toInt32());
+//	BASE_OBJECT *psObj = nullptr, *psObj2 = nullptr;
+//	if (context->argumentCount() > 3)
+//	{
+//		QScriptValue objVal = context->argument(3);
+//		int oid = objVal.property("id").toInt32();
+//		int oplayer = objVal.property("player").toInt32();
+//		OBJECT_TYPE otype = (OBJECT_TYPE)objVal.property("type").toInt32();
+//		psObj = IdToObject(otype, oid, oplayer);
+//		SCRIPT_ASSERT(context, psObj, "No such object id %d belonging to player %d", oid, oplayer);
+//	}
+//	if (context->argumentCount() > 4)
+//	{
+//		QScriptValue objVal = context->argument(4);
+//		int oid = objVal.property("id").toInt32();
+//		int oplayer = objVal.property("player").toInt32();
+//		OBJECT_TYPE otype = (OBJECT_TYPE)objVal.property("type").toInt32();
+//		psObj2 = IdToObject(otype, oid, oplayer);
+//		SCRIPT_ASSERT(context, psObj2, "No such object id %d belonging to player %d", oid, oplayer);
+//	}
+//	sendSyncRequest(req_id, x, y, psObj, psObj2);
+//	return QScriptValue();
+	return wrap_(wzapi::syncRequest, context, engine);
 }
 
 //-- ## replaceTexture(old_filename, new_filename)
@@ -5268,12 +5322,13 @@ static QScriptValue js_syncRequest(QScriptContext *context, QScriptEngine *)
 //-- Replace one texture with another. This can be used to for example give buildings on a specific tileset different
 //-- looks, or to add variety to the looks of droids in campaign missions. (3.2+ only)
 //--
-static QScriptValue js_replaceTexture(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_replaceTexture(QScriptContext *context, QScriptEngine *engine)
 {
-	QString oldfile = context->argument(0).toString();
-	QString newfile = context->argument(1).toString();
-	replaceTexture(WzString::fromUtf8(oldfile.toUtf8().constData()), WzString::fromUtf8(newfile.toUtf8().constData()));
-	return QScriptValue();
+//	QString oldfile = context->argument(0).toString();
+//	QString newfile = context->argument(1).toString();
+//	replaceTexture(WzString::fromUtf8(oldfile.toUtf8().constData()), WzString::fromUtf8(newfile.toUtf8().constData()));
+//	return QScriptValue();
+	return wrap_(wzapi::replaceTexture, context, engine);
 }
 
 //-- ## fireWeaponAtLoc(weapon, x, y[, player])
@@ -5355,12 +5410,13 @@ static QScriptValue js_fireWeaponAtObj(QScriptContext *context, QScriptEngine *e
 //-- Change a player's colour slot. The current player colour can be read from the ```playerData``` array. There are as many
 //-- colour slots as the maximum number of players. (3.2.3+ only)
 //--
-static QScriptValue js_changePlayerColour(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_changePlayerColour(QScriptContext *context, QScriptEngine *engine)
 {
-	int player = context->argument(0).toInt32();
-	int colour = context->argument(1).toInt32();
-	setPlayerColour(player, colour);
-	return QScriptValue();
+//	int player = context->argument(0).toInt32();
+//	int colour = context->argument(1).toInt32();
+//	setPlayerColour(player, colour);
+//	return QScriptValue();
+	return wrap_(wzapi::changePlayerColour, context, engine);
 }
 
 //-- ## getMultiTechLevel()
@@ -6506,20 +6562,20 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 	engine->globalObject().setProperty("sendAllianceRequest", engine->newFunction(js_sendAllianceRequest)); // WZAPI
 	engine->globalObject().setProperty("setAssemblyPoint", engine->newFunction(js_setAssemblyPoint)); // WZAPI
 	engine->globalObject().setProperty("setSunPosition", engine->newFunction(js_setSunPosition)); // WZAPI
-	engine->globalObject().setProperty("setSunIntensity", engine->newFunction(js_setSunIntensity));
-	engine->globalObject().setProperty("setWeather", engine->newFunction(js_setWeather));
-	engine->globalObject().setProperty("setSky", engine->newFunction(js_setSky));
-	engine->globalObject().setProperty("cameraSlide", engine->newFunction(js_cameraSlide));
-	engine->globalObject().setProperty("cameraTrack", engine->newFunction(js_cameraTrack));
-	engine->globalObject().setProperty("cameraZoom", engine->newFunction(js_cameraZoom));
+	engine->globalObject().setProperty("setSunIntensity", engine->newFunction(js_setSunIntensity)); // WZAPI
+	engine->globalObject().setProperty("setWeather", engine->newFunction(js_setWeather)); // WZAPI
+	engine->globalObject().setProperty("setSky", engine->newFunction(js_setSky)); // WZAPI
+	engine->globalObject().setProperty("cameraSlide", engine->newFunction(js_cameraSlide)); // WZAPI
+	engine->globalObject().setProperty("cameraTrack", engine->newFunction(js_cameraTrack)); // WZAPI
+	engine->globalObject().setProperty("cameraZoom", engine->newFunction(js_cameraZoom)); // WZAPI
 	engine->globalObject().setProperty("resetArea", engine->newFunction(js_resetLabel)); // deprecated
 	engine->globalObject().setProperty("resetLabel", engine->newFunction(js_resetLabel));
-	engine->globalObject().setProperty("addSpotter", engine->newFunction(js_addSpotter));
-	engine->globalObject().setProperty("removeSpotter", engine->newFunction(js_removeSpotter));
-	engine->globalObject().setProperty("syncRequest", engine->newFunction(js_syncRequest));
-	engine->globalObject().setProperty("replaceTexture", engine->newFunction(js_replaceTexture));
-	engine->globalObject().setProperty("changePlayerColour", engine->newFunction(js_changePlayerColour));
-	engine->globalObject().setProperty("setHealth", engine->newFunction(js_setHealth));
+	engine->globalObject().setProperty("addSpotter", engine->newFunction(js_addSpotter)); // WZAPI
+	engine->globalObject().setProperty("removeSpotter", engine->newFunction(js_removeSpotter)); // WZAPI
+	engine->globalObject().setProperty("syncRequest", engine->newFunction(js_syncRequest)); // WZAPI
+	engine->globalObject().setProperty("replaceTexture", engine->newFunction(js_replaceTexture)); // WZAPI
+	engine->globalObject().setProperty("changePlayerColour", engine->newFunction(js_changePlayerColour)); // WZAPI
+	engine->globalObject().setProperty("setHealth", engine->newFunction(js_setHealth)); // WZAPI
 	engine->globalObject().setProperty("useSafetyTransport", engine->newFunction(js_useSafetyTransport));
 	engine->globalObject().setProperty("restoreLimboMissionData", engine->newFunction(js_restoreLimboMissionData));
 	engine->globalObject().setProperty("getMultiTechLevel", engine->newFunction(js_getMultiTechLevel));
