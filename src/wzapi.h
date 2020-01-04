@@ -92,6 +92,6 @@ namespace wzapi
 	bool orderDroidBuild(WZAPI_PARAMS(DROID* psDroid, int order, std::string statName, int x, int y, optional<float> direction));
 	bool setAssemblyPoint(WZAPI_PARAMS(structure_id_player structVal, int x, int y));
 	bool setSunPosition(WZAPI_PARAMS(float x, float y, float z));
-};
+}
 
 #endif
