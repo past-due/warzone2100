@@ -370,7 +370,7 @@ void counterBatteryFire(BASE_OBJECT *psAttacker, BASE_OBJECT *psTarget)
 	}
 }
 
-int objArmour(BASE_OBJECT *psObj, WEAPON_CLASS weaponClass)
+int objArmour(const BASE_OBJECT *psObj, WEAPON_CLASS weaponClass)
 {
 	int armour = 0;
 	if (psObj->type == OBJ_DROID)

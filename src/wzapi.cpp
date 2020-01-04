@@ -98,13 +98,23 @@
 			context.throwError(#expr, __LINE__, __FUNCTION__); \
 			return retval; } } while (0)
 
+#if defined(SCRIPT_ASSERT_PLAYER)
+#undef SCRIPT_ASSERT_PLAYER
+#endif
+#define SCRIPT_ASSERT_PLAYER(retval, _context, _player) \
+	SCRIPT_ASSERT(retval, _context, _player >= 0 && _player < MAX_PLAYERS, "Invalid player index %d", _player);
+
+#define ALL_PLAYERS -1
+#define ALLIES -2
+#define ENEMIES -3
+
 //-- ## _(string)
 //--
 //-- Mark string for translation.
 //--
-const char * wzapi::translate(WZAPI_PARAMS(std::string str))
+std::string wzapi::translate(WZAPI_PARAMS(std::string str))
 {
-	return gettext(str.c_str());
+	return std::string(gettext(str.c_str()));
 }
 
 //-- ## syncRandom(limit)
@@ -493,3 +503,449 @@ bool wzapi::setHealth(WZAPI_PARAMS(object_id_player_type objVal, int health))
 	}
 	return true;
 }
+
+//-- ## useSafetyTransport(flag)
+//--
+//-- Change if the mission transporter will fetch droids in non offworld missions
+//-- setReinforcementTime() is be used to hide it before coming back after the set time
+//-- which is handled by the campaign library in the victory data section (3.3+ only).
+//--
+bool wzapi::useSafetyTransport(WZAPI_PARAMS(bool flag))
+{
+//	bool flag = context->argument(0).toBool();
+	setDroidsToSafetyFlag(flag);
+	return true;
+}
+
+//-- ## restoreLimboMissionData()
+//--
+//-- Swap mission type and bring back units previously stored at the start
+//-- of the mission (see cam3-c mission). (3.3+ only).
+//--
+bool wzapi::restoreLimboMissionData(WZAPI_NO_PARAMS)
+{
+	resetLimboMission();
+	return true;
+}
+
+//-- ## getMultiTechLevel()
+//--
+//-- Returns the current multiplayer tech level. (3.3+ only)
+//--
+uint32_t wzapi::getMultiTechLevel(WZAPI_NO_PARAMS)
+{
+	return game.techLevel;
+}
+
+//-- ## setCampaignNumber(num)
+//--
+//-- Set the campaign number. (3.3+ only)
+//--
+bool wzapi::setCampaignNumber(WZAPI_PARAMS(int num))
+{
+//	int num = context->argument(0).toInt32();
+	::setCampaignNumber(num);
+	return true;
+}
+
+//-- ## setRevealStatus(bool)
+//--
+//-- Set the fog reveal status. (3.3+ only)
+bool wzapi::setRevealStatus(WZAPI_PARAMS(bool status))
+{
+//	bool status = context->argument(0).toBool();
+	::setRevealStatus(status);
+	preProcessVisibility();
+	return true;
+}
+
+//-- ## autoSave()
+//--
+//-- Perform automatic save
+//--
+bool wzapi::autoSave(WZAPI_NO_PARAMS)
+{
+	return ::autoSave();
+}
+
+
+
+
+
+
+//-- ## console(strings...)
+//--
+//-- Print text to the player console.
+//--
+// TODO, should cover scrShowConsoleText, scrAddConsoleText, scrTagConsoleText and scrConsole
+bool wzapi::console(WZAPI_PARAMS(va_list_treat_as_strings strings))
+{
+	int player = context.player(); //engine->globalObject().property("me").toInt32();
+	if (player == selectedPlayer)
+	{
+		std::string result;
+		for (const auto & s : strings.strings)
+		{
+			if (!result.empty())
+			{
+				result.append(" ");
+			}
+//			QString s = context->argument(i).toString();
+//			if (context->state() == QScriptContext::ExceptionState)
+//			{
+//				break;
+//			}
+			result.append(s);
+		}
+		//permitNewConsoleMessages(true);
+		//setConsolePermanence(true,true);
+		addConsoleMessage(result.c_str(), CENTRE_JUSTIFY, SYSTEM_MESSAGE);
+		//permitNewConsoleMessages(false);
+	}
+	return true;
+}
+
+//-- ## clearConsole()
+//--
+//-- Clear the console. (3.3+ only)
+//--
+bool wzapi::clearConsole(WZAPI_NO_PARAMS)
+{
+	flushConsoleMessages();
+	return true;
+}
+
+//-- ## structureIdle(structure)
+//--
+//-- Is given structure idle?
+//--
+bool wzapi::structureIdle(WZAPI_PARAMS(structure_id_player structVal))
+{
+//	QScriptValue structVal = context->argument(0);
+//	int id = structVal.property("id").toInt32();
+//	int player = structVal.property("player").toInt32();
+	STRUCTURE *psStruct = IdToStruct(structVal.id, structVal.player);
+	SCRIPT_ASSERT(false, context, psStruct, "No such structure id %d belonging to player %d", structVal.id, structVal.player);
+	return ::structureIdle(psStruct);
+}
+
+std::vector<const STRUCTURE *> _enumStruct_fromList(WZAPI_PARAMS(optional<int> _player, optional<wzapi::STRUCTURE_TYPE_or_statsName_string> _structureType, optional<int> _looking), STRUCTURE **psStructLists)
+{
+	std::vector<const STRUCTURE *> matches;
+	int player = -1, looking = -1;
+	WzString statsName;
+	STRUCTURE_TYPE type = NUM_DIFF_BUILDINGS;
+
+//	switch (context->argumentCount())
+//	{
+//	default:
+//	case 3: looking = context->argument(2).toInt32(); // fall-through
+//	case 2: val = context->argument(1);
+//		if (val.isNumber())
+//		{
+//			type = (STRUCTURE_TYPE)val.toInt32();
+//		}
+//		else
+//		{
+//			statsName = WzString::fromUtf8(val.toString().toUtf8().constData());
+//		} // fall-through
+//	case 1: player = context->argument(0).toInt32(); break;
+//	case 0: player = engine->globalObject().property("me").toInt32();
+//	}
+
+	player = (_player.has_value()) ? _player.value() : context.player();
+
+	if (_structureType.has_value())
+	{
+		type = _structureType.value().type;
+		statsName = WzString::fromUtf8(_structureType.value().statsName);
+	}
+	if (_looking.has_value())
+	{
+		looking = _looking.value();
+	}
+
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+//	SCRIPT_ASSERT({}, context, player < MAX_PLAYERS && player >= 0, "Target player index out of range: %d", player);
+	SCRIPT_ASSERT({}, context, looking < MAX_PLAYERS && looking >= -1, "Looking player index out of range: %d", looking);
+	for (STRUCTURE *psStruct = psStructLists[player]; psStruct; psStruct = psStruct->psNext)
+	{
+		if ((looking == -1 || psStruct->visible[looking])
+		    && !psStruct->died
+		    && (type == NUM_DIFF_BUILDINGS || type == psStruct->pStructureType->type)
+		    && (statsName.isEmpty() || statsName.compare(psStruct->pStructureType->id) == 0))
+		{
+			matches.push_back(psStruct);
+		}
+	}
+
+	return matches;
+}
+
+//-- ## enumStruct([player[, structure type[, looking player]]])
+//--
+//-- Returns an array of structure objects. If no parameters given, it will
+//-- return all of the structures for the current player. The second parameter
+//-- can be either a string with the name of the structure type as defined in
+//-- "structures.json", or a stattype as defined in ```Structure```. The
+//-- third parameter can be used to filter by visibility, the default is not
+//-- to filter.
+//--
+std::vector<const STRUCTURE *> wzapi::enumStruct(WZAPI_PARAMS(optional<int> _player, optional<STRUCTURE_TYPE_or_statsName_string> _structureType, optional<int> _looking))
+{
+	return _enumStruct_fromList(context, _player, _structureType, _looking, apsStructLists);
+}
+
+//-- ## enumStructOffWorld([player[, structure type[, looking player]]])
+//--
+//-- Returns an array of structure objects in your base when on an off-world mission, NULL otherwise.
+//-- If no parameters given, it will return all of the structures for the current player.
+//-- The second parameter can be either a string with the name of the structure type as defined
+//-- in "structures.json", or a stattype as defined in ```Structure```.
+//-- The third parameter can be used to filter by visibility, the default is not
+//-- to filter.
+//--
+std::vector<const STRUCTURE *> wzapi::enumStructOffWorld(WZAPI_PARAMS(optional<int> _player, optional<STRUCTURE_TYPE_or_statsName_string> _structureType, optional<int> _looking))
+{
+	return _enumStruct_fromList(context, _player, _structureType, _looking, (mission.apsStructLists));
+}
+
+//-- ## enumDroid([player[, droid type[, looking player]]])
+//--
+//-- Returns an array of droid objects. If no parameters given, it will
+//-- return all of the droids for the current player. The second, optional parameter
+//-- is the name of the droid type. The third parameter can be used to filter by
+//-- visibility - the default is not to filter.
+//--
+std::vector<const DROID *> wzapi::enumDroid(WZAPI_PARAMS(optional<int> _player, optional<int> _droidType, optional<int> _looking))
+{
+	std::vector<const DROID *> matches;
+	int player = -1, looking = -1;
+	DROID_TYPE droidType = DROID_ANY;
+	DROID_TYPE droidType2;
+
+//	switch (context->argumentCount())
+//	{
+//	default:
+//	case 3: looking = context->argument(2).toInt32(); // fall-through
+//	case 2: droidType = (DROID_TYPE)context->argument(1).toInt32(); // fall-through
+//	case 1: player = context->argument(0).toInt32(); break;
+//	case 0: player = engine->globalObject().property("me").toInt32();
+//	}
+
+//	player = (_player.has_value()) ? _player.value() : context.player();
+	if (_player.has_value())
+	{
+		player = _player.value();
+	}
+	else
+	{
+		player = context.player();
+	}
+
+	if (_droidType.has_value())
+	{
+		droidType = (DROID_TYPE)_droidType.value();
+	}
+	if (_looking.has_value())
+	{
+		looking = _looking.value();
+	}
+
+	switch (droidType) // hide some engine craziness
+	{
+	case DROID_CONSTRUCT:
+		droidType2 = DROID_CYBORG_CONSTRUCT; break;
+	case DROID_WEAPON:
+		droidType2 = DROID_CYBORG_SUPER; break;
+	case DROID_REPAIR:
+		droidType2 = DROID_CYBORG_REPAIR; break;
+	case DROID_CYBORG:
+		droidType2 = DROID_CYBORG_SUPER; break;
+	default:
+		droidType2 = droidType;
+		break;
+	}
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+	SCRIPT_ASSERT({}, context, looking < MAX_PLAYERS && looking >= -1, "Looking player index out of range: %d", looking);
+	for (DROID *psDroid = apsDroidLists[player]; psDroid; psDroid = psDroid->psNext)
+	{
+		if ((looking == -1 || psDroid->visible[looking])
+		    && !psDroid->died
+		    && (droidType == DROID_ANY || droidType == psDroid->droidType || droidType2 == psDroid->droidType))
+		{
+			matches.push_back(psDroid);
+		}
+	}
+	return matches;
+}
+
+//-- ## enumFeature(player[, name])
+//--
+//-- Returns an array of all features seen by player of given name, as defined in "features.json".
+//-- If player is ```ALL_PLAYERS```, it will return all features irrespective of visibility to any player. If
+//-- name is empty, it will return any feature.
+//--
+std::vector<const FEATURE *> wzapi::enumFeature(WZAPI_PARAMS(int looking, optional<std::string> _statsName))
+{
+	std::vector<const FEATURE *> matches;
+//	int looking = context->argument(0).toInt32();
+	WzString statsName;
+	if (_statsName.has_value())
+	{
+		statsName = WzString::fromUtf8(_statsName.value());
+	}
+//	if (context->argumentCount() > 1)
+//	{
+//		statsName = WzString::fromUtf8(context->argument(1).toString().toUtf8().constData());
+//	}
+	SCRIPT_ASSERT({}, context, looking < MAX_PLAYERS && looking >= -1, "Looking player index out of range: %d", looking);
+	for (FEATURE *psFeat = apsFeatureLists[0]; psFeat; psFeat = psFeat->psNext)
+	{
+		if ((looking == -1 || psFeat->visible[looking])
+		    && !psFeat->died
+		    && (statsName.isEmpty() || statsName.compare(psFeat->psStats->id) == 0))
+		{
+			matches.push_back(psFeat);
+		}
+	}
+	return matches;
+}
+
+//-- ## enumBlips(player)
+//--
+//-- Return an array containing all the non-transient radar blips that the given player
+//-- can see. This includes sensors revealed by radar detectors, as well as ECM jammers.
+//-- It does not include units going out of view.
+//--
+std::vector<Position> wzapi::enumBlips(WZAPI_PARAMS(int player))
+{
+	std::vector<Position> matches;
+//	int player = context->argument(0).toInt32();
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+	for (BASE_OBJECT *psSensor = apsSensorList[0]; psSensor; psSensor = psSensor->psNextFunc)
+	{
+		if (psSensor->visible[player] > 0 && psSensor->visible[player] < UBYTE_MAX)
+		{
+			matches.push_back(psSensor->pos);
+		}
+	}
+	return matches;
+}
+
+//-- ## enumSelected()
+//--
+//-- Return an array containing all game objects currently selected by the host player. (3.2+ only)
+//--
+std::vector<const BASE_OBJECT *> wzapi::enumSelected(WZAPI_NO_PARAMS)
+{
+	std::vector<const BASE_OBJECT *> matches;
+	for (DROID *psDroid = apsDroidLists[selectedPlayer]; psDroid; psDroid = psDroid->psNext)
+	{
+		if (psDroid->selected)
+		{
+			matches.push_back(psDroid);
+		}
+	}
+	for (STRUCTURE *psStruct = apsStructLists[selectedPlayer]; psStruct; psStruct = psStruct->psNext)
+	{
+		if (psStruct->selected)
+		{
+			matches.push_back(psStruct);
+		}
+	}
+	// TODO - also add selected delivery points
+	return matches;
+}
+
+//-- ## getResearch(research[, player])
+//--
+//-- Fetch information about a given technology item, given by a string that matches
+//-- its definition in "research.json". If not found, returns null.
+//--
+wzapi::researchResult wzapi::getResearch(WZAPI_PARAMS(std::string resName, optional<int> _player))
+{
+	researchResult result;
+	int player = (_player.has_value()) ? _player.value() : context.player();;
+//	if (context->argumentCount() == 2)
+//	{
+//		player = context->argument(1).toInt32();
+//	}
+//	else
+//	{
+//		player = engine->globalObject().property("me").toInt32();
+//	}
+//	QString resName = context->argument(0).toString();
+	result.psResearch = ::getResearch(resName.c_str());
+	result.player = player;
+	return result;
+//	if (!psResearch)
+//	{
+//		return QScriptValue::NullValue;
+//	}
+//	return convResearch(psResearch, engine, player);
+}
+
+//-- ## enumResearch()
+//--
+//-- Returns an array of all research objects that are currently and immediately available for research.
+//--
+wzapi::researchResults wzapi::enumResearch(WZAPI_NO_PARAMS)
+{
+	researchResults result;
+	int player = context.player(); //engine->globalObject().property("me").toInt32();
+	for (int i = 0; i < asResearch.size(); i++)
+	{
+		RESEARCH *psResearch = &asResearch[i];
+		if (!IsResearchCompleted(&asPlayerResList[player][i]) && researchAvailable(i, player, ModeQueue))
+		{
+			result.resList.push_back(psResearch);
+		}
+	}
+	result.player = player;
+	return result;
+}
+
+//-- ## enumRange(x, y, range[, filter[, seen]])
+//--
+//-- Returns an array of game objects seen within range of given position that passes the optional filter
+//-- which can be one of a player index, ALL_PLAYERS, ALLIES or ENEMIES. By default, filter is
+//-- ALL_PLAYERS. Finally an optional parameter can specify whether only visible objects should be
+//-- returned; by default only visible objects are returned. Calling this function is much faster than
+//-- iterating over all game objects using other enum functions. (3.2+ only)
+//--
+std::vector<const BASE_OBJECT *> wzapi::enumRange(WZAPI_PARAMS(int x, int y, int range, optional<int> _filter, optional<bool> _seen))
+{
+	int player = context.player(); // engine->globalObject().property("me").toInt32();
+//	int x = world_coord(context->argument(0).toInt32());
+//	int y = world_coord(context->argument(1).toInt32());
+//	int range = world_coord(context->argument(2).toInt32());
+	int filter = (_filter.has_value()) ? _filter.value() : ALL_PLAYERS;
+	bool seen = (_seen.has_value()) ? _seen.value() : true;
+//	if (context->argumentCount() > 3)
+//	{
+//		filter = context->argument(3).toInt32();
+//	}
+//	if (context->argumentCount() > 4)
+//	{
+//		seen = context->argument(4).toBool();
+//	}
+	static GridList gridList;  // static to avoid allocations.
+	gridList = gridStartIterate(x, y, range);
+	std::vector<const BASE_OBJECT *> list;
+	for (GridIterator gi = gridList.begin(); gi != gridList.end(); ++gi)
+	{
+		const BASE_OBJECT *psObj = *gi;
+		if ((psObj->visible[player] || !seen) && !psObj->died)
+		{
+			if ((filter >= 0 && psObj->player == filter) || filter == ALL_PLAYERS
+			    || (filter == ALLIES && psObj->type != OBJ_FEATURE && aiCheckAlliances(psObj->player, player))
+			    || (filter == ENEMIES && psObj->type != OBJ_FEATURE && !aiCheckAlliances(psObj->player, player)))
+			{
+				list.push_back(psObj);
+			}
+		}
+	}
+	return list;
+}
+

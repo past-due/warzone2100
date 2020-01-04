@@ -26,8 +26,12 @@
 using nonstd::optional;
 using nonstd::nullopt;
 
+#include <string>
+#include <vector>
+
 namespace wzapi
 {
+#define WZAPI_NO_PARAMS const wzapi::execution_context& context
 #define WZAPI_PARAMS(...) const wzapi::execution_context& context, __VA_ARGS__
 
 	class execution_context
@@ -58,10 +62,15 @@ namespace wzapi
 		int player = -1;
 	};
 
-	struct string_list
+//	struct string_list
+//	{
+//		const char** strings = nullptr;
+//		size_t count = 0;
+//	};
+
+	struct va_list_treat_as_strings
 	{
-		const char** strings = nullptr;
-		size_t count = 0;
+		std::vector<std::string> strings;
 	};
 
 	struct optional_position
@@ -84,7 +93,25 @@ namespace wzapi
 	struct no_return_value
 	{ };
 
-	const char * translate(WZAPI_PARAMS(std::string str));
+	struct STRUCTURE_TYPE_or_statsName_string
+	{
+		STRUCTURE_TYPE type = NUM_DIFF_BUILDINGS;
+		std::string statsName;
+	};
+
+	// retVals
+	struct researchResult
+	{
+		const RESEARCH * psResearch;
+		int player;
+	};
+	struct researchResults
+	{
+		std::vector<const RESEARCH *> resList;
+		int player;
+	};
+
+	std::string translate(WZAPI_PARAMS(std::string str));
 	int32_t syncRandom(WZAPI_PARAMS(uint32_t limit));
 	bool setAlliance(WZAPI_PARAMS(int player1, int player2, bool value));
 	no_return_value sendAllianceRequest(WZAPI_PARAMS(int player2));
@@ -104,6 +131,27 @@ namespace wzapi
 	bool replaceTexture(WZAPI_PARAMS(std::string oldfile, std::string newfile));
 	bool changePlayerColour(WZAPI_PARAMS(int player, int colour));
 	bool setHealth(WZAPI_PARAMS(object_id_player_type objVal, int health));
+	bool useSafetyTransport(WZAPI_PARAMS(bool flag));
+	bool restoreLimboMissionData(WZAPI_NO_PARAMS);
+	uint32_t getMultiTechLevel(WZAPI_NO_PARAMS);
+	bool setCampaignNumber(WZAPI_PARAMS(int num));
+
+	bool setRevealStatus(WZAPI_PARAMS(bool status));
+	bool autoSave(WZAPI_NO_PARAMS);
+
+
+	bool console(WZAPI_PARAMS(va_list_treat_as_strings strings));
+	bool clearConsole(WZAPI_NO_PARAMS);
+	bool structureIdle(WZAPI_PARAMS(structure_id_player structVal));
+	std::vector<const STRUCTURE *> enumStruct(WZAPI_PARAMS(optional<int> _player, optional<STRUCTURE_TYPE_or_statsName_string> _structureType, optional<int> _looking));
+	std::vector<const STRUCTURE *> enumStructOffWorld(WZAPI_PARAMS(optional<int> _player, optional<STRUCTURE_TYPE_or_statsName_string> _structureType, optional<int> _looking));
+	std::vector<const DROID *> enumDroid(WZAPI_PARAMS(optional<int> _player, optional<int> _droidType, optional<int> _looking));
+	std::vector<const FEATURE *> enumFeature(WZAPI_PARAMS(int looking, optional<std::string> _statsName));
+	std::vector<Position> enumBlips(WZAPI_PARAMS(int player));
+	std::vector<const BASE_OBJECT *> enumSelected(WZAPI_NO_PARAMS);
+	researchResult getResearch(WZAPI_PARAMS(std::string resName, optional<int> _player));
+	researchResults enumResearch(WZAPI_NO_PARAMS);
+	std::vector<const BASE_OBJECT *> enumRange(WZAPI_PARAMS(int x, int y, int range, optional<int> _filter, optional<bool> _seen));
 }
 
 #endif

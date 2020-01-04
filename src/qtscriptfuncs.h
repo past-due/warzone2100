@@ -69,13 +69,13 @@ bool areaLabelCheck(DROID *psDroid);
 QScriptValue mapJsonToQScriptValue(QScriptEngine *engine, const nlohmann::json &instance, QScriptValue::PropertyFlags flags);
 
 // Utility conversion functions
-QScriptValue convDroid(DROID *psDroid, QScriptEngine *engine);
-QScriptValue convStructure(STRUCTURE *psStruct, QScriptEngine *engine);
-QScriptValue convObj(BASE_OBJECT *psObj, QScriptEngine *engine);
-QScriptValue convFeature(FEATURE *psFeature, QScriptEngine *engine);
-QScriptValue convMax(BASE_OBJECT *psObj, QScriptEngine *engine);
+QScriptValue convDroid(const DROID *psDroid, QScriptEngine *engine);
+QScriptValue convStructure(const STRUCTURE *psStruct, QScriptEngine *engine);
+QScriptValue convObj(const BASE_OBJECT *psObj, QScriptEngine *engine);
+QScriptValue convFeature(const FEATURE *psFeature, QScriptEngine *engine);
+QScriptValue convMax(const BASE_OBJECT *psObj, QScriptEngine *engine);
 QScriptValue convTemplate(DROID_TEMPLATE *psTemplate, QScriptEngine *engine);
-QScriptValue convResearch(RESEARCH *psResearch, QScriptEngine *engine, int player);
+QScriptValue convResearch(const RESEARCH *psResearch, QScriptEngine *engine, int player);
 BASE_OBJECT *IdToObject(OBJECT_TYPE type, int id, int player);
 
 /// Dump script-relevant log info to separate file
