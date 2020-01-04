@@ -581,8 +581,12 @@ static bool groupAddObject(BASE_OBJECT *psObj, int groupId, QScriptEngine *engin
 //;; * ```id``` A string containing the index name of the research.
 //;; * ```type``` The type will always be ```RESEARCH_DATA```.
 //;;
-QScriptValue convResearch(RESEARCH *psResearch, QScriptEngine *engine, int player)
+QScriptValue convResearch(const RESEARCH *psResearch, QScriptEngine *engine, int player)
 {
+	if (psResearch == nullptr)
+	{
+		return QScriptValue::NullValue;
+	}
 	QScriptValue value = engine->newObject();
 	value.setProperty("power", (int)psResearch->researchPower);
 	value.setProperty("points", (int)psResearch->researchPoints);
@@ -626,7 +630,7 @@ QScriptValue convResearch(RESEARCH *psResearch, QScriptEngine *engine, int playe
 //;; * ```range``` Maximum range of its weapons. (3.2+ only)
 //;; * ```hasIndirect``` One or more of the structure's weapons are indirect. (3.2+ only)
 //;;
-QScriptValue convStructure(STRUCTURE *psStruct, QScriptEngine *engine)
+QScriptValue convStructure(const STRUCTURE *psStruct, QScriptEngine *engine)
 {
 	bool aa = false;
 	bool ga = false;
@@ -703,7 +707,7 @@ QScriptValue convStructure(STRUCTURE *psStruct, QScriptEngine *engine)
 //;; * ```stattype``` The type of feature. Defined types are ```OIL_RESOURCE```, ```OIL_DRUM``` and ```ARTIFACT```.
 //;; * ```damageable``` Can this feature be damaged?
 //;;
-QScriptValue convFeature(FEATURE *psFeature, QScriptEngine *engine)
+QScriptValue convFeature(const FEATURE *psFeature, QScriptEngine *engine)
 {
 	QScriptValue value = convObj(psFeature, engine);
 	const FEATURE_STATS *psStats = psFeature->psStats;
@@ -775,7 +779,7 @@ QScriptValue convFeature(FEATURE *psFeature, QScriptEngine *engine)
 //;; * ```cargoCount``` Defined for transporters only: Number of individual \emph{items} in the cargo hold. (3.2+ only)
 //;; * ```cargoSize``` The amount of cargo space the droid will take inside a transport. (3.2+ only)
 //;;
-QScriptValue convDroid(DROID *psDroid, QScriptEngine *engine)
+QScriptValue convDroid(const DROID *psDroid, QScriptEngine *engine)
 {
 	bool aa = false;
 	bool ga = false;
@@ -878,7 +882,7 @@ QScriptValue convDroid(DROID *psDroid, QScriptEngine *engine)
 //;; * ```thermal``` Amount of thermal protection that protect against heat based weapons.
 //;; * ```born``` The game time at which this object was produced or came into the world. (3.2+ only)
 //;;
-QScriptValue convObj(BASE_OBJECT *psObj, QScriptEngine *engine)
+QScriptValue convObj(const BASE_OBJECT *psObj, QScriptEngine *engine)
 {
 	QScriptValue value = engine->newObject();
 	ASSERT_OR_RETURN(value, psObj, "No object for conversion");
@@ -894,9 +898,9 @@ QScriptValue convObj(BASE_OBJECT *psObj, QScriptEngine *engine)
 	value.setProperty("name", objInfo(psObj), QScriptValue::ReadOnly);
 	value.setProperty("born", psObj->born, QScriptValue::ReadOnly);
 	GROUPMAP *psMap = groups.value(engine);
-	if (psMap != nullptr && psMap->contains(psObj))
+	if (psMap != nullptr && psMap->contains(const_cast<BASE_OBJECT *>(psObj))) // FIXME:
 	{
-		int group = psMap->value(psObj);
+		int group = psMap->value(const_cast<BASE_OBJECT *>(psObj)); // FIXME:
 		value.setProperty("group", group, QScriptValue::ReadOnly);
 	}
 	else
@@ -949,7 +953,7 @@ QScriptValue convTemplate(DROID_TEMPLATE *psTempl, QScriptEngine *engine)
 	return value;
 }
 
-QScriptValue convMax(BASE_OBJECT *psObj, QScriptEngine *engine)
+QScriptValue convMax(const BASE_OBJECT *psObj, QScriptEngine *engine)
 {
 	if (!psObj)
 	{
@@ -1210,7 +1214,7 @@ bool writeLabels(const char *filename)
 		{
 			int operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
 			{
-				if (context->argumentCount() < idx)
+				if (context->argumentCount() <= idx)
 					return {};
 				return context->argument(idx++).toInt32();
 			}
@@ -1221,7 +1225,7 @@ bool writeLabels(const char *filename)
 		{
 			unsigned int operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
 			{
-				if (context->argumentCount() < idx)
+				if (context->argumentCount() <= idx)
 					return {};
 				return context->argument(idx++).toUInt32();
 			}
@@ -1232,7 +1236,7 @@ bool writeLabels(const char *filename)
 		{
 			bool operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
 			{
-				if (context->argumentCount() < idx)
+				if (context->argumentCount() <= idx)
 					return {};
 				return 	context->argument(idx++).toBool();
 			}
@@ -1245,7 +1249,7 @@ bool writeLabels(const char *filename)
 		{
 			float operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
 			{
-				if (context->argumentCount() < idx)
+				if (context->argumentCount() <= idx)
 					return {};
 				return context->argument(idx++).toNumber();
 			}
@@ -1267,7 +1271,7 @@ bool writeLabels(const char *filename)
 		{
 			const DROID* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
 			{
-				if (context->argumentCount() < idx)
+				if (context->argumentCount() <= idx)
 					return {};
 				QScriptValue droidVal = context->argument(idx++);
 				int id = droidVal.property("id").toInt32();
@@ -1281,7 +1285,7 @@ bool writeLabels(const char *filename)
 		{
 			const BASE_OBJECT* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
 			{
-				if (context->argumentCount() < idx)
+				if (context->argumentCount() <= idx)
 					return {};
 				QScriptValue objVal = context->argument(idx++);
 				int oid = objVal.property("id").toInt32();
@@ -1300,7 +1304,7 @@ bool writeLabels(const char *filename)
 		{
 			std::string operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
 			{
-				if (context->argumentCount() < idx)
+				if (context->argumentCount() <= idx)
 					return {};
 				return context->argument(idx++).toString().toStdString();//.toUtf8();
 //				auto&& tmp2 = tmp.constData();
@@ -1321,7 +1325,7 @@ bool writeLabels(const char *filename)
 		{
 			DROID* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
 			{
-				if (context->argumentCount() < idx)
+				if (context->argumentCount() <= idx)
 					return {};
 				QScriptValue droidVal = context->argument(idx++);
 				int id = droidVal.property("id").toInt32();
@@ -1344,12 +1348,33 @@ bool writeLabels(const char *filename)
 //			}
 //		};
 
+		template<>
+		struct unbox<wzapi::STRUCTURE_TYPE_or_statsName_string>
+		{
+			wzapi::STRUCTURE_TYPE_or_statsName_string operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			{
+				wzapi::STRUCTURE_TYPE_or_statsName_string result;
+				if (context->argumentCount() <= idx)
+					return result;
+				QScriptValue val = context->argument(idx++);
+				if (val.isNumber())
+				{
+					result.type = (STRUCTURE_TYPE)val.toInt32();
+				}
+				else
+				{
+					result.statsName = val.toString().toStdString();
+				}
+				return result;
+			}
+		};
+
 		template<typename OptionalType>
 		struct unbox<optional<OptionalType>>
 		{
 			optional<OptionalType> operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
 			{
-				if (context->argumentCount() < idx)
+				if (context->argumentCount() <= idx)
 					return {};
 				return optional<OptionalType>(unbox<OptionalType>()(idx, context, engine));
 			}
@@ -1372,7 +1397,7 @@ bool writeLabels(const char *filename)
 		{
 			wzapi::structure_id_player operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
 			{
-				if (context->argumentCount() < idx)
+				if (context->argumentCount() <= idx)
 					return {};
 				QScriptValue structVal = context->argument(idx++);
 				int id = structVal.property("id").toInt32();
@@ -1401,7 +1426,7 @@ bool writeLabels(const char *filename)
 		{
 			wzapi::object_id_player_type operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine) //, void*& stack_space)
 			{
-				if (context->argumentCount() < idx)
+				if (context->argumentCount() <= idx)
 					return {};
 				QScriptValue objVal = context->argument(idx++);
 				int id = objVal.property("id").toInt32();
@@ -1465,10 +1490,43 @@ bool writeLabels(const char *filename)
 //			}
 //		};
 
+		template<>
+		struct unbox<wzapi::va_list_treat_as_strings>
+		{
+			wzapi::va_list_treat_as_strings operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			{
+				if (context->argumentCount() <= idx)
+					return {};
+				wzapi::va_list_treat_as_strings strings;
+				for (; idx < context->argumentCount(); idx++)
+				{
+					QString s = context->argument(idx).toString();
+					if (context->state() == QScriptContext::ExceptionState)
+					{
+						break;
+					}
+					strings.strings.push_back(s.toStdString());
+				}
+				return strings;
+			}
+		};
+
 		template<typename T>
 		QScriptValue box(T a, QScriptEngine*)
 		{
 			return a;
+		}
+
+//		QScriptValue box(char const * str, QScriptEngine* engine)
+//		{
+//			// The redundant QString cast is a workaround for a Qt5 bug, the QScriptValue(char const *) constructor interprets as Latin1 instead of UTF-8!
+//			return QScriptValue(QString(str));
+//		}
+
+		QScriptValue box(std::string str, QScriptEngine* engine)
+		{
+			// The redundant QString cast is a workaround for a Qt5 bug, the QScriptValue(char const *) constructor interprets as Latin1 instead of UTF-8!
+			return QScriptValue(QString(str.c_str()));
 		}
 
 //		QScriptValue box(FEATURE* psFeature, QScriptEngine* engine)
@@ -1484,6 +1542,96 @@ bool writeLabels(const char *filename)
 		QScriptValue box(wzapi::no_return_value, QScriptEngine* engine)
 		{
 			return QScriptValue();
+		}
+
+//		QScriptValue box(std::vector<const STRUCTURE *> value, QScriptEngine* engine)
+//		{
+//			QScriptValue result = engine->newArray(value.size());
+//			for (int i = 0; i < value.size(); i++)
+//			{
+//				const STRUCTURE *psStruct = value.at(i);
+//				result.setProperty(i, convStructure(psStruct, engine));
+//			}
+//			return result;
+//		}
+//
+//		QScriptValue box(std::vector<const DROID *> value, QScriptEngine* engine)
+//		{
+//			QScriptValue result = engine->newArray(value.size());
+//			for (int i = 0; i < value.size(); i++)
+//			{
+//				const DROID *psDroid = value.at(i);
+//				result.setProperty(i, convDroid(psDroid, engine));
+//			}
+//			return result;
+//		}
+//
+//		QScriptValue box(std::vector<const FEATURE *> value, QScriptEngine* engine)
+//		{
+//			QScriptValue result = engine->newArray(value.size());
+//			for (int i = 0; i < value.size(); i++)
+//			{
+//				const FEATURE *psFeat = value.at(i);
+//				result.setProperty(i, convFeature(psFeat, engine));
+//			}
+//			return result;
+//		}
+
+		QScriptValue box(const BASE_OBJECT * psObj, QScriptEngine* engine)
+		{
+			return convMax(psObj, engine);
+		}
+
+		QScriptValue box(const STRUCTURE * psStruct, QScriptEngine* engine)
+		{
+			return convStructure(psStruct, engine);
+		}
+
+		QScriptValue box(const DROID * psDroid, QScriptEngine* engine)
+		{
+			return convDroid(psDroid, engine);
+		}
+
+		QScriptValue box(const FEATURE * psFeat, QScriptEngine* engine)
+		{
+			return convFeature(psFeat, engine);
+		}
+
+		QScriptValue box(Position p, QScriptEngine* engine)
+		{
+			QScriptValue v = engine->newObject();
+			v.setProperty("x", map_coord(p.x), QScriptValue::ReadOnly);
+			v.setProperty("y", map_coord(p.y), QScriptValue::ReadOnly);
+			v.setProperty("type", SCRIPT_POSITION, QScriptValue::ReadOnly);
+			return v;
+		}
+
+		template<typename VectorType>
+		QScriptValue box(const std::vector<VectorType>& value, QScriptEngine* engine)
+		{
+			QScriptValue result = engine->newArray(value.size());
+			for (int i = 0; i < value.size(); i++)
+			{
+				VectorType item = value.at(i);
+				result.setProperty(i, box(item, engine));
+			}
+			return result;
+		}
+
+		QScriptValue box(const wzapi::researchResult& result, QScriptEngine* engine)
+		{
+			return convResearch(result.psResearch, engine, result.player);
+		}
+
+		QScriptValue box(const wzapi::researchResults& results, QScriptEngine* engine)
+		{
+			QScriptValue result = engine->newArray(results.resList.size());
+			for (int i = 0; i < results.resList.size(); i++)
+			{
+				const RESEARCH *psResearch = results.resList.at(i);
+				result.setProperty(i, convResearch(psResearch, engine, results.player));
+			}
+			return result;
 		}
 
 //		QScriptValue box(optional_position pos, QScriptEngine* engine)
@@ -1809,57 +1957,60 @@ static QScriptValue js_getObject(QScriptContext *context, QScriptEngine *engine)
 //--
 static QScriptValue js_enumBlips(QScriptContext *context, QScriptEngine *engine)
 {
-	QList<Position> matches;
-	int player = context->argument(0).toInt32();
-	SCRIPT_ASSERT_PLAYER(context, player);
-	for (BASE_OBJECT *psSensor = apsSensorList[0]; psSensor; psSensor = psSensor->psNextFunc)
-	{
-		if (psSensor->visible[player] > 0 && psSensor->visible[player] < UBYTE_MAX)
-		{
-			matches.push_back(psSensor->pos);
-		}
-	}
-	QScriptValue result = engine->newArray(matches.size());
-	for (int i = 0; i < matches.size(); i++)
-	{
-		Position p = matches.at(i);
-		QScriptValue v = engine->newObject();
-		v.setProperty("x", map_coord(p.x), QScriptValue::ReadOnly);
-		v.setProperty("y", map_coord(p.y), QScriptValue::ReadOnly);
-		v.setProperty("type", SCRIPT_POSITION, QScriptValue::ReadOnly);
-		result.setProperty(i, v);
-	}
-	return result;
+	return wrap_(wzapi::enumBlips, context, engine);
+
+//	QList<Position> matches;
+//	int player = context->argument(0).toInt32();
+//	SCRIPT_ASSERT_PLAYER(context, player);
+//	for (BASE_OBJECT *psSensor = apsSensorList[0]; psSensor; psSensor = psSensor->psNextFunc)
+//	{
+//		if (psSensor->visible[player] > 0 && psSensor->visible[player] < UBYTE_MAX)
+//		{
+//			matches.push_back(psSensor->pos);
+//		}
+//	}
+//	QScriptValue result = engine->newArray(matches.size());
+//	for (int i = 0; i < matches.size(); i++)
+//	{
+//		Position p = matches.at(i);
+//		QScriptValue v = engine->newObject();
+//		v.setProperty("x", map_coord(p.x), QScriptValue::ReadOnly);
+//		v.setProperty("y", map_coord(p.y), QScriptValue::ReadOnly);
+//		v.setProperty("type", SCRIPT_POSITION, QScriptValue::ReadOnly);
+//		result.setProperty(i, v);
+//	}
+//	return result;
 }
 
 //-- ## enumSelected()
 //--
 //-- Return an array containing all game objects currently selected by the host player. (3.2+ only)
 //--
-QScriptValue js_enumSelected(QScriptContext *, QScriptEngine *engine)
+QScriptValue js_enumSelected(QScriptContext *context, QScriptEngine *engine)
 {
-	QList<BASE_OBJECT *> matches;
-	for (DROID *psDroid = apsDroidLists[selectedPlayer]; psDroid; psDroid = psDroid->psNext)
-	{
-		if (psDroid->selected)
-		{
-			matches.push_back(psDroid);
-		}
-	}
-	for (STRUCTURE *psStruct = apsStructLists[selectedPlayer]; psStruct; psStruct = psStruct->psNext)
-	{
-		if (psStruct->selected)
-		{
-			matches.push_back(psStruct);
-		}
-	}
-	// TODO - also add selected delivery points
-	QScriptValue result = engine->newArray(matches.size());
-	for (int i = 0; i < matches.size(); i++)
-	{
-		result.setProperty(i, convMax(matches.at(i), engine));
-	}
-	return result;
+	return wrap_(wzapi::enumSelected, context, engine);
+//	QList<BASE_OBJECT *> matches;
+//	for (DROID *psDroid = apsDroidLists[selectedPlayer]; psDroid; psDroid = psDroid->psNext)
+//	{
+//		if (psDroid->selected)
+//		{
+//			matches.push_back(psDroid);
+//		}
+//	}
+//	for (STRUCTURE *psStruct = apsStructLists[selectedPlayer]; psStruct; psStruct = psStruct->psNext)
+//	{
+//		if (psStruct->selected)
+//		{
+//			matches.push_back(psStruct);
+//		}
+//	}
+//	// TODO - also add selected delivery points
+//	QScriptValue result = engine->newArray(matches.size());
+//	for (int i = 0; i < matches.size(); i++)
+//	{
+//		result.setProperty(i, convMax(matches.at(i), engine));
+//	}
+//	return result;
 }
 
 //-- ## enumGateways()
@@ -2131,22 +2282,23 @@ static QScriptValue js_pursueResearch(QScriptContext *context, QScriptEngine *en
 //--
 static QScriptValue js_getResearch(QScriptContext *context, QScriptEngine *engine)
 {
-	int player = 0;
-	if (context->argumentCount() == 2)
-	{
-		player = context->argument(1).toInt32();
-	}
-	else
-	{
-		player = engine->globalObject().property("me").toInt32();
-	}
-	QString resName = context->argument(0).toString();
-	RESEARCH *psResearch = getResearch(resName.toUtf8().constData());
-	if (!psResearch)
-	{
-		return QScriptValue::NullValue;
-	}
-	return convResearch(psResearch, engine, player);
+	return wrap_(wzapi::getResearch, context, engine);
+//	int player = 0;
+//	if (context->argumentCount() == 2)
+//	{
+//		player = context->argument(1).toInt32();
+//	}
+//	else
+//	{
+//		player = engine->globalObject().property("me").toInt32();
+//	}
+//	QString resName = context->argument(0).toString();
+//	RESEARCH *psResearch = getResearch(resName.toUtf8().constData());
+//	if (!psResearch)
+//	{
+//		return QScriptValue::NullValue;
+//	}
+//	return convResearch(psResearch, engine, player);
 }
 
 //-- ## enumResearch()
@@ -2155,22 +2307,25 @@ static QScriptValue js_getResearch(QScriptContext *context, QScriptEngine *engin
 //--
 static QScriptValue js_enumResearch(QScriptContext *context, QScriptEngine *engine)
 {
-	QList<RESEARCH *> reslist;
-	int player = engine->globalObject().property("me").toInt32();
-	for (int i = 0; i < asResearch.size(); i++)
-	{
-		RESEARCH *psResearch = &asResearch[i];
-		if (!IsResearchCompleted(&asPlayerResList[player][i]) && researchAvailable(i, player, ModeQueue))
-		{
-			reslist += psResearch;
-		}
-	}
-	QScriptValue result = engine->newArray(reslist.size());
-	for (int i = 0; i < reslist.size(); i++)
-	{
-		result.setProperty(i, convResearch(reslist[i], engine, player));
-	}
-	return result;
+	return wrap_(wzapi::enumResearch, context, engine);
+
+////	QList<RESEARCH *> reslist;
+//	int player = engine->globalObject().property("me").toInt32();
+////	for (int i = 0; i < asResearch.size(); i++)
+////	{
+////		RESEARCH *psResearch = &asResearch[i];
+////		if (!IsResearchCompleted(&asPlayerResList[player][i]) && researchAvailable(i, player, ModeQueue))
+////		{
+////			reslist += psResearch;
+////		}
+////	}
+//
+//	QScriptValue result = engine->newArray(reslist.size());
+//	for (int i = 0; i < reslist.size(); i++)
+//	{
+//		result.setProperty(i, convResearch(reslist[i], engine, player));
+//	}
+//	return result;
 }
 
 //-- ## componentAvailable([component type,] component name)
@@ -2513,48 +2668,7 @@ static QScriptValue js_buildDroid(QScriptContext *context, QScriptEngine *engine
 //--
 static QScriptValue js_enumStruct(QScriptContext *context, QScriptEngine *engine)
 {
-	QList<STRUCTURE *> matches;
-	int player = -1, looking = -1;
-	WzString statsName;
-	QScriptValue val;
-	STRUCTURE_TYPE type = NUM_DIFF_BUILDINGS;
-
-	switch (context->argumentCount())
-	{
-	default:
-	case 3: looking = context->argument(2).toInt32(); // fall-through
-	case 2: val = context->argument(1);
-		if (val.isNumber())
-		{
-			type = (STRUCTURE_TYPE)val.toInt32();
-		}
-		else
-		{
-			statsName = WzString::fromUtf8(val.toString().toUtf8().constData());
-		} // fall-through
-	case 1: player = context->argument(0).toInt32(); break;
-	case 0: player = engine->globalObject().property("me").toInt32();
-	}
-
-	SCRIPT_ASSERT_PLAYER(context, player);
-	SCRIPT_ASSERT(context, looking < MAX_PLAYERS && looking >= -1, "Looking player index out of range: %d", looking);
-	for (STRUCTURE *psStruct = apsStructLists[player]; psStruct; psStruct = psStruct->psNext)
-	{
-		if ((looking == -1 || psStruct->visible[looking])
-		    && !psStruct->died
-		    && (type == NUM_DIFF_BUILDINGS || type == psStruct->pStructureType->type)
-		    && (statsName.isEmpty() || statsName.compare(psStruct->pStructureType->id) == 0))
-		{
-			matches.push_back(psStruct);
-		}
-	}
-	QScriptValue result = engine->newArray(matches.size());
-	for (int i = 0; i < matches.size(); i++)
-	{
-		STRUCTURE *psStruct = matches.at(i);
-		result.setProperty(i, convStructure(psStruct, engine));
-	}
-	return result;
+	return wrap_(wzapi::enumStruct, context, engine);
 }
 
 //-- ## enumStructOffWorld([player[, structure type[, looking player]]])
@@ -2568,48 +2682,7 @@ static QScriptValue js_enumStruct(QScriptContext *context, QScriptEngine *engine
 //--
 static QScriptValue js_enumStructOffWorld(QScriptContext *context, QScriptEngine *engine)
 {
-	QList<STRUCTURE *> matches;
-	int player = -1, looking = -1;
-	WzString statsName;
-	QScriptValue val;
-	STRUCTURE_TYPE type = NUM_DIFF_BUILDINGS;
-
-	switch (context->argumentCount())
-	{
-	default:
-	case 3: looking = context->argument(2).toInt32(); // fall-through
-	case 2: val = context->argument(1);
-		if (val.isNumber())
-		{
-			type = (STRUCTURE_TYPE)val.toInt32();
-		}
-		else
-		{
-			statsName = WzString::fromUtf8(val.toString().toUtf8().constData());
-		} // fall-through
-	case 1: player = context->argument(0).toInt32(); break;
-	case 0: player = engine->globalObject().property("me").toInt32();
-	}
-
-	SCRIPT_ASSERT(context, player < MAX_PLAYERS && player >= 0, "Target player index out of range: %d", player);
-	SCRIPT_ASSERT(context, looking < MAX_PLAYERS && looking >= -1, "Looking player index out of range: %d", looking);
-	for (STRUCTURE *psStruct = mission.apsStructLists[player]; psStruct; psStruct = psStruct->psNext)
-	{
-		if ((looking == -1 || psStruct->visible[looking])
-		    && !psStruct->died
-		    && (type == NUM_DIFF_BUILDINGS || type == psStruct->pStructureType->type)
-		    && (statsName.isEmpty() || statsName.compare(psStruct->pStructureType->id) == 0))
-		{
-			matches.push_back(psStruct);
-		}
-	}
-	QScriptValue result = engine->newArray(matches.size());
-	for (int i = 0; i < matches.size(); i++)
-	{
-		STRUCTURE *psStruct = matches.at(i);
-		result.setProperty(i, convStructure(psStruct, engine));
-	}
-	return result;
+	return wrap_(wzapi::enumStructOffWorld, context, engine);
 }
 
 //-- ## enumFeature(player[, name])
@@ -2620,30 +2693,7 @@ static QScriptValue js_enumStructOffWorld(QScriptContext *context, QScriptEngine
 //--
 static QScriptValue js_enumFeature(QScriptContext *context, QScriptEngine *engine)
 {
-	QList<FEATURE *> matches;
-	int looking = context->argument(0).toInt32();
-	WzString statsName;
-	if (context->argumentCount() > 1)
-	{
-		statsName = WzString::fromUtf8(context->argument(1).toString().toUtf8().constData());
-	}
-	SCRIPT_ASSERT(context, looking < MAX_PLAYERS && looking >= -1, "Looking player index out of range: %d", looking);
-	for (FEATURE *psFeat = apsFeatureLists[0]; psFeat; psFeat = psFeat->psNext)
-	{
-		if ((looking == -1 || psFeat->visible[looking])
-		    && !psFeat->died
-		    && (statsName.isEmpty() || statsName.compare(psFeat->psStats->id) == 0))
-		{
-			matches.push_back(psFeat);
-		}
-	}
-	QScriptValue result = engine->newArray(matches.size());
-	for (int i = 0; i < matches.size(); i++)
-	{
-		FEATURE *psFeat = matches.at(i);
-		result.setProperty(i, convFeature(psFeat, engine));
-	}
-	return result;
+	return wrap_(wzapi::enumFeature, context, engine);
 }
 
 //-- ## enumCargo(transport droid)
@@ -2679,51 +2729,7 @@ static QScriptValue js_enumCargo(QScriptContext *context, QScriptEngine *engine)
 //--
 static QScriptValue js_enumDroid(QScriptContext *context, QScriptEngine *engine)
 {
-	QList<DROID *> matches;
-	int player = -1, looking = -1;
-	DROID_TYPE droidType = DROID_ANY;
-	DROID_TYPE droidType2;
-
-	switch (context->argumentCount())
-	{
-	default:
-	case 3: looking = context->argument(2).toInt32(); // fall-through
-	case 2: droidType = (DROID_TYPE)context->argument(1).toInt32(); // fall-through
-	case 1: player = context->argument(0).toInt32(); break;
-	case 0: player = engine->globalObject().property("me").toInt32();
-	}
-	switch (droidType) // hide some engine craziness
-	{
-	case DROID_CONSTRUCT:
-		droidType2 = DROID_CYBORG_CONSTRUCT; break;
-	case DROID_WEAPON:
-		droidType2 = DROID_CYBORG_SUPER; break;
-	case DROID_REPAIR:
-		droidType2 = DROID_CYBORG_REPAIR; break;
-	case DROID_CYBORG:
-		droidType2 = DROID_CYBORG_SUPER; break;
-	default:
-		droidType2 = droidType;
-		break;
-	}
-	SCRIPT_ASSERT_PLAYER(context, player);
-	SCRIPT_ASSERT(context, looking < MAX_PLAYERS && looking >= -1, "Looking player index out of range: %d", looking);
-	for (DROID *psDroid = apsDroidLists[player]; psDroid; psDroid = psDroid->psNext)
-	{
-		if ((looking == -1 || psDroid->visible[looking])
-		    && !psDroid->died
-		    && (droidType == DROID_ANY || droidType == psDroid->droidType || droidType2 == psDroid->droidType))
-		{
-			matches.push_back(psDroid);
-		}
-	}
-	QScriptValue result = engine->newArray(matches.size());
-	for (int i = 0; i < matches.size(); i++)
-	{
-		DROID *psDroid = matches.at(i);
-		result.setProperty(i, convDroid(psDroid, engine));
-	}
-	return result;
+	return wrap_(wzapi::enumDroid, context, engine);
 }
 
 void dumpScriptLog(const QString &scriptName, int me, const QString &info)
@@ -2899,14 +2905,15 @@ endstructloc:
 //--
 //-- Is given structure idle?
 //--
-static QScriptValue js_structureIdle(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_structureIdle(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue structVal = context->argument(0);
-	int id = structVal.property("id").toInt32();
-	int player = structVal.property("player").toInt32();
-	STRUCTURE *psStruct = IdToStruct(id, player);
-	SCRIPT_ASSERT(context, psStruct, "No such structure id %d belonging to player %d", id, player);
-	return QScriptValue(structureIdle(psStruct));
+//	QScriptValue structVal = context->argument(0);
+//	int id = structVal.property("id").toInt32();
+//	int player = structVal.property("player").toInt32();
+//	STRUCTURE *psStruct = IdToStruct(id, player);
+//	SCRIPT_ASSERT(context, psStruct, "No such structure id %d belonging to player %d", id, player);
+//	return QScriptValue(structureIdle(psStruct));
+	return wrap_(wzapi::structureIdle, context, engine);
 }
 
 //-- ## removeStruct(structure)
@@ -2972,8 +2979,7 @@ static QScriptValue js_removeObject(QScriptContext *context, QScriptEngine *)
 //--
 static QScriptValue js_clearConsole(QScriptContext *context, QScriptEngine *engine)
 {
-	flushConsoleMessages();
-	return QScriptValue();
+	return wrap_(wzapi::clearConsole, context, engine);
 }
 
 //-- ## console(strings...)
@@ -2983,29 +2989,7 @@ static QScriptValue js_clearConsole(QScriptContext *context, QScriptEngine *engi
 // TODO, should cover scrShowConsoleText, scrAddConsoleText, scrTagConsoleText and scrConsole
 static QScriptValue js_console(QScriptContext *context, QScriptEngine *engine)
 {
-	int player = engine->globalObject().property("me").toInt32();
-	if (player == selectedPlayer)
-	{
-		QString result;
-		for (int i = 0; i < context->argumentCount(); ++i)
-		{
-			if (i != 0)
-			{
-				result.append(QLatin1String(" "));
-			}
-			QString s = context->argument(i).toString();
-			if (context->state() == QScriptContext::ExceptionState)
-			{
-				break;
-			}
-			result.append(s);
-		}
-		//permitNewConsoleMessages(true);
-		//setConsolePermanence(true,true);
-		addConsoleMessage(result.toUtf8().constData(), CENTRE_JUSTIFY, SYSTEM_MESSAGE);
-		//permitNewConsoleMessages(false);
-	}
-	return QScriptValue();
+	return wrap_(wzapi::console, context, engine);
 }
 
 //-- ## groupAddArea(group, x1, y1, x2, y2)
@@ -3339,11 +3323,12 @@ static QScriptValue js_startTransporterEntry(QScriptContext *context, QScriptEng
 //-- setReinforcementTime() is be used to hide it before coming back after the set time
 //-- which is handled by the campaign library in the victory data section (3.3+ only).
 //--
-static QScriptValue js_useSafetyTransport(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_useSafetyTransport(QScriptContext *context, QScriptEngine *engine)
 {
-	bool flag = context->argument(0).toBool();
-	setDroidsToSafetyFlag(flag);
-	return QScriptValue();
+//	bool flag = context->argument(0).toBool();
+//	setDroidsToSafetyFlag(flag);
+//	return QScriptValue();
+	return wrap_(wzapi::useSafetyTransport, context, engine);
 }
 
 //-- ## restoreLimboMissionData()
@@ -3351,10 +3336,11 @@ static QScriptValue js_useSafetyTransport(QScriptContext *context, QScriptEngine
 //-- Swap mission type and bring back units previously stored at the start
 //-- of the mission (see cam3-c mission). (3.3+ only).
 //--
-static QScriptValue js_restoreLimboMissionData(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_restoreLimboMissionData(QScriptContext *context, QScriptEngine *engine)
 {
-	resetLimboMission();
-	return QScriptValue();
+//	resetLimboMission();
+//	return QScriptValue();
+	return wrap_(wzapi::restoreLimboMissionData, context, engine);
 }
 
 //-- ## setReinforcementTime(time)
@@ -4505,10 +4491,11 @@ static QScriptValue js_loadLevel(QScriptContext *context, QScriptEngine *)
 //--
 //-- Perform automatic save
 //--
-static QScriptValue js_autoSave(QScriptContext *, QScriptEngine *engine)
+static QScriptValue js_autoSave(QScriptContext *context, QScriptEngine *engine)
 {
-	autoSave();
-	return QScriptValue();
+//	autoSave();
+//	return QScriptValue();
+	return wrap_(wzapi::autoSave, context, engine);
 }
 
 //-- ## enumRange(x, y, range[, filter[, seen]])
@@ -4521,42 +4508,7 @@ static QScriptValue js_autoSave(QScriptContext *, QScriptEngine *engine)
 //--
 static QScriptValue js_enumRange(QScriptContext *context, QScriptEngine *engine)
 {
-	int player = engine->globalObject().property("me").toInt32();
-	int x = world_coord(context->argument(0).toInt32());
-	int y = world_coord(context->argument(1).toInt32());
-	int range = world_coord(context->argument(2).toInt32());
-	int filter = ALL_PLAYERS;
-	bool seen = true;
-	if (context->argumentCount() > 3)
-	{
-		filter = context->argument(3).toInt32();
-	}
-	if (context->argumentCount() > 4)
-	{
-		seen = context->argument(4).toBool();
-	}
-	static GridList gridList;  // static to avoid allocations.
-	gridList = gridStartIterate(x, y, range);
-	QList<BASE_OBJECT *> list;
-	for (GridIterator gi = gridList.begin(); gi != gridList.end(); ++gi)
-	{
-		BASE_OBJECT *psObj = *gi;
-		if ((psObj->visible[player] || !seen) && !psObj->died)
-		{
-			if ((filter >= 0 && psObj->player == filter) || filter == ALL_PLAYERS
-			    || (filter == ALLIES && psObj->type != OBJ_FEATURE && aiCheckAlliances(psObj->player, player))
-			    || (filter == ENEMIES && psObj->type != OBJ_FEATURE && !aiCheckAlliances(psObj->player, player)))
-			{
-				list.append(psObj);
-			}
-		}
-	}
-	QScriptValue value = engine->newArray(list.size());
-	for (int i = 0; i < list.size(); i++)
-	{
-		value.setProperty(i, convMax(list[i], engine), QScriptValue::ReadOnly);
-	}
-	return value;
+	return wrap_(wzapi::enumRange, context, engine);
 }
 
 //-- ## enumArea(<x1, y1, x2, y2 | label>[, filter[, seen]])
@@ -5423,20 +5375,22 @@ static QScriptValue js_changePlayerColour(QScriptContext *context, QScriptEngine
 //--
 //-- Returns the current multiplayer tech level. (3.3+ only)
 //--
-static QScriptValue js_getMultiTechLevel(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_getMultiTechLevel(QScriptContext *context, QScriptEngine *engine)
 {
-	return QScriptValue(game.techLevel);
+//	return QScriptValue(game.techLevel);
+	return wrap_(wzapi::getMultiTechLevel, context, engine);
 }
 
 //-- ## setCampaignNumber(num)
 //--
 //-- Set the campaign number. (3.3+ only)
 //--
-static QScriptValue js_setCampaignNumber(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_setCampaignNumber(QScriptContext *context, QScriptEngine *engine)
 {
-	int num = context->argument(0).toInt32();
-	setCampaignNumber(num);
-	return QScriptValue();
+//	int num = context->argument(0).toInt32();
+//	setCampaignNumber(num);
+//	return QScriptValue();
+	return wrap_(wzapi::setCampaignNumber, context, engine);
 }
 
 //-- ## getMissionType()
@@ -5460,12 +5414,13 @@ static QScriptValue js_getRevealStatus(QScriptContext *context, QScriptEngine *)
 //-- ## setRevealStatus(bool)
 //--
 //-- Set the fog reveal status. (3.3+ only)
-static QScriptValue js_setRevealStatus(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_setRevealStatus(QScriptContext *context, QScriptEngine *engine)
 {
-	bool status = context->argument(0).toBool();
-	setRevealStatus(status);
-	preProcessVisibility();
-	return QScriptValue();
+//	bool status = context->argument(0).toBool();
+//	setRevealStatus(status);
+//	preProcessVisibility();
+//	return QScriptValue();
+	return wrap_(wzapi::setRevealStatus, context, engine);
 }
 
 // ----------------------------------------------------------------------------------------
@@ -6576,14 +6531,14 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 	engine->globalObject().setProperty("replaceTexture", engine->newFunction(js_replaceTexture)); // WZAPI
 	engine->globalObject().setProperty("changePlayerColour", engine->newFunction(js_changePlayerColour)); // WZAPI
 	engine->globalObject().setProperty("setHealth", engine->newFunction(js_setHealth)); // WZAPI
-	engine->globalObject().setProperty("useSafetyTransport", engine->newFunction(js_useSafetyTransport));
-	engine->globalObject().setProperty("restoreLimboMissionData", engine->newFunction(js_restoreLimboMissionData));
-	engine->globalObject().setProperty("getMultiTechLevel", engine->newFunction(js_getMultiTechLevel));
-	engine->globalObject().setProperty("setCampaignNumber", engine->newFunction(js_setCampaignNumber));
+	engine->globalObject().setProperty("useSafetyTransport", engine->newFunction(js_useSafetyTransport)); // WZAPI
+	engine->globalObject().setProperty("restoreLimboMissionData", engine->newFunction(js_restoreLimboMissionData)); // WZAPI
+	engine->globalObject().setProperty("getMultiTechLevel", engine->newFunction(js_getMultiTechLevel)); // WZAPI
+	engine->globalObject().setProperty("setCampaignNumber", engine->newFunction(js_setCampaignNumber)); // WZAPI
 	engine->globalObject().setProperty("getMissionType", engine->newFunction(js_getMissionType));
 	engine->globalObject().setProperty("getRevealStatus", engine->newFunction(js_getRevealStatus));
-	engine->globalObject().setProperty("setRevealStatus", engine->newFunction(js_setRevealStatus));
-	engine->globalObject().setProperty("autoSave", engine->newFunction(js_autoSave));
+	engine->globalObject().setProperty("setRevealStatus", engine->newFunction(js_setRevealStatus)); // WZAPI
+	engine->globalObject().setProperty("autoSave", engine->newFunction(js_autoSave)); // WZAPI
 
 	// horrible hacks follow -- do not rely on these being present!
 	engine->globalObject().setProperty("hackNetOff", engine->newFunction(js_hackNetOff));
@@ -6602,20 +6557,20 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 
 	// General functions -- geared for use in AI scripts
 	engine->globalObject().setProperty("debug", engine->newFunction(js_debug));
-	engine->globalObject().setProperty("console", engine->newFunction(js_console));
-	engine->globalObject().setProperty("clearConsole", engine->newFunction(js_clearConsole));
-	engine->globalObject().setProperty("structureIdle", engine->newFunction(js_structureIdle));
-	engine->globalObject().setProperty("enumStruct", engine->newFunction(js_enumStruct));
-	engine->globalObject().setProperty("enumStructOffWorld", engine->newFunction(js_enumStructOffWorld));
-	engine->globalObject().setProperty("enumDroid", engine->newFunction(js_enumDroid));
+	engine->globalObject().setProperty("console", engine->newFunction(js_console)); // WZAPI
+	engine->globalObject().setProperty("clearConsole", engine->newFunction(js_clearConsole)); // WZAPI
+	engine->globalObject().setProperty("structureIdle", engine->newFunction(js_structureIdle)); // WZAPI
+	engine->globalObject().setProperty("enumStruct", engine->newFunction(js_enumStruct)); // WZAPI
+	engine->globalObject().setProperty("enumStructOffWorld", engine->newFunction(js_enumStructOffWorld)); // WZAPI
+	engine->globalObject().setProperty("enumDroid", engine->newFunction(js_enumDroid)); // WZAPI
 	engine->globalObject().setProperty("enumGroup", engine->newFunction(js_enumGroup));
-	engine->globalObject().setProperty("enumFeature", engine->newFunction(js_enumFeature));
-	engine->globalObject().setProperty("enumBlips", engine->newFunction(js_enumBlips));
-	engine->globalObject().setProperty("enumSelected", engine->newFunction(js_enumSelected));
-	engine->globalObject().setProperty("enumResearch", engine->newFunction(js_enumResearch));
-	engine->globalObject().setProperty("enumRange", engine->newFunction(js_enumRange));
+	engine->globalObject().setProperty("enumFeature", engine->newFunction(js_enumFeature)); // WZAPI
+	engine->globalObject().setProperty("enumBlips", engine->newFunction(js_enumBlips)); // WZAPI
+	engine->globalObject().setProperty("enumSelected", engine->newFunction(js_enumSelected)); // WZAPI
+	engine->globalObject().setProperty("enumResearch", engine->newFunction(js_enumResearch)); // WZAPI
+	engine->globalObject().setProperty("enumRange", engine->newFunction(js_enumRange)); // WZAPI
 	engine->globalObject().setProperty("enumArea", engine->newFunction(js_enumArea));
-	engine->globalObject().setProperty("getResearch", engine->newFunction(js_getResearch));
+	engine->globalObject().setProperty("getResearch", engine->newFunction(js_getResearch)); // WZAPI
 	engine->globalObject().setProperty("pursueResearch", engine->newFunction(js_pursueResearch));
 	engine->globalObject().setProperty("findResearch", engine->newFunction(js_findResearch));
 	engine->globalObject().setProperty("distBetweenTwoPoints", engine->newFunction(js_distBetweenTwoPoints));
