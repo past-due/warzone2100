@@ -158,7 +158,7 @@ bool wzapi::orderDroid(WZAPI_PARAMS(DROID* psDroid, int order))
 //	int id = droidVal.property("id").toInt32();
 //	int player = droidVal.property("player").toInt32();
 //	DROID *psDroid = IdToDroid(id, player);
-	SCRIPT_ASSERT(false, context, psDroid, "Droid id %d not found belonging to player %d", psDroid->id, (int)psDroid->player);
+	SCRIPT_ASSERT(false, context, psDroid, "Droid id not found belonging to player");//, psDroid->id, (int)psDroid->player);
 //	DROID_ORDER order = (DROID_ORDER)context->argument(1).toInt32();
 	SCRIPT_ASSERT(false, context, order == DORDER_HOLD || order == DORDER_RTR || order == DORDER_STOP
 	              || order == DORDER_RTB || order == DORDER_REARM || order == DORDER_RECYCLE,
@@ -195,6 +195,7 @@ bool wzapi::orderDroid(WZAPI_PARAMS(DROID* psDroid, int order))
 //--
 bool wzapi::orderDroidBuild(WZAPI_PARAMS(DROID* psDroid, int order, std::string statName, int x, int y, optional<float> _direction))
 {
+	SCRIPT_ASSERT(false, context, psDroid, "No droid specified");
 	debug(LOG_3D, "WZAPI: droid.id=%d, droid.player=%d, order=%d, statName=%s", psDroid->id, (int)psDroid->player, (int)order, statName.c_str());
 
 //	QScriptValue droidVal = context->argument(0);
