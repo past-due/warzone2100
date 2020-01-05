@@ -68,6 +68,11 @@ namespace wzapi
 //		size_t count = 0;
 //	};
 
+	struct string_or_string_list
+	{
+		std::vector<std::string> strings;
+	};
+
 	struct va_list_treat_as_strings
 	{
 		std::vector<std::string> strings;
@@ -142,7 +147,7 @@ namespace wzapi
 
 	bool console(WZAPI_PARAMS(va_list_treat_as_strings strings));
 	bool clearConsole(WZAPI_NO_PARAMS);
-	bool structureIdle(WZAPI_PARAMS(structure_id_player structVal));
+	bool structureIdle(WZAPI_PARAMS(const STRUCTURE *psStruct));
 	std::vector<const STRUCTURE *> enumStruct(WZAPI_PARAMS(optional<int> _player, optional<STRUCTURE_TYPE_or_statsName_string> _structureType, optional<int> _looking));
 	std::vector<const STRUCTURE *> enumStructOffWorld(WZAPI_PARAMS(optional<int> _player, optional<STRUCTURE_TYPE_or_statsName_string> _structureType, optional<int> _looking));
 	std::vector<const DROID *> enumDroid(WZAPI_PARAMS(optional<int> _player, optional<int> _droidType, optional<int> _looking));
@@ -152,6 +157,7 @@ namespace wzapi
 	researchResult getResearch(WZAPI_PARAMS(std::string resName, optional<int> _player));
 	researchResults enumResearch(WZAPI_NO_PARAMS);
 	std::vector<const BASE_OBJECT *> enumRange(WZAPI_PARAMS(int x, int y, int range, optional<int> _filter, optional<bool> _seen));
+	bool pursueResearch(WZAPI_PARAMS(const STRUCTURE *psStruct, string_or_string_list research));
 }
 
 #endif

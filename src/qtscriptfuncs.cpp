@@ -1202,6 +1202,13 @@ bool writeLabels(const char *filename)
 		}
 	};
 
+	/// Assert for scripts that give useful backtraces and other info.
+	#define UNBOX_SCRIPT_ASSERT(context, expr, ...) \
+		do { bool _wzeval = (expr); \
+			if (!_wzeval) { debug(LOG_ERROR, __VA_ARGS__); \
+				context->throwError(QScriptContext::ReferenceError, QString(#expr) +  " failed when converting argument " + QString::number(idx) + " for " + QString(function)); \
+				break; } } while (0)
+
 	namespace
 	{
 		template<typename T>
@@ -1212,7 +1219,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<int>
 		{
-			int operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			int operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1223,7 +1230,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<unsigned int>
 		{
-			unsigned int operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			unsigned int operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1234,7 +1241,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<bool>
 		{
-			bool operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			bool operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1247,7 +1254,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<float>
 		{
-			float operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			float operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1269,21 +1276,39 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<const DROID*>
 		{
-			const DROID* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			const DROID* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
 				QScriptValue droidVal = context->argument(idx++);
 				int id = droidVal.property("id").toInt32();
 				int player = droidVal.property("player").toInt32();
-				return IdToDroid(id, player);
+				const DROID *psDroid = IdToDroid(id, player);
+				UNBOX_SCRIPT_ASSERT(context, psDroid, "No such droid id %d belonging to player %d", id, player);
+				return psDroid;
+			}
+		};
+
+		template<>
+		struct unbox<const STRUCTURE*>
+		{
+			const STRUCTURE* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			{
+				if (context->argumentCount() <= idx)
+					return {};
+				QScriptValue structVal = context->argument(idx++);
+				int id = structVal.property("id").toInt32();
+				int player = structVal.property("player").toInt32();
+				STRUCTURE *psStruct = IdToStruct(id, player);
+				UNBOX_SCRIPT_ASSERT(context, psStruct, "No such structure id %d belonging to player %d", id, player);
+				return psStruct;
 			}
 		};
 
 		template<>
 		struct unbox<const BASE_OBJECT*>
 		{
-			const BASE_OBJECT* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			const BASE_OBJECT* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1292,8 +1317,7 @@ bool writeLabels(const char *filename)
 				int oplayer = objVal.property("player").toInt32();
 				OBJECT_TYPE otype = (OBJECT_TYPE)objVal.property("type").toInt32();
 				BASE_OBJECT* psObj = IdToObject(otype, oid, oplayer);
-				// TODO: Handle asserting if failed to find object here - how to do so? Would want to pass down the calling function name?
-//				SCRIPT_ASSERT(context, psObj, "No such object id %d belonging to player %d", oid, oplayer);
+				UNBOX_SCRIPT_ASSERT(context, psObj, "No such object id %d belonging to player %d", oid, oplayer);
 				return psObj;
 			}
 		};
@@ -1302,7 +1326,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<std::string>
 		{
-			std::string operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			std::string operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1323,14 +1347,16 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<DROID*>
 		{
-			DROID* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			DROID* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
 				QScriptValue droidVal = context->argument(idx++);
 				int id = droidVal.property("id").toInt32();
 				int player = droidVal.property("player").toInt32();
-				return IdToDroid(id, player);
+				DROID *psDroid = IdToDroid(id, player);
+				UNBOX_SCRIPT_ASSERT(context, psDroid, "No such droid id %d belonging to player %d", id, player);
+				return psDroid;
 			}
 		};
 
@@ -1351,7 +1377,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<wzapi::STRUCTURE_TYPE_or_statsName_string>
 		{
-			wzapi::STRUCTURE_TYPE_or_statsName_string operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			wzapi::STRUCTURE_TYPE_or_statsName_string operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
 			{
 				wzapi::STRUCTURE_TYPE_or_statsName_string result;
 				if (context->argumentCount() <= idx)
@@ -1372,11 +1398,11 @@ bool writeLabels(const char *filename)
 		template<typename OptionalType>
 		struct unbox<optional<OptionalType>>
 		{
-			optional<OptionalType> operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			optional<OptionalType> operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
-				return optional<OptionalType>(unbox<OptionalType>()(idx, context, engine));
+				return optional<OptionalType>(unbox<OptionalType>()(idx, context, engine, function));
 			}
 		};
 
@@ -1395,7 +1421,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<wzapi::structure_id_player>
 		{
-			wzapi::structure_id_player operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			wzapi::structure_id_player operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1424,7 +1450,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<wzapi::object_id_player_type>
 		{
-			wzapi::object_id_player_type operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine) //, void*& stack_space)
+			wzapi::object_id_player_type operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function) //, void*& stack_space)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1491,9 +1517,37 @@ bool writeLabels(const char *filename)
 //		};
 
 		template<>
+		struct unbox<wzapi::string_or_string_list>
+		{
+			wzapi::string_or_string_list operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			{
+				if (context->argumentCount() <= idx)
+					return {};
+				wzapi::string_or_string_list strings;
+
+				QScriptValue list_or_string = context->argument(idx++);
+				if (list_or_string.isArray())
+				{
+					int length = list_or_string.property("length").toInt32();
+					for (int k = 0; k < length; k++)
+					{
+						QString resName = list_or_string.property(k).toString();
+						strings.strings.push_back(resName.toStdString());
+					}
+				}
+				else
+				{
+					QString resName = list_or_string.toString();
+					strings.strings.push_back(resName.toStdString());
+				}
+				return strings;
+			}
+		};
+
+		template<>
 		struct unbox<wzapi::va_list_treat_as_strings>
 		{
-			wzapi::va_list_treat_as_strings operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
+			wzapi::va_list_treat_as_strings operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1699,18 +1753,20 @@ bool writeLabels(const char *filename)
 		MSVC_PRAGMA(warning( disable : 4189 )) // disable "warning C4189: 'idx': local variable is initialized but not referenced"
 		
 		template<typename R, typename...Args>
-		QScriptValue wrap_(R(*f)(const wzapi::execution_context&, Args...), QScriptContext *context, QScriptEngine *engine)
+		QScriptValue wrap__(R(*f)(const wzapi::execution_context&, Args...), const char *wrappedFunctionName, QScriptContext *context, QScriptEngine *engine)
 		{
 			//uint8_t stack_space[10000];
 			//void* stack_ptr = stack_space;
-			size_t idx WZ_DECL_UNUSED = 0; //sizeof...(Args) - 1;
+			size_t idx WZ_DECL_UNUSED = 0; //sizeof...(Args) - 1; // unused when Args... is empty
 //			return box(f(unbox<Args>{}(idx, context, engine)...), engine);
 			qtscript_execution_context execution_context(context, engine);
-			return box(apply(f, std::tuple<const wzapi::execution_context&, Args...>{static_cast<const wzapi::execution_context&>(execution_context), unbox<Args>{}(idx, context, engine)...}), engine);
+			return box(apply(f, std::tuple<const wzapi::execution_context&, Args...>{static_cast<const wzapi::execution_context&>(execution_context), unbox<Args>{}(idx, context, engine, wrappedFunctionName)...}), engine);
 		}
 
 		MSVC_PRAGMA(warning( pop ))
 
+		#define wrap_(wzapi_function, context, engine) \
+		wrap__(wzapi_function, #wzapi_function, context, engine)
 	}
 
 // ----------------------------------------------------------------------------------------
@@ -2185,99 +2241,7 @@ static QScriptValue js_findResearch(QScriptContext *context, QScriptEngine *engi
 //--
 static QScriptValue js_pursueResearch(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue structVal = context->argument(0);
-	int id = structVal.property("id").toInt32();
-	int player = structVal.property("player").toInt32();
-	STRUCTURE *psStruct = IdToStruct(id, player);
-	SCRIPT_ASSERT(context, psStruct, "No such structure id %d belonging to player %d", id, player);
-	QScriptValue list = context->argument(1);
-	RESEARCH *psResearch = nullptr;  // Dummy initialisation.
-	if (list.isArray())
-	{
-		int length = list.property("length").toInt32();
-		int k;
-		for (k = 0; k < length; k++)
-		{
-			QString resName = list.property(k).toString();
-			psResearch = getResearch(resName.toUtf8().constData());
-			SCRIPT_ASSERT(context, psResearch, "No such research: %s", resName.toUtf8().constData());
-			PLAYER_RESEARCH *plrRes = &asPlayerResList[player][psResearch->index];
-			if (!IsResearchStartedPending(plrRes) && !IsResearchCompleted(plrRes))
-			{
-				break; // use this one
-			}
-		}
-		if (k == length)
-		{
-			debug(LOG_SCRIPT, "Exhausted research list -- doing nothing");
-			return QScriptValue(false);
-		}
-	}
-	else
-	{
-		QString resName = list.toString();
-		psResearch = getResearch(resName.toUtf8().constData());
-		SCRIPT_ASSERT(context, psResearch, "No such research: %s", resName.toUtf8().constData());
-		PLAYER_RESEARCH *plrRes = &asPlayerResList[player][psResearch->index];
-		if (IsResearchStartedPending(plrRes) || IsResearchCompleted(plrRes))
-		{
-			debug(LOG_SCRIPT, "%s has already been researched!", resName.toUtf8().constData());
-			return QScriptValue(false);
-		}
-	}
-	SCRIPT_ASSERT(context, psStruct->pStructureType->type == REF_RESEARCH, "Not a research lab: %s", objInfo(psStruct));
-	RESEARCH_FACILITY *psResLab = (RESEARCH_FACILITY *)psStruct->pFunctionality;
-	SCRIPT_ASSERT(context, psResLab->psSubject == nullptr, "Research lab not ready");
-	// Go down the requirements list for the desired tech
-	QList<RESEARCH *> reslist;
-	RESEARCH *cur = psResearch;
-	int iterations = 0;  // Only used to assert we're not stuck in the loop.
-	while (cur)
-	{
-		if (researchAvailable(cur->index, player, ModeQueue))
-		{
-			bool started = false;
-			for (int i = 0; i < game.maxPlayers; i++)
-			{
-				if (i == player || (aiCheckAlliances(player, i) && alliancesSharedResearch(game.alliance)))
-				{
-					int bits = asPlayerResList[i][cur->index].ResearchStatus;
-					started = started || (bits & STARTED_RESEARCH) || (bits & STARTED_RESEARCH_PENDING)
-					          || (bits & RESBITS_PENDING_ONLY) || (bits & RESEARCHED);
-				}
-			}
-			if (!started) // found relevant item on the path?
-			{
-				sendResearchStatus(psStruct, cur->index, player, true);
-#if defined (DEBUG)
-				char sTemp[128];
-				snprintf(sTemp, sizeof(sTemp), "player:%d starts topic from script: %s", player, getID(cur));
-				NETlogEntry(sTemp, SYNC_FLAG, 0);
-#endif
-				debug(LOG_SCRIPT, "Started research in %d's %s(%d) of %s", player,
-				      objInfo(psStruct), psStruct->id, getName(cur));
-				return QScriptValue(true);
-			}
-		}
-		RESEARCH *prev = cur;
-		cur = nullptr;
-		if (!prev->pPRList.empty())
-		{
-			cur = &asResearch[prev->pPRList[0]]; // get first pre-req
-		}
-		for (int i = 1; i < prev->pPRList.size(); i++)
-		{
-			// push any other pre-reqs on the stack
-			reslist += &asResearch[prev->pPRList[i]];
-		}
-		if (!cur && !reslist.empty())
-		{
-			cur = reslist.takeFirst(); // retrieve options from the stack
-		}
-		ASSERT_OR_RETURN(QScriptValue(false), ++iterations < asResearch.size() * 100 || !cur, "Possible cyclic dependencies in prerequisites, possibly of research \"%s\".", getName(cur));
-	}
-	debug(LOG_SCRIPT, "No research topic found for %s(%d)", objInfo(psStruct), psStruct->id);
-	return QScriptValue(false); // none found
+	return wrap_(wzapi::pursueResearch, context, engine);
 }
 
 //-- ## getResearch(research[, player])
@@ -6576,7 +6540,7 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 	engine->globalObject().setProperty("enumRange", engine->newFunction(js_enumRange)); // WZAPI
 	engine->globalObject().setProperty("enumArea", engine->newFunction(js_enumArea));
 	engine->globalObject().setProperty("getResearch", engine->newFunction(js_getResearch)); // WZAPI
-	engine->globalObject().setProperty("pursueResearch", engine->newFunction(js_pursueResearch));
+	engine->globalObject().setProperty("pursueResearch", engine->newFunction(js_pursueResearch)); // WZAPI
 	engine->globalObject().setProperty("findResearch", engine->newFunction(js_findResearch));
 	engine->globalObject().setProperty("distBetweenTwoPoints", engine->newFunction(js_distBetweenTwoPoints));
 	engine->globalObject().setProperty("newGroup", engine->newFunction(js_newGroup));

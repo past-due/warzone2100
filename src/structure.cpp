@@ -4734,7 +4734,7 @@ int32_t getStructStatFromName(const WzString &name)
 
 
 /*check to see if the structure is 'doing' anything  - return true if idle*/
-bool  structureIdle(STRUCTURE *psBuilding)
+bool  structureIdle(const STRUCTURE *psBuilding)
 {
 	BASE_STATS		*pSubject = nullptr;
 

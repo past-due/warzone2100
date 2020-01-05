@@ -88,6 +88,8 @@
 #include "wzapi.h"
 #include "order.h"
 
+#include <list>
+
 /// Assert for scripts that give useful backtraces and other info.
 #if defined(SCRIPT_ASSERT)
 #undef SCRIPT_ASSERT
@@ -619,13 +621,13 @@ bool wzapi::clearConsole(WZAPI_NO_PARAMS)
 //--
 //-- Is given structure idle?
 //--
-bool wzapi::structureIdle(WZAPI_PARAMS(structure_id_player structVal))
+bool wzapi::structureIdle(WZAPI_PARAMS(const STRUCTURE *psStruct))
 {
 //	QScriptValue structVal = context->argument(0);
 //	int id = structVal.property("id").toInt32();
 //	int player = structVal.property("player").toInt32();
-	STRUCTURE *psStruct = IdToStruct(structVal.id, structVal.player);
-	SCRIPT_ASSERT(false, context, psStruct, "No such structure id %d belonging to player %d", structVal.id, structVal.player);
+//	STRUCTURE *psStruct = IdToStruct(structVal.id, structVal.player);
+	SCRIPT_ASSERT(false, context, psStruct, "No structure provided");
 	return ::structureIdle(psStruct);
 }
 
@@ -947,5 +949,104 @@ std::vector<const BASE_OBJECT *> wzapi::enumRange(WZAPI_PARAMS(int x, int y, int
 		}
 	}
 	return list;
+}
+
+//-- ## pursueResearch(lab, research)
+//--
+//-- Start researching the first available technology on the way to the given technology.
+//-- First parameter is the structure to research in, which must be a research lab. The
+//-- second parameter is the technology to pursue, as a text string as defined in "research.json".
+//-- The second parameter may also be an array of such strings. The first technology that has
+//-- not yet been researched in that list will be pursued.
+//--
+bool wzapi::pursueResearch(WZAPI_PARAMS(const STRUCTURE *psStruct, string_or_string_list research))
+{
+//	QScriptValue structVal = context->argument(0);
+//	int id = structVal.id; //structVal.property("id").toInt32();
+//	int player = structVal.player; //structVal.property("player").toInt32();
+//	STRUCTURE *psStruct = IdToStruct(id, player);
+	SCRIPT_ASSERT(false, context, psStruct, "No structure provided");
+	int player = psStruct->player;
+//	QScriptValue list = context->argument(1);
+	RESEARCH *psResearch = nullptr;  // Dummy initialisation.
+	for (const auto& resName : research.strings)
+	{
+		RESEARCH *psCurrResearch = ::getResearch(resName.c_str());
+		SCRIPT_ASSERT(false, context, psCurrResearch, "No such research: %s", resName.c_str());
+		PLAYER_RESEARCH *plrRes = &asPlayerResList[player][psCurrResearch->index];
+		if (!IsResearchStartedPending(plrRes) && !IsResearchCompleted(plrRes))
+		{
+			// use this one
+			psResearch = psCurrResearch;
+			break;
+		}
+	}
+	if (psResearch == nullptr)
+	{
+		if (research.strings.size() == 1)
+		{
+			debug(LOG_SCRIPT, "%s has already been researched!", research.strings.front().c_str());
+		}
+		else
+		{
+			debug(LOG_SCRIPT, "Exhausted research list -- doing nothing");
+		}
+		return false;
+	}
+
+	SCRIPT_ASSERT(false, context, psStruct->pStructureType->type == REF_RESEARCH, "Not a research lab: %s", objInfo(psStruct));
+	RESEARCH_FACILITY *psResLab = (RESEARCH_FACILITY *)psStruct->pFunctionality;
+	SCRIPT_ASSERT(false, context, psResLab->psSubject == nullptr, "Research lab not ready");
+	// Go down the requirements list for the desired tech
+	std::list<RESEARCH *> reslist;
+	RESEARCH *cur = psResearch;
+	int iterations = 0;  // Only used to assert we're not stuck in the loop.
+	while (cur)
+	{
+		if (researchAvailable(cur->index, player, ModeQueue))
+		{
+			bool started = false;
+			for (int i = 0; i < game.maxPlayers; i++)
+			{
+				if (i == player || (aiCheckAlliances(player, i) && alliancesSharedResearch(game.alliance)))
+				{
+					int bits = asPlayerResList[i][cur->index].ResearchStatus;
+					started = started || (bits & STARTED_RESEARCH) || (bits & STARTED_RESEARCH_PENDING)
+					          || (bits & RESBITS_PENDING_ONLY) || (bits & RESEARCHED);
+				}
+			}
+			if (!started) // found relevant item on the path?
+			{
+				sendResearchStatus(const_cast<STRUCTURE *>(psStruct), cur->index, player, true); // FIXME: Remove const_cast
+#if defined (DEBUG)
+				char sTemp[128];
+				snprintf(sTemp, sizeof(sTemp), "player:%d starts topic from script: %s", player, getID(cur));
+				NETlogEntry(sTemp, SYNC_FLAG, 0);
+#endif
+				debug(LOG_SCRIPT, "Started research in %d's %s(%d) of %s", player,
+				      objInfo(psStruct), psStruct->id, getName(cur));
+				return true;
+			}
+		}
+		RESEARCH *prev = cur;
+		cur = nullptr;
+		if (!prev->pPRList.empty())
+		{
+			cur = &asResearch[prev->pPRList[0]]; // get first pre-req
+		}
+		for (int i = 1; i < prev->pPRList.size(); i++)
+		{
+			// push any other pre-reqs on the stack
+			reslist.push_back(&asResearch[prev->pPRList[i]]);
+		}
+		if (!cur && !reslist.empty())
+		{
+			cur = reslist.front(); // retrieve options from the stack
+			reslist.pop_front();
+		}
+		ASSERT_OR_RETURN(false, ++iterations < asResearch.size() * 100 || !cur, "Possible cyclic dependencies in prerequisites, possibly of research \"%s\".", getName(cur));
+	}
+	debug(LOG_SCRIPT, "No research topic found for %s(%d)", objInfo(psStruct), psStruct->id);
+	return false; // none found
 }
 
