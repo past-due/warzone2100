@@ -143,82 +143,6 @@ Vector2i getPlayerStartPosition(int player)
 	return positions[player];
 }
 
-// additional structure check
-static bool structDoubleCheck(BASE_STATS *psStat, UDWORD xx, UDWORD yy, SDWORD maxBlockingTiles)
-{
-	UDWORD		x, y, xTL, yTL, xBR, yBR;
-	UBYTE		count = 0;
-	STRUCTURE_STATS	*psBuilding = (STRUCTURE_STATS *)psStat;
-
-	xTL = xx - 1;
-	yTL = yy - 1;
-	xBR = (xx + psBuilding->baseWidth);
-	yBR = (yy + psBuilding->baseBreadth);
-
-	// check against building in a gateway, as this can seriously block AI passages
-	for (auto psGate : gwGetGateways())
-	{
-		for (x = xx; x <= xBR; x++)
-		{
-			for (y = yy; y <= yBR; y++)
-			{
-				if ((x >= psGate->x1 && x <= psGate->x2) && (y >= psGate->y1 && y <= psGate->y2))
-				{
-					return false;
-				}
-			}
-		}
-	}
-
-	// can you get past it?
-	y = yTL;	// top
-	for (x = xTL; x != xBR + 1; x++)
-	{
-		if (fpathBlockingTile(x, y, PROPULSION_TYPE_WHEELED))
-		{
-			count++;
-			break;
-		}
-	}
-
-	y = yBR;	// bottom
-	for (x = xTL; x != xBR + 1; x++)
-	{
-		if (fpathBlockingTile(x, y, PROPULSION_TYPE_WHEELED))
-		{
-			count++;
-			break;
-		}
-	}
-
-	x = xTL;	// left
-	for (y = yTL + 1; y != yBR; y++)
-	{
-		if (fpathBlockingTile(x, y, PROPULSION_TYPE_WHEELED))
-		{
-			count++;
-			break;
-		}
-	}
-
-	x = xBR;	// right
-	for (y = yTL + 1; y != yBR; y++)
-	{
-		if (fpathBlockingTile(x, y, PROPULSION_TYPE_WHEELED))
-		{
-			count++;
-			break;
-		}
-	}
-
-	//make sure this location is not blocked from too many sides
-	if ((count <= maxBlockingTiles) || (maxBlockingTiles == -1))
-	{
-		return true;
-	}
-	return false;
-}
-
 // private qtscript bureaucracy
 typedef QMap<BASE_OBJECT *, int> GROUPMAP;
 typedef QMap<QScriptEngine *, GROUPMAP *> ENGINEMAP;
@@ -1670,6 +1594,15 @@ bool writeLabels(const char *filename)
 			return v;
 		}
 
+		QScriptValue box(wzapi::position_in_map_coords p, QScriptEngine* engine)
+		{
+			QScriptValue v = engine->newObject();
+			v.setProperty("x", p.x, QScriptValue::ReadOnly);
+			v.setProperty("y", p.y, QScriptValue::ReadOnly);
+			v.setProperty("type", SCRIPT_POSITION, QScriptValue::ReadOnly);
+			return v;
+		}
+
 		template<typename VectorType>
 		QScriptValue box(const std::vector<VectorType>& value, QScriptEngine* engine)
 		{
@@ -1696,6 +1629,20 @@ bool writeLabels(const char *filename)
 				result.setProperty(i, convResearch(psResearch, engine, results.player));
 			}
 			return result;
+		}
+
+		template<typename OptionalType>
+		QScriptValue box(const optional<OptionalType>& result, QScriptEngine* engine)
+		{
+			if (result.has_value())
+			{
+				return box(result.value(), engine);
+			}
+			else
+			{
+				return QScriptValue(); // "undefined" variable
+				//return QScriptValue::NullValue;
+			}
 		}
 
 //		QScriptValue box(optional_position pos, QScriptEngine* engine)
@@ -2192,53 +2139,7 @@ static QScriptValue js_activateStructure(QScriptContext *context, QScriptEngine 
 //--
 static QScriptValue js_findResearch(QScriptContext *context, QScriptEngine *engine)
 {
-	QList<RESEARCH *> list;
-	QString resName = context->argument(0).toString();
-	int player = engine->globalObject().property("me").toInt32();
-	if (context->argumentCount() == 2)
-	{
-		player = context->argument(1).toInt32();
-	}
-	RESEARCH *psTarget = getResearch(resName.toUtf8().constData());
-	SCRIPT_ASSERT(context, psTarget, "No such research: %s", resName.toUtf8().constData());
-	PLAYER_RESEARCH *plrRes = &asPlayerResList[player][psTarget->index];
-	if (IsResearchStartedPending(plrRes) || IsResearchCompleted(plrRes))
-	{
-		return engine->newArray(0); // return empty array
-	}
-	debug(LOG_SCRIPT, "Find reqs for %s for player %d", resName.toUtf8().constData(), player);
-	// Go down the requirements list for the desired tech
-	QList<RESEARCH *> reslist;
-	RESEARCH *cur = psTarget;
-	while (cur)
-	{
-		if (!(asPlayerResList[player][cur->index].ResearchStatus & RESEARCHED))
-		{
-			debug(LOG_SCRIPT, "Added research in %d's %s for %s", player, getID(cur), getID(psTarget));
-			list.append(cur);
-		}
-		RESEARCH *prev = cur;
-		cur = nullptr;
-		if (!prev->pPRList.empty())
-		{
-			cur = &asResearch[prev->pPRList[0]]; // get first pre-req
-		}
-		for (int i = 1; i < prev->pPRList.size(); i++)
-		{
-			// push any other pre-reqs on the stack
-			reslist += &asResearch[prev->pPRList[i]];
-		}
-		if (!cur && !reslist.empty())
-		{
-			cur = reslist.takeFirst(); // retrieve options from the stack
-		}
-	}
-	QScriptValue retval = engine->newArray(list.size());
-	for (int i = 0; i < list.size(); i++)
-	{
-		retval.setProperty(i, convResearch(list[i], engine, player));
-	}
-	return retval;
+	return wrap_(wzapi::findResearch, context, engine);
 }
 
 //-- ## pursueResearch(lab, research)
@@ -2782,102 +2683,7 @@ static QScriptValue js_debug(QScriptContext *context, QScriptEngine *engine)
 //--
 static QScriptValue js_pickStructLocation(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue droidVal = context->argument(0);
-	const int id = droidVal.property("id").toInt32();
-	const int player = droidVal.property("player").toInt32();
-	DROID *psDroid = IdToDroid(id, player);
-	QString statName = context->argument(1).toString();
-	int index = getStructStatFromName(QStringToWzString(statName));
-	SCRIPT_ASSERT(context, index >= 0, "%s not found", statName.toUtf8().constData());
-	STRUCTURE_STATS	*psStat = &asStructureStats[index];
-	const int startX = context->argument(2).toInt32();
-	const int startY = context->argument(3).toInt32();
-	int numIterations = 30;
-	bool found = false;
-	int incX, incY, x, y;
-	int maxBlockingTiles = 0;
-
-	SCRIPT_ASSERT(context, psDroid, "No such droid id %d belonging to player %d", id, player);
-	SCRIPT_ASSERT(context, psStat, "No such stat found: %s", statName.toUtf8().constData());
-	SCRIPT_ASSERT_PLAYER(context, player);
-	SCRIPT_ASSERT(context, startX >= 0 && startX < mapWidth && startY >= 0 && startY < mapHeight, "Bad position (%d, %d)", startX, startY);
-
-	if (context->argumentCount() > 4) // final optional argument
-	{
-		maxBlockingTiles = context->argument(4).toInt32();
-	}
-
-	x = startX;
-	y = startY;
-
-	Vector2i offset(psStat->baseWidth * (TILE_UNITS / 2), psStat->baseBreadth * (TILE_UNITS / 2));
-
-	// save a lot of typing... checks whether a position is valid
-#define LOC_OK(_x, _y) (tileOnMap(_x, _y) && \
-                        (!psDroid || fpathCheck(psDroid->pos, Vector3i(world_coord(_x), world_coord(_y), 0), PROPULSION_TYPE_WHEELED)) \
-                        && validLocation(psStat, world_coord(Vector2i(_x, _y)) + offset, 0, player, false) && structDoubleCheck(psStat, _x, _y, maxBlockingTiles))
-
-	// first try the original location
-	if (LOC_OK(startX, startY))
-	{
-		found = true;
-	}
-
-	// try some locations nearby
-	for (incX = 1, incY = 1; incX < numIterations && !found; incX++, incY++)
-	{
-		y = startY - incY;	// top
-		for (x = startX - incX; x < startX + incX; x++)
-		{
-			if (LOC_OK(x, y))
-			{
-				found = true;
-				goto endstructloc;
-			}
-		}
-		x = startX + incX;	// right
-		for (y = startY - incY; y < startY + incY; y++)
-		{
-			if (LOC_OK(x, y))
-			{
-				found = true;
-				goto endstructloc;
-			}
-		}
-		y = startY + incY;	// bottom
-		for (x = startX + incX; x > startX - incX; x--)
-		{
-			if (LOC_OK(x, y))
-			{
-				found = true;
-				goto endstructloc;
-			}
-		}
-		x = startX - incX;	// left
-		for (y = startY + incY; y > startY - incY; y--)
-		{
-			if (LOC_OK(x, y))
-			{
-				found = true;
-				goto endstructloc;
-			}
-		}
-	}
-
-endstructloc:
-	if (found)
-	{
-		QScriptValue retval = engine->newObject();
-		retval.setProperty("x", x + map_coord(offset.x), QScriptValue::ReadOnly);
-		retval.setProperty("y", y + map_coord(offset.y), QScriptValue::ReadOnly);
-		retval.setProperty("type", SCRIPT_POSITION, QScriptValue::ReadOnly);
-		return retval;
-	}
-	else
-	{
-		debug(LOG_SCRIPT, "Did not find valid positioning for %s", getName(psStat));
-	}
-	return QScriptValue();
+	return wrap_(wzapi::pickStructLocation, context, engine);
 }
 
 //-- ## structureIdle(structure)
@@ -3036,11 +2842,7 @@ static QScriptValue js_groupAdd(QScriptContext *context, QScriptEngine *engine)
 //--
 static QScriptValue js_distBetweenTwoPoints(QScriptContext *context, QScriptEngine *engine)
 {
-	int32_t x1 = context->argument(0).toInt32();
-	int32_t y1 = context->argument(1).toInt32();
-	int32_t x2 = context->argument(2).toInt32();
-	int32_t y2 = context->argument(3).toInt32();
-	return QScriptValue(iHypot(x1 - x2, y1 - y2));
+	return wrap_(wzapi::distBetweenTwoPoints, context, engine);
 }
 
 //-- ## groupSize(group)
@@ -3210,26 +3012,9 @@ static QScriptValue js_orderDroidBuild(QScriptContext *context, QScriptEngine *e
 //--
 //-- Give a droid an order to do something at the given location.
 //--
-static QScriptValue js_orderDroidLoc(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_orderDroidLoc(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue droidVal = context->argument(0);
-	int id = droidVal.property("id").toInt32();
-	int player = droidVal.property("player").toInt32();
-	QScriptValue orderVal = context->argument(1);
-	int x = context->argument(2).toInt32();
-	int y = context->argument(3).toInt32();
-	DROID_ORDER order = (DROID_ORDER)orderVal.toInt32();
-	SCRIPT_ASSERT(context, validOrderForLoc(order), "Invalid location based order: %s", getDroidOrderName(order));
-	DROID *psDroid = IdToDroid(id, player);
-	SCRIPT_ASSERT(context, psDroid, "Droid id %d not found belonging to player %d", id, player);
-	SCRIPT_ASSERT(context, tileOnMap(x, y), "Outside map bounds (%d, %d)", x, y);
-	DROID_ORDER_DATA *droidOrder = &psDroid->order;
-	if (droidOrder->type == order && psDroid->actionPos.x == world_coord(x) && psDroid->actionPos.y == world_coord(y))
-	{
-		return QScriptValue();
-	}
-	orderDroidLoc(psDroid, order, world_coord(x), world_coord(y), ModeQueue);
-	return QScriptValue();
+	return wrap_(wzapi::orderDroidLoc, context, engine);
 }
 
 //-- ## setMissionTime(time)
@@ -4006,9 +3791,7 @@ static QScriptValue js_translate(QScriptContext *context, QScriptEngine *engine)
 //--
 static QScriptValue js_playerPower(QScriptContext *context, QScriptEngine *engine)
 {
-	int player = context->argument(0).toInt32();
-	SCRIPT_ASSERT_PLAYER(context, player);
-	return QScriptValue(getPower(player));
+	return wrap_(wzapi::playerPower, context, engine);
 }
 
 //-- ## queuedPower(player)
@@ -4017,9 +3800,7 @@ static QScriptValue js_playerPower(QScriptContext *context, QScriptEngine *engin
 //--
 static QScriptValue js_queuedPower(QScriptContext *context, QScriptEngine *engine)
 {
-	int player = context->argument(0).toInt32();
-	SCRIPT_ASSERT_PLAYER(context, player);
-	return QScriptValue(getQueuedPower(player));
+	return wrap_(wzapi::queuedPower, context, engine);
 }
 
 //-- ## isStructureAvailable(structure type[, player])
@@ -4028,21 +3809,7 @@ static QScriptValue js_queuedPower(QScriptContext *context, QScriptEngine *engin
 //--
 static QScriptValue js_isStructureAvailable(QScriptContext *context, QScriptEngine *engine)
 {
-	QString building = context->argument(0).toString();
-	int index = getStructStatFromName(QStringToWzString(building));
-	SCRIPT_ASSERT(context, index >= 0, "%s not found", building.toUtf8().constData());
-	int player;
-	if (context->argumentCount() > 1)
-	{
-		player = context->argument(1).toInt32();
-	}
-	else
-	{
-		player = engine->globalObject().property("me").toInt32();
-	}
-	int status = apStructTypeLists[player][index];
-	return QScriptValue((status == AVAILABLE || status == REDUNDANT)
-	                    && asStructureStats[index].curCount[player] < asStructureStats[index].upgrade[player].limit);
+	return wrap_(wzapi::isStructureAvailable, context, engine);
 }
 
 //-- ## isVTOL(droid)
@@ -6551,18 +6318,18 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 	engine->globalObject().setProperty("enumArea", engine->newFunction(js_enumArea));
 	engine->globalObject().setProperty("getResearch", engine->newFunction(js_getResearch)); // WZAPI
 	engine->globalObject().setProperty("pursueResearch", engine->newFunction(js_pursueResearch)); // WZAPI
-	engine->globalObject().setProperty("findResearch", engine->newFunction(js_findResearch));
-	engine->globalObject().setProperty("distBetweenTwoPoints", engine->newFunction(js_distBetweenTwoPoints));
+	engine->globalObject().setProperty("findResearch", engine->newFunction(js_findResearch)); // WZAPI
+	engine->globalObject().setProperty("distBetweenTwoPoints", engine->newFunction(js_distBetweenTwoPoints)); // WZAPI
 	engine->globalObject().setProperty("newGroup", engine->newFunction(js_newGroup));
 	engine->globalObject().setProperty("groupAddArea", engine->newFunction(js_groupAddArea));
 	engine->globalObject().setProperty("groupAddDroid", engine->newFunction(js_groupAddDroid));
 	engine->globalObject().setProperty("groupAdd", engine->newFunction(js_groupAdd));
 	engine->globalObject().setProperty("groupSize", engine->newFunction(js_groupSize));
-	engine->globalObject().setProperty("orderDroidLoc", engine->newFunction(js_orderDroidLoc));
-	engine->globalObject().setProperty("playerPower", engine->newFunction(js_playerPower));
-	engine->globalObject().setProperty("queuedPower", engine->newFunction(js_queuedPower));
-	engine->globalObject().setProperty("isStructureAvailable", engine->newFunction(js_isStructureAvailable));
-	engine->globalObject().setProperty("pickStructLocation", engine->newFunction(js_pickStructLocation));
+	engine->globalObject().setProperty("orderDroidLoc", engine->newFunction(js_orderDroidLoc)); // WZAPI
+	engine->globalObject().setProperty("playerPower", engine->newFunction(js_playerPower)); // WZAPI
+	engine->globalObject().setProperty("queuedPower", engine->newFunction(js_queuedPower)); // WZAPI
+	engine->globalObject().setProperty("isStructureAvailable", engine->newFunction(js_isStructureAvailable)); // WZAPI
+	engine->globalObject().setProperty("pickStructLocation", engine->newFunction(js_pickStructLocation)); // WZAPI
 	engine->globalObject().setProperty("droidCanReach", engine->newFunction(js_droidCanReach));
 	engine->globalObject().setProperty("propulsionCanReach", engine->newFunction(js_propulsionCanReach));
 	engine->globalObject().setProperty("terrainType", engine->newFunction(js_terrainType));

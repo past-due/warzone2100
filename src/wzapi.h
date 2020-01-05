@@ -115,6 +115,11 @@ namespace wzapi
 		std::vector<const RESEARCH *> resList;
 		int player;
 	};
+	struct position_in_map_coords
+	{
+		int32_t x;
+		int32_t y;
+	};
 
 	std::string translate(WZAPI_PARAMS(std::string str));
 	int32_t syncRandom(WZAPI_PARAMS(uint32_t limit));
@@ -158,6 +163,13 @@ namespace wzapi
 	researchResults enumResearch(WZAPI_NO_PARAMS);
 	std::vector<const BASE_OBJECT *> enumRange(WZAPI_PARAMS(int x, int y, int range, optional<int> _filter, optional<bool> _seen));
 	bool pursueResearch(WZAPI_PARAMS(const STRUCTURE *psStruct, string_or_string_list research));
+	std::vector<const RESEARCH*> findResearch(WZAPI_PARAMS(std::string resName, optional<int> _player));
+	int32_t distBetweenTwoPoints(WZAPI_PARAMS(int32_t x1, int32_t y1, int32_t x2, int32_t y2));
+	bool orderDroidLoc(WZAPI_PARAMS(DROID *psDroid, int order_, int x, int y));
+	int32_t playerPower(WZAPI_PARAMS(int player));
+	int queuedPower(WZAPI_PARAMS(int player));
+	bool isStructureAvailable(WZAPI_PARAMS(std::string structName, optional<int> _player));
+	optional<position_in_map_coords> pickStructLocation(WZAPI_PARAMS(DROID *psDroid, std::string statName, int startX, int startY, optional<int> _maxBlockingTiles));
 }
 
 #endif

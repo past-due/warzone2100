@@ -868,7 +868,7 @@ std::vector<const BASE_OBJECT *> wzapi::enumSelected(WZAPI_NO_PARAMS)
 wzapi::researchResult wzapi::getResearch(WZAPI_PARAMS(std::string resName, optional<int> _player))
 {
 	researchResult result;
-	int player = (_player.has_value()) ? _player.value() : context.player();;
+	int player = (_player.has_value()) ? _player.value() : context.player();
 //	if (context->argumentCount() == 2)
 //	{
 //		player = context->argument(1).toInt32();
@@ -1050,3 +1050,304 @@ bool wzapi::pursueResearch(WZAPI_PARAMS(const STRUCTURE *psStruct, string_or_str
 	return false; // none found
 }
 
+//-- ## findResearch(research, [player])
+//--
+//-- Return list of research items remaining to be researched for the given research item. (3.2+ only)
+//-- (Optional second argument 3.2.3+ only)
+//--
+std::vector<const RESEARCH*> wzapi::findResearch(WZAPI_PARAMS(std::string resName, optional<int> _player))
+{
+	std::vector<const RESEARCH *> result;
+//	QString resName = context->argument(0).toString();
+	int player = (_player.has_value()) ? _player.value() : context.player();
+
+	RESEARCH *psTarget = ::getResearch(resName.c_str());
+	SCRIPT_ASSERT({}, context, psTarget, "No such research: %s", resName.c_str());
+	PLAYER_RESEARCH *plrRes = &asPlayerResList[player][psTarget->index];
+	if (IsResearchStartedPending(plrRes) || IsResearchCompleted(plrRes))
+	{
+		return {}; // return empty array
+	}
+	debug(LOG_SCRIPT, "Find reqs for %s for player %d", resName.c_str(), player);
+	// Go down the requirements list for the desired tech
+	std::list<RESEARCH *> reslist;
+	RESEARCH *cur = psTarget;
+	while (cur)
+	{
+		if (!(asPlayerResList[player][cur->index].ResearchStatus & RESEARCHED))
+		{
+			debug(LOG_SCRIPT, "Added research in %d's %s for %s", player, getID(cur), getID(psTarget));
+			result.push_back(cur);
+		}
+		RESEARCH *prev = cur;
+		cur = nullptr;
+		if (!prev->pPRList.empty())
+		{
+			cur = &asResearch[prev->pPRList[0]]; // get first pre-req
+		}
+		for (int i = 1; i < prev->pPRList.size(); i++)
+		{
+			// push any other pre-reqs on the stack
+			reslist.push_back(&asResearch[prev->pPRList[i]]);
+		}
+		if (!cur && !reslist.empty())
+		{
+			// retrieve options from the stack
+			cur = reslist.front();
+			reslist.pop_front();
+		}
+	}
+	return result;
+}
+
+//-- ## distBetweenTwoPoints(x1, y1, x2, y2)
+//--
+//-- Return distance between two points.
+//--
+int32_t wzapi::distBetweenTwoPoints(WZAPI_PARAMS(int32_t x1, int32_t y1, int32_t x2, int32_t y2))
+{
+	return iHypot(x1 - x2, y1 - y2);
+}
+
+//-- ## orderDroidLoc(droid, order, x, y)
+//--
+//-- Give a droid an order to do something at the given location.
+//--
+bool wzapi::orderDroidLoc(WZAPI_PARAMS(DROID *psDroid, int order_, int x, int y))
+{
+//	QScriptValue droidVal = context->argument(0);
+//	int id = droidVal.property("id").toInt32();
+//	int player = droidVal.property("player").toInt32();
+//	QScriptValue orderVal = context->argument(1);
+//	int x = context->argument(2).toInt32();
+//	int y = context->argument(3).toInt32();
+	DROID_ORDER order = (DROID_ORDER)order_;
+	SCRIPT_ASSERT(false, context, validOrderForLoc(order), "Invalid location based order: %s", getDroidOrderName(order));
+//	DROID *psDroid = IdToDroid(id, player);
+	SCRIPT_ASSERT(false, context, psDroid, "Droid not provided");
+	SCRIPT_ASSERT(false, context, tileOnMap(x, y), "Outside map bounds (%d, %d)", x, y);
+	DROID_ORDER_DATA *droidOrder = &psDroid->order;
+	if (droidOrder->type == order && psDroid->actionPos.x == world_coord(x) && psDroid->actionPos.y == world_coord(y))
+	{
+		return true;
+	}
+	::orderDroidLoc(psDroid, order, world_coord(x), world_coord(y), ModeQueue);
+	return true;
+}
+
+//-- ## playerPower(player)
+//--
+//-- Return amount of power held by the given player.
+//--
+int32_t wzapi::playerPower(WZAPI_PARAMS(int player))
+{
+	SCRIPT_ASSERT_PLAYER(-1, context, player);
+	return getPower(player);
+}
+
+//-- ## queuedPower(player)
+//--
+//-- Return amount of power queued up for production by the given player. (3.2+ only)
+//--
+int wzapi::queuedPower(WZAPI_PARAMS(int player))
+{
+	SCRIPT_ASSERT_PLAYER(-1, context, player);
+	return getQueuedPower(player);
+}
+
+//-- ## isStructureAvailable(structure type[, player])
+//--
+//-- Returns true if given structure can be built. It checks both research and unit limits.
+//--
+bool wzapi::isStructureAvailable(WZAPI_PARAMS(std::string structName, optional<int> _player))
+{
+	int index = getStructStatFromName(WzString::fromUtf8(structName));
+	SCRIPT_ASSERT(false, context, index >= 0, "%s not found", structName.c_str());
+	int player = (_player.has_value()) ? _player.value() : context.player();
+
+	int status = apStructTypeLists[player][index];
+	return ((status == AVAILABLE || status == REDUNDANT)
+	                    && asStructureStats[index].curCount[player] < asStructureStats[index].upgrade[player].limit);
+}
+
+// additional structure check
+static bool structDoubleCheck(BASE_STATS *psStat, UDWORD xx, UDWORD yy, SDWORD maxBlockingTiles)
+{
+	UDWORD		x, y, xTL, yTL, xBR, yBR;
+	UBYTE		count = 0;
+	STRUCTURE_STATS	*psBuilding = (STRUCTURE_STATS *)psStat;
+
+	xTL = xx - 1;
+	yTL = yy - 1;
+	xBR = (xx + psBuilding->baseWidth);
+	yBR = (yy + psBuilding->baseBreadth);
+
+	// check against building in a gateway, as this can seriously block AI passages
+	for (auto psGate : gwGetGateways())
+	{
+		for (x = xx; x <= xBR; x++)
+		{
+			for (y = yy; y <= yBR; y++)
+			{
+				if ((x >= psGate->x1 && x <= psGate->x2) && (y >= psGate->y1 && y <= psGate->y2))
+				{
+					return false;
+				}
+			}
+		}
+	}
+
+	// can you get past it?
+	y = yTL;	// top
+	for (x = xTL; x != xBR + 1; x++)
+	{
+		if (fpathBlockingTile(x, y, PROPULSION_TYPE_WHEELED))
+		{
+			count++;
+			break;
+		}
+	}
+
+	y = yBR;	// bottom
+	for (x = xTL; x != xBR + 1; x++)
+	{
+		if (fpathBlockingTile(x, y, PROPULSION_TYPE_WHEELED))
+		{
+			count++;
+			break;
+		}
+	}
+
+	x = xTL;	// left
+	for (y = yTL + 1; y != yBR; y++)
+	{
+		if (fpathBlockingTile(x, y, PROPULSION_TYPE_WHEELED))
+		{
+			count++;
+			break;
+		}
+	}
+
+	x = xBR;	// right
+	for (y = yTL + 1; y != yBR; y++)
+	{
+		if (fpathBlockingTile(x, y, PROPULSION_TYPE_WHEELED))
+		{
+			count++;
+			break;
+		}
+	}
+
+	//make sure this location is not blocked from too many sides
+	if ((count <= maxBlockingTiles) || (maxBlockingTiles == -1))
+	{
+		return true;
+	}
+	return false;
+}
+
+//-- ## pickStructLocation(droid, structure type, x, y)
+//--
+//-- Pick a location for constructing a certain type of building near some given position.
+//-- Returns an object containing "type" POSITION, and "x" and "y" values, if successful.
+//--
+optional<wzapi::position_in_map_coords> wzapi::pickStructLocation(WZAPI_PARAMS(DROID *psDroid, std::string statName, int startX, int startY, optional<int> _maxBlockingTiles))
+{
+//	QScriptValue droidVal = context->argument(0);
+//	const int id = droidVal.property("id").toInt32();
+//	const int player = droidVal.property("player").toInt32();
+//	DROID *psDroid = IdToDroid(id, player);
+//	QString statName = context->argument(1).toString();
+	const int player = psDroid->player;
+	int index = getStructStatFromName(WzString::fromUtf8(statName));
+	SCRIPT_ASSERT({}, context, index >= 0, "%s not found", statName.c_str());
+	STRUCTURE_STATS	*psStat = &asStructureStats[index];
+
+	int numIterations = 30;
+	bool found = false;
+	int incX, incY, x, y;
+	int maxBlockingTiles = 0;
+
+	SCRIPT_ASSERT({}, context, psDroid, "No droid provided");
+	SCRIPT_ASSERT({}, context, psStat, "No such stat found: %s", statName.c_str());
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+	SCRIPT_ASSERT({}, context, startX >= 0 && startX < mapWidth && startY >= 0 && startY < mapHeight, "Bad position (%d, %d)", startX, startY);
+
+	if (_maxBlockingTiles.has_value())
+	{
+		maxBlockingTiles = _maxBlockingTiles.value();
+	}
+
+	x = startX;
+	y = startY;
+
+	Vector2i offset(psStat->baseWidth * (TILE_UNITS / 2), psStat->baseBreadth * (TILE_UNITS / 2));
+
+	// save a lot of typing... checks whether a position is valid
+#define LOC_OK(_x, _y) (tileOnMap(_x, _y) && \
+                        (!psDroid || fpathCheck(psDroid->pos, Vector3i(world_coord(_x), world_coord(_y), 0), PROPULSION_TYPE_WHEELED)) \
+                        && validLocation(psStat, world_coord(Vector2i(_x, _y)) + offset, 0, player, false) && structDoubleCheck(psStat, _x, _y, maxBlockingTiles))
+
+	// first try the original location
+	if (LOC_OK(startX, startY))
+	{
+		found = true;
+	}
+
+	// try some locations nearby
+	for (incX = 1, incY = 1; incX < numIterations && !found; incX++, incY++)
+	{
+		y = startY - incY;	// top
+		for (x = startX - incX; x < startX + incX; x++)
+		{
+			if (LOC_OK(x, y))
+			{
+				found = true;
+				goto endstructloc;
+			}
+		}
+		x = startX + incX;	// right
+		for (y = startY - incY; y < startY + incY; y++)
+		{
+			if (LOC_OK(x, y))
+			{
+				found = true;
+				goto endstructloc;
+			}
+		}
+		y = startY + incY;	// bottom
+		for (x = startX + incX; x > startX - incX; x--)
+		{
+			if (LOC_OK(x, y))
+			{
+				found = true;
+				goto endstructloc;
+			}
+		}
+		x = startX - incX;	// left
+		for (y = startY + incY; y > startY - incY; y--)
+		{
+			if (LOC_OK(x, y))
+			{
+				found = true;
+				goto endstructloc;
+			}
+		}
+	}
+
+endstructloc:
+	if (found)
+	{
+//		QScriptValue retval = engine->newObject();
+//		retval.setProperty("x", x + map_coord(offset.x), QScriptValue::ReadOnly);
+//		retval.setProperty("y", y + map_coord(offset.y), QScriptValue::ReadOnly);
+//		retval.setProperty("type", SCRIPT_POSITION, QScriptValue::ReadOnly);
+//		return retval;
+		return optional<wzapi::position_in_map_coords>({x + map_coord(offset.x), y + map_coord(offset.y)});
+	}
+	else
+	{
+		debug(LOG_SCRIPT, "Did not find valid positioning for %s", getName(psStat));
+	}
+	return {};
+}
