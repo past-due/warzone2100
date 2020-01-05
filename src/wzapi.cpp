@@ -249,19 +249,19 @@ bool wzapi::orderDroidBuild(WZAPI_PARAMS(DROID* psDroid, int order, std::string 
 //--
 //-- Set the assembly point droids go to when built for the specified structure. (3.2+ only)
 //--
-bool wzapi::setAssemblyPoint(WZAPI_PARAMS(structure_id_player structVal, int x, int y))
+bool wzapi::setAssemblyPoint(WZAPI_PARAMS(STRUCTURE *psStruct, int x, int y))
 {
 //	QScriptValue structVal = context->argument(0);
 //	int id = structVal.property("id").toInt32();
 //	int player = structVal.property("player").toInt32();
-	STRUCTURE *psStruct = IdToStruct(structVal.id, structVal.player);
-	SCRIPT_ASSERT(false, context, psStruct, "No such structure id %d belonging to player %d", structVal.id, structVal.player);
+//	STRUCTURE *psStruct = IdToStruct(structVal.id, structVal.player);
+	SCRIPT_ASSERT(false, context, psStruct, "No structure provided");
 //	int x = context->argument(1).toInt32();
 //	int y = context->argument(2).toInt32();
 	SCRIPT_ASSERT(false, context, psStruct->pStructureType->type == REF_FACTORY
 	              || psStruct->pStructureType->type == REF_CYBORG_FACTORY
 	              || psStruct->pStructureType->type == REF_VTOL_FACTORY, "Structure not a factory");
-	setAssemblyPoint(((FACTORY *)psStruct->pFunctionality)->psAssemblyPoint, x, y, structVal.player, true);
+	setAssemblyPoint(((FACTORY *)psStruct->pFunctionality)->psAssemblyPoint, x, y, psStruct->player, true);
 	return true;
 }
 
