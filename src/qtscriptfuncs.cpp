@@ -1274,25 +1274,34 @@ bool writeLabels(const char *filename)
 //		};
 
 		template<>
-		struct unbox<const DROID*>
+		struct unbox<DROID*>
 		{
-			const DROID* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			DROID* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
 				QScriptValue droidVal = context->argument(idx++);
 				int id = droidVal.property("id").toInt32();
 				int player = droidVal.property("player").toInt32();
-				const DROID *psDroid = IdToDroid(id, player);
+				DROID *psDroid = IdToDroid(id, player);
 				UNBOX_SCRIPT_ASSERT(context, psDroid, "No such droid id %d belonging to player %d", id, player);
 				return psDroid;
 			}
 		};
 
 		template<>
-		struct unbox<const STRUCTURE*>
+		struct unbox<const DROID*>
 		{
-			const STRUCTURE* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			const DROID* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			{
+				return unbox<DROID*>()(idx, context, engine, function);
+			}
+		};
+
+		template<>
+		struct unbox<STRUCTURE*>
+		{
+			STRUCTURE* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1306,9 +1315,18 @@ bool writeLabels(const char *filename)
 		};
 
 		template<>
-		struct unbox<const BASE_OBJECT*>
+		struct unbox<const STRUCTURE*>
 		{
-			const BASE_OBJECT* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			const STRUCTURE* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			{
+				return unbox<STRUCTURE*>()(idx, context, engine, function);
+			}
+		};
+
+		template<>
+		struct unbox<BASE_OBJECT*>
+		{
+			BASE_OBJECT* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1322,6 +1340,14 @@ bool writeLabels(const char *filename)
 			}
 		};
 
+		template<>
+		struct unbox<const BASE_OBJECT*>
+		{
+			const BASE_OBJECT* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			{
+				return unbox<BASE_OBJECT*>()(idx, context, engine, function);
+			}
+		};
 
 		template<>
 		struct unbox<std::string>
@@ -1341,22 +1367,6 @@ bool writeLabels(const char *filename)
 //				stack_space = (char*)stack_space + strlen(tmp) + 1;
 //
 //				return result;
-			}
-		};
-
-		template<>
-		struct unbox<DROID*>
-		{
-			DROID* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
-			{
-				if (context->argumentCount() <= idx)
-					return {};
-				QScriptValue droidVal = context->argument(idx++);
-				int id = droidVal.property("id").toInt32();
-				int player = droidVal.property("player").toInt32();
-				DROID *psDroid = IdToDroid(id, player);
-				UNBOX_SCRIPT_ASSERT(context, psDroid, "No such droid id %d belonging to player %d", id, player);
-				return psDroid;
 			}
 		};
 
@@ -1753,7 +1763,7 @@ bool writeLabels(const char *filename)
 		MSVC_PRAGMA(warning( disable : 4189 )) // disable "warning C4189: 'idx': local variable is initialized but not referenced"
 		
 		template<typename R, typename...Args>
-		QScriptValue wrap__(R(*f)(const wzapi::execution_context&, Args...), const char *wrappedFunctionName, QScriptContext *context, QScriptEngine *engine)
+		QScriptValue wrap__(R(*f)(const wzapi::execution_context&, Args...), WZ_DECL_UNUSED const char *wrappedFunctionName, QScriptContext *context, QScriptEngine *engine)
 		{
 			//uint8_t stack_space[10000];
 			//void* stack_ptr = stack_space;

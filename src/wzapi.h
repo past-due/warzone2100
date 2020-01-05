@@ -122,7 +122,7 @@ namespace wzapi
 	no_return_value sendAllianceRequest(WZAPI_PARAMS(int player2));
 	bool orderDroid(WZAPI_PARAMS(DROID* psDroid, int order));
 	bool orderDroidBuild(WZAPI_PARAMS(DROID* psDroid, int order, std::string statName, int x, int y, optional<float> direction));
-	bool setAssemblyPoint(WZAPI_PARAMS(structure_id_player structVal, int x, int y));
+	bool setAssemblyPoint(WZAPI_PARAMS(STRUCTURE *psStruct, int x, int y));
 	bool setSunPosition(WZAPI_PARAMS(float x, float y, float z));
 	bool setSunIntensity(WZAPI_PARAMS(float ambient_r, float ambient_g, float ambient_b, float diffuse_r, float diffuse_g, float diffuse_b, float specular_r, float specular_g, float specular_b));
 	bool setWeather(WZAPI_PARAMS(int weather));
