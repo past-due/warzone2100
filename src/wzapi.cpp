@@ -916,12 +916,12 @@ wzapi::researchResults wzapi::enumResearch(WZAPI_NO_PARAMS)
 //-- returned; by default only visible objects are returned. Calling this function is much faster than
 //-- iterating over all game objects using other enum functions. (3.2+ only)
 //--
-std::vector<const BASE_OBJECT *> wzapi::enumRange(WZAPI_PARAMS(int x, int y, int range, optional<int> _filter, optional<bool> _seen))
+std::vector<const BASE_OBJECT *> wzapi::enumRange(WZAPI_PARAMS(int _x, int _y, int _range, optional<int> _filter, optional<bool> _seen))
 {
 	int player = context.player(); // engine->globalObject().property("me").toInt32();
-//	int x = world_coord(context->argument(0).toInt32());
-//	int y = world_coord(context->argument(1).toInt32());
-//	int range = world_coord(context->argument(2).toInt32());
+	int x = world_coord(_x);//context->argument(0).toInt32());
+	int y = world_coord(_y);//context->argument(1).toInt32());
+	int range = world_coord(_range);//context->argument(2).toInt32());
 	int filter = (_filter.has_value()) ? _filter.value() : ALL_PLAYERS;
 	bool seen = (_seen.has_value()) ? _seen.value() : true;
 //	if (context->argumentCount() > 3)
