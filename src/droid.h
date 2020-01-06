@@ -103,10 +103,10 @@ UDWORD calcDroidBaseSpeed(DROID_TEMPLATE *psTemplate, UDWORD weight, UBYTE playe
 UDWORD calcDroidSpeed(UDWORD baseSpeed, UDWORD terrainType, UDWORD propIndex, UDWORD level);
 
 /* Calculate the points required to build the template */
-UDWORD calcTemplateBuild(DROID_TEMPLATE *psTemplate);
+UDWORD calcTemplateBuild(const DROID_TEMPLATE *psTemplate);
 
 /* Calculate the power points required to build/maintain the droid */
-UDWORD calcTemplatePower(DROID_TEMPLATE *psTemplate);
+UDWORD calcTemplatePower(const DROID_TEMPLATE *psTemplate);
 
 // return whether a droid is IDF
 bool idfDroid(DROID *psDroid);

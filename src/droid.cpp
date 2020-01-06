@@ -1471,7 +1471,7 @@ static uint32_t calcBuild(T *obj)
 }
 
 /* Calculate the points required to build the template - used to calculate time*/
-UDWORD calcTemplateBuild(DROID_TEMPLATE *psTemplate)
+UDWORD calcTemplateBuild(const DROID_TEMPLATE *psTemplate)
 {
 	return calcBuild(psTemplate);
 }
@@ -1493,7 +1493,7 @@ static uint32_t calcPower(const T *obj)
 }
 
 /* Calculate the power points required to build/maintain a template */
-UDWORD calcTemplatePower(DROID_TEMPLATE *psTemplate)
+UDWORD calcTemplatePower(const DROID_TEMPLATE *psTemplate)
 {
 	return calcPower(psTemplate);
 }

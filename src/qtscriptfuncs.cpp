@@ -850,7 +850,7 @@ QScriptValue convObj(const BASE_OBJECT *psObj, QScriptEngine *engine)
 //;; * ```ecm``` The name of the ECM (electronic counter-measure) type.
 //;; * ```construct``` The name of the construction type.
 //;; * ```weapons``` An array of weapon names attached to this template.
-QScriptValue convTemplate(DROID_TEMPLATE *psTempl, QScriptEngine *engine)
+QScriptValue convTemplate(const DROID_TEMPLATE *psTempl, QScriptEngine *engine)
 {
 	QScriptValue value = engine->newObject();
 	ASSERT_OR_RETURN(value, psTempl, "No object for conversion");
@@ -1366,6 +1366,19 @@ bool writeLabels(const char *filename)
 			}
 		};
 
+		template<>
+		struct unbox<wzapi::reservedParam>
+		{
+			wzapi::reservedParam operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			{
+				if (context->argumentCount() <= idx)
+					return {};
+				// just ignore parameter value, and increment idx
+				idx++;
+				return {};
+			}
+		};
+
 
 //		template<>
 //		struct unbox<droid_id_player>
@@ -1499,6 +1512,22 @@ bool writeLabels(const char *filename)
 			}
 		};
 
+		template<typename ContainedType>
+		struct unbox<wzapi::va_list<ContainedType>>
+		{
+			wzapi::va_list<ContainedType> operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			{
+				if (context->argumentCount() <= idx)
+					return {};
+				wzapi::va_list<ContainedType> result;
+				for (; idx < context->argumentCount(); idx++)
+				{
+					result.va_list.push_back(unbox<ContainedType>()(idx, context, engine, function));
+				}
+				return result;
+			}
+		};
+
 		template<typename T>
 		QScriptValue box(T a, QScriptEngine*)
 		{
@@ -1585,6 +1614,11 @@ bool writeLabels(const char *filename)
 			return convFeature(psFeat, engine);
 		}
 
+		QScriptValue box(const DROID_TEMPLATE * psTemplate, QScriptEngine* engine)
+		{
+			return convTemplate(psTemplate, engine);
+		}
+
 		QScriptValue box(Position p, QScriptEngine* engine)
 		{
 			QScriptValue v = engine->newObject();
@@ -1642,6 +1676,19 @@ bool writeLabels(const char *filename)
 			{
 				return QScriptValue(); // "undefined" variable
 				//return QScriptValue::NullValue;
+			}
+		}
+
+		template<typename PtrType>
+		QScriptValue box(std::unique_ptr<PtrType> result, QScriptEngine* engine)
+		{
+			if (result)
+			{
+				return box(result.get(), engine);
+			}
+			else
+			{
+				return QScriptValue::NullValue;
 			}
 		}
 
@@ -2244,149 +2291,6 @@ static QScriptValue js_addFeature(QScriptContext *context, QScriptEngine *engine
 	return convFeature(psFeature, engine);
 }
 
-static int get_first_available_component(int player, int capacity, const QScriptValue &list, COMPONENT_TYPE type, bool strict)
-{
-	if (list.isArray())
-	{
-		int length = list.property("length").toInt32();
-		int k;
-		for (k = 0; k < length; k++)
-		{
-			QString compName = list.property(k).toString();
-			int result = getCompFromName(type, QStringToWzString(compName));
-			if (result >= 0)
-			{
-				int status = apCompLists[player][type][result];
-				if (((status == AVAILABLE || status == REDUNDANT) || !strict)
-					&& (type != COMP_BODY || asBodyStats[result].size <= capacity))
-				{
-					return result; // found one!
-				}
-			}
-			if (result < 0)
-			{
-				debug(LOG_ERROR, "No such component: %s", compName.toUtf8().constData());
-			}
-		}
-	}
-	else if (list.isString())
-	{
-		int result = getCompFromName(type, QStringToWzString(list.toString()));
-		if (result >= 0)
-		{
-			int status = apCompLists[player][type][result];
-			if (((status == AVAILABLE || status == REDUNDANT) || !strict)
-				&& (type != COMP_BODY || asBodyStats[result].size <= capacity))
-			{
-				return result; // found it!
-			}
-		}
-		if (result < 0)
-		{
-			debug(LOG_ERROR, "No such component: %s", list.toString().toUtf8().constData());
-		}
-	}
-	return -1; // no available component found in list
-}
-
-static DROID_TEMPLATE *makeTemplate(int player, const QString &templName, QScriptContext *context, int paramstart, int capacity, bool strict)
-{
-	const int firstTurret = paramstart + 4; // index position of first turret parameter
-	DROID_TEMPLATE *psTemplate = new DROID_TEMPLATE;
-	int numTurrets = context->argumentCount() - firstTurret; // anything beyond first six parameters, are turrets
-	int result;
-
-	memset(psTemplate->asParts, 0, sizeof(psTemplate->asParts)); // reset to defaults
-	memset(psTemplate->asWeaps, 0, sizeof(psTemplate->asWeaps));
-	int body = get_first_available_component(player, capacity, context->argument(paramstart), COMP_BODY, strict);
-	if (body < 0)
-	{
-		debug(LOG_SCRIPT, "Wanted to build %s but body types all unavailable",
-		      templName.toUtf8().constData());
-		delete psTemplate;
-		return nullptr; // no component available
-	}
-	int prop = get_first_available_component(player, capacity, context->argument(paramstart + 1), COMP_PROPULSION, strict);
-	if (prop < 0)
-	{
-		debug(LOG_SCRIPT, "Wanted to build %s but propulsion types all unavailable",
-		      templName.toUtf8().constData());
-		delete psTemplate;
-		return nullptr; // no component available
-	}
-	psTemplate->asParts[COMP_BODY] = body;
-	psTemplate->asParts[COMP_PROPULSION] = prop;
-
-	psTemplate->numWeaps = 0;
-	numTurrets = MIN(numTurrets, asBodyStats[body].weaponSlots); // Restrict max no. turrets
-	if (asBodyStats[body].droidTypeOverride != DROID_ANY)
-	{
-		psTemplate->droidType = asBodyStats[body].droidTypeOverride; // set droidType based on body
-	}
-	// Find first turret component type (assume every component in list is same type)
-	QString compName;
-	if (context->argument(firstTurret).isArray())
-	{
-		compName = context->argument(firstTurret).property(0).toString();
-	}
-	else // must be string
-	{
-		compName = context->argument(firstTurret).toString();
-	}
-	COMPONENT_STATS *psComp = getCompStatsFromName(WzString::fromUtf8(compName.toUtf8().constData()));
-	if (psComp == nullptr)
-	{
-		debug(LOG_ERROR, "Wanted to build %s but %s does not exist", templName.toUtf8().constData(), compName.toUtf8().constData());
-		delete psTemplate;
-		return nullptr;
-	}
-	if (psComp->droidTypeOverride != DROID_ANY)
-	{
-		psTemplate->droidType = psComp->droidTypeOverride; // set droidType based on component
-	}
-	if (psComp->compType == COMP_WEAPON)
-	{
-		for (int i = 0; i < numTurrets; i++) // may be multi-weapon
-		{
-			result = get_first_available_component(player, SIZE_NUM, context->argument(firstTurret + i), COMP_WEAPON, strict);
-			if (result < 0)
-			{
-				debug(LOG_SCRIPT, "Wanted to build %s but no weapon available", templName.toUtf8().constData());
-				delete psTemplate;
-				return nullptr;
-			}
-			psTemplate->asWeaps[i] = result;
-			psTemplate->numWeaps++;
-		}
-	}
-	else
-	{
-		if (psComp->compType == COMP_BRAIN)
-		{
-			psTemplate->numWeaps = 1; // hack, necessary to pass intValidTemplate
-		}
-		result = get_first_available_component(player, SIZE_NUM, context->argument(firstTurret), psComp->compType, strict);
-		if (result < 0)
-		{
-			debug(LOG_SCRIPT, "Wanted to build %s but turret unavailable", templName.toUtf8().constData());
-			delete psTemplate;
-			return nullptr;
-		}
-		psTemplate->asParts[psComp->compType] = result;
-	}
-	bool valid = intValidTemplate(psTemplate, templName.toUtf8().constData(), true, player);
-	if (valid)
-	{
-		return psTemplate;
-	}
-	else
-	{
-		delete psTemplate;
-		debug(LOG_ERROR, "Invalid template %s", templName.toUtf8().constData());
-		return nullptr;
-	}
-}
-
 //-- ## addDroid(player, x, y, name, body, propulsion, reserved, reserved, turrets...)
 //--
 //-- Create and place a droid at the given x, y position as belonging to the given player, built with
@@ -2397,49 +2301,7 @@ static DROID_TEMPLATE *makeTemplate(int player, const QString &templName, QScrip
 //--
 static QScriptValue js_addDroid(QScriptContext *context, QScriptEngine *engine)
 {
-	int player = context->argument(0).toInt32();
-	SCRIPT_ASSERT_PLAYER(context, player);
-	int x = context->argument(1).toInt32();
-	int y = context->argument(2).toInt32();
-	QString templName = context->argument(3).toString();
-	bool onMission = (x == -1) && (y == -1);
-	SCRIPT_ASSERT(context, (onMission || (x >= 0 && y >= 0)), "Invalid coordinates (%d, %d) for droid", x, y);
-	DROID_TEMPLATE *psTemplate = makeTemplate(player, templName, context, 4, SIZE_NUM, false);
-	if (psTemplate)
-	{
-		DROID *psDroid = nullptr;
-		bool oldMulti = bMultiMessages;
-		bMultiMessages = false; // ugh, fixme
-		if (onMission)
-		{
-			psDroid = buildMissionDroid(psTemplate, 128, 128, player);
-			if (psDroid)
-			{
-				debug(LOG_LIFE, "Created mission-list droid %s by script for player %d: %u", objInfo(psDroid), player, psDroid->id);
-			}
-			else
-			{
-				debug(LOG_ERROR, "Invalid droid %s", templName.toUtf8().constData());
-			}
-		}
-		else
-		{
-			psDroid = buildDroid(psTemplate, world_coord(x) + TILE_UNITS / 2, world_coord(y) + TILE_UNITS / 2, player, onMission, nullptr);
-			if (psDroid)
-			{
-				addDroid(psDroid, apsDroidLists);
-				debug(LOG_LIFE, "Created droid %s by script for player %d: %u", objInfo(psDroid), player, psDroid->id);
-			}
-			else
-			{
-				debug(LOG_ERROR, "Invalid droid %s", templName.toUtf8().constData());
-			}
-		}
-		bMultiMessages = oldMulti; // ugh
-		delete psTemplate;
-		return psDroid ? QScriptValue(convDroid(psDroid, engine)) : QScriptValue::NullValue;
-	}
-	return QScriptValue::NullValue;
+	return wrap_(wzapi::addDroid, context, engine);
 }
 
 //-- ## addDroidToTransporter(transporter, droid)
@@ -2476,16 +2338,7 @@ static QScriptValue js_addDroidToTransporter(QScriptContext *context, QScriptEng
 //--
 static QScriptValue js_makeTemplate(QScriptContext *context, QScriptEngine *engine)
 {
-	int player = context->argument(0).toInt32();
-	QString templName = context->argument(1).toString();
-	DROID_TEMPLATE *psTemplate = makeTemplate(player, templName, context, 2, SIZE_NUM, true);
-	if (!psTemplate)
-	{
-		return QScriptValue::NullValue;
-	}
-	QScriptValue retval = convTemplate(psTemplate, engine);
-	delete psTemplate;
-	return QScriptValue(retval);
+	return wrap_(wzapi::makeTemplate, context, engine);
 }
 
 //-- ## buildDroid(factory, name, body, propulsion, reserved, reserved, turrets...)
@@ -2499,42 +2352,7 @@ static QScriptValue js_makeTemplate(QScriptContext *context, QScriptEngine *engi
 //--
 static QScriptValue js_buildDroid(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue structVal = context->argument(0);
-	int id = structVal.property("id").toInt32();
-	int player = structVal.property("player").toInt32();
-	STRUCTURE *psStruct = IdToStruct(id, player);
-	SCRIPT_ASSERT(context, psStruct, "No such structure id %d belonging to player %d", id, player);
-	SCRIPT_ASSERT(context, (psStruct->pStructureType->type == REF_FACTORY || psStruct->pStructureType->type == REF_CYBORG_FACTORY
-	                        || psStruct->pStructureType->type == REF_VTOL_FACTORY), "Structure %s is not a factory", objInfo(psStruct));
-	QString templName = context->argument(1).toString();
-	const int capacity = psStruct->capacity; // body size limit
-	DROID_TEMPLATE *psTemplate = makeTemplate(player, templName, context, 2, capacity, true);
-	if (psTemplate)
-	{
-		SCRIPT_ASSERT(context, validTemplateForFactory(psTemplate, psStruct, true),
-		              "Invalid template %s for factory %s",
-		              getName(psTemplate), getName(psStruct->pStructureType));
-		// Delete similar template from existing list before adding this one
-		for (auto t : apsTemplateList)
-		{
-			if (t->name.compare(psTemplate->name) == 0)
-			{
-				debug(LOG_SCRIPT, "deleting %s for player %d", getName(t), player);
-				deleteTemplateFromProduction(t, player, ModeQueue); // duplicate? done below?
-				break;
-			}
-		}
-		// Add to list
-		debug(LOG_SCRIPT, "adding template %s for player %d", getName(psTemplate), player);
-		psTemplate->multiPlayerID = generateNewObjectId();
-		addTemplate(player, psTemplate);
-		if (!structSetManufacture(psStruct, psTemplate, ModeQueue))
-		{
-			debug(LOG_ERROR, "Could not produce template %s in %s", getName(psTemplate), objInfo(psStruct));
-			return QScriptValue(false);
-		}
-	}
-	return QScriptValue(psTemplate != nullptr);
+	return wrap_(wzapi::buildDroid, context, engine);
 }
 
 //-- ## enumStruct([player[, structure type[, looking player]]])
@@ -2861,17 +2679,9 @@ static QScriptValue js_groupSize(QScriptContext *context, QScriptEngine *engine)
 //-- Return whether or not the given droid could possibly drive to the given position. Does
 //-- not take player built blockades into account.
 //--
-static QScriptValue js_droidCanReach(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_droidCanReach(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue droidVal = context->argument(0);
-	int id = droidVal.property("id").toInt32();
-	int player = droidVal.property("player").toInt32();
-	int x = context->argument(1).toInt32();
-	int y = context->argument(2).toInt32();
-	DROID *psDroid = IdToDroid(id, player);
-	SCRIPT_ASSERT(context, psDroid, "Droid id %d not found belonging to player %d", id, player);
-	const PROPULSION_STATS *psPropStats = asPropulsionStats + psDroid->asBits[COMP_PROPULSION];
-	return QScriptValue(fpathCheck(psDroid->pos, Vector3i(world_coord(x), world_coord(y), 0), psPropStats->propulsionType));
+	return wrap_(wzapi::droidCanReach, context, engine);
 }
 
 //-- ## propulsionCanReach(propulsion, x1, y1, x2, y2)
@@ -2879,17 +2689,9 @@ static QScriptValue js_droidCanReach(QScriptContext *context, QScriptEngine *)
 //-- Return true if a droid with a given propulsion is able to travel from (x1, y1) to (x2, y2).
 //-- Does not take player built blockades into account. (3.2+ only)
 //--
-static QScriptValue js_propulsionCanReach(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_propulsionCanReach(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue propulsionValue = context->argument(0);
-	int propulsion = getCompFromName(COMP_PROPULSION, QStringToWzString(propulsionValue.toString()));
-	SCRIPT_ASSERT(context, propulsion > 0, "No such propulsion: %s", propulsionValue.toString().toUtf8().constData());
-	int x1 = context->argument(1).toInt32();
-	int y1 = context->argument(2).toInt32();
-	int x2 = context->argument(3).toInt32();
-	int y2 = context->argument(4).toInt32();
-	const PROPULSION_STATS *psPropStats = asPropulsionStats + propulsion;
-	return QScriptValue(fpathCheck(Vector3i(world_coord(x1), world_coord(y1), 0), Vector3i(world_coord(x2), world_coord(y2), 0), psPropStats->propulsionType));
+	return wrap_(wzapi::propulsionCanReach, context, engine);
 }
 
 //-- ## terrainType(x, y)
@@ -2897,11 +2699,9 @@ static QScriptValue js_propulsionCanReach(QScriptContext *context, QScriptEngine
 //-- Returns tile type of a given map tile, such as TER_WATER for water tiles or TER_CLIFFFACE for cliffs.
 //-- Tile types regulate which units may pass through this tile. (3.2+ only)
 //--
-static QScriptValue js_terrainType(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_terrainType(QScriptContext *context, QScriptEngine *engine)
 {
-	int x = context->argument(0).toInt32();
-	int y = context->argument(1).toInt32();
-	return QScriptValue(terrainType(mapTile(x, y)));
+	return wrap_(wzapi::terrainType, context, engine);
 }
 
 //-- ## orderDroid(droid, order)
@@ -2948,28 +2748,9 @@ static QScriptValue js_orderDroid(QScriptContext *context, QScriptEngine *engine
 //--
 //-- Give a droid an order to do something to something.
 //--
-static QScriptValue js_orderDroidObj(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_orderDroidObj(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue droidVal = context->argument(0);
-	int id = droidVal.property("id").toInt32();
-	int player = droidVal.property("player").toInt32();
-	DROID *psDroid = IdToDroid(id, player);
-	SCRIPT_ASSERT(context, psDroid, "Droid id %d not found belonging to player %d", id, player);
-	DROID_ORDER order = (DROID_ORDER)context->argument(1).toInt32();
-	QScriptValue objVal = context->argument(2);
-	int oid = objVal.property("id").toInt32();
-	int oplayer = objVal.property("player").toInt32();
-	OBJECT_TYPE otype = (OBJECT_TYPE)objVal.property("type").toInt32();
-	BASE_OBJECT *psObj = IdToObject(otype, oid, oplayer);
-	SCRIPT_ASSERT(context, psObj, "Object id %d not found belonging to player %d", oid, oplayer);
-	SCRIPT_ASSERT(context, validOrderForObj(order), "Invalid order: %s", getDroidOrderName(order));
-	DROID_ORDER_DATA *droidOrder = &psDroid->order;
-	if (droidOrder->type == order && psDroid->order.psObj == psObj)
-	{
-		return QScriptValue(true);
-	}
-	orderDroidObj(psDroid, order, psObj, ModeQueue);
-	return QScriptValue(true);
+	return wrap_(wzapi::orderDroidObj, context, engine);
 }
 
 //-- ## orderDroidBuild(droid, order, structure type, x, y[, direction])
@@ -6258,7 +6039,7 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 	engine->globalObject().setProperty("enumLabels", engine->newFunction(js_enumLabels));
 	engine->globalObject().setProperty("enumGateways", engine->newFunction(js_enumGateways));
 	engine->globalObject().setProperty("enumTemplates", engine->newFunction(js_enumTemplates));
-	engine->globalObject().setProperty("makeTemplate", engine->newFunction(js_makeTemplate));
+	engine->globalObject().setProperty("makeTemplate", engine->newFunction(js_makeTemplate)); // WZAPI
 	engine->globalObject().setProperty("setAlliance", engine->newFunction(js_setAlliance)); // WZAPI
 	engine->globalObject().setProperty("sendAllianceRequest", engine->newFunction(js_sendAllianceRequest)); // WZAPI
 	engine->globalObject().setProperty("setAssemblyPoint", engine->newFunction(js_setAssemblyPoint)); // WZAPI
@@ -6330,14 +6111,14 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 	engine->globalObject().setProperty("queuedPower", engine->newFunction(js_queuedPower)); // WZAPI
 	engine->globalObject().setProperty("isStructureAvailable", engine->newFunction(js_isStructureAvailable)); // WZAPI
 	engine->globalObject().setProperty("pickStructLocation", engine->newFunction(js_pickStructLocation)); // WZAPI
-	engine->globalObject().setProperty("droidCanReach", engine->newFunction(js_droidCanReach));
-	engine->globalObject().setProperty("propulsionCanReach", engine->newFunction(js_propulsionCanReach));
-	engine->globalObject().setProperty("terrainType", engine->newFunction(js_terrainType));
+	engine->globalObject().setProperty("droidCanReach", engine->newFunction(js_droidCanReach)); // WZAPI
+	engine->globalObject().setProperty("propulsionCanReach", engine->newFunction(js_propulsionCanReach)); // WZAPI
+	engine->globalObject().setProperty("terrainType", engine->newFunction(js_terrainType)); // WZAPI
 	engine->globalObject().setProperty("orderDroidBuild", engine->newFunction(js_orderDroidBuild)); // WZAPI
-	engine->globalObject().setProperty("orderDroidObj", engine->newFunction(js_orderDroidObj));
+	engine->globalObject().setProperty("orderDroidObj", engine->newFunction(js_orderDroidObj)); // WZAPI
 	engine->globalObject().setProperty("orderDroid", engine->newFunction(js_orderDroid)); // WZAPI
-	engine->globalObject().setProperty("buildDroid", engine->newFunction(js_buildDroid));
-	engine->globalObject().setProperty("addDroid", engine->newFunction(js_addDroid));
+	engine->globalObject().setProperty("buildDroid", engine->newFunction(js_buildDroid)); // WZAPI
+	engine->globalObject().setProperty("addDroid", engine->newFunction(js_addDroid)); // WZAPI
 	engine->globalObject().setProperty("addDroidToTransporter", engine->newFunction(js_addDroidToTransporter));
 	engine->globalObject().setProperty("addFeature", engine->newFunction(js_addFeature));
 	engine->globalObject().setProperty("componentAvailable", engine->newFunction(js_componentAvailable));
