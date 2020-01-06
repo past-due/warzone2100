@@ -1380,20 +1380,21 @@ bool writeLabels(const char *filename)
 		};
 
 
-//		template<>
-//		struct unbox<droid_id_player>
-//		{
-//			droid_id_player operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, void*& stack_space)
-//			{
-//				if (context->argumentCount() < idx)
-//					return {};
-//				QScriptValue droidVal = context->argument(idx--);
-//				int id = droidVal.property("id").toInt32();
-//				int player = droidVal.property("player").toInt32();
-//				return { id, player };
-//			}
-//		};
-//
+		template<>
+		struct unbox<wzapi::droid_id_player>
+		{
+			wzapi::droid_id_player operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function) //void*& stack_space)
+			{
+				if (context->argumentCount() < idx)
+					return {};
+				QScriptValue droidVal = context->argument(idx++);
+				wzapi::droid_id_player result;
+				result.id = droidVal.property("id").toInt32();
+				result.player = droidVal.property("player").toInt32();
+				return result;
+			}
+		};
+
 		template<>
 		struct unbox<wzapi::object_id_player_type>
 		{
@@ -1596,26 +1597,46 @@ bool writeLabels(const char *filename)
 
 		QScriptValue box(const BASE_OBJECT * psObj, QScriptEngine* engine)
 		{
+			if (!psObj)
+			{
+				return QScriptValue::NullValue;
+			}
 			return convMax(psObj, engine);
 		}
 
 		QScriptValue box(const STRUCTURE * psStruct, QScriptEngine* engine)
 		{
+			if (!psStruct)
+			{
+				return QScriptValue::NullValue;
+			}
 			return convStructure(psStruct, engine);
 		}
 
 		QScriptValue box(const DROID * psDroid, QScriptEngine* engine)
 		{
+			if (!psDroid)
+			{
+				return QScriptValue::NullValue;
+			}
 			return convDroid(psDroid, engine);
 		}
 
 		QScriptValue box(const FEATURE * psFeat, QScriptEngine* engine)
 		{
+			if (!psFeat)
+			{
+				return QScriptValue::NullValue;
+			}
 			return convFeature(psFeat, engine);
 		}
 
 		QScriptValue box(const DROID_TEMPLATE * psTemplate, QScriptEngine* engine)
 		{
+			if (!psTemplate)
+			{
+				return QScriptValue::NullValue;
+			}
 			return convTemplate(psTemplate, engine);
 		}
 
@@ -2262,12 +2283,7 @@ static QScriptValue js_enumResearch(QScriptContext *context, QScriptEngine *engi
 //--
 static QScriptValue js_componentAvailable(QScriptContext *context, QScriptEngine *engine)
 {
-	int player = engine->globalObject().property("me").toInt32();
-	QString id = (context->argumentCount() == 1) ? context->argument(0).toString() : context->argument(1).toString();
-	COMPONENT_STATS *psComp = getCompStatsFromName(WzString::fromUtf8(id.toUtf8().constData()));
-	SCRIPT_ASSERT(context, psComp, "No such component: %s", id.toUtf8().constData());
-	int status = apCompLists[player][psComp->compType][psComp->index];
-	return QScriptValue(status == AVAILABLE || status == REDUNDANT);
+	return wrap_(wzapi::componentAvailable, context, engine);
 }
 
 //-- ## addFeature(name, x, y)
@@ -2277,18 +2293,7 @@ static QScriptValue js_componentAvailable(QScriptContext *context, QScriptEngine
 //--
 static QScriptValue js_addFeature(QScriptContext *context, QScriptEngine *engine)
 {
-	QString featName = context->argument(0).toString();
-	int x = context->argument(1).toInt32();
-	int y = context->argument(2).toInt32();
-	int feature = getFeatureStatFromName(QStringToWzString(featName));
-	FEATURE_STATS *psStats = &asFeatureStats[feature];
-	for (FEATURE *psFeat = apsFeatureLists[0]; psFeat; psFeat = psFeat->psNext)
-	{
-		SCRIPT_ASSERT(context, map_coord(psFeat->pos.x) != x || map_coord(psFeat->pos.y) != y,
-		              "Building feature on tile already occupied");
-	}
-	FEATURE *psFeature = buildFeature(psStats, world_coord(x), world_coord(y), false);
-	return convFeature(psFeature, engine);
+	return wrap_(wzapi::addFeature, context, engine);
 }
 
 //-- ## addDroid(player, x, y, name, body, propulsion, reserved, reserved, turrets...)
@@ -2312,22 +2317,7 @@ static QScriptValue js_addDroid(QScriptContext *context, QScriptEngine *engine)
 //--
 static QScriptValue js_addDroidToTransporter(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue transporterVal = context->argument(0);
-	int transporterId = transporterVal.property("id").toInt32();
-	int transporterPlayer = transporterVal.property("player").toInt32();
-	DROID *psTransporter = IdToMissionDroid(transporterId, transporterPlayer);
-	SCRIPT_ASSERT(context, psTransporter, "No such transporter id %d belonging to player %d", transporterId, transporterPlayer);
-	SCRIPT_ASSERT(context, isTransporter(psTransporter), "Droid id %d belonging to player %d is not a transporter", transporterId, transporterPlayer);
-	QScriptValue droidVal = context->argument(1);
-	int droidId = droidVal.property("id").toInt32();
-	int droidPlayer = droidVal.property("player").toInt32();
-	DROID *psDroid = IdToMissionDroid(droidId, droidPlayer);
-	SCRIPT_ASSERT(context, psDroid, "No such droid id %d belonging to player %d", droidId, droidPlayer);
-	SCRIPT_ASSERT(context, checkTransporterSpace(psTransporter, psDroid), "Not enough room in transporter %d for droid %d", transporterId, droidId);
-	bool removeSuccessful = droidRemove(psDroid, mission.apsDroidLists);
-	SCRIPT_ASSERT(context, removeSuccessful, "Could not remove droid id %d from mission list", droidId);
-	psTransporter->psGroup->add(psDroid);
-	return QScriptValue();
+	return wrap_(wzapi::addDroidToTransporter, context, engine);
 }
 
 //-- ## makeTemplate(player, name, body, propulsion, reserved, turrets...)
@@ -3599,12 +3589,7 @@ static QScriptValue js_isStructureAvailable(QScriptContext *context, QScriptEngi
 //--
 static QScriptValue js_isVTOL(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue droidVal = context->argument(0);
-	int id = droidVal.property("id").toInt32();
-	int player = droidVal.property("player").toInt32();
-	DROID *psDroid = IdToDroid(id, player);
-	SCRIPT_ASSERT(context, psDroid, "No such droid id %d belonging to player %d", id, player);
-	return QScriptValue(isVtolDroid(psDroid));
+	return wrap_(wzapi::isVTOL, context, engine);
 }
 
 //-- ## hackGetObj(type, player, id)
@@ -3780,12 +3765,7 @@ static QScriptValue js_donatePower(QScriptContext *context, QScriptEngine *engin
 //--
 static QScriptValue js_safeDest(QScriptContext *context, QScriptEngine *engine)
 {
-	int player = context->argument(0).toInt32();
-	SCRIPT_ASSERT_PLAYER(context, player);
-	int x = context->argument(1).toInt32();
-	int y = context->argument(2).toInt32();
-	SCRIPT_ASSERT(context, tileOnMap(x, y), "Out of bounds coordinates(%d, %d)", x, y);
-	return QScriptValue(!(auxTile(x, y, player) & AUXBITS_DANGER));
+	return wrap_(wzapi::safeDest, context, engine);
 }
 
 //-- ## addStructure(structure id, player, x, y)
@@ -6119,11 +6099,11 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 	engine->globalObject().setProperty("orderDroid", engine->newFunction(js_orderDroid)); // WZAPI
 	engine->globalObject().setProperty("buildDroid", engine->newFunction(js_buildDroid)); // WZAPI
 	engine->globalObject().setProperty("addDroid", engine->newFunction(js_addDroid)); // WZAPI
-	engine->globalObject().setProperty("addDroidToTransporter", engine->newFunction(js_addDroidToTransporter));
-	engine->globalObject().setProperty("addFeature", engine->newFunction(js_addFeature));
-	engine->globalObject().setProperty("componentAvailable", engine->newFunction(js_componentAvailable));
-	engine->globalObject().setProperty("isVTOL", engine->newFunction(js_isVTOL));
-	engine->globalObject().setProperty("safeDest", engine->newFunction(js_safeDest));
+	engine->globalObject().setProperty("addDroidToTransporter", engine->newFunction(js_addDroidToTransporter)); // WZAPI
+	engine->globalObject().setProperty("addFeature", engine->newFunction(js_addFeature)); // WZAPI
+	engine->globalObject().setProperty("componentAvailable", engine->newFunction(js_componentAvailable)); // WZAPI
+	engine->globalObject().setProperty("isVTOL", engine->newFunction(js_isVTOL)); // WZAPI
+	engine->globalObject().setProperty("safeDest", engine->newFunction(js_safeDest)); // WZAPI
 	engine->globalObject().setProperty("activateStructure", engine->newFunction(js_activateStructure));
 	engine->globalObject().setProperty("chat", engine->newFunction(js_chat));
 	engine->globalObject().setProperty("addBeacon", engine->newFunction(js_addBeacon));

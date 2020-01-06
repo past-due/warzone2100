@@ -135,6 +135,9 @@ namespace wzapi
 		int32_t y;
 	};
 
+	#define MULTIPLAY_SYNCREQUEST_REQUIRED
+	#define MUTLIPLAY_UNSAFE
+
 	std::string translate(WZAPI_PARAMS(std::string str));
 	int32_t syncRandom(WZAPI_PARAMS(uint32_t limit));
 	bool setAlliance(WZAPI_PARAMS(int player1, int player2, bool value));
@@ -154,7 +157,7 @@ namespace wzapi
 	bool syncRequest(WZAPI_PARAMS(int32_t req_id, int32_t x, int32_t y, optional<const BASE_OBJECT *> _psObj, optional<const BASE_OBJECT *> _psObj2));
 	bool replaceTexture(WZAPI_PARAMS(std::string oldfile, std::string newfile));
 	bool changePlayerColour(WZAPI_PARAMS(int player, int colour));
-	bool setHealth(WZAPI_PARAMS(object_id_player_type objVal, int health));
+	bool setHealth(WZAPI_PARAMS(object_id_player_type objVal, int health)); MULTIPLAY_SYNCREQUEST_REQUIRED
 	bool useSafetyTransport(WZAPI_PARAMS(bool flag));
 	bool restoreLimboMissionData(WZAPI_NO_PARAMS);
 	uint32_t getMultiTechLevel(WZAPI_NO_PARAMS);
@@ -189,8 +192,13 @@ namespace wzapi
 	int terrainType(WZAPI_PARAMS(int x, int y));
 	bool orderDroidObj(WZAPI_PARAMS(DROID *psDroid, int _order, BASE_OBJECT *psObj));
 	bool buildDroid(WZAPI_PARAMS(STRUCTURE *psFactory, std::string templName, string_or_string_list body, string_or_string_list propulsion, reservedParam reserved1, reservedParam reserved2, va_list<string_or_string_list> turrets));
-	const DROID* addDroid(WZAPI_PARAMS(int player, int x, int y, std::string templName, string_or_string_list body, string_or_string_list propulsion, reservedParam reserved1, reservedParam reserved2, va_list<string_or_string_list> turrets));
+	const DROID* addDroid(WZAPI_PARAMS(int player, int x, int y, std::string templName, string_or_string_list body, string_or_string_list propulsion, reservedParam reserved1, reservedParam reserved2, va_list<string_or_string_list> turrets)); MUTLIPLAY_UNSAFE
 	std::unique_ptr<const DROID_TEMPLATE> makeTemplate(WZAPI_PARAMS(int player, std::string templName, string_or_string_list body, string_or_string_list propulsion, reservedParam reserved1, va_list<string_or_string_list> turrets));
+	bool addDroidToTransporter(WZAPI_PARAMS(droid_id_player transporter, droid_id_player droid));
+	const FEATURE * addFeature(WZAPI_PARAMS(std::string featName, int x, int y)) MUTLIPLAY_UNSAFE;
+	bool componentAvailable(WZAPI_PARAMS(std::string arg1, optional<std::string> arg2));
+	bool isVTOL(WZAPI_PARAMS(const DROID *psDroid));
+	bool safeDest(WZAPI_PARAMS(int player, int x, int y));
 }
 
 #endif
