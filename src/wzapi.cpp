@@ -1351,3 +1351,305 @@ endstructloc:
 	}
 	return {};
 }
+
+//-- ## droidCanReach(droid, x, y)
+//--
+//-- Return whether or not the given droid could possibly drive to the given position. Does
+//-- not take player built blockades into account.
+//--
+bool wzapi::droidCanReach(WZAPI_PARAMS(const DROID *psDroid, int x, int y))
+{
+//	QScriptValue droidVal = context->argument(0);
+//	int id = droidVal.property("id").toInt32();
+//	int player = droidVal.property("player").toInt32();
+//	int x = context->argument(1).toInt32();
+//	int y = context->argument(2).toInt32();
+//	DROID *psDroid = IdToDroid(id, player);
+	SCRIPT_ASSERT(false, context, psDroid, "Droid not provided");
+	const PROPULSION_STATS *psPropStats = asPropulsionStats + psDroid->asBits[COMP_PROPULSION];
+	return fpathCheck(psDroid->pos, Vector3i(world_coord(x), world_coord(y), 0), psPropStats->propulsionType);
+}
+
+//-- ## propulsionCanReach(propulsion, x1, y1, x2, y2)
+//--
+//-- Return true if a droid with a given propulsion is able to travel from (x1, y1) to (x2, y2).
+//-- Does not take player built blockades into account. (3.2+ only)
+//--
+bool wzapi::propulsionCanReach(WZAPI_PARAMS(std::string propulsionName, int x1, int y1, int x2, int y2))
+{
+//	QScriptValue propulsionValue = context->argument(0);
+	int propulsion = getCompFromName(COMP_PROPULSION, WzString::fromUtf8(propulsionName));
+	SCRIPT_ASSERT(false, context, propulsion > 0, "No such propulsion: %s", propulsionName.c_str());
+	const PROPULSION_STATS *psPropStats = asPropulsionStats + propulsion;
+	return fpathCheck(Vector3i(world_coord(x1), world_coord(y1), 0), Vector3i(world_coord(x2), world_coord(y2), 0), psPropStats->propulsionType);
+}
+
+//-- ## terrainType(x, y)
+//--
+//-- Returns tile type of a given map tile, such as TER_WATER for water tiles or TER_CLIFFFACE for cliffs.
+//-- Tile types regulate which units may pass through this tile. (3.2+ only)
+//--
+int wzapi::terrainType(WZAPI_PARAMS(int x, int y))
+{
+	return ::terrainType(mapTile(x, y));
+}
+
+//-- ## orderDroidObj(droid, order, object)
+//--
+//-- Give a droid an order to do something to something.
+//--
+bool wzapi::orderDroidObj(WZAPI_PARAMS(DROID *psDroid, int _order, BASE_OBJECT *psObj))
+{
+//	QScriptValue droidVal = context->argument(0);
+//	int id = droidVal.property("id").toInt32();
+//	int player = droidVal.property("player").toInt32();
+//	DROID *psDroid = IdToDroid(id, player);
+	SCRIPT_ASSERT(false, context, psDroid, "Droid not provided");
+	DROID_ORDER order = (DROID_ORDER)_order; //context->argument(1).toInt32();
+//	QScriptValue objVal = context->argument(2);
+//	int oid = objVal.property("id").toInt32();
+//	int oplayer = objVal.property("player").toInt32();
+//	OBJECT_TYPE otype = (OBJECT_TYPE)objVal.property("type").toInt32();
+//	BASE_OBJECT *psObj = IdToObject(otype, oid, oplayer);
+	SCRIPT_ASSERT(false, context, psObj, "Object not provided");
+	SCRIPT_ASSERT(false, context, validOrderForObj(order), "Invalid order: %s", getDroidOrderName(order));
+	DROID_ORDER_DATA *droidOrder = &psDroid->order;
+	if (droidOrder->type == order && psDroid->order.psObj == psObj)
+	{
+		return true;
+	}
+	orderDroidObj(psDroid, order, psObj, ModeQueue);
+	return true;
+}
+
+static int get_first_available_component(int player, int capacity, const wzapi::string_or_string_list& list, COMPONENT_TYPE type, bool strict)
+{
+	for (const auto& compName : list.strings)
+	{
+		int result = getCompFromName(type, WzString::fromUtf8(compName));
+		if (result >= 0)
+		{
+			int status = apCompLists[player][type][result];
+			if (((status == AVAILABLE || status == REDUNDANT) || !strict)
+				&& (type != COMP_BODY || asBodyStats[result].size <= capacity))
+			{
+				return result; // found one!
+			}
+		}
+		if (result < 0)
+		{
+			debug(LOG_ERROR, "No such component: %s", compName.c_str());
+		}
+	}
+	return -1; // no available component found in list
+}
+
+static DROID_TEMPLATE *makeTemplate(int player, const std::string &templName, const wzapi::string_or_string_list& _body, const wzapi::string_or_string_list& _propulsion, const wzapi::va_list<wzapi::string_or_string_list>& _turrets, int capacity, bool strict)
+{
+//	const int firstTurret = paramstart + 4; // index position of first turret parameter
+	DROID_TEMPLATE *psTemplate = new DROID_TEMPLATE;
+	int numTurrets = _turrets.va_list.size(); // anything beyond first six parameters, are turrets
+	int result;
+
+	memset(psTemplate->asParts, 0, sizeof(psTemplate->asParts)); // reset to defaults
+	memset(psTemplate->asWeaps, 0, sizeof(psTemplate->asWeaps));
+	int body = get_first_available_component(player, capacity, _body, COMP_BODY, strict);
+	if (body < 0)
+	{
+		debug(LOG_SCRIPT, "Wanted to build %s but body types all unavailable",
+		      templName.c_str());
+		delete psTemplate;
+		return nullptr; // no component available
+	}
+	int prop = get_first_available_component(player, capacity, _propulsion, COMP_PROPULSION, strict);
+	if (prop < 0)
+	{
+		debug(LOG_SCRIPT, "Wanted to build %s but propulsion types all unavailable",
+		      templName.c_str());
+		delete psTemplate;
+		return nullptr; // no component available
+	}
+	psTemplate->asParts[COMP_BODY] = body;
+	psTemplate->asParts[COMP_PROPULSION] = prop;
+
+	psTemplate->numWeaps = 0;
+	numTurrets = MIN(numTurrets, asBodyStats[body].weaponSlots); // Restrict max no. turrets
+	if (asBodyStats[body].droidTypeOverride != DROID_ANY)
+	{
+		psTemplate->droidType = asBodyStats[body].droidTypeOverride; // set droidType based on body
+	}
+	// Find first turret component type (assume every component in list is same type)
+	std::string compName = _turrets.va_list[0].strings[0];
+	COMPONENT_STATS *psComp = getCompStatsFromName(WzString::fromUtf8(compName.c_str()));
+	if (psComp == nullptr)
+	{
+		debug(LOG_ERROR, "Wanted to build %s but %s does not exist", templName.c_str(), compName.c_str());
+		delete psTemplate;
+		return nullptr;
+	}
+	if (psComp->droidTypeOverride != DROID_ANY)
+	{
+		psTemplate->droidType = psComp->droidTypeOverride; // set droidType based on component
+	}
+	if (psComp->compType == COMP_WEAPON)
+	{
+		for (int i = 0; i < numTurrets; i++) // may be multi-weapon
+		{
+			result = get_first_available_component(player, SIZE_NUM, _turrets.va_list[i], COMP_WEAPON, strict);
+			if (result < 0)
+			{
+				debug(LOG_SCRIPT, "Wanted to build %s but no weapon available", templName.c_str());
+				delete psTemplate;
+				return nullptr;
+			}
+			psTemplate->asWeaps[i] = result;
+			psTemplate->numWeaps++;
+		}
+	}
+	else
+	{
+		if (psComp->compType == COMP_BRAIN)
+		{
+			psTemplate->numWeaps = 1; // hack, necessary to pass intValidTemplate
+		}
+		result = get_first_available_component(player, SIZE_NUM, _turrets.va_list[0], psComp->compType, strict);
+		if (result < 0)
+		{
+			debug(LOG_SCRIPT, "Wanted to build %s but turret unavailable", templName.c_str());
+			delete psTemplate;
+			return nullptr;
+		}
+		psTemplate->asParts[psComp->compType] = result;
+	}
+	bool valid = intValidTemplate(psTemplate, templName.c_str(), true, player);
+	if (valid)
+	{
+		return psTemplate;
+	}
+	else
+	{
+		delete psTemplate;
+		debug(LOG_ERROR, "Invalid template %s", templName.c_str());
+		return nullptr;
+	}
+}
+
+//-- ## buildDroid(factory, name, body, propulsion, reserved, reserved, turrets...)
+//--
+//-- Start factory production of new droid with the given name, body, propulsion and turrets.
+//-- The reserved parameter should be passed **null** for now. The components can be
+//-- passed as ordinary strings, or as a list of strings. If passed as a list, the first available
+//-- component in the list will be used. The second reserved parameter used to be a droid type.
+//-- It is now unused and in 3.2+ should be passed "", while in 3.1 it should be the
+//-- droid type to be built. Returns a boolean that is true if production was started.
+//--
+bool wzapi::buildDroid(WZAPI_PARAMS(STRUCTURE *psFactory, std::string templName, string_or_string_list body, string_or_string_list propulsion, reservedParam reserved1, reservedParam reserved2, va_list<string_or_string_list> turrets))
+{
+//	QScriptValue structVal = context->argument(0);
+//	int id = structVal.property("id").toInt32();
+//	int player = structVal.property("player").toInt32();
+	STRUCTURE *psStruct = psFactory; //IdToStruct(id, player);
+	SCRIPT_ASSERT(false, context, psStruct, "No structure provided");
+	SCRIPT_ASSERT(false, context, (psStruct->pStructureType->type == REF_FACTORY || psStruct->pStructureType->type == REF_CYBORG_FACTORY
+	                        || psStruct->pStructureType->type == REF_VTOL_FACTORY), "Structure %s is not a factory", objInfo(psStruct));
+	int player = psStruct->player;
+//	QString templName = context->argument(1).toString();
+	const int capacity = psStruct->capacity; // body size limit
+	DROID_TEMPLATE *psTemplate = ::makeTemplate(player, templName, body, propulsion, turrets, capacity, true);
+	if (psTemplate)
+	{
+		SCRIPT_ASSERT(false, context, validTemplateForFactory(psTemplate, psStruct, true),
+		              "Invalid template %s for factory %s",
+		              getName(psTemplate), getName(psStruct->pStructureType));
+		// Delete similar template from existing list before adding this one
+		for (auto t : apsTemplateList)
+		{
+			if (t->name.compare(psTemplate->name) == 0)
+			{
+				debug(LOG_SCRIPT, "deleting %s for player %d", getName(t), player);
+				deleteTemplateFromProduction(t, player, ModeQueue); // duplicate? done below?
+				break;
+			}
+		}
+		// Add to list
+		debug(LOG_SCRIPT, "adding template %s for player %d", getName(psTemplate), player);
+		psTemplate->multiPlayerID = generateNewObjectId();
+		addTemplate(player, psTemplate);
+		if (!structSetManufacture(psStruct, psTemplate, ModeQueue))
+		{
+			debug(LOG_ERROR, "Could not produce template %s in %s", getName(psTemplate), objInfo(psStruct));
+			return false;
+		}
+	}
+	return (psTemplate != nullptr);
+}
+
+//-- ## addDroid(player, x, y, name, body, propulsion, reserved, reserved, turrets...)
+//--
+//-- Create and place a droid at the given x, y position as belonging to the given player, built with
+//-- the given components. Currently does not support placing droids in multiplayer, doing so will
+//-- cause a desync. Returns the created droid on success, otherwise returns null. Passing "" for
+//-- reserved parameters is recommended. In 3.2+ only, to create droids in off-world (campaign mission list),
+//-- pass -1 as both x and y.
+//--
+const DROID* wzapi::addDroid(WZAPI_PARAMS(int player, int x, int y, std::string templName, string_or_string_list body, string_or_string_list propulsion, reservedParam reserved1, reservedParam reserved2, va_list<string_or_string_list> turrets))
+{
+//	int player = context->argument(0).toInt32();
+	SCRIPT_ASSERT_PLAYER(nullptr, context, player);
+//	int x = context->argument(1).toInt32();
+//	int y = context->argument(2).toInt32();
+//	QString templName = context->argument(3).toString();
+	bool onMission = (x == -1) && (y == -1);
+	SCRIPT_ASSERT(nullptr, context, (onMission || (x >= 0 && y >= 0)), "Invalid coordinates (%d, %d) for droid", x, y);
+	DROID_TEMPLATE *psTemplate = ::makeTemplate(player, templName, body, propulsion, turrets, SIZE_NUM, false);
+	if (psTemplate)
+	{
+		DROID *psDroid = nullptr;
+		bool oldMulti = bMultiMessages;
+		bMultiMessages = false; // ugh, fixme
+		if (onMission)
+		{
+			psDroid = ::buildMissionDroid(psTemplate, 128, 128, player);
+			if (psDroid)
+			{
+				debug(LOG_LIFE, "Created mission-list droid %s by script for player %d: %u", objInfo(psDroid), player, psDroid->id);
+			}
+			else
+			{
+				debug(LOG_ERROR, "Invalid droid %s", templName.c_str());
+			}
+		}
+		else
+		{
+			psDroid = ::buildDroid(psTemplate, world_coord(x) + TILE_UNITS / 2, world_coord(y) + TILE_UNITS / 2, player, onMission, nullptr);
+			if (psDroid)
+			{
+				addDroid(psDroid, apsDroidLists);
+				debug(LOG_LIFE, "Created droid %s by script for player %d: %u", objInfo(psDroid), player, psDroid->id);
+			}
+			else
+			{
+				debug(LOG_ERROR, "Invalid droid %s", templName.c_str());
+			}
+		}
+		bMultiMessages = oldMulti; // ugh
+		delete psTemplate;
+		return psDroid;
+	}
+	return nullptr;
+}
+
+//-- ## makeTemplate(player, name, body, propulsion, reserved, turrets...)
+//--
+//-- Create a template (virtual droid) with the given components. Can be useful for calculating the cost
+//-- of droids before putting them into production, for instance. Will fail and return null if template
+//-- could not possibly be built using current research. (3.2+ only)
+//--
+std::unique_ptr<const DROID_TEMPLATE> wzapi::makeTemplate(WZAPI_PARAMS(int player, std::string templName, string_or_string_list body, string_or_string_list propulsion, reservedParam reserved1, va_list<string_or_string_list> turrets))
+{
+//	int player = context->argument(0).toInt32();
+//	QString templName = context->argument(1).toString();
+	DROID_TEMPLATE *psTemplate = ::makeTemplate(player, templName, body, propulsion, turrets, SIZE_NUM, true);
+	return std::unique_ptr<const DROID_TEMPLATE>(psTemplate);
+}
+

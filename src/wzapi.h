@@ -68,6 +68,9 @@ namespace wzapi
 //		size_t count = 0;
 //	};
 
+	struct reservedParam
+	{ };
+
 	struct string_or_string_list
 	{
 		std::vector<std::string> strings;
@@ -76,6 +79,17 @@ namespace wzapi
 	struct va_list_treat_as_strings
 	{
 		std::vector<std::string> strings;
+	};
+
+//	struct va_list_of_string_or_string_list
+//	{
+//		std::vector<string_or_string_list> va_list;
+//	};
+
+	template<typename ContainedType>
+	struct va_list
+	{
+		std::vector<ContainedType> va_list;
 	};
 
 	struct optional_position
@@ -170,6 +184,13 @@ namespace wzapi
 	int queuedPower(WZAPI_PARAMS(int player));
 	bool isStructureAvailable(WZAPI_PARAMS(std::string structName, optional<int> _player));
 	optional<position_in_map_coords> pickStructLocation(WZAPI_PARAMS(DROID *psDroid, std::string statName, int startX, int startY, optional<int> _maxBlockingTiles));
+	bool droidCanReach(WZAPI_PARAMS(const DROID *psDroid, int x, int y));
+	bool propulsionCanReach(WZAPI_PARAMS(std::string propulsionName, int x1, int y1, int x2, int y2));
+	int terrainType(WZAPI_PARAMS(int x, int y));
+	bool orderDroidObj(WZAPI_PARAMS(DROID *psDroid, int _order, BASE_OBJECT *psObj));
+	bool buildDroid(WZAPI_PARAMS(STRUCTURE *psFactory, std::string templName, string_or_string_list body, string_or_string_list propulsion, reservedParam reserved1, reservedParam reserved2, va_list<string_or_string_list> turrets));
+	const DROID* addDroid(WZAPI_PARAMS(int player, int x, int y, std::string templName, string_or_string_list body, string_or_string_list propulsion, reservedParam reserved1, reservedParam reserved2, va_list<string_or_string_list> turrets));
+	std::unique_ptr<const DROID_TEMPLATE> makeTemplate(WZAPI_PARAMS(int player, std::string templName, string_or_string_list body, string_or_string_list propulsion, reservedParam reserved1, va_list<string_or_string_list> turrets));
 }
 
 #endif

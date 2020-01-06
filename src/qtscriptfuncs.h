@@ -74,7 +74,7 @@ QScriptValue convStructure(const STRUCTURE *psStruct, QScriptEngine *engine);
 QScriptValue convObj(const BASE_OBJECT *psObj, QScriptEngine *engine);
 QScriptValue convFeature(const FEATURE *psFeature, QScriptEngine *engine);
 QScriptValue convMax(const BASE_OBJECT *psObj, QScriptEngine *engine);
-QScriptValue convTemplate(DROID_TEMPLATE *psTemplate, QScriptEngine *engine);
+QScriptValue convTemplate(const DROID_TEMPLATE *psTemplate, QScriptEngine *engine);
 QScriptValue convResearch(const RESEARCH *psResearch, QScriptEngine *engine, int player);
 BASE_OBJECT *IdToObject(OBJECT_TYPE type, int id, int player);
 
