@@ -2684,17 +2684,17 @@ void VkRoot::draw_elements(const std::size_t& offset, const std::size_t& count, 
 
 void VkRoot::bind_vertex_buffers(const std::size_t& first, const std::vector<std::tuple<gfx_api::buffer*, std::size_t>>& vertex_buffers_offset)
 {
-	using vertex_buffers_offset_type = const std::tuple<gfx_api::buffer*, std::size_t>;
-	auto&& temp = std::vector<vk::Buffer>{};
-	std::transform(vertex_buffers_offset.begin(), vertex_buffers_offset.end(), std::back_inserter(temp),
-		[](vertex_buffers_offset_type& input) {
-			ASSERT(static_cast<const VkBuf *>(std::get<0>(input))->usage == gfx_api::buffer::usage::vertex_buffer, "bind_vertex_buffers called with non-vertex-buffer");
-			return static_cast<const VkBuf *>(std::get<0>(input))->object;
-		});
+	auto&& buffers = std::vector<vk::Buffer>{};
 	auto&& offsets = std::vector<VkDeviceSize>{};
-	std::transform(vertex_buffers_offset.begin(), vertex_buffers_offset.end(), std::back_inserter(offsets),
-		[](vertex_buffers_offset_type& input) { return std::get<1>(input); });
-	buffering_mechanism::get_current_resources().cmdDraw.bindVertexBuffers(first, temp, offsets, vkDynLoader);
+	for (const auto &input : vertex_buffers_offset)
+	{
+		// null vertex buffers are not supported
+		ASSERT(std::get<0>(input) != nullptr, "bind_vertex_buffers called with null vertex buffer");
+		ASSERT(static_cast<const VkBuf *>(std::get<0>(input))->usage == gfx_api::buffer::usage::vertex_buffer, "bind_vertex_buffers called with non-vertex-buffer");
+		buffers.push_back(static_cast<const VkBuf *>(std::get<0>(input))->object);
+		offsets.push_back(std::get<1>(input));
+	}
+	buffering_mechanism::get_current_resources().cmdDraw.bindVertexBuffers(first, buffers, offsets, vkDynLoader);
 }
 
 void VkRoot::unbind_vertex_buffers(const std::size_t& first, const std::vector<std::tuple<gfx_api::buffer*, std::size_t>>& vertex_buffers_offset)
