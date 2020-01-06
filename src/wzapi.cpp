@@ -476,7 +476,7 @@ bool wzapi::changePlayerColour(WZAPI_PARAMS(int player, int colour))
 //-- Change the health of the given game object, in percentage. Does not take care of network sync, so for multiplayer games,
 //-- needs wrapping in a syncRequest. (3.2.3+ only.)
 //--
-bool wzapi::setHealth(WZAPI_PARAMS(object_id_player_type objVal, int health))
+bool wzapi::setHealth(WZAPI_PARAMS(object_id_player_type objVal, int health)) MULTIPLAY_SYNCREQUEST_REQUIRED
 {
 //	QScriptValue objVal = context->argument(0);
 //	int health = context->argument(1).toInt32();
@@ -1592,7 +1592,7 @@ bool wzapi::buildDroid(WZAPI_PARAMS(STRUCTURE *psFactory, std::string templName,
 //-- reserved parameters is recommended. In 3.2+ only, to create droids in off-world (campaign mission list),
 //-- pass -1 as both x and y.
 //--
-const DROID* wzapi::addDroid(WZAPI_PARAMS(int player, int x, int y, std::string templName, string_or_string_list body, string_or_string_list propulsion, reservedParam reserved1, reservedParam reserved2, va_list<string_or_string_list> turrets))
+const DROID* wzapi::addDroid(WZAPI_PARAMS(int player, int x, int y, std::string templName, string_or_string_list body, string_or_string_list propulsion, reservedParam reserved1, reservedParam reserved2, va_list<string_or_string_list> turrets)) MUTLIPLAY_UNSAFE
 {
 //	int player = context->argument(0).toInt32();
 	SCRIPT_ASSERT_PLAYER(nullptr, context, player);
@@ -1653,3 +1653,94 @@ std::unique_ptr<const DROID_TEMPLATE> wzapi::makeTemplate(WZAPI_PARAMS(int playe
 	return std::unique_ptr<const DROID_TEMPLATE>(psTemplate);
 }
 
+//-- ## addDroidToTransporter(transporter, droid)
+//--
+//-- Load a droid, which is currently located on the campaign off-world mission list,
+//-- into a transporter, which is also currently on the campaign off-world mission list.
+//-- (3.2+ only)
+//--
+bool wzapi::addDroidToTransporter(WZAPI_PARAMS(droid_id_player transporter, droid_id_player droid))
+{
+//	QScriptValue transporterVal = context->argument(0);
+	int transporterId = transporter.id; //transporterVal.property("id").toInt32();
+	int transporterPlayer = transporter.player; //transporterVal.property("player").toInt32();
+	DROID *psTransporter = IdToMissionDroid(transporterId, transporterPlayer);
+	SCRIPT_ASSERT(false, context, psTransporter, "No such transporter id %d belonging to player %d", transporterId, transporterPlayer);
+	SCRIPT_ASSERT(false, context, isTransporter(psTransporter), "Droid id %d belonging to player %d is not a transporter", transporterId, transporterPlayer);
+//	QScriptValue droidVal = context->argument(1);
+	int droidId = droid.id; //droidVal.property("id").toInt32();
+	int droidPlayer = droid.player; //droidVal.property("player").toInt32();
+	DROID *psDroid = IdToMissionDroid(droidId, droidPlayer);
+	SCRIPT_ASSERT(false, context, psDroid, "No such droid id %d belonging to player %d", droidId, droidPlayer);
+	SCRIPT_ASSERT(false, context, checkTransporterSpace(psTransporter, psDroid), "Not enough room in transporter %d for droid %d", transporterId, droidId);
+	bool removeSuccessful = droidRemove(psDroid, mission.apsDroidLists);
+	SCRIPT_ASSERT(false, context, removeSuccessful, "Could not remove droid id %d from mission list", droidId);
+	psTransporter->psGroup->add(psDroid);
+	return true;
+}
+
+//-- ## addFeature(name, x, y)
+//--
+//-- Create and place a feature at the given x, y position. Will cause a desync in multiplayer.
+//-- Returns the created game object on success, null otherwise. (3.2+ only)
+//--
+const FEATURE * wzapi::addFeature(WZAPI_PARAMS(std::string featName, int x, int y)) MUTLIPLAY_UNSAFE
+{
+//	QString featName = context->argument(0).toString();
+//	int x = context->argument(1).toInt32();
+//	int y = context->argument(2).toInt32();
+	int feature = getFeatureStatFromName(WzString::fromUtf8(featName));
+	FEATURE_STATS *psStats = &asFeatureStats[feature];
+	for (FEATURE *psFeat = apsFeatureLists[0]; psFeat; psFeat = psFeat->psNext)
+	{
+		SCRIPT_ASSERT(nullptr, context, map_coord(psFeat->pos.x) != x || map_coord(psFeat->pos.y) != y,
+		              "Building feature on tile already occupied");
+	}
+	FEATURE *psFeature = buildFeature(psStats, world_coord(x), world_coord(y), false);
+	return psFeature;
+}
+
+//-- ## componentAvailable([component type,] component name)
+//--
+//-- Checks whether a given component is available to the current player. The first argument is
+//-- optional and deprecated.
+//--
+bool wzapi::componentAvailable(WZAPI_PARAMS(std::string arg1, optional<std::string> arg2))
+{
+	int player = context.player(); //engine->globalObject().property("me").toInt32();
+//	QString id = (context->argumentCount() == 1) ? context->argument(0).toString() : context->argument(1).toString();
+	std::string &id = (arg2.has_value()) ? arg2.value() : arg1;
+	COMPONENT_STATS *psComp = getCompStatsFromName(WzString::fromUtf8(id.c_str()));
+	SCRIPT_ASSERT(false, context, psComp, "No such component: %s", id.c_str());
+	int status = apCompLists[player][psComp->compType][psComp->index];
+	return (status == AVAILABLE || status == REDUNDANT);
+}
+
+//-- ## isVTOL(droid)
+//--
+//-- Returns true if given droid is a VTOL (not including transports).
+//--
+bool wzapi::isVTOL(WZAPI_PARAMS(const DROID *psDroid))
+{
+//	QScriptValue droidVal = context->argument(0);
+//	int id = droidVal.property("id").toInt32();
+//	int player = droidVal.property("player").toInt32();
+//	DROID *psDroid = IdToDroid(id, player);
+	SCRIPT_ASSERT(false, context, psDroid, "No droid provided");
+	return isVtolDroid(psDroid);
+}
+
+//-- ## safeDest(player, x, y)
+//--
+//-- Returns true if given player is safe from hostile fire at the given location, to
+//-- the best of that player's map knowledge. Does not work in campaign at the moment.
+//--
+bool wzapi::safeDest(WZAPI_PARAMS(int player, int x, int y))
+{
+//	int player = context->argument(0).toInt32();
+	SCRIPT_ASSERT_PLAYER(false, context, player);
+//	int x = context->argument(1).toInt32();
+//	int y = context->argument(2).toInt32();
+	SCRIPT_ASSERT(false, context, tileOnMap(x, y), "Out of bounds coordinates(%d, %d)", x, y);
+	return (!(auxTile(x, y, player) & AUXBITS_DANGER));
+}
