@@ -2182,22 +2182,9 @@ static QScriptValue js_newGroup(QScriptContext *, QScriptEngine *engine)
 //-- Activate a special ability on a structure. Currently only works on the lassat.
 //-- The lassat needs a target.
 //--
-static QScriptValue js_activateStructure(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_activateStructure(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue structVal = context->argument(0);
-	int id = structVal.property("id").toInt32();
-	int player = structVal.property("player").toInt32();
-	STRUCTURE *psStruct = IdToStruct(id, player);
-	SCRIPT_ASSERT(context, psStruct, "No such structure id %d belonging to player %d", id, player);
-	// ... and then do nothing with psStruct yet
-	QScriptValue objVal = context->argument(1);
-	int oid = objVal.property("id").toInt32();
-	int oplayer = objVal.property("player").toInt32();
-	OBJECT_TYPE otype = (OBJECT_TYPE)objVal.property("type").toInt32();
-	BASE_OBJECT *psObj = IdToObject(otype, oid, oplayer);
-	SCRIPT_ASSERT(context, psObj, "No such object id %d belonging to player %d", oid, oplayer);
-	orderStructureObj(player, psObj);
-	return QScriptValue(true);
+	return wrap_(wzapi::activateStructure, context, engine);
 }
 
 //-- ## findResearch(research, [player])

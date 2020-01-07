@@ -199,6 +199,7 @@ namespace wzapi
 	bool componentAvailable(WZAPI_PARAMS(std::string arg1, optional<std::string> arg2));
 	bool isVTOL(WZAPI_PARAMS(const DROID *psDroid));
 	bool safeDest(WZAPI_PARAMS(int player, int x, int y));
+	bool activateStructure(WZAPI_PARAMS(STRUCTURE *psStruct, optional<BASE_OBJECT *> _psTarget));
 }
 
 #endif

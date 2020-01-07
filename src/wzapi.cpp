@@ -1744,3 +1744,29 @@ bool wzapi::safeDest(WZAPI_PARAMS(int player, int x, int y))
 	SCRIPT_ASSERT(false, context, tileOnMap(x, y), "Out of bounds coordinates(%d, %d)", x, y);
 	return (!(auxTile(x, y, player) & AUXBITS_DANGER));
 }
+
+//-- ## activateStructure(structure, [target[, ability]])
+//--
+//-- Activate a special ability on a structure. Currently only works on the lassat.
+//-- The lassat needs a target.
+//--
+bool wzapi::activateStructure(WZAPI_PARAMS(STRUCTURE *psStruct, optional<BASE_OBJECT *> _psTarget))
+{
+//	QScriptValue structVal = context->argument(0);
+//	int id = structVal.property("id").toInt32();
+//	int player = structVal.property("player").toInt32();
+//	STRUCTURE *psStruct = IdToStruct(id, player);
+	SCRIPT_ASSERT(false, context, psStruct, "No structure provided");
+	int player = psStruct->player;
+	// ... and then do nothing with psStruct yet
+//	QScriptValue objVal = context->argument(1);
+//	int oid = objVal.property("id").toInt32();
+//	int oplayer = objVal.property("player").toInt32();
+//	OBJECT_TYPE otype = (OBJECT_TYPE)objVal.property("type").toInt32();
+//	BASE_OBJECT *psObj = IdToObject(otype, oid, oplayer);
+	BASE_OBJECT *psTarget = (_psTarget.has_value()) ? _psTarget.value() : nullptr;
+	SCRIPT_ASSERT(false, context, psTarget, "No target provided");
+	orderStructureObj(player, psTarget);
+	return true;
+}
+
