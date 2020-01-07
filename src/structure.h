@@ -358,7 +358,7 @@ bool checkFactoryExists(UDWORD player, UDWORD factoryType, UDWORD inc);
 
 /*checks the structure passed in is a Las Sat structure which is currently
 selected - returns true if valid*/
-bool lasSatStructSelected(STRUCTURE *psStruct);
+bool lasSatStructSelected(const STRUCTURE *psStruct);
 
 void cbNewDroid(STRUCTURE *psFactory, DROID *psDroid);
 

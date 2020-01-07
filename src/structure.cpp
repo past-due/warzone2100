@@ -6968,7 +6968,7 @@ void resetResistanceLag(STRUCTURE *psBuilding)
 
 /*checks the structure passed in is a Las Sat structure which is currently
 selected - returns true if valid*/
-bool lasSatStructSelected(STRUCTURE *psStruct)
+bool lasSatStructSelected(const STRUCTURE *psStruct)
 {
 	if ((psStruct->selected || (bMultiPlayer && !isHumanPlayer(psStruct->player)))
 	    && psStruct->asWeaps[0].nStat
