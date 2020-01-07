@@ -2162,3 +2162,43 @@ int wzapi::getMissionTime(WZAPI_NO_PARAMS)
 	return ((mission.time - (gameTime - mission.startTime)) / GAME_TICKS_PER_SEC);
 }
 
+//-- ## setReinforcementTime(time)
+//--
+//-- Set time for reinforcements to arrive. If time is negative, the reinforcement GUI
+//-- is removed and the timer stopped. Time is in seconds.
+//-- If time equals to the magic LZ_COMPROMISED_TIME constant, reinforcement GUI ticker
+//-- is set to "--:--" and reinforcements are suppressed until this function is called
+//-- again with a regular time value.
+//--
+bool wzapi::setReinforcementTime(WZAPI_PARAMS(int _value))
+{
+	int value = _value * GAME_TICKS_PER_SEC;
+	SCRIPT_ASSERT(false, context, value == LZ_COMPROMISED_TIME || value < 60 * 60 * GAME_TICKS_PER_SEC,
+	              "The transport timer cannot be set to more than 1 hour!");
+	mission.ETA = value;
+	if (missionCanReEnforce())
+	{
+		addTransporterTimerInterface();
+	}
+	if (value < 0)
+	{
+		DROID *psDroid;
+
+		intRemoveTransporterTimer();
+		/* Only remove the launch if haven't got a transporter droid since the scripts set the
+		 * time to -1 at the between stage if there are not going to be reinforcements on the submap  */
+		for (psDroid = apsDroidLists[selectedPlayer]; psDroid != nullptr; psDroid = psDroid->psNext)
+		{
+			if (isTransporter(psDroid))
+			{
+				break;
+			}
+		}
+		// if not found a transporter, can remove the launch button
+		if (psDroid ==  nullptr)
+		{
+			intRemoveTransporterLaunch();
+		}
+	}
+	return true;
+}
