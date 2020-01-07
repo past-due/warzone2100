@@ -1055,18 +1055,21 @@ bool wzapi::pursueResearch(WZAPI_PARAMS(const STRUCTURE *psStruct, string_or_str
 //-- Return list of research items remaining to be researched for the given research item. (3.2+ only)
 //-- (Optional second argument 3.2.3+ only)
 //--
-std::vector<const RESEARCH*> wzapi::findResearch(WZAPI_PARAMS(std::string resName, optional<int> _player))
+wzapi::researchResults wzapi::findResearch(WZAPI_PARAMS(std::string resName, optional<int> _player))
 {
-	std::vector<const RESEARCH *> result;
 //	QString resName = context->argument(0).toString();
 	int player = (_player.has_value()) ? _player.value() : context.player();
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+
+	researchResults result;
+	result.player = player;
 
 	RESEARCH *psTarget = ::getResearch(resName.c_str());
 	SCRIPT_ASSERT({}, context, psTarget, "No such research: %s", resName.c_str());
 	PLAYER_RESEARCH *plrRes = &asPlayerResList[player][psTarget->index];
 	if (IsResearchStartedPending(plrRes) || IsResearchCompleted(plrRes))
 	{
-		return {}; // return empty array
+		return result; // return empty array
 	}
 	debug(LOG_SCRIPT, "Find reqs for %s for player %d", resName.c_str(), player);
 	// Go down the requirements list for the desired tech
@@ -1077,7 +1080,7 @@ std::vector<const RESEARCH*> wzapi::findResearch(WZAPI_PARAMS(std::string resNam
 		if (!(asPlayerResList[player][cur->index].ResearchStatus & RESEARCHED))
 		{
 			debug(LOG_SCRIPT, "Added research in %d's %s for %s", player, getID(cur), getID(psTarget));
-			result.push_back(cur);
+			result.resList.push_back(cur);
 		}
 		RESEARCH *prev = cur;
 		cur = nullptr;
@@ -2096,3 +2099,66 @@ bool wzapi::gameOverMessage(WZAPI_PARAMS(bool gameWon, optional<bool> _showBackD
 	}
 	return true;
 }
+
+// MARK: - Global state manipulation -- not for use with skirmish AI (unless you want it to cheat, obviously)
+
+//-- ## setStructureLimits(structure type, limit[, player])
+//--
+//-- Set build limits for a structure.
+//--
+bool wzapi::setStructureLimits(WZAPI_PARAMS(std::string building, int limit, optional<int> _player))
+{
+//	QString building = context->argument(0).toString();
+//	int limit = context->argument(1).toInt32();
+	int structInc = getStructStatFromName(WzString::fromUtf8(building));
+	int player = (_player.has_value()) ? _player.value() : context.player();
+	SCRIPT_ASSERT_PLAYER(false, context, player);
+	SCRIPT_ASSERT(false, context, limit < LOTS_OF && limit >= 0, "Invalid limit");
+	SCRIPT_ASSERT(false, context, structInc < numStructureStats && structInc >= 0, "Invalid structure");
+
+	asStructureStats[structInc].upgrade[player].limit = limit;
+
+	return true;
+}
+
+//-- ## applyLimitSet()
+//--
+//-- Mix user set limits with script set limits and defaults.
+//--
+bool wzapi::applyLimitSet(WZAPI_NO_PARAMS)
+{
+	return ::applyLimitSet();
+}
+
+//-- ## setMissionTime(time)
+//--
+//-- Set mission countdown in seconds.
+//--
+wzapi::no_return_value wzapi::setMissionTime(WZAPI_PARAMS(int _value))
+{
+	int value = _value * GAME_TICKS_PER_SEC;
+	mission.startTime = gameTime;
+	mission.time = value;
+	setMissionCountDown();
+	if (mission.time >= 0)
+	{
+		mission.startTime = gameTime;
+		addMissionTimerInterface();
+	}
+	else
+	{
+		intRemoveMissionTimer();
+		mission.cheatTime = 0;
+	}
+	return {};
+}
+
+//-- ## getMissionTime()
+//--
+//-- Get time remaining on mission countdown in seconds. (3.2+ only)
+//--
+int wzapi::getMissionTime(WZAPI_NO_PARAMS)
+{
+	return ((mission.time - (gameTime - mission.startTime)) / GAME_TICKS_PER_SEC);
+}
+

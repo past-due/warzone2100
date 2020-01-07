@@ -110,9 +110,6 @@ namespace wzapi
 		int player = -1;
 	};
 
-	struct no_return_value
-	{ };
-
 	struct STRUCTURE_TYPE_or_statsName_string
 	{
 		STRUCTURE_TYPE type = NUM_DIFF_BUILDINGS;
@@ -120,6 +117,8 @@ namespace wzapi
 	};
 
 	// retVals
+	struct no_return_value
+	{ };
 	struct researchResult
 	{
 		const RESEARCH * psResearch;
@@ -182,7 +181,7 @@ namespace wzapi
 	researchResults enumResearch(WZAPI_NO_PARAMS);
 	std::vector<const BASE_OBJECT *> enumRange(WZAPI_PARAMS(int x, int y, int range, optional<int> _filter, optional<bool> _seen));
 	bool pursueResearch(WZAPI_PARAMS(const STRUCTURE *psStruct, string_or_string_list research));
-	std::vector<const RESEARCH*> findResearch(WZAPI_PARAMS(std::string resName, optional<int> _player));
+	researchResults findResearch(WZAPI_PARAMS(std::string resName, optional<int> _player));
 	int32_t distBetweenTwoPoints(WZAPI_PARAMS(int32_t x1, int32_t y1, int32_t x2, int32_t y2));
 	bool orderDroidLoc(WZAPI_PARAMS(DROID *psDroid, int order_, int x, int y));
 	int32_t playerPower(WZAPI_PARAMS(int player));
@@ -217,7 +216,11 @@ namespace wzapi
 	bool playSound(WZAPI_PARAMS(std::string sound, optional<int> _x, optional<int> _y, optional<int> _z));
 	bool gameOverMessage(WZAPI_PARAMS(bool gameWon, optional<bool> _showBackDrop, optional<bool> _showOutro));
 
-	
+	// MARK: - Global state manipulation -- not for use with skirmish AI (unless you want it to cheat, obviously)
+	bool setStructureLimits(WZAPI_PARAMS(std::string building, int limit, optional<int> _player));
+	bool applyLimitSet(WZAPI_NO_PARAMS);
+	no_return_value setMissionTime(WZAPI_PARAMS(int _value));
+	int getMissionTime(WZAPI_NO_PARAMS);
 }
 
 #endif

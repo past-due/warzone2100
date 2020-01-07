@@ -2764,32 +2764,18 @@ static QScriptValue js_orderDroidLoc(QScriptContext *context, QScriptEngine *eng
 //--
 //-- Set mission countdown in seconds.
 //--
-static QScriptValue js_setMissionTime(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_setMissionTime(QScriptContext *context, QScriptEngine *engine)
 {
-	int value = context->argument(0).toInt32() * GAME_TICKS_PER_SEC;
-	mission.startTime = gameTime;
-	mission.time = value;
-	setMissionCountDown();
-	if (mission.time >= 0)
-	{
-		mission.startTime = gameTime;
-		addMissionTimerInterface();
-	}
-	else
-	{
-		intRemoveMissionTimer();
-		mission.cheatTime = 0;
-	}
-	return QScriptValue();
+	return wrap_(wzapi::setMissionTime, context, engine);
 }
 
 //-- ## getMissionTime()
 //--
 //-- Get time remaining on mission countdown in seconds. (3.2+ only)
 //--
-static QScriptValue js_getMissionTime(QScriptContext *, QScriptEngine *)
+static QScriptValue js_getMissionTime(QScriptContext *context, QScriptEngine *engine)
 {
-	return QScriptValue((mission.time - (gameTime - mission.startTime)) / GAME_TICKS_PER_SEC);
+	return wrap_(wzapi::getMissionTime, context, engine);
 }
 
 //-- ## setTransporterExit(x, y, player)
@@ -2897,25 +2883,7 @@ static QScriptValue js_setReinforcementTime(QScriptContext *context, QScriptEngi
 //--
 static QScriptValue js_setStructureLimits(QScriptContext *context, QScriptEngine *engine)
 {
-	QString building = context->argument(0).toString();
-	int limit = context->argument(1).toInt32();
-	int player;
-	int structInc = getStructStatFromName(QStringToWzString(building));
-	if (context->argumentCount() > 2)
-	{
-		player = context->argument(2).toInt32();
-	}
-	else
-	{
-		player = engine->globalObject().property("me").toInt32();
-	}
-	SCRIPT_ASSERT_PLAYER(context, player);
-	SCRIPT_ASSERT(context, limit < LOTS_OF && limit >= 0, "Invalid limit");
-	SCRIPT_ASSERT(context, structInc < numStructureStats && structInc >= 0, "Invalid structure");
-
-	asStructureStats[structInc].upgrade[player].limit = limit;
-
-	return QScriptValue();
+	return wrap_(wzapi::setStructureLimits, context, engine);
 }
 
 //-- ## centreView(x, y)
@@ -3382,10 +3350,7 @@ static QScriptValue js_removeReticuleButton(QScriptContext *context, QScriptEngi
 //--
 static QScriptValue js_applyLimitSet(QScriptContext *context, QScriptEngine *engine)
 {
-	Q_UNUSED(context);
-	Q_UNUSED(engine);
-	applyLimitSet();
-	return QScriptValue();
+	return wrap_(wzapi::applyLimitSet, context, engine);
 }
 
 static void setComponent(const QString& name, int player, int value)
@@ -5915,10 +5880,10 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 	engine->globalObject().setProperty("gameOverMessage", engine->newFunction(js_gameOverMessage)); // WZAPI
 
 	// Global state manipulation -- not for use with skirmish AI (unless you want it to cheat, obviously)
-	engine->globalObject().setProperty("setStructureLimits", engine->newFunction(js_setStructureLimits));
-	engine->globalObject().setProperty("applyLimitSet", engine->newFunction(js_applyLimitSet));
-	engine->globalObject().setProperty("setMissionTime", engine->newFunction(js_setMissionTime));
-	engine->globalObject().setProperty("getMissionTime", engine->newFunction(js_getMissionTime));
+	engine->globalObject().setProperty("setStructureLimits", engine->newFunction(js_setStructureLimits)); // WZAPI
+	engine->globalObject().setProperty("applyLimitSet", engine->newFunction(js_applyLimitSet)); // WZAPI
+	engine->globalObject().setProperty("setMissionTime", engine->newFunction(js_setMissionTime)); // WZAPI
+	engine->globalObject().setProperty("getMissionTime", engine->newFunction(js_getMissionTime)); // WZAPI
 	engine->globalObject().setProperty("setReinforcementTime", engine->newFunction(js_setReinforcementTime));
 	engine->globalObject().setProperty("completeResearch", engine->newFunction(js_completeResearch));
 	engine->globalObject().setProperty("completeAllResearch", engine->newFunction(js_completeAllResearch));
