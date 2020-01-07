@@ -2377,22 +2377,7 @@ static QScriptValue js_enumFeature(QScriptContext *context, QScriptEngine *engin
 //--
 static QScriptValue js_enumCargo(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue droidVal = context->argument(0);
-	int id = droidVal.property("id").toInt32();
-	int player = droidVal.property("player").toInt32();
-	DROID *psDroid = IdToDroid(id, player);
-	SCRIPT_ASSERT(context, psDroid, "No such droid id %d belonging to player %d", id, player);
-	SCRIPT_ASSERT(context, isTransporter(psDroid), "Wrong droid type");
-	QScriptValue result = engine->newArray(psDroid->psGroup->getNumMembers());
-	int i = 0;
-	for (DROID *psCurr = psDroid->psGroup->psList; psCurr; psCurr = psCurr->psGrpNext, i++)
-	{
-		if (psDroid != psCurr)
-		{
-			result.setProperty(i, convDroid(psCurr, engine));
-		}
-	}
-	return result;
+	return wrap_(wzapi::enumCargo, context, engine);
 }
 
 //-- ## enumDroid([player[, droid type[, looking player]]])
@@ -4079,21 +4064,7 @@ static QScriptValue js_enumArea(QScriptContext *context, QScriptEngine *engine)
 //--
 static QScriptValue js_addBeacon(QScriptContext *context, QScriptEngine *engine)
 {
-	int x = world_coord(context->argument(0).toInt32());
-	int y = world_coord(context->argument(1).toInt32());
-	int target = context->argument(2).toInt32();
-	QString message = context->argument(3).toString();
-	int me = engine->globalObject().property("me").toInt32();
-	SCRIPT_ASSERT(context, target >= 0 || target == ALLIES, "Message to invalid player %d", target);
-	for (int i = 0; i < MAX_PLAYERS; i++)
-	{
-		if (i != me && (i == target || (target == ALLIES && aiCheckAlliances(i, me))))
-		{
-			debug(LOG_MSG, "adding script beacon to %d from %d", i, me);
-			sendBeaconToPlayer(x, y, i, me, message.toUtf8().constData());
-		}
-	}
-	return QScriptValue(true);
+	return wrap_(wzapi::addBeacon, context, engine);
 }
 
 //-- ## removeBeacon(target player)
@@ -4103,23 +4074,12 @@ static QScriptValue js_addBeacon(QScriptContext *context, QScriptEngine *engine)
 //--
 static QScriptValue js_removeBeacon(QScriptContext *context, QScriptEngine *engine)
 {
-	int me = engine->globalObject().property("me").toInt32();
-	int target = context->argument(0).toInt32();
-	SCRIPT_ASSERT(context, target >= 0 || target == ALLIES, "Message to invalid player %d", target);
-	for (int i = 0; i < MAX_PLAYERS; i++)
+	QScriptValue retVal = wrap_(wzapi::removeBeacon, context, engine);
+	if (retVal.isBool() && retVal.toBool())
 	{
-		if (i == target || (target == ALLIES && aiCheckAlliances(i, me)))
-		{
-			MESSAGE *psMessage = findBeaconMsg(i, me);
-			if (psMessage)
-			{
-				removeMessage(psMessage, i);
-				triggerEventBeaconRemoved(me, i);
-			}
-		}
+		jsDebugMessageUpdate();
 	}
-	jsDebugMessageUpdate();
-	return QScriptValue(true);
+	return retVal;
 }
 
 //-- ## chat(target player, message)
@@ -4129,23 +4089,7 @@ static QScriptValue js_removeBeacon(QScriptContext *context, QScriptEngine *engi
 //--
 static QScriptValue js_chat(QScriptContext *context, QScriptEngine *engine)
 {
-	int player = engine->globalObject().property("me").toInt32();
-	int target = context->argument(0).toInt32();
-	QString message = context->argument(1).toString();
-	SCRIPT_ASSERT(context, target >= 0 || target == ALL_PLAYERS || target == ALLIES, "Message to invalid player %d", target);
-	if (target == ALL_PLAYERS) // all
-	{
-		return QScriptValue(sendTextMessage(message.toUtf8().constData(), true, player));
-	}
-	else if (target == ALLIES) // allies
-	{
-		return QScriptValue(sendTextMessage(QString(". " + message).toUtf8().constData(), false, player));
-	}
-	else // specific player
-	{
-		QString tmp = QString::number(NetPlay.players[target].position) + message;
-		return QScriptValue(sendTextMessage(tmp.toUtf8().constData(), false, player));
-	}
+	return wrap_(wzapi::chat, context, engine);
 }
 
 //-- ## setAlliance(player1, player2, value)
@@ -4230,26 +4174,7 @@ static QScriptValue js_hackNetOn(QScriptContext *, QScriptEngine *)
 //--
 static QScriptValue js_getDroidProduction(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue structVal = context->argument(0);
-	int id = structVal.property("id").toInt32();
-	int player = structVal.property("player").toInt32();
-	STRUCTURE *psStruct = IdToStruct(id, player);
-	SCRIPT_ASSERT(context, psStruct, "No such structure id %d belonging to player %d", id, player);
-	FACTORY *psFactory = &psStruct->pFunctionality->factory;
-	DROID_TEMPLATE *psTemp = psFactory->psSubject;
-	if (!psTemp)
-	{
-		return QScriptValue::NullValue;
-	}
-	DROID sDroid(0, player), *psDroid = &sDroid;
-	psDroid->pos = psStruct->pos;
-	psDroid->rot = psStruct->rot;
-	psDroid->experience = 0;
-	droidSetName(psDroid, getName(psTemp));
-	droidSetBits(psTemp, psDroid);
-	psDroid->weight = calcDroidWeight(psTemp);
-	psDroid->baseSpeed = calcDroidBaseSpeed(psTemp, psDroid->weight, player);
-	return convDroid(psDroid, engine);
+	return wrap_(wzapi::getDroidProduction, context, engine);
 }
 
 //-- ## getDroidLimit([player[, unit type]])
@@ -4262,46 +4187,25 @@ static QScriptValue js_getDroidProduction(QScriptContext *context, QScriptEngine
 //--
 static QScriptValue js_getDroidLimit(QScriptContext *context, QScriptEngine *engine)
 {
-	if (context->argumentCount() > 1)
-	{
-		DROID_TYPE type = (DROID_TYPE)context->argument(1).toInt32();
-		if (type == DROID_COMMAND)
-		{
-			return QScriptValue(getMaxCommanders(context->argument(0).toInt32()));
-		}
-		else if (type == DROID_CONSTRUCT)
-		{
-			return QScriptValue(getMaxConstructors(context->argument(0).toInt32()));
-		}
-		// else return general unit limit
-	}
-	if (context->argumentCount() > 0)
-	{
-		return QScriptValue(getMaxDroids(context->argument(0).toInt32()));
-	}
-	return QScriptValue(getMaxDroids(engine->globalObject().property("me").toInt32()));
+	return wrap_(wzapi::getDroidLimit, context, engine);
 }
 
 //-- ## getExperienceModifier(player)
 //--
 //-- Get the percentage of experience this player droids are going to gain. (3.2+ only)
 //--
-static QScriptValue js_getExperienceModifier(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_getExperienceModifier(QScriptContext *context, QScriptEngine *engine)
 {
-	int player = context->argument(0).toInt32();
-	return QScriptValue(getExpGain(player));
+	return wrap_(wzapi::getExperienceModifier, context, engine);
 }
 
 //-- ## setExperienceModifier(player, percent)
 //--
 //-- Set the percentage of experience this player droids are going to gain. (3.2+ only)
 //--
-static QScriptValue js_setExperienceModifier(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_setExperienceModifier(QScriptContext *context, QScriptEngine *engine)
 {
-	int player = context->argument(0).toInt32();
-	int percent = context->argument(1).toInt32();
-	setExpGain(player, percent);
-	return QScriptValue();
+	return wrap_(wzapi::setExperienceModifier, context, engine);
 }
 
 //-- ## setDroidLimit(player, value[, droid type])
@@ -4311,29 +4215,9 @@ static QScriptValue js_setExperienceModifier(QScriptContext *context, QScriptEng
 //-- for droids in general, DROID_CONSTRUCT for constructors, or DROID_COMMAND
 //-- for commanders. (3.2+ only)
 //--
-static QScriptValue js_setDroidLimit(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_setDroidLimit(QScriptContext *context, QScriptEngine *engine)
 {
-	int player = context->argument(0).toInt32();
-	int value = context->argument(1).toInt32();
-	DROID_TYPE type = DROID_ANY;
-	if (context->argumentCount() > 1)
-	{
-		type = (DROID_TYPE)context->argument(2).toInt32();
-	}
-	switch (type)
-	{
-	case DROID_CONSTRUCT:
-		setMaxConstructors(player, value);
-		break;
-	case DROID_COMMAND:
-		setMaxCommanders(player, value);
-		break;
-	default:
-	case DROID_ANY:
-		setMaxDroids(player, value);
-		break;
-	}
-	return QScriptValue();
+	return wrap_(wzapi::setDroidLimit, context, engine);
 }
 
 //-- ## setCommanderLimit(player, value)
@@ -6091,19 +5975,19 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 	engine->globalObject().setProperty("componentAvailable", engine->newFunction(js_componentAvailable)); // WZAPI
 	engine->globalObject().setProperty("isVTOL", engine->newFunction(js_isVTOL)); // WZAPI
 	engine->globalObject().setProperty("safeDest", engine->newFunction(js_safeDest)); // WZAPI
-	engine->globalObject().setProperty("activateStructure", engine->newFunction(js_activateStructure));
-	engine->globalObject().setProperty("chat", engine->newFunction(js_chat));
-	engine->globalObject().setProperty("addBeacon", engine->newFunction(js_addBeacon));
-	engine->globalObject().setProperty("removeBeacon", engine->newFunction(js_removeBeacon));
-	engine->globalObject().setProperty("getDroidProduction", engine->newFunction(js_getDroidProduction));
-	engine->globalObject().setProperty("getDroidLimit", engine->newFunction(js_getDroidLimit));
-	engine->globalObject().setProperty("getExperienceModifier", engine->newFunction(js_getExperienceModifier));
-	engine->globalObject().setProperty("setDroidLimit", engine->newFunction(js_setDroidLimit));
+	engine->globalObject().setProperty("activateStructure", engine->newFunction(js_activateStructure)); // WZAPI
+	engine->globalObject().setProperty("chat", engine->newFunction(js_chat)); // WZAPI
+	engine->globalObject().setProperty("addBeacon", engine->newFunction(js_addBeacon)); // WZAPI
+	engine->globalObject().setProperty("removeBeacon", engine->newFunction(js_removeBeacon)); // WZAPI
+	engine->globalObject().setProperty("getDroidProduction", engine->newFunction(js_getDroidProduction)); // WZAPI
+	engine->globalObject().setProperty("getDroidLimit", engine->newFunction(js_getDroidLimit)); // WZAPI
+	engine->globalObject().setProperty("getExperienceModifier", engine->newFunction(js_getExperienceModifier)); // WZAPI
+	engine->globalObject().setProperty("setDroidLimit", engine->newFunction(js_setDroidLimit)); // WZAPI
 	engine->globalObject().setProperty("setCommanderLimit", engine->newFunction(js_setCommanderLimit));
 	engine->globalObject().setProperty("setConstructorLimit", engine->newFunction(js_setConstructorLimit));
-	engine->globalObject().setProperty("setExperienceModifier", engine->newFunction(js_setExperienceModifier));
+	engine->globalObject().setProperty("setExperienceModifier", engine->newFunction(js_setExperienceModifier)); // WZAPI
 	engine->globalObject().setProperty("getWeaponInfo", engine->newFunction(js_getWeaponInfo));
-	engine->globalObject().setProperty("enumCargo", engine->newFunction(js_enumCargo));
+	engine->globalObject().setProperty("enumCargo", engine->newFunction(js_enumCargo)); // WZAPI
 
 	// Functions that operate on the current player only
 	engine->globalObject().setProperty("centreView", engine->newFunction(js_centreView));

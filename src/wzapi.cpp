@@ -1770,3 +1770,221 @@ bool wzapi::activateStructure(WZAPI_PARAMS(STRUCTURE *psStruct, optional<BASE_OB
 	return true;
 }
 
+//-- ## chat(target player, message)
+//--
+//-- Send a message to target player. Target may also be ```ALL_PLAYERS``` or ```ALLIES```.
+//-- Returns a boolean that is true on success. (3.2+ only)
+//--
+bool wzapi::chat(WZAPI_PARAMS(int target, std::string message))
+{
+	int player = context.player(); //engine->globalObject().property("me").toInt32();
+//	int target = context->argument(0).toInt32();
+//	QString message = context->argument(1).toString();
+	SCRIPT_ASSERT(false, context, target >= 0 || target == ALL_PLAYERS || target == ALLIES, "Message to invalid player %d", target);
+	if (target == ALL_PLAYERS) // all
+	{
+		return sendTextMessage(message.c_str(), true, player);
+	}
+	else if (target == ALLIES) // allies
+	{
+		return sendTextMessage((std::string(". ") + message).c_str(), false, player);
+	}
+	else // specific player
+	{
+		WzString tmp = WzString::number(NetPlay.players[target].position) + WzString::fromUtf8(message);
+		return sendTextMessage(tmp.toUtf8().c_str(), false, player);
+	}
+}
+
+//-- ## addBeacon(x, y, target player[, message])
+//--
+//-- Send a beacon message to target player. Target may also be ```ALLIES```.
+//-- Message is currently unused. Returns a boolean that is true on success. (3.2+ only)
+//--
+bool wzapi::addBeacon(WZAPI_PARAMS(int _x, int _y, int target, optional<std::string> _message))
+{
+	int x = world_coord(_x); //context->argument(0).toInt32());
+	int y = world_coord(_y); //context->argument(1).toInt32());
+//	int target = context->argument(2).toInt32();
+//	QString message = context->argument(3).toString();
+	std::string message;
+	if (_message.has_value())
+	{
+		message = _message.value();
+	}
+	int me = context.player(); //engine->globalObject().property("me").toInt32();
+	SCRIPT_ASSERT(false, context, target >= 0 || target == ALLIES, "Message to invalid player %d", target);
+	for (int i = 0; i < MAX_PLAYERS; i++)
+	{
+		if (i != me && (i == target || (target == ALLIES && aiCheckAlliances(i, me))))
+		{
+			debug(LOG_MSG, "adding script beacon to %d from %d", i, me);
+			sendBeaconToPlayer(x, y, i, me, message.c_str());
+		}
+	}
+	return true;
+}
+
+//-- ## removeBeacon(target player)
+//--
+//-- Remove a beacon message sent to target player. Target may also be ```ALLIES```.
+//-- Returns a boolean that is true on success. (3.2+ only)
+//--
+bool wzapi::removeBeacon(WZAPI_PARAMS(int target))
+{
+	int me = context.player(); //engine->globalObject().property("me").toInt32();
+//	int target = context->argument(0).toInt32();
+	SCRIPT_ASSERT(false, context, target >= 0 || target == ALLIES, "Message to invalid player %d", target);
+	for (int i = 0; i < MAX_PLAYERS; i++)
+	{
+		if (i == target || (target == ALLIES && aiCheckAlliances(i, me)))
+		{
+			MESSAGE *psMessage = findBeaconMsg(i, me);
+			if (psMessage)
+			{
+				removeMessage(psMessage, i);
+				triggerEventBeaconRemoved(me, i);
+			}
+		}
+	}
+//	jsDebugMessageUpdate();
+	return true;
+}
+
+//-- ## getDroidProduction(factory)
+//--
+//-- Return droid in production in given factory. Note that this droid is fully
+//-- virtual, and should never be passed anywhere. (3.2+ only)
+//--
+const DROID * wzapi::getDroidProduction(WZAPI_PARAMS(STRUCTURE *_psFactory))
+{
+//	QScriptValue structVal = context->argument(0);
+//	int id = structVal.property("id").toInt32();
+//	int player = structVal.property("player").toInt32();
+	STRUCTURE *psStruct = _psFactory; //IdToStruct(id, player);
+	SCRIPT_ASSERT(nullptr, context, psStruct, "No structure provided");
+	int player = psStruct->player;
+	FACTORY *psFactory = &psStruct->pFunctionality->factory;
+	DROID_TEMPLATE *psTemp = psFactory->psSubject;
+	if (!psTemp)
+	{
+		return nullptr;
+	}
+	DROID sDroid(0, player), *psDroid = &sDroid;
+	psDroid->pos = psStruct->pos;
+	psDroid->rot = psStruct->rot;
+	psDroid->experience = 0;
+	droidSetName(psDroid, getName(psTemp));
+	droidSetBits(psTemp, psDroid);
+	psDroid->weight = calcDroidWeight(psTemp);
+	psDroid->baseSpeed = calcDroidBaseSpeed(psTemp, psDroid->weight, player);
+	return psDroid;
+}
+
+//-- ## getDroidLimit([player[, unit type]])
+//--
+//-- Return maximum number of droids that this player can produce. This limit is usually
+//-- fixed throughout a game and the same for all players. If no arguments are passed,
+//-- returns general unit limit for the current player. If a second, unit type argument
+//-- is passed, the limit for this unit type is returned, which may be different from
+//-- the general unit limit (eg for commanders and construction droids). (3.2+ only)
+//--
+int wzapi::getDroidLimit(WZAPI_PARAMS(optional<int> _player, optional<int> _unitType))
+{
+	int player = (_player.has_value()) ? _player.value() : context.player();
+	SCRIPT_ASSERT_PLAYER(false, context, player);
+	if (_unitType.has_value())
+	{
+		DROID_TYPE type = (DROID_TYPE)_unitType.value();
+		if (type == DROID_COMMAND)
+		{
+			return getMaxCommanders(player);
+		}
+		else if (type == DROID_CONSTRUCT)
+		{
+			return getMaxConstructors(player);
+		}
+		// else return general unit limit
+	}
+	return getMaxDroids(player);
+}
+
+//-- ## getExperienceModifier(player)
+//--
+//-- Get the percentage of experience this player droids are going to gain. (3.2+ only)
+//--
+int wzapi::getExperienceModifier(WZAPI_PARAMS(int player))
+{
+	SCRIPT_ASSERT_PLAYER(false, context, player);
+	return getExpGain(player);
+}
+
+//-- ## setDroidLimit(player, value[, droid type])
+//--
+//-- Set the maximum number of droids that this player can produce. If a third
+//-- parameter is added, this is the droid type to limit. It can be DROID_ANY
+//-- for droids in general, DROID_CONSTRUCT for constructors, or DROID_COMMAND
+//-- for commanders. (3.2+ only)
+//--
+bool wzapi::setDroidLimit(WZAPI_PARAMS(int player, int value, optional<int> _droidType))
+{
+	SCRIPT_ASSERT_PLAYER(false, context, player);
+//	int player = context->argument(0).toInt32();
+//	int value = context->argument(1).toInt32();
+	DROID_TYPE type = DROID_ANY;
+	if (_droidType.has_value())
+	{
+		type = (DROID_TYPE)_droidType.value();
+	}
+	switch (type)
+	{
+	case DROID_CONSTRUCT:
+		setMaxConstructors(player, value);
+		break;
+	case DROID_COMMAND:
+		setMaxCommanders(player, value);
+		break;
+	default:
+	case DROID_ANY:
+		setMaxDroids(player, value);
+		break;
+	}
+	return true;
+}
+
+//-- ## setExperienceModifier(player, percent)
+//--
+//-- Set the percentage of experience this player droids are going to gain. (3.2+ only)
+//--
+bool wzapi::setExperienceModifier(WZAPI_PARAMS(int player, int percent))
+{
+	SCRIPT_ASSERT_PLAYER(false, context, player);
+	setExpGain(player, percent);
+	return true;
+}
+
+//-- ## enumCargo(transport droid)
+//--
+//-- Returns an array of droid objects inside given transport. (3.2+ only)
+//--
+std::vector<const DROID *> wzapi::enumCargo(WZAPI_PARAMS(DROID *psDroid))
+{
+//	QScriptValue droidVal = context->argument(0);
+//	int id = droidVal.property("id").toInt32();
+//	int player = droidVal.property("player").toInt32();
+//	DROID *psDroid = IdToDroid(id, player);
+	SCRIPT_ASSERT({}, context, psDroid, "No droid provided");
+	SCRIPT_ASSERT({}, context, isTransporter(psDroid), "Wrong droid type (expecting: transporter)");
+	std::vector<const DROID *> result;
+	result.reserve(psDroid->psGroup->getNumMembers());
+//	QScriptValue result = engine->newArray(psDroid->psGroup->getNumMembers());
+	int i = 0;
+	for (DROID *psCurr = psDroid->psGroup->psList; psCurr; psCurr = psCurr->psGrpNext, i++)
+	{
+		if (psDroid != psCurr)
+		{
+			result.push_back(psCurr);
+		}
+	}
+	return result;
+}
