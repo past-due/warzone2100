@@ -137,6 +137,7 @@ namespace wzapi
 
 	#define MULTIPLAY_SYNCREQUEST_REQUIRED
 	#define MUTLIPLAY_UNSAFE
+	#define WZAPI_DEPRECATED
 
 	std::string translate(WZAPI_PARAMS(std::string str));
 	int32_t syncRandom(WZAPI_PARAMS(uint32_t limit));
@@ -200,6 +201,15 @@ namespace wzapi
 	bool isVTOL(WZAPI_PARAMS(const DROID *psDroid));
 	bool safeDest(WZAPI_PARAMS(int player, int x, int y));
 	bool activateStructure(WZAPI_PARAMS(STRUCTURE *psStruct, optional<BASE_OBJECT *> _psTarget));
+	bool chat(WZAPI_PARAMS(int target, std::string message));
+	bool addBeacon(WZAPI_PARAMS(int x, int y, int target, optional<std::string> _message));
+	bool removeBeacon(WZAPI_PARAMS(int target));
+	const DROID * getDroidProduction(WZAPI_PARAMS(STRUCTURE *_psFactory));
+	int getDroidLimit(WZAPI_PARAMS(optional<int> _player, optional<int> _unitType));
+	int getExperienceModifier(WZAPI_PARAMS(int player));
+	bool setDroidLimit(WZAPI_PARAMS(int player, int value, optional<int> _droidType));
+	bool setExperienceModifier(WZAPI_PARAMS(int player, int percent));
+	std::vector<const DROID *> enumCargo(WZAPI_PARAMS(DROID *psDroid));
 }
 
 #endif
