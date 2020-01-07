@@ -2170,10 +2170,10 @@ int wzapi::getMissionTime(WZAPI_NO_PARAMS)
 //-- is set to "--:--" and reinforcements are suppressed until this function is called
 //-- again with a regular time value.
 //--
-bool wzapi::setReinforcementTime(WZAPI_PARAMS(int _value))
+wzapi::no_return_value wzapi::setReinforcementTime(WZAPI_PARAMS(int _value))
 {
 	int value = _value * GAME_TICKS_PER_SEC;
-	SCRIPT_ASSERT(false, context, value == LZ_COMPROMISED_TIME || value < 60 * 60 * GAME_TICKS_PER_SEC,
+	SCRIPT_ASSERT({}, context, value == LZ_COMPROMISED_TIME || value < 60 * 60 * GAME_TICKS_PER_SEC,
 	              "The transport timer cannot be set to more than 1 hour!");
 	mission.ETA = value;
 	if (missionCanReEnforce())
@@ -2200,5 +2200,141 @@ bool wzapi::setReinforcementTime(WZAPI_PARAMS(int _value))
 			intRemoveTransporterLaunch();
 		}
 	}
+	return {};
+}
+
+//-- ## completeResearch(research[, player [, forceResearch]])
+//--
+//-- Finish a research for the given player.
+//-- forceResearch will allow a research topic to be researched again. 3.3+
+//--
+wzapi::no_return_value wzapi::completeResearch(WZAPI_PARAMS(std::string researchName, optional<int> _player, optional<bool> _forceResearch))
+{
+	int player = (_player.has_value()) ? _player.value() : context.player();
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+	bool forceIt = (_forceResearch.has_value()) ? _forceResearch.value() : false;
+	RESEARCH *psResearch = ::getResearch(researchName.c_str());
+	SCRIPT_ASSERT({}, context, psResearch, "No such research %s for player %d", researchName.c_str(), player);
+	SCRIPT_ASSERT({}, context, psResearch->index < asResearch.size(), "Research index out of bounds");
+	PLAYER_RESEARCH *plrRes = &asPlayerResList[player][psResearch->index];
+	if (!forceIt && IsResearchCompleted(plrRes))
+	{
+		return {};
+	}
+	if (bMultiMessages && (gameTime > 2)) // ??? "gameTime > 2" ??
+	{
+		SendResearch(player, psResearch->index, false);
+		// Wait for our message before doing anything.
+	}
+	else
+	{
+		::researchResult(psResearch->index, player, false, nullptr, false);
+	}
+	return {};
+}
+
+//-- ## completeAllResearch([player])
+//--
+//-- Finish all researches for the given player.
+//--
+wzapi::no_return_value wzapi::completeAllResearch(WZAPI_PARAMS(optional<int> _player))
+{
+	int player = (_player.has_value()) ? _player.value() : context.player();
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+	for (int i = 0; i < asResearch.size(); i++)
+	{
+		RESEARCH *psResearch = &asResearch[i];
+		PLAYER_RESEARCH *plrRes = &asPlayerResList[player][psResearch->index];
+		if (!IsResearchCompleted(plrRes))
+		{
+			if (bMultiMessages && (gameTime > 2))
+			{
+				SendResearch(player, psResearch->index, false);
+				// Wait for our message before doing anything.
+			}
+			else
+			{
+				::researchResult(psResearch->index, player, false, nullptr, false);
+			}
+		}
+	}
+	return {};
+}
+
+//-- ## enableResearch(research[, player])
+//--
+//-- Enable a research for the given player, allowing it to be researched.
+//--
+bool wzapi::enableResearch(WZAPI_PARAMS(std::string researchName, optional<int> _player))
+{
+	int player = (_player.has_value()) ? _player.value() : context.player();
+	SCRIPT_ASSERT_PLAYER(false, context, player);
+	RESEARCH *psResearch = ::getResearch(researchName.c_str());
+	SCRIPT_ASSERT(false, context, psResearch, "No such research %s for player %d", researchName.c_str(), player);
+	if (!::enableResearch(psResearch, player))
+	{
+		debug(LOG_ERROR, "Unable to enable research %s for player %d", researchName.c_str(), player);
+		return false;
+	}
 	return true;
+}
+
+//-- ## setPower(power[, player])
+//--
+//-- Set a player's power directly. (Do not use this in an AI script.)
+//--
+wzapi::no_return_value wzapi::setPower(WZAPI_PARAMS(int power, optional<int> _player)) WZAPI_AI_UNSAFE
+{
+	int player = (_player.has_value()) ? _player.value() : context.player();
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+	::setPower(player, power);
+	return {};
+}
+
+//-- ## setPowerModifier(power[, player])
+//--
+//-- Set a player's power modifier percentage. (Do not use this in an AI script.) (3.2+ only)
+//--
+wzapi::no_return_value wzapi::setPowerModifier(WZAPI_PARAMS(int power, optional<int> _player)) WZAPI_AI_UNSAFE
+{
+	int player = (_player.has_value()) ? _player.value() : context.player();
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+	::setPowerModifier(player, power);
+	return {};
+}
+
+//-- ## setPowerStorageMaximum(maximum[, player])
+//--
+//-- Set a player's power storage maximum. (Do not use this in an AI script.) (3.2+ only)
+//--
+wzapi::no_return_value wzapi::setPowerStorageMaximum(WZAPI_PARAMS(int power, optional<int> _player)) WZAPI_AI_UNSAFE
+{
+	int player = (_player.has_value()) ? _player.value() : context.player();
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+	::setPowerMaxStorage(player, power);
+	return {};
+}
+
+//-- ## extraPowerTime(time, player)
+//--
+//-- Increase a player's power as if that player had power income equal to current income
+//-- over the given amount of extra time. (3.2+ only)
+//--
+wzapi::no_return_value wzapi::extraPowerTime(WZAPI_PARAMS(int time, optional<int> _player))
+{
+	int ticks = time * GAME_UPDATES_PER_SEC;
+	int player = (_player.has_value()) ? _player.value() : context.player();
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+	updatePlayerPower(player, ticks);
+	return {};
+}
+
+//-- ## setTutorialMode(bool)
+//--
+//-- Sets a number of restrictions appropriate for tutorial if set to true.
+//--
+wzapi::no_return_value wzapi::setTutorialMode(WZAPI_PARAMS(bool tutorialMode))
+{
+	bInTutorial = tutorialMode;
+	return {};
 }

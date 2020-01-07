@@ -2780,39 +2780,7 @@ static QScriptValue js_gameOverMessage(QScriptContext *context, QScriptEngine *e
 //--
 static QScriptValue js_completeResearch(QScriptContext *context, QScriptEngine *engine)
 {
-	QString researchName = context->argument(0).toString();
-	int player;
-	bool forceIt = false;
-	if (context->argumentCount() > 1)
-	{
-		player = context->argument(1).toInt32();
-	}
-	else
-	{
-		player = engine->globalObject().property("me").toInt32();
-	}
-	if (context->argumentCount() > 2)
-	{
-		forceIt = context->argument(2).toBool();
-	}
-	RESEARCH *psResearch = getResearch(researchName.toUtf8().constData());
-	SCRIPT_ASSERT(context, psResearch, "No such research %s for player %d", researchName.toUtf8().constData(), player);
-	SCRIPT_ASSERT(context, psResearch->index < asResearch.size(), "Research index out of bounds");
-	PLAYER_RESEARCH *plrRes = &asPlayerResList[player][psResearch->index];
-	if (!forceIt && IsResearchCompleted(plrRes))
-	{
-		return QScriptValue();
-	}
-	if (bMultiMessages && (gameTime > 2))
-	{
-		SendResearch(player, psResearch->index, false);
-		// Wait for our message before doing anything.
-	}
-	else
-	{
-		researchResult(psResearch->index, player, false, nullptr, false);
-	}
-	return QScriptValue();
+	return wrap_(wzapi::completeResearch, context, engine);
 }
 
 //-- ## completeAllResearch([player])
@@ -2821,33 +2789,7 @@ static QScriptValue js_completeResearch(QScriptContext *context, QScriptEngine *
 //--
 static QScriptValue js_completeAllResearch(QScriptContext *context, QScriptEngine *engine)
 {
-	int player;
-	if (context->argumentCount() > 0)
-	{
-		player = context->argument(0).toInt32();
-	}
-	else
-	{
-		player = engine->globalObject().property("me").toInt32();
-	}
-	for (int i = 0; i < asResearch.size(); i++)
-	{
-		RESEARCH *psResearch = &asResearch[i];
-		PLAYER_RESEARCH *plrRes = &asPlayerResList[player][psResearch->index];
-		if (!IsResearchCompleted(plrRes))
-		{
-			if (bMultiMessages && (gameTime > 2))
-			{
-				SendResearch(player, psResearch->index, false);
-				// Wait for our message before doing anything.
-			}
-			else
-			{
-				researchResult(psResearch->index, player, false, nullptr, false);
-			}
-		}
-	}
-	return QScriptValue();
+	return wrap_(wzapi::completeAllResearch, context, engine);
 }
 
 //-- ## enableResearch(research[, player])
@@ -2856,23 +2798,7 @@ static QScriptValue js_completeAllResearch(QScriptContext *context, QScriptEngin
 //--
 static QScriptValue js_enableResearch(QScriptContext *context, QScriptEngine *engine)
 {
-	QString researchName = context->argument(0).toString();
-	int player;
-	if (context->argumentCount() > 1)
-	{
-		player = context->argument(1).toInt32();
-	}
-	else
-	{
-		player = engine->globalObject().property("me").toInt32();
-	}
-	RESEARCH *psResearch = getResearch(researchName.toUtf8().constData());
-	SCRIPT_ASSERT(context, psResearch, "No such research %s for player %d", researchName.toUtf8().constData(), player);
-	if (!enableResearch(psResearch, player))
-	{
-		debug(LOG_ERROR, "Unable to enable research %s for player %d", researchName.toUtf8().constData(), player);
-	}
-	return QScriptValue();
+	return wrap_(wzapi::enableResearch, context, engine);
 }
 
 //-- ## extraPowerTime(time, player)
@@ -2882,19 +2808,7 @@ static QScriptValue js_enableResearch(QScriptContext *context, QScriptEngine *en
 //--
 static QScriptValue js_extraPowerTime(QScriptContext *context, QScriptEngine *engine)
 {
-	int ticks = context->argument(0).toInt32() * GAME_UPDATES_PER_SEC;
-	int player;
-	if (context->argumentCount() > 1)
-	{
-		player = context->argument(1).toInt32();
-		SCRIPT_ASSERT_PLAYER(context, player);
-	}
-	else
-	{
-		player = engine->globalObject().property("me").toInt32();
-	}
-	updatePlayerPower(player, ticks);
-	return QScriptValue();
+	return wrap_(wzapi::extraPowerTime, context, engine);
 }
 
 //-- ## setPower(power[, player])
@@ -2903,19 +2817,7 @@ static QScriptValue js_extraPowerTime(QScriptContext *context, QScriptEngine *en
 //--
 static QScriptValue js_setPower(QScriptContext *context, QScriptEngine *engine)
 {
-	int power = context->argument(0).toInt32();
-	int player;
-	if (context->argumentCount() > 1)
-	{
-		player = context->argument(1).toInt32();
-		SCRIPT_ASSERT_PLAYER(context, player);
-	}
-	else
-	{
-		player = engine->globalObject().property("me").toInt32();
-	}
-	setPower(player, power);
-	return QScriptValue();
+	return wrap_(wzapi::setPower, context, engine);
 }
 
 //-- ## setPowerModifier(power[, player])
@@ -2924,19 +2826,7 @@ static QScriptValue js_setPower(QScriptContext *context, QScriptEngine *engine)
 //--
 static QScriptValue js_setPowerModifier(QScriptContext *context, QScriptEngine *engine)
 {
-	int power = context->argument(0).toInt32();
-	int player;
-	if (context->argumentCount() > 1)
-	{
-		player = context->argument(1).toInt32();
-		SCRIPT_ASSERT_PLAYER(context, player);
-	}
-	else
-	{
-		player = engine->globalObject().property("me").toInt32();
-	}
-	setPowerModifier(player, power);
-	return QScriptValue();
+	return wrap_(wzapi::setPowerModifier, context, engine);
 }
 
 //-- ## setPowerStorageMaximum(maximum[, player])
@@ -2945,19 +2835,7 @@ static QScriptValue js_setPowerModifier(QScriptContext *context, QScriptEngine *
 //--
 static QScriptValue js_setPowerStorageMaximum(QScriptContext *context, QScriptEngine *engine)
 {
-	int power = context->argument(0).toInt32();
-	int player;
-	if (context->argumentCount() > 1)
-	{
-		player = context->argument(1).toInt32();
-		SCRIPT_ASSERT_PLAYER(context, player);
-	}
-	else
-	{
-		player = engine->globalObject().property("me").toInt32();
-	}
-	setPowerMaxStorage(player, power);
-	return QScriptValue();
+	return wrap_(wzapi::setPowerStorageMaximum, context, engine);
 }
 
 //-- ## enableStructure(structure type[, player])
@@ -2991,8 +2869,7 @@ static QScriptValue js_enableStructure(QScriptContext *context, QScriptEngine *e
 //--
 static QScriptValue js_setTutorialMode(QScriptContext *context, QScriptEngine *engine)
 {
-	bInTutorial = context->argument(0).toBool();
-	return QScriptValue();
+	return wrap_(wzapi::setTutorialMode, context, engine);
 }
 
 //-- ## setMiniMap(bool)
@@ -5608,14 +5485,14 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 	engine->globalObject().setProperty("setMissionTime", engine->newFunction(js_setMissionTime)); // WZAPI
 	engine->globalObject().setProperty("getMissionTime", engine->newFunction(js_getMissionTime)); // WZAPI
 	engine->globalObject().setProperty("setReinforcementTime", engine->newFunction(js_setReinforcementTime)); // WZAPI
-	engine->globalObject().setProperty("completeResearch", engine->newFunction(js_completeResearch));
-	engine->globalObject().setProperty("completeAllResearch", engine->newFunction(js_completeAllResearch));
-	engine->globalObject().setProperty("enableResearch", engine->newFunction(js_enableResearch));
-	engine->globalObject().setProperty("setPower", engine->newFunction(js_setPower));
-	engine->globalObject().setProperty("setPowerModifier", engine->newFunction(js_setPowerModifier));
-	engine->globalObject().setProperty("setPowerStorageMaximum", engine->newFunction(js_setPowerStorageMaximum));
-	engine->globalObject().setProperty("extraPowerTime", engine->newFunction(js_extraPowerTime));
-	engine->globalObject().setProperty("setTutorialMode", engine->newFunction(js_setTutorialMode));
+	engine->globalObject().setProperty("completeResearch", engine->newFunction(js_completeResearch)); // WZAPI
+	engine->globalObject().setProperty("completeAllResearch", engine->newFunction(js_completeAllResearch)); // WZAPI
+	engine->globalObject().setProperty("enableResearch", engine->newFunction(js_enableResearch)); // WZAPI
+	engine->globalObject().setProperty("setPower", engine->newFunction(js_setPower)); // WZAPI
+	engine->globalObject().setProperty("setPowerModifier", engine->newFunction(js_setPowerModifier)); // WZAPI
+	engine->globalObject().setProperty("setPowerStorageMaximum", engine->newFunction(js_setPowerStorageMaximum)); // WZAPI
+	engine->globalObject().setProperty("extraPowerTime", engine->newFunction(js_extraPowerTime)); // WZAPI
+	engine->globalObject().setProperty("setTutorialMode", engine->newFunction(js_setTutorialMode)); // WZAPI
 	engine->globalObject().setProperty("setDesign", engine->newFunction(js_setDesign));
 	engine->globalObject().setProperty("enableTemplate", engine->newFunction(js_enableTemplate));
 	engine->globalObject().setProperty("removeTemplate", engine->newFunction(js_removeTemplate));

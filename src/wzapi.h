@@ -138,6 +138,7 @@ namespace wzapi
 	#define MULTIPLAY_SYNCREQUEST_REQUIRED
 	#define MUTLIPLAY_UNSAFE
 	#define WZAPI_DEPRECATED
+	#define WZAPI_AI_UNSAFE
 
 	std::string translate(WZAPI_PARAMS(std::string str));
 	int32_t syncRandom(WZAPI_PARAMS(uint32_t limit));
@@ -221,7 +222,15 @@ namespace wzapi
 	bool applyLimitSet(WZAPI_NO_PARAMS);
 	no_return_value setMissionTime(WZAPI_PARAMS(int _value));
 	int getMissionTime(WZAPI_NO_PARAMS);
-	bool setReinforcementTime(WZAPI_PARAMS(int _value));
+	no_return_value setReinforcementTime(WZAPI_PARAMS(int _value));
+	no_return_value completeResearch(WZAPI_PARAMS(std::string researchName, optional<int> _player, optional<bool> _forceResearch));
+	no_return_value completeAllResearch(WZAPI_PARAMS(optional<int> _player));
+	bool enableResearch(WZAPI_PARAMS(std::string researchName, optional<int> _player));
+	no_return_value setPower(WZAPI_PARAMS(int power, optional<int> _player)); WZAPI_AI_UNSAFE
+	no_return_value setPowerModifier(WZAPI_PARAMS(int power, optional<int> _player)); WZAPI_AI_UNSAFE
+	no_return_value setPowerStorageMaximum(WZAPI_PARAMS(int power, optional<int> _player)); WZAPI_AI_UNSAFE
+	no_return_value extraPowerTime(WZAPI_PARAMS(int time, optional<int> _player));
+	no_return_value setTutorialMode(WZAPI_PARAMS(bool tutorialMode));
 }
 
 #endif
