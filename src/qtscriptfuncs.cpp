@@ -1124,6 +1124,14 @@ bool writeLabels(const char *filename)
 		{
 			context->throwError(QScriptContext::ReferenceError, QString(expr) +  " failed in " + QString(function) + " at line " + QString::number(line));
 		}
+
+		virtual playerCallbackFunc getNamedScriptCallback(const WzString& func) const override
+		{
+			QScriptEngine *pEngine = engine;
+			return [pEngine, func](const int player) {
+				::namedScriptCallback(pEngine, func, player);
+			};
+		}
 	};
 
 	/// Assert for scripts that give useful backtraces and other info.
@@ -2878,8 +2886,7 @@ static QScriptValue js_setTutorialMode(QScriptContext *context, QScriptEngine *e
 //--
 static QScriptValue js_setMiniMap(QScriptContext *context, QScriptEngine *engine)
 {
-	radarPermitted = context->argument(0).toBool();
-	return QScriptValue();
+	return wrap_(wzapi::setMiniMap, context, engine);
 }
 
 //-- ## setDesign(bool)
@@ -2888,22 +2895,7 @@ static QScriptValue js_setMiniMap(QScriptContext *context, QScriptEngine *engine
 //--
 static QScriptValue js_setDesign(QScriptContext *context, QScriptEngine *engine)
 {
-	DROID_TEMPLATE *psCurr;
-	allowDesign = context->argument(0).toBool();
-	// Switch on or off future templates
-	// FIXME: This dual data structure for templates is just plain insane.
-	for (auto &keyvaluepair : droidTemplates[selectedPlayer])
-	{
-		bool researched = researchedTemplate(keyvaluepair.second, selectedPlayer, true);
-		keyvaluepair.second->enabled = (researched || allowDesign);
-	}
-	for (auto &localTemplate : localTemplates)
-	{
-		psCurr = &localTemplate;
-		bool researched = researchedTemplate(psCurr, selectedPlayer, true);
-		psCurr->enabled = (researched || allowDesign);
-	}
-	return QScriptValue();
+	return wrap_(wzapi::setDesign, context, engine);
 }
 
 //-- ## enableTemplate(template name)
@@ -2912,34 +2904,7 @@ static QScriptValue js_setDesign(QScriptContext *context, QScriptEngine *engine)
 //--
 static QScriptValue js_enableTemplate(QScriptContext *context, QScriptEngine *engine)
 {
-	DROID_TEMPLATE *psCurr;
-	WzString templateName = WzString::fromUtf8(context->argument(0).toString().toUtf8().constData());
-	bool found = false;
-	// FIXME: This dual data structure for templates is just plain insane.
-	for (auto &keyvaluepair : droidTemplates[selectedPlayer])
-	{
-		if (templateName.compare(keyvaluepair.second->id) == 0)
-		{
-			keyvaluepair.second->enabled = true;
-			found = true;
-			break;
-		}
-	}
-	if (!found)
-	{
-		debug(LOG_ERROR, "Template %s was not found!", templateName.toUtf8().c_str());
-		return QScriptValue(false);
-	}
-	for (auto &localTemplate : localTemplates)
-	{
-		psCurr = &localTemplate;
-		if (templateName.compare(psCurr->id) == 0)
-		{
-			psCurr->enabled = true;
-			break;
-		}
-	}
-	return QScriptValue();
+	return wrap_(wzapi::enableTemplate, context, engine);
 }
 
 //-- ## removeTemplate(template name)
@@ -2948,37 +2913,10 @@ static QScriptValue js_enableTemplate(QScriptContext *context, QScriptEngine *en
 //--
 static QScriptValue js_removeTemplate(QScriptContext *context, QScriptEngine *engine)
 {
-	DROID_TEMPLATE *psCurr;
-	WzString templateName = WzString::fromUtf8(context->argument(0).toString().toUtf8().constData());
-	bool found = false;
-	// FIXME: This dual data structure for templates is just plain insane.
-	for (auto &keyvaluepair : droidTemplates[selectedPlayer])
-	{
-		if (templateName.compare(keyvaluepair.second->id) == 0)
-		{
-			keyvaluepair.second->enabled = false;
-			found = true;
-			break;
-		}
-	}
-	if (!found)
-	{
-		debug(LOG_ERROR, "Template %s was not found!", templateName.toUtf8().c_str());
-		return QScriptValue(false);
-	}
-	for (std::list<DROID_TEMPLATE>::iterator i = localTemplates.begin(); i != localTemplates.end(); ++i)
-	{
-		psCurr = &*i;
-		if (templateName.compare(psCurr->id) == 0)
-		{
-			localTemplates.erase(i);
-			break;
-		}
-	}
-	return QScriptValue();
+	return wrap_(wzapi::removeTemplate, context, engine);
 }
 
-//-- ## setReticuleButton(id, filename, filenameHigh, tooltip, callback)
+//-- ## setReticuleButton(id, tooltip, filename, filenameHigh, callback)
 //--
 //-- Add reticule button. id is which button to change, where zero is zero is the middle button, then going clockwise from the
 //-- uppermost button. filename is button graphics and filenameHigh is for highlighting. The tooltip is the text you see when
@@ -2987,18 +2925,7 @@ static QScriptValue js_removeTemplate(QScriptContext *context, QScriptEngine *en
 //--
 static QScriptValue js_setReticuleButton(QScriptContext *context, QScriptEngine *engine)
 {
-	int button = context->argument(0).toInt32();
-	SCRIPT_ASSERT(context, button >= 0 && button <= 6, "Invalid button %d", button);
-	std::string tip = std::string(context->argument(1).toString().toUtf8().constData());
-	std::string file = std::string(context->argument(2).toString().toUtf8().constData());
-	std::string fileDown = std::string(context->argument(3).toString().toUtf8().constData());
-	WzString func;
-	if (context->argumentCount() > 4)
-	{
-		func = QStringToWzString(context->argument(4).toString());
-	}
-	setReticuleStats(button, tip, file, fileDown, func, engine);
-	return QScriptValue();
+	return wrap_(wzapi::setReticuleButton, context, engine);
 }
 
 //-- ## showReticuleWidget(id)
@@ -5493,11 +5420,11 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 	engine->globalObject().setProperty("setPowerStorageMaximum", engine->newFunction(js_setPowerStorageMaximum)); // WZAPI
 	engine->globalObject().setProperty("extraPowerTime", engine->newFunction(js_extraPowerTime)); // WZAPI
 	engine->globalObject().setProperty("setTutorialMode", engine->newFunction(js_setTutorialMode)); // WZAPI
-	engine->globalObject().setProperty("setDesign", engine->newFunction(js_setDesign));
-	engine->globalObject().setProperty("enableTemplate", engine->newFunction(js_enableTemplate));
-	engine->globalObject().setProperty("removeTemplate", engine->newFunction(js_removeTemplate));
-	engine->globalObject().setProperty("setMiniMap", engine->newFunction(js_setMiniMap));
-	engine->globalObject().setProperty("setReticuleButton", engine->newFunction(js_setReticuleButton));
+	engine->globalObject().setProperty("setDesign", engine->newFunction(js_setDesign)); // WZAPI
+	engine->globalObject().setProperty("enableTemplate", engine->newFunction(js_enableTemplate)); // WZAPI
+	engine->globalObject().setProperty("removeTemplate", engine->newFunction(js_removeTemplate)); // WZAPI
+	engine->globalObject().setProperty("setMiniMap", engine->newFunction(js_setMiniMap)); // WZAPI
+	engine->globalObject().setProperty("setReticuleButton", engine->newFunction(js_setReticuleButton)); // WZAPI
 	engine->globalObject().setProperty("setReticuleFlash", engine->newFunction(js_setReticuleFlash));
 	engine->globalObject().setProperty("showReticuleWidget", engine->newFunction(js_showReticuleWidget));
 	engine->globalObject().setProperty("showInterface", engine->newFunction(js_showInterface));

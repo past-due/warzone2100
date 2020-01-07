@@ -2020,12 +2020,11 @@ bool wzapi::playSound(WZAPI_PARAMS(std::string sound, optional<int> _x, optional
 	{
 		soundID = audio_SetTrackVals(sound.c_str(), false, 100, 1800);
 	}
-	if (_x.has_value() || _y.has_value() || _z.has_value())
+	if (_x.has_value())
 	{
-		SCRIPT_ASSERT(false, context, _x.has_value() && _y.has_value() && _z.has_value(), "If specifying an optional location, x, y, and z must be provided");
 		int x = world_coord(_x.value());
-		int y = world_coord(_y.value());
-		int z = world_coord(_z.value());
+		int y = world_coord((_y.has_value()) ? _y.value() : 0);
+		int z = world_coord((_z.has_value()) ? _z.value() : 0);
 		audio_QueueTrackPos(soundID, x, y, z);
 	}
 	else
@@ -2336,5 +2335,133 @@ wzapi::no_return_value wzapi::extraPowerTime(WZAPI_PARAMS(int time, optional<int
 wzapi::no_return_value wzapi::setTutorialMode(WZAPI_PARAMS(bool tutorialMode))
 {
 	bInTutorial = tutorialMode;
+	return {};
+}
+
+//-- ## setDesign(bool)
+//--
+//-- Whether to allow player to design stuff.
+//--
+wzapi::no_return_value wzapi::setDesign(WZAPI_PARAMS(bool allowDesign))
+{
+	DROID_TEMPLATE *psCurr;
+	// Switch on or off future templates
+	// FIXME: This dual data structure for templates is just plain insane.
+	for (auto &keyvaluepair : droidTemplates[selectedPlayer])
+	{
+		bool researched = researchedTemplate(keyvaluepair.second, selectedPlayer, true);
+		keyvaluepair.second->enabled = (researched || allowDesign);
+	}
+	for (auto &localTemplate : localTemplates)
+	{
+		psCurr = &localTemplate;
+		bool researched = researchedTemplate(psCurr, selectedPlayer, true);
+		psCurr->enabled = (researched || allowDesign);
+	}
+	return {};
+}
+
+//-- ## enableTemplate(template name)
+//--
+//-- Enable a specific template (even if design is disabled).
+//--
+bool wzapi::enableTemplate(WZAPI_PARAMS(std::string _templateName))
+{
+	DROID_TEMPLATE *psCurr;
+	WzString templateName = WzString::fromUtf8(_templateName);
+	bool found = false;
+	// FIXME: This dual data structure for templates is just plain insane.
+	for (auto &keyvaluepair : droidTemplates[selectedPlayer])
+	{
+		if (templateName.compare(keyvaluepair.second->id) == 0)
+		{
+			keyvaluepair.second->enabled = true;
+			found = true;
+			break;
+		}
+	}
+	if (!found)
+	{
+		debug(LOG_ERROR, "Template %s was not found!", templateName.toUtf8().c_str());
+		return false;
+	}
+	for (auto &localTemplate : localTemplates)
+	{
+		psCurr = &localTemplate;
+		if (templateName.compare(psCurr->id) == 0)
+		{
+			psCurr->enabled = true;
+			break;
+		}
+	}
+	return true;
+}
+
+//-- ## removeTemplate(template name)
+//--
+//-- Remove a template.
+//--
+bool wzapi::removeTemplate(WZAPI_PARAMS(std::string _templateName))
+{
+	DROID_TEMPLATE *psCurr;
+	WzString templateName = WzString::fromUtf8(_templateName);
+	bool found = false;
+	// FIXME: This dual data structure for templates is just plain insane.
+	for (auto &keyvaluepair : droidTemplates[selectedPlayer])
+	{
+		if (templateName.compare(keyvaluepair.second->id) == 0)
+		{
+			keyvaluepair.second->enabled = false;
+			found = true;
+			break;
+		}
+	}
+	if (!found)
+	{
+		debug(LOG_ERROR, "Template %s was not found!", templateName.toUtf8().c_str());
+		return false;
+	}
+	for (std::list<DROID_TEMPLATE>::iterator i = localTemplates.begin(); i != localTemplates.end(); ++i)
+	{
+		psCurr = &*i;
+		if (templateName.compare(psCurr->id) == 0)
+		{
+			localTemplates.erase(i);
+			break;
+		}
+	}
+	return true;
+}
+
+//-- ## setMiniMap(bool)
+//--
+//-- Turns visible minimap on or off in the GUI.
+//--
+wzapi::no_return_value wzapi::setMiniMap(WZAPI_PARAMS(bool visible))
+{
+	radarPermitted = visible;
+	return {};
+}
+
+//-- ## setReticuleButton(id, tooltip, filename, filenameHigh, callback)
+//--
+//-- Add reticule button. id is which button to change, where zero is zero is the middle button, then going clockwise from the
+//-- uppermost button. filename is button graphics and filenameHigh is for highlighting. The tooltip is the text you see when
+//-- you mouse over the button. Finally, the callback is which scripting function to call. Hide and show the user interface
+//-- for such changes to take effect. (3.2+ only)
+//--
+wzapi::no_return_value wzapi::setReticuleButton(WZAPI_PARAMS(int buttonID, std::string tooltip, std::string filename, std::string filenameDown, optional<std::string> callbackFuncName))
+{
+	int button = buttonID;
+	SCRIPT_ASSERT({}, context, button >= 0 && button <= 6, "Invalid button %d", button);
+	//std::string tip = //std::string(context->argument(1).toString().toUtf8().constData());
+	//std::string file = //std::string(context->argument(2).toString().toUtf8().constData());
+	//std::string fileDown = //std::string(context->argument(3).toString().toUtf8().constData());
+	WzString func;
+	if (callbackFuncName.has_value())
+	{
+		func = WzString::fromUtf8(callbackFuncName.value());
+	}
+	setReticuleStats(button, tooltip, filename, filenameDown, (!func.isEmpty()) ? context.getNamedScriptCallback(func) : nullptr);
 	return {};
 }

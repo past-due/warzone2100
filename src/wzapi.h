@@ -29,6 +29,7 @@ using nonstd::nullopt;
 #include <string>
 #include <vector>
 #include <memory>
+#include <functional>
 
 namespace wzapi
 {
@@ -42,6 +43,7 @@ namespace wzapi
 	public:
 		virtual int player() const = 0;
 		virtual void throwError(const char *expr, int line, const char *function) const = 0;
+		virtual playerCallbackFunc getNamedScriptCallback(const WzString& func) const = 0;
 	};
 
 	struct object_id_player_type
@@ -231,6 +233,11 @@ namespace wzapi
 	no_return_value setPowerStorageMaximum(WZAPI_PARAMS(int power, optional<int> _player)); WZAPI_AI_UNSAFE
 	no_return_value extraPowerTime(WZAPI_PARAMS(int time, optional<int> _player));
 	no_return_value setTutorialMode(WZAPI_PARAMS(bool tutorialMode));
+	no_return_value setDesign(WZAPI_PARAMS(bool allowDesign));
+	bool enableTemplate(WZAPI_PARAMS(std::string _templateName));
+	bool removeTemplate(WZAPI_PARAMS(std::string _templateName));
+	no_return_value setMiniMap(WZAPI_PARAMS(bool visible));
+	no_return_value setReticuleButton(WZAPI_PARAMS(int buttonID, std::string tooltip, std::string filename, std::string filenameDown, optional<std::string> callbackFuncName));
 }
 
 #endif
