@@ -1856,7 +1856,7 @@ bool wzapi::removeBeacon(WZAPI_PARAMS(int target))
 //-- Return droid in production in given factory. Note that this droid is fully
 //-- virtual, and should never be passed anywhere. (3.2+ only)
 //--
-const DROID * wzapi::getDroidProduction(WZAPI_PARAMS(STRUCTURE *_psFactory))
+std::unique_ptr<const DROID> wzapi::getDroidProduction(WZAPI_PARAMS(STRUCTURE *_psFactory))
 {
 //	QScriptValue structVal = context->argument(0);
 //	int id = structVal.property("id").toInt32();
@@ -1870,7 +1870,7 @@ const DROID * wzapi::getDroidProduction(WZAPI_PARAMS(STRUCTURE *_psFactory))
 	{
 		return nullptr;
 	}
-	DROID sDroid(0, player), *psDroid = &sDroid;
+	DROID *psDroid = new DROID(0, player);
 	psDroid->pos = psStruct->pos;
 	psDroid->rot = psStruct->rot;
 	psDroid->experience = 0;
@@ -1878,7 +1878,7 @@ const DROID * wzapi::getDroidProduction(WZAPI_PARAMS(STRUCTURE *_psFactory))
 	droidSetBits(psTemp, psDroid);
 	psDroid->weight = calcDroidWeight(psTemp);
 	psDroid->baseSpeed = calcDroidBaseSpeed(psTemp, psDroid->weight, player);
-	return psDroid;
+	return std::unique_ptr<const DROID>(psDroid);
 }
 
 //-- ## getDroidLimit([player[, unit type]])
@@ -1987,4 +1987,112 @@ std::vector<const DROID *> wzapi::enumCargo(WZAPI_PARAMS(DROID *psDroid))
 		}
 	}
 	return result;
+}
+
+// MARK: - Functions that operate on the current player only
+
+//-- ## centreView(x, y)
+//--
+//-- Center the player's camera at the given position.
+//--
+bool wzapi::centreView(WZAPI_PARAMS(int x, int y))
+{
+	setViewPos(x, y, false);
+	return true;
+}
+
+//-- ## playSound(sound[, x, y, z])
+//--
+//-- Play a sound, optionally at a location.
+//--
+bool wzapi::playSound(WZAPI_PARAMS(std::string sound, optional<int> _x, optional<int> _y, optional<int> _z))
+{
+	int player = context.player(); //engine->globalObject().property("me").toInt32();
+	if (player != selectedPlayer)
+	{
+		return false;
+	}
+	int soundID = audio_GetTrackID(sound.c_str());
+	if (soundID == SAMPLE_NOT_FOUND)
+	{
+		soundID = audio_SetTrackVals(sound.c_str(), false, 100, 1800);
+	}
+	if (_x.has_value() || _y.has_value() || _z.has_value())
+	{
+		SCRIPT_ASSERT(false, context, _x.has_value() && _y.has_value() && _z.has_value(), "If specifying an optional location, x, y, and z must be provided");
+		int x = world_coord(_x.value());
+		int y = world_coord(_y.value());
+		int z = world_coord(_z.value());
+		audio_QueueTrackPos(soundID, x, y, z);
+	}
+	else
+	{
+		audio_QueueTrack(soundID);
+	}
+	return true;
+}
+
+//-- ## gameOverMessage(won, showBackDrop, showOutro)
+//--
+//-- End game in victory or defeat.
+//--
+bool wzapi::gameOverMessage(WZAPI_PARAMS(bool gameWon, optional<bool> _showBackDrop, optional<bool> _showOutro))
+{
+	int player = context.player(); //engine->globalObject().property("me").toInt32();
+	const MESSAGE_TYPE msgType = MSG_MISSION;	// always
+	bool showOutro = false;
+	bool showBackDrop = true;
+	if (_showBackDrop.has_value())
+	{
+		showBackDrop = _showBackDrop.value();
+	}
+	if (_showOutro.has_value())
+	{
+		showOutro = _showOutro.value();
+	}
+	VIEWDATA *psViewData;
+	if (gameWon)
+	{
+		//Quick hack to stop assert when trying to play outro in campaign.
+		psViewData = !bMultiPlayer && showOutro ? getViewData("END") : getViewData("WIN");
+		addConsoleMessage(_("YOU ARE VICTORIOUS!"), DEFAULT_JUSTIFY, SYSTEM_MESSAGE);
+	}
+	else
+	{
+		psViewData = getViewData("END");	// FIXME: rename to FAILED|LOST ?
+		addConsoleMessage(_("YOU WERE DEFEATED!"), DEFAULT_JUSTIFY, SYSTEM_MESSAGE);
+	}
+	ASSERT(psViewData, "Viewdata not found");
+	MESSAGE *psMessage = addMessage(msgType, false, player);
+	if (!bMultiPlayer && psMessage)
+	{
+		//we need to set this here so the VIDEO_QUIT callback is not called
+		setScriptWinLoseVideo(gameWon ? PLAY_WIN : PLAY_LOSE);
+		seq_ClearSeqList();
+		if (gameWon && showOutro)
+		{
+			showBackDrop = false;
+			seq_AddSeqToList("outro.ogg", nullptr, "outro.txa", false);
+			seq_StartNextFullScreenVideo();
+		}
+		else
+		{
+			//set the data
+			psMessage->pViewData = psViewData;
+			displayImmediateMessage(psMessage);
+			stopReticuleButtonFlash(IDRET_INTEL_MAP);
+		}
+	}
+//	jsDebugMessageUpdate();
+	displayGameOver(gameWon, showBackDrop);
+	if (challengeActive)
+	{
+		updateChallenge(gameWon);
+	}
+	if (autogame_enabled())
+	{
+		debug(LOG_WARNING, "Autogame completed successfully!");
+		exit(0);
+	}
+	return true;
 }
