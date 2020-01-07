@@ -415,11 +415,11 @@ bool wzapi::removeSpotter(WZAPI_PARAMS(uint32_t id))
 //-- Must be caught in an eventSyncRequest() function. All sync requests must be validated when received, and always
 //-- take care only to define sync requests that can be validated against cheating. (3.2+ only)
 //--
-bool wzapi::syncRequest(WZAPI_PARAMS(int32_t req_id, int32_t x, int32_t y, optional<const BASE_OBJECT *> _psObj, optional<const BASE_OBJECT *> _psObj2))
+bool wzapi::syncRequest(WZAPI_PARAMS(int32_t req_id, int32_t _x, int32_t _y, optional<const BASE_OBJECT *> _psObj, optional<const BASE_OBJECT *> _psObj2))
 {
 //	int32_t req_id = context->argument(0).toInt32();
-//	int32_t x = world_coord(context->argument(1).toInt32());
-//	int32_t y = world_coord(context->argument(2).toInt32());
+	int32_t x = world_coord(_x); //context->argument(1).toInt32());
+	int32_t y = world_coord(_y); //context->argument(2).toInt32());
 	const BASE_OBJECT *psObj = nullptr, *psObj2 = nullptr;
 //	if (context->argumentCount() > 3)
 	if (_psObj.has_value())
