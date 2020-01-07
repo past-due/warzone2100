@@ -2922,12 +2922,9 @@ static QScriptValue js_setStructureLimits(QScriptContext *context, QScriptEngine
 //--
 //-- Center the player's camera at the given position.
 //--
-static QScriptValue js_centreView(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_centreView(QScriptContext *context, QScriptEngine *engine)
 {
-	int x = context->argument(0).toInt32();
-	int y = context->argument(1).toInt32();
-	setViewPos(x, y, false);
-	return QScriptValue();
+	return wrap_(wzapi::centreView, context, engine);
 }
 
 //-- ## hackPlayIngameAudio()
@@ -2958,29 +2955,7 @@ static QScriptValue js_hackStopIngameAudio(QScriptContext *context, QScriptEngin
 //--
 static QScriptValue js_playSound(QScriptContext *context, QScriptEngine *engine)
 {
-	int player = engine->globalObject().property("me").toInt32();
-	if (player != selectedPlayer)
-	{
-		return QScriptValue();
-	}
-	QString sound = context->argument(0).toString();
-	int soundID = audio_GetTrackID(sound.toUtf8().constData());
-	if (soundID == SAMPLE_NOT_FOUND)
-	{
-		soundID = audio_SetTrackVals(sound.toUtf8().constData(), false, 100, 1800);
-	}
-	if (context->argumentCount() > 1)
-	{
-		int x = world_coord(context->argument(1).toInt32());
-		int y = world_coord(context->argument(2).toInt32());
-		int z = world_coord(context->argument(3).toInt32());
-		audio_QueueTrackPos(soundID, x, y, z);
-	}
-	else
-	{
-		audio_QueueTrack(soundID);
-	}
-	return QScriptValue();
+	return wrap_(wzapi::playSound, context, engine);
 }
 
 //-- ## gameOverMessage(won, showBackDrop, showOutro)
@@ -2989,64 +2964,9 @@ static QScriptValue js_playSound(QScriptContext *context, QScriptEngine *engine)
 //--
 static QScriptValue js_gameOverMessage(QScriptContext *context, QScriptEngine *engine)
 {
-	int player = engine->globalObject().property("me").toInt32();
-	const MESSAGE_TYPE msgType = MSG_MISSION;	// always
-	bool gameWon = context->argument(0).toBool();
-	bool showOutro = false;
-	bool showBackDrop = true;
-	if (context->argumentCount() > 1)
-	{
-		showBackDrop = context->argument(1).toBool();
-	}
-	if (context->argumentCount() > 2)
-	{
-		showOutro = context->argument(2).toBool();
-	}
-	VIEWDATA *psViewData;
-	if (gameWon)
-	{
-		//Quick hack to stop assert when trying to play outro in campaign.
-		psViewData = !bMultiPlayer && showOutro ? getViewData("END") : getViewData("WIN");
-		addConsoleMessage(_("YOU ARE VICTORIOUS!"), DEFAULT_JUSTIFY, SYSTEM_MESSAGE);
-	}
-	else
-	{
-		psViewData = getViewData("END");	// FIXME: rename to FAILED|LOST ?
-		addConsoleMessage(_("YOU WERE DEFEATED!"), DEFAULT_JUSTIFY, SYSTEM_MESSAGE);
-	}
-	ASSERT(psViewData, "Viewdata not found");
-	MESSAGE *psMessage = addMessage(msgType, false, player);
-	if (!bMultiPlayer && psMessage)
-	{
-		//we need to set this here so the VIDEO_QUIT callback is not called
-		setScriptWinLoseVideo(gameWon ? PLAY_WIN : PLAY_LOSE);
-		seq_ClearSeqList();
-		if (gameWon && showOutro)
-		{
-			showBackDrop = false;
-			seq_AddSeqToList("outro.ogg", nullptr, "outro.txa", false);
-			seq_StartNextFullScreenVideo();
-		}
-		else
-		{
-			//set the data
-			psMessage->pViewData = psViewData;
-			displayImmediateMessage(psMessage);
-			stopReticuleButtonFlash(IDRET_INTEL_MAP);
-		}
-	}
+	QScriptValue retVal = wrap_(wzapi::gameOverMessage, context, engine);
 	jsDebugMessageUpdate();
-	displayGameOver(gameWon, showBackDrop);
-	if (challengeActive)
-	{
-		updateChallenge(gameWon);
-	}
-	if (autogame_enabled())
-	{
-		debug(LOG_WARNING, "Autogame completed successfully!");
-		exit(0);
-	}
-	return QScriptValue();
+	return retVal;
 }
 
 //-- ## completeResearch(research[, player [, forceResearch]])
@@ -5990,9 +5910,9 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 	engine->globalObject().setProperty("enumCargo", engine->newFunction(js_enumCargo)); // WZAPI
 
 	// Functions that operate on the current player only
-	engine->globalObject().setProperty("centreView", engine->newFunction(js_centreView));
-	engine->globalObject().setProperty("playSound", engine->newFunction(js_playSound));
-	engine->globalObject().setProperty("gameOverMessage", engine->newFunction(js_gameOverMessage));
+	engine->globalObject().setProperty("centreView", engine->newFunction(js_centreView)); // WZAPI
+	engine->globalObject().setProperty("playSound", engine->newFunction(js_playSound)); // WZAPI
+	engine->globalObject().setProperty("gameOverMessage", engine->newFunction(js_gameOverMessage)); // WZAPI
 
 	// Global state manipulation -- not for use with skirmish AI (unless you want it to cheat, obviously)
 	engine->globalObject().setProperty("setStructureLimits", engine->newFunction(js_setStructureLimits));

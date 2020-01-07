@@ -28,6 +28,7 @@ using nonstd::nullopt;
 
 #include <string>
 #include <vector>
+#include <memory>
 
 namespace wzapi
 {
@@ -204,12 +205,19 @@ namespace wzapi
 	bool chat(WZAPI_PARAMS(int target, std::string message));
 	bool addBeacon(WZAPI_PARAMS(int x, int y, int target, optional<std::string> _message));
 	bool removeBeacon(WZAPI_PARAMS(int target));
-	const DROID * getDroidProduction(WZAPI_PARAMS(STRUCTURE *_psFactory));
+	std::unique_ptr<const DROID> getDroidProduction(WZAPI_PARAMS(STRUCTURE *_psFactory));
 	int getDroidLimit(WZAPI_PARAMS(optional<int> _player, optional<int> _unitType));
 	int getExperienceModifier(WZAPI_PARAMS(int player));
 	bool setDroidLimit(WZAPI_PARAMS(int player, int value, optional<int> _droidType));
 	bool setExperienceModifier(WZAPI_PARAMS(int player, int percent));
 	std::vector<const DROID *> enumCargo(WZAPI_PARAMS(DROID *psDroid));
+
+	// MARK: - Functions that operate on the current player only
+	bool centreView(WZAPI_PARAMS(int x, int y));
+	bool playSound(WZAPI_PARAMS(std::string sound, optional<int> _x, optional<int> _y, optional<int> _z));
+	bool gameOverMessage(WZAPI_PARAMS(bool gameWon, optional<bool> _showBackDrop, optional<bool> _showOutro));
+
+	
 }
 
 #endif
