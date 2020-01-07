@@ -238,6 +238,20 @@ namespace wzapi
 	bool removeTemplate(WZAPI_PARAMS(std::string _templateName));
 	no_return_value setMiniMap(WZAPI_PARAMS(bool visible));
 	no_return_value setReticuleButton(WZAPI_PARAMS(int buttonID, std::string tooltip, std::string filename, std::string filenameDown, optional<std::string> callbackFuncName));
+	no_return_value setReticuleFlash(WZAPI_PARAMS(int button, bool flash));
+	no_return_value showReticuleWidget(WZAPI_PARAMS(int button));
+	no_return_value showInterface(WZAPI_NO_PARAMS);
+	no_return_value hideInterface(WZAPI_NO_PARAMS);
+	no_return_value enableStructure(WZAPI_PARAMS(std::string structureName, optional<int> _player));
+	no_return_value enableComponent(WZAPI_PARAMS(std::string componentName, int player));
+	no_return_value makeComponentAvailable(WZAPI_PARAMS(std::string componentName, int player));
+	bool allianceExistsBetween(WZAPI_PARAMS(int player1, int player2));
+	bool removeStruct(WZAPI_PARAMS(STRUCTURE *psStruct)); WZAPI_DEPRECATED
+	bool removeObject(WZAPI_PARAMS(BASE_OBJECT *psObj, optional<bool> _sfx));
+	no_return_value setScrollLimits(WZAPI_PARAMS(int x1, int y1, int x2, int y2));
+	const STRUCTURE * addStructure(WZAPI_PARAMS(std::string structureName, int player, int x, int y));
+	unsigned int getStructureLimit(WZAPI_PARAMS(std::string structureName, optional<int> _player));
+	int countStruct(WZAPI_PARAMS(std::string structureName, optional<int> _player));
 }
 
 #endif

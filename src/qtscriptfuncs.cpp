@@ -2416,14 +2416,9 @@ static QScriptValue js_structureIdle(QScriptContext *context, QScriptEngine *eng
 //-- Immediately remove the given structure from the map. Returns a boolean that is true on success.
 //-- No special effects are applied. Deprecated since 3.2.
 //--
-static QScriptValue js_removeStruct(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_removeStruct(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue structVal = context->argument(0);
-	int id = structVal.property("id").toInt32();
-	int player = structVal.property("player").toInt32();
-	STRUCTURE *psStruct = IdToStruct(id, player);
-	SCRIPT_ASSERT(context, psStruct, "No such structure id %d belonging to player %d", id, player);
-	return QScriptValue(removeStruct(psStruct, true));
+	return wrap_(wzapi::removeStruct, context, engine);
 }
 
 //-- ## removeObject(game object[, special effects?])
@@ -2431,41 +2426,9 @@ static QScriptValue js_removeStruct(QScriptContext *context, QScriptEngine *)
 //-- Remove the given game object with special effects. Returns a boolean that is true on success.
 //-- A second, optional boolean parameter specifies whether special effects are to be applied. (3.2+ only)
 //--
-static QScriptValue js_removeObject(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_removeObject(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue qval = context->argument(0);
-	int id = qval.property("id").toInt32();
-	int player = qval.property("player").toInt32();
-	OBJECT_TYPE type = (OBJECT_TYPE)qval.property("type").toInt32();
-	BASE_OBJECT *psObj = IdToObject(type, id, player);
-	SCRIPT_ASSERT(context, psObj, "Object id %d not found belonging to player %d", id, player);
-	bool sfx = false;
-	if (context->argumentCount() > 1)
-	{
-		sfx = context->argument(1).toBool();
-	}
-	bool retval = false;
-	if (sfx)
-	{
-		switch (psObj->type)
-		{
-		case OBJ_STRUCTURE: destroyStruct((STRUCTURE *)psObj, gameTime); break;
-		case OBJ_DROID: retval = destroyDroid((DROID *)psObj, gameTime); break;
-		case OBJ_FEATURE: retval = destroyFeature((FEATURE *)psObj, gameTime); break;
-		default: SCRIPT_ASSERT(context, false, "Wrong game object type"); break;
-		}
-	}
-	else
-	{
-		switch (psObj->type)
-		{
-		case OBJ_STRUCTURE: retval = removeStruct((STRUCTURE *)psObj, true); break;
-		case OBJ_DROID: retval = removeDroidBase((DROID *)psObj); break;
-		case OBJ_FEATURE: retval = removeFeature((FEATURE *)psObj); break;
-		default: SCRIPT_ASSERT(context, false, "Wrong game object type"); break;
-		}
-	}
-	return QScriptValue(retval);
+	return wrap_(wzapi::removeObject, context, engine);
 }
 
 //-- ## clearConsole()
@@ -2853,22 +2816,7 @@ static QScriptValue js_setPowerStorageMaximum(QScriptContext *context, QScriptEn
 //--
 static QScriptValue js_enableStructure(QScriptContext *context, QScriptEngine *engine)
 {
-	QString building = context->argument(0).toString();
-	int index = getStructStatFromName(QStringToWzString(building));
-	int player;
-	if (context->argumentCount() > 1)
-	{
-		player = context->argument(1).toInt32();
-		SCRIPT_ASSERT_PLAYER(context, player);
-	}
-	else
-	{
-		player = engine->globalObject().property("me").toInt32();
-	}
-	SCRIPT_ASSERT(context, index >= 0 && index < numStructureStats, "Invalid structure stat");
-	// enable the appropriate structure
-	apStructTypeLists[player][index] = AVAILABLE;
-	return QScriptValue();
+	return wrap_(wzapi::enableStructure, context, engine);
 }
 
 //-- ## setTutorialMode(bool)
@@ -2934,10 +2882,7 @@ static QScriptValue js_setReticuleButton(QScriptContext *context, QScriptEngine 
 //--
 static QScriptValue js_showReticuleWidget(QScriptContext *context, QScriptEngine *engine)
 {
-	int button = context->argument(0).toInt32();
-	SCRIPT_ASSERT(context, button >= 0 && button <= 6, "Invalid button %d", button);
-	intShowWidget(button);
-	return QScriptValue();
+	return wrap_(wzapi::showReticuleWidget, context, engine);
 }
 
 //-- ## setReticuleFlash(id, flash)
@@ -2946,11 +2891,7 @@ static QScriptValue js_showReticuleWidget(QScriptContext *context, QScriptEngine
 //--
 static QScriptValue js_setReticuleFlash(QScriptContext *context, QScriptEngine *engine)
 {
-	int button = context->argument(0).toInt32();
-	SCRIPT_ASSERT(context, button >= 0 && button <= 6, "Invalid button %d", button);
-	bool flash = context->argument(1).toBoolean();
-	setReticuleFlash(button, flash);
-	return QScriptValue();
+	return wrap_(wzapi::setReticuleFlash, context, engine);
 }
 
 //-- ## showInterface()
@@ -2959,20 +2900,16 @@ static QScriptValue js_setReticuleFlash(QScriptContext *context, QScriptEngine *
 //--
 static QScriptValue js_showInterface(QScriptContext *context, QScriptEngine *engine)
 {
-	intAddReticule();
-	intShowPowerBar();
-	return QScriptValue();
+	return wrap_(wzapi::showInterface, context, engine);
 }
 
-//-- ## hideInterface(button type)
+//-- ## hideInterface()
 //--
 //-- Hide user interface. (3.2+ only)
 //--
 static QScriptValue js_hideInterface(QScriptContext *context, QScriptEngine *engine)
 {
-	intRemoveReticule();
-	intHidePowerBar();
-	return QScriptValue();
+	return wrap_(wzapi::hideInterface, context, engine);
 }
 
 //-- ## removeReticuleButton(button type)
@@ -2993,25 +2930,13 @@ static QScriptValue js_applyLimitSet(QScriptContext *context, QScriptEngine *eng
 	return wrap_(wzapi::applyLimitSet, context, engine);
 }
 
-static void setComponent(const QString& name, int player, int value)
-{
-	COMPONENT_STATS *psComp = getCompStatsFromName(WzString::fromUtf8(name.toUtf8().constData()));
-	ASSERT_OR_RETURN(, psComp, "Bad component %s", name.toUtf8().constData());
-	apCompLists[player][psComp->compType][psComp->index] = value;
-}
-
 //-- ## enableComponent(component, player)
 //--
 //-- The given component is made available for research for the given player.
 //--
 static QScriptValue js_enableComponent(QScriptContext *context, QScriptEngine *engine)
 {
-	QString componentName = context->argument(0).toString();
-	int player = context->argument(1).toInt32();
-
-	SCRIPT_ASSERT_PLAYER(context, player);
-	setComponent(componentName, player, FOUND);
-	return QScriptValue();
+	return wrap_(wzapi::enableComponent, context, engine);
 }
 
 //-- ## makeComponentAvailable(component, player)
@@ -3021,12 +2946,7 @@ static QScriptValue js_enableComponent(QScriptContext *context, QScriptEngine *e
 //--
 static QScriptValue js_makeComponentAvailable(QScriptContext *context, QScriptEngine *engine)
 {
-	QString componentName = context->argument(0).toString();
-	int player = context->argument(1).toInt32();
-
-	SCRIPT_ASSERT_PLAYER(context, player);
-	setComponent(componentName, player, AVAILABLE);
-	return QScriptValue();
+	return wrap_(wzapi::makeComponentAvailable, context, engine);
 }
 
 //-- ## allianceExistsBetween(player, player)
@@ -3035,11 +2955,7 @@ static QScriptValue js_makeComponentAvailable(QScriptContext *context, QScriptEn
 //--
 static QScriptValue js_allianceExistsBetween(QScriptContext *context, QScriptEngine *engine)
 {
-	int player1 = context->argument(0).toInt32();
-	int player2 = context->argument(1).toInt32();
-	SCRIPT_ASSERT(context, player1 < MAX_PLAYERS && player1 >= 0, "Invalid player");
-	SCRIPT_ASSERT(context, player2 < MAX_PLAYERS && player2 >= 0, "Invalid player");
-	return QScriptValue(alliances[player1][player2] == ALLIANCE_FORMED);
+	return wrap_(wzapi::allianceExistsBetween, context, engine);
 }
 
 //-- ## _(string)
@@ -3273,22 +3189,7 @@ static QScriptValue js_safeDest(QScriptContext *context, QScriptEngine *engine)
 //--
 static QScriptValue js_addStructure(QScriptContext *context, QScriptEngine *engine)
 {
-	QString building = context->argument(0).toString();
-	int index = getStructStatFromName(QStringToWzString(building));
-	SCRIPT_ASSERT(context, index >= 0, "%s not found", building.toUtf8().constData());
-	int player = context->argument(1).toInt32();
-	SCRIPT_ASSERT_PLAYER(context, player);
-	int x = context->argument(2).toInt32();
-	int y = context->argument(3).toInt32();
-	STRUCTURE_STATS *psStat = &asStructureStats[index];
-	STRUCTURE *psStruct = buildStructure(psStat, x, y, player, false);
-	if (psStruct)
-	{
-		psStruct->status = SS_BUILT;
-		buildingComplete(psStruct);
-		return QScriptValue(convStructure(psStruct, engine));
-	}
-	return QScriptValue::NullValue;
+	return wrap_(wzapi::addStructure, context, engine);
 }
 
 //-- ## getStructureLimit(structure type[, player])
@@ -3297,19 +3198,7 @@ static QScriptValue js_addStructure(QScriptContext *context, QScriptEngine *engi
 //--
 static QScriptValue js_getStructureLimit(QScriptContext *context, QScriptEngine *engine)
 {
-	QString building = context->argument(0).toString();
-	int index = getStructStatFromName(QStringToWzString(building));
-	SCRIPT_ASSERT(context, index >= 0, "%s not found", building.toUtf8().constData());
-	int player;
-	if (context->argumentCount() > 1)
-	{
-		player = context->argument(1).toInt32();
-	}
-	else
-	{
-		player = engine->globalObject().property("me").toInt32();
-	}
-	return QScriptValue(asStructureStats[index].upgrade[player].limit);
+	return wrap_(wzapi::getStructureLimit, context, engine);
 }
 
 //-- ## countStruct(structure type[, player])
@@ -3319,26 +3208,7 @@ static QScriptValue js_getStructureLimit(QScriptContext *context, QScriptEngine 
 //--
 static QScriptValue js_countStruct(QScriptContext *context, QScriptEngine *engine)
 {
-	QString building = context->argument(0).toString();
-	int index = getStructStatFromName(QStringToWzString(building));
-	int me = engine->globalObject().property("me").toInt32();
-	int player = me;
-	int quantity = 0;
-	if (context->argumentCount() > 1)
-	{
-		player = context->argument(1).toInt32();
-	}
-	SCRIPT_ASSERT(context, index < numStructureStats && index >= 0, "Structure %s not found", building.toUtf8().constData());
-	for (int i = 0; i < MAX_PLAYERS; i++)
-	{
-		if (player == i || player == ALL_PLAYERS
-		    || (player == ALLIES && aiCheckAlliances(i, me))
-		    || (player == ENEMIES && !aiCheckAlliances(i, me)))
-		{
-			quantity += asStructureStats[index].curCount[i];
-		}
-	}
-	return QScriptValue(quantity);
+	return wrap_(wzapi::countStruct, context, engine);
 }
 
 //-- ## countDroid([droid type[, player]])
@@ -3423,37 +3293,9 @@ static QScriptValue js_setNoGoArea(QScriptContext *context, QScriptEngine *)
 //--
 //-- Limit the scrollable area of the map to the given rectangle. (3.2+ only)
 //--
-static QScriptValue js_setScrollLimits(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_setScrollLimits(QScriptContext *context, QScriptEngine *engine)
 {
-	const int minX = context->argument(0).toInt32();
-	const int minY = context->argument(1).toInt32();
-	const int maxX = context->argument(2).toInt32();
-	const int maxY = context->argument(3).toInt32();
-
-	SCRIPT_ASSERT(context, minX >= 0, "Minimum scroll x value %d is less than zero - ", minX);
-	SCRIPT_ASSERT(context, minY >= 0, "Minimum scroll y value %d is less than zero - ", minY);
-	SCRIPT_ASSERT(context, maxX <= mapWidth, "Maximum scroll x value %d is greater than mapWidth %d", maxX, (int)mapWidth);
-	SCRIPT_ASSERT(context, maxY <= mapHeight, "Maximum scroll y value %d is greater than mapHeight %d", maxY, (int)mapHeight);
-
-	const int prevMinX = scrollMinX;
-	const int prevMinY = scrollMinY;
-	const int prevMaxX = scrollMaxX;
-	const int prevMaxY = scrollMaxY;
-
-	scrollMinX = minX;
-	scrollMaxX = maxX;
-	scrollMinY = minY;
-	scrollMaxY = maxY;
-
-	// When the scroll limits change midgame - need to redo the lighting
-	initLighting(prevMinX < scrollMinX ? prevMinX : scrollMinX,
-	             prevMinY < scrollMinY ? prevMinY : scrollMinY,
-	             prevMaxX < scrollMaxX ? prevMaxX : scrollMaxX,
-	             prevMaxY < scrollMaxY ? prevMaxY : scrollMaxY);
-
-	// need to reset radar to take into account of new size
-	resizeRadar();
-	return QScriptValue();
+	return wrap_(wzapi::setScrollLimits, context, engine);
 }
 
 //-- ## getScrollLimits()
@@ -5425,24 +5267,24 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 	engine->globalObject().setProperty("removeTemplate", engine->newFunction(js_removeTemplate)); // WZAPI
 	engine->globalObject().setProperty("setMiniMap", engine->newFunction(js_setMiniMap)); // WZAPI
 	engine->globalObject().setProperty("setReticuleButton", engine->newFunction(js_setReticuleButton)); // WZAPI
-	engine->globalObject().setProperty("setReticuleFlash", engine->newFunction(js_setReticuleFlash));
-	engine->globalObject().setProperty("showReticuleWidget", engine->newFunction(js_showReticuleWidget));
-	engine->globalObject().setProperty("showInterface", engine->newFunction(js_showInterface));
-	engine->globalObject().setProperty("hideInterface", engine->newFunction(js_hideInterface));
+	engine->globalObject().setProperty("setReticuleFlash", engine->newFunction(js_setReticuleFlash)); // WZAPI
+	engine->globalObject().setProperty("showReticuleWidget", engine->newFunction(js_showReticuleWidget)); // WZAPI
+	engine->globalObject().setProperty("showInterface", engine->newFunction(js_showInterface)); // WZAPI
+	engine->globalObject().setProperty("hideInterface", engine->newFunction(js_hideInterface)); // WZAPI
 	engine->globalObject().setProperty("addReticuleButton", engine->newFunction(js_removeReticuleButton)); // deprecated!!
-	engine->globalObject().setProperty("removeReticuleButton", engine->newFunction(js_removeReticuleButton));
-	engine->globalObject().setProperty("enableStructure", engine->newFunction(js_enableStructure));
-	engine->globalObject().setProperty("makeComponentAvailable", engine->newFunction(js_makeComponentAvailable));
-	engine->globalObject().setProperty("enableComponent", engine->newFunction(js_enableComponent));
-	engine->globalObject().setProperty("allianceExistsBetween", engine->newFunction(js_allianceExistsBetween));
-	engine->globalObject().setProperty("removeStruct", engine->newFunction(js_removeStruct));
-	engine->globalObject().setProperty("removeObject", engine->newFunction(js_removeObject));
+	engine->globalObject().setProperty("removeReticuleButton", engine->newFunction(js_removeReticuleButton)); // deprecated!!
+	engine->globalObject().setProperty("enableStructure", engine->newFunction(js_enableStructure)); // WZAPI
+	engine->globalObject().setProperty("makeComponentAvailable", engine->newFunction(js_makeComponentAvailable)); // WZAPI
+	engine->globalObject().setProperty("enableComponent", engine->newFunction(js_enableComponent)); // WZAPI
+	engine->globalObject().setProperty("allianceExistsBetween", engine->newFunction(js_allianceExistsBetween)); // WZAPI
+	engine->globalObject().setProperty("removeStruct", engine->newFunction(js_removeStruct)); // WZAPI // deprecated!!
+	engine->globalObject().setProperty("removeObject", engine->newFunction(js_removeObject)); // WZAPI
 	engine->globalObject().setProperty("setScrollParams", engine->newFunction(js_setScrollLimits)); // deprecated!!
-	engine->globalObject().setProperty("setScrollLimits", engine->newFunction(js_setScrollLimits));
+	engine->globalObject().setProperty("setScrollLimits", engine->newFunction(js_setScrollLimits)); // WZAPI
 	engine->globalObject().setProperty("getScrollLimits", engine->newFunction(js_getScrollLimits));
-	engine->globalObject().setProperty("addStructure", engine->newFunction(js_addStructure));
-	engine->globalObject().setProperty("getStructureLimit", engine->newFunction(js_getStructureLimit));
-	engine->globalObject().setProperty("countStruct", engine->newFunction(js_countStruct));
+	engine->globalObject().setProperty("addStructure", engine->newFunction(js_addStructure)); // WZAPI
+	engine->globalObject().setProperty("getStructureLimit", engine->newFunction(js_getStructureLimit)); // WZAPI
+	engine->globalObject().setProperty("countStruct", engine->newFunction(js_countStruct)); // WZAPI
 	engine->globalObject().setProperty("countDroid", engine->newFunction(js_countDroid));
 	engine->globalObject().setProperty("loadLevel", engine->newFunction(js_loadLevel));
 	engine->globalObject().setProperty("setDroidExperience", engine->newFunction(js_setDroidExperience));
