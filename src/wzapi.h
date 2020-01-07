@@ -221,6 +221,7 @@ namespace wzapi
 	bool applyLimitSet(WZAPI_NO_PARAMS);
 	no_return_value setMissionTime(WZAPI_PARAMS(int _value));
 	int getMissionTime(WZAPI_NO_PARAMS);
+	bool setReinforcementTime(WZAPI_PARAMS(int _value));
 }
 
 #endif
