@@ -2465,3 +2465,251 @@ wzapi::no_return_value wzapi::setReticuleButton(WZAPI_PARAMS(int buttonID, std::
 	setReticuleStats(button, tooltip, filename, filenameDown, (!func.isEmpty()) ? context.getNamedScriptCallback(func) : nullptr);
 	return {};
 }
+
+//-- ## setReticuleFlash(id, flash)
+//--
+//-- Set reticule flash on or off. (3.2.3+ only)
+//--
+wzapi::no_return_value wzapi::setReticuleFlash(WZAPI_PARAMS(int button, bool flash))
+{
+	SCRIPT_ASSERT({}, context, button >= 0 && button <= 6, "Invalid button %d", button);
+	::setReticuleFlash(button, flash);
+	return {};
+}
+
+//-- ## showReticuleWidget(id)
+//--
+//-- Open the reticule menu widget. (3.3+ only)
+//--
+wzapi::no_return_value wzapi::showReticuleWidget(WZAPI_PARAMS(int button))
+{
+	SCRIPT_ASSERT({}, context, button >= 0 && button <= 6, "Invalid button %d", button);
+	intShowWidget(button);
+	return {};
+}
+
+//-- ## showInterface()
+//--
+//-- Show user interface. (3.2+ only)
+//--
+wzapi::no_return_value wzapi::showInterface(WZAPI_NO_PARAMS)
+{
+	intAddReticule();
+	intShowPowerBar();
+	return {};
+}
+
+//-- ## hideInterface()
+//--
+//-- Hide user interface. (3.2+ only)
+//--
+wzapi::no_return_value wzapi::hideInterface(WZAPI_NO_PARAMS)
+{
+	intRemoveReticule();
+	intHidePowerBar();
+	return {};
+}
+
+//-- ## enableStructure(structure type[, player])
+//--
+//-- The given structure type is made available to the given player. It will appear in the
+//-- player's build list.
+//--
+wzapi::no_return_value wzapi::enableStructure(WZAPI_PARAMS(std::string structureName, optional<int> _player))
+{
+	int index = getStructStatFromName(WzString::fromUtf8(structureName));
+	int player = (_player.has_value()) ? _player.value() : context.player();
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+	SCRIPT_ASSERT({}, context, index >= 0 && index < numStructureStats, "Invalid structure stat");
+	// enable the appropriate structure
+	apStructTypeLists[player][index] = AVAILABLE;
+	return {};
+}
+
+static void setComponent(const std::string& name, int player, int value)
+{
+	COMPONENT_STATS *psComp = getCompStatsFromName(WzString::fromUtf8(name));
+	ASSERT_OR_RETURN(, psComp, "Bad component %s", name.c_str());
+	apCompLists[player][psComp->compType][psComp->index] = value;
+}
+
+//-- ## enableComponent(component, player)
+//--
+//-- The given component is made available for research for the given player.
+//--
+wzapi::no_return_value wzapi::enableComponent(WZAPI_PARAMS(std::string componentName, int player))
+{
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+	setComponent(componentName, player, FOUND);
+	return {};
+}
+
+//-- ## makeComponentAvailable(component, player)
+//--
+//-- The given component is made available to the given player. This means the player can
+//-- actually build designs with it.
+//--
+wzapi::no_return_value wzapi::makeComponentAvailable(WZAPI_PARAMS(std::string componentName, int player))
+{
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+	setComponent(componentName, player, AVAILABLE);
+	return {};
+}
+
+//-- ## allianceExistsBetween(player, player)
+//--
+//-- Returns true if an alliance exists between the two players, or they are the same player.
+//--
+bool wzapi::allianceExistsBetween(WZAPI_PARAMS(int player1, int player2))
+{
+	SCRIPT_ASSERT(false, context, player1 < MAX_PLAYERS && player1 >= 0, "Invalid player");
+	SCRIPT_ASSERT(false, context, player2 < MAX_PLAYERS && player2 >= 0, "Invalid player");
+	return (alliances[player1][player2] == ALLIANCE_FORMED);
+}
+
+//-- ## removeStruct(structure)
+//--
+//-- Immediately remove the given structure from the map. Returns a boolean that is true on success.
+//-- No special effects are applied. Deprecated since 3.2. Use `removeObject` instead.
+//--
+bool wzapi::removeStruct(WZAPI_PARAMS(STRUCTURE *psStruct)) WZAPI_DEPRECATED
+{
+	SCRIPT_ASSERT(false, context, psStruct, "No valid structure provided");
+	return removeStruct(psStruct, true);
+}
+
+//-- ## removeObject(game object[, special effects?])
+//--
+//-- Remove the given game object with special effects. Returns a boolean that is true on success.
+//-- A second, optional boolean parameter specifies whether special effects are to be applied. (3.2+ only)
+//--
+bool wzapi::removeObject(WZAPI_PARAMS(BASE_OBJECT *psObj, optional<bool> _sfx))
+{
+//	QScriptValue qval = context->argument(0);
+//	int id = qval.property("id").toInt32();
+//	int player = qval.property("player").toInt32();
+//	OBJECT_TYPE type = (OBJECT_TYPE)qval.property("type").toInt32();
+//	BASE_OBJECT *psObj = IdToObject(type, id, player);
+	SCRIPT_ASSERT(false, context, psObj, "No valid object provided");
+	bool sfx = (_sfx.has_value()) ? _sfx.value() : false;
+
+	bool retval = false;
+	if (sfx)
+	{
+		switch (psObj->type)
+		{
+		case OBJ_STRUCTURE: destroyStruct((STRUCTURE *)psObj, gameTime); break;
+		case OBJ_DROID: retval = destroyDroid((DROID *)psObj, gameTime); break;
+		case OBJ_FEATURE: retval = destroyFeature((FEATURE *)psObj, gameTime); break;
+		default: SCRIPT_ASSERT(false, context, false, "Wrong game object type"); break;
+		}
+	}
+	else
+	{
+		switch (psObj->type)
+		{
+		case OBJ_STRUCTURE: retval = removeStruct((STRUCTURE *)psObj, true); break;
+		case OBJ_DROID: retval = removeDroidBase((DROID *)psObj); break;
+		case OBJ_FEATURE: retval = removeFeature((FEATURE *)psObj); break;
+		default: SCRIPT_ASSERT(false, context, false, "Wrong game object type"); break;
+		}
+	}
+	return retval;
+}
+
+//-- ## setScrollLimits(x1, y1, x2, y2)
+//--
+//-- Limit the scrollable area of the map to the given rectangle. (3.2+ only)
+//--
+wzapi::no_return_value wzapi::setScrollLimits(WZAPI_PARAMS(int x1, int y1, int x2, int y2))
+{
+	const int minX = x1;
+	const int minY = y1;
+	const int maxX = x2;
+	const int maxY = y2;
+
+	SCRIPT_ASSERT({}, context, minX >= 0, "Minimum scroll x value %d is less than zero - ", minX);
+	SCRIPT_ASSERT({}, context, minY >= 0, "Minimum scroll y value %d is less than zero - ", minY);
+	SCRIPT_ASSERT({}, context, maxX <= mapWidth, "Maximum scroll x value %d is greater than mapWidth %d", maxX, (int)mapWidth);
+	SCRIPT_ASSERT({}, context, maxY <= mapHeight, "Maximum scroll y value %d is greater than mapHeight %d", maxY, (int)mapHeight);
+
+	const int prevMinX = scrollMinX;
+	const int prevMinY = scrollMinY;
+	const int prevMaxX = scrollMaxX;
+	const int prevMaxY = scrollMaxY;
+
+	scrollMinX = minX;
+	scrollMaxX = maxX;
+	scrollMinY = minY;
+	scrollMaxY = maxY;
+
+	// When the scroll limits change midgame - need to redo the lighting
+	initLighting(prevMinX < scrollMinX ? prevMinX : scrollMinX,
+	             prevMinY < scrollMinY ? prevMinY : scrollMinY,
+	             prevMaxX < scrollMaxX ? prevMaxX : scrollMaxX,
+	             prevMaxY < scrollMaxY ? prevMaxY : scrollMaxY);
+
+	// need to reset radar to take into account of new size
+	resizeRadar();
+	return {};
+}
+
+//-- ## addStructure(structure type, player, x, y)
+//--
+//-- Create a structure on the given position. Returns the structure on success, null otherwise.
+//--
+const STRUCTURE * wzapi::addStructure(WZAPI_PARAMS(std::string structureName, int player, int x, int y))
+{
+	int index = getStructStatFromName(WzString::fromUtf8(structureName.c_str()));
+	SCRIPT_ASSERT(nullptr, context, index >= 0, "%s not found", structureName.c_str());
+	SCRIPT_ASSERT_PLAYER(nullptr, context, player);
+//	int x = context->argument(2).toInt32();
+//	int y = context->argument(3).toInt32();
+	STRUCTURE_STATS *psStat = &asStructureStats[index];
+	STRUCTURE *psStruct = buildStructure(psStat, x, y, player, false);
+	if (psStruct)
+	{
+		psStruct->status = SS_BUILT;
+		buildingComplete(psStruct);
+		return psStruct;
+	}
+	return nullptr;
+}
+
+//-- ## getStructureLimit(structure type[, player])
+//--
+//-- Returns build limits for a structure.
+//--
+unsigned int wzapi::getStructureLimit(WZAPI_PARAMS(std::string structureName, optional<int> _player))
+{
+	int index = getStructStatFromName(WzString::fromUtf8(structureName.c_str()));
+	SCRIPT_ASSERT(0, context, index >= 0, "%s not found", structureName.c_str());
+	int player = (_player.has_value()) ? _player.value() : context.player();
+	SCRIPT_ASSERT_PLAYER(0, context, player);
+	return (asStructureStats[index].upgrade[player].limit);
+}
+
+//-- ## countStruct(structure type[, player])
+//--
+//-- Count the number of structures of a given type.
+//-- The player parameter can be a specific player, ALL_PLAYERS, ALLIES or ENEMIES.
+//--
+int wzapi::countStruct(WZAPI_PARAMS(std::string structureName, optional<int> _player))
+{
+	int index = getStructStatFromName(WzString::fromUtf8(structureName.c_str()));
+	SCRIPT_ASSERT(-1, context, index < numStructureStats && index >= 0, "Structure %s not found", structureName.c_str());
+	int me = context.player();
+	int player = (_player.has_value()) ? _player.value() : me;
+
+	int quantity = 0;
+	for (int i = 0; i < MAX_PLAYERS; i++)
+	{
+		if (player == i || player == ALL_PLAYERS
+		    || (player == ALLIES && aiCheckAlliances(i, me))
+		    || (player == ENEMIES && !aiCheckAlliances(i, me)))
+		{
+			quantity += asStructureStats[index].curCount[i];
+		}
+	}
+	return quantity;
+}
