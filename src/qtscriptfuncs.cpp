@@ -144,9 +144,16 @@ Vector2i getPlayerStartPosition(int player)
 }
 
 // private qtscript bureaucracy
-typedef QMap<BASE_OBJECT *, int> GROUPMAP;
-typedef QMap<QScriptEngine *, GROUPMAP *> ENGINEMAP;
+typedef std::map<BASE_OBJECT *, int> GROUPMAP;
+typedef std::map<QScriptEngine *, GROUPMAP *> ENGINEMAP;
 static ENGINEMAP groups;
+
+GROUPMAP* getGroupMap(QScriptEngine *engine)
+{
+	auto groupIt = groups.find(engine);
+	GROUPMAP *psMap = (groupIt != groups.end()) ? groupIt->second : nullptr;
+	return psMap;
+}
 
 struct LABEL
 {
@@ -383,11 +390,12 @@ void showLabel(const std::string &key, bool clear_old, bool jump_to)
 		bool cameraMoved = false;
 		for (ENGINEMAP::iterator i = groups.begin(); i != groups.end(); ++i)
 		{
-			for (GROUPMAP::const_iterator iter = i.value()->constBegin(); iter != i.value()->constEnd(); ++iter)
+			const GROUPMAP *pGroupMap = i->second;
+			for (GROUPMAP::const_iterator iter = pGroupMap->begin(); iter != pGroupMap->end(); ++iter)
 			{
-				if (iter.value() == l.id)
+				if (iter->second == l.id)
 				{
-					BASE_OBJECT *psObj = iter.key();
+					BASE_OBJECT *psObj = iter->first;
 					if (!cameraMoved && jump_to)
 					{
 						setViewPos(map_coord(psObj->pos.x), map_coord(psObj->pos.y), false); // move camera position
@@ -405,9 +413,10 @@ void showLabel(const std::string &key, bool clear_old, bool jump_to)
 // The int return value holds group id when a group callback needs to be called, 0 otherwise.
 std::pair<bool, int> seenLabelCheck(QScriptEngine *engine, BASE_OBJECT *seen, BASE_OBJECT *viewer)
 {
-	GROUPMAP *psMap = groups.value(engine);
+	GROUPMAP *psMap = getGroupMap(engine);
 	ASSERT_OR_RETURN(std::make_pair(false, 0), psMap != nullptr, "Non-existent groupmap for engine");
-	int groupId = psMap->value(seen);
+	auto seenObjIt = psMap->find(seen);
+	int groupId = (seenObjIt != psMap->end()) ? seenObjIt->second : 0;
 	bool foundObj = false, foundGroup = false;
 	for (auto &it : labels)
 	{
@@ -464,9 +473,11 @@ bool areaLabelCheck(DROID *psDroid)
 
 static void removeFromGroup(QScriptEngine *engine, GROUPMAP *psMap, BASE_OBJECT *psObj)
 {
-	if (psMap->contains(psObj))
+	auto it = psMap->find(psObj);
+	if (it != psMap->end())
 	{
-		int groupId = psMap->take(psObj); // take and remove item
+		int groupId = it->second;
+		psMap->erase(it);
 		QScriptValue groupMembers = engine->globalObject().property("groupSizes");
 		const int newValue = groupMembers.property(groupId).toInt32() - 1;
 		ASSERT(newValue >= 0, "Bad group count in group %d (was %d)", groupId, newValue + 1);
@@ -479,19 +490,19 @@ void groupRemoveObject(BASE_OBJECT *psObj)
 {
 	for (ENGINEMAP::iterator i = groups.begin(); i != groups.end(); ++i)
 	{
-		removeFromGroup(i.key(), i.value(), psObj);
+		removeFromGroup(i->first, i->second, psObj);
 	}
 }
 
 static bool groupAddObject(BASE_OBJECT *psObj, int groupId, QScriptEngine *engine)
 {
 	ASSERT_OR_RETURN(false, psObj && engine, "Bad parameter");
-	GROUPMAP *psMap = groups.value(engine);
+	GROUPMAP *psMap = getGroupMap(engine);
 	removeFromGroup(engine, psMap, psObj);
 	QScriptValue groupMembers = engine->globalObject().property("groupSizes");
 	int prev = groupMembers.property(QString::number(groupId)).toInt32();
 	groupMembers.setProperty(QString::number(groupId), prev + 1, QScriptValue::ReadOnly);
-	psMap->insert(psObj, groupId);
+	psMap->insert(std::pair<BASE_OBJECT *, int>(psObj, groupId));
 	return true; // inserted
 }
 
@@ -823,10 +834,10 @@ QScriptValue convObj(const BASE_OBJECT *psObj, QScriptEngine *engine)
 	value.setProperty("selected", psObj->selected, QScriptValue::ReadOnly);
 	value.setProperty("name", objInfo(psObj), QScriptValue::ReadOnly);
 	value.setProperty("born", psObj->born, QScriptValue::ReadOnly);
-	GROUPMAP *psMap = groups.value(engine);
-	if (psMap != nullptr && psMap->contains(const_cast<BASE_OBJECT *>(psObj))) // FIXME:
+	GROUPMAP *psMap = getGroupMap(engine);
+	if (psMap != nullptr && psMap->count(const_cast<BASE_OBJECT *>(psObj)) > 0) // FIXME:
 	{
-		int group = psMap->value(const_cast<BASE_OBJECT *>(psObj)); // FIXME:
+		int group = psMap->at(const_cast<BASE_OBJECT *>(psObj)); // FIXME:
 		value.setProperty("group", group, QScriptValue::ReadOnly);
 	}
 	else
@@ -919,18 +930,18 @@ bool loadGroup(QScriptEngine *engine, int groupId, int objId)
 bool saveGroups(WzConfig &ini, QScriptEngine *engine)
 {
 	// Save group info as a list of group memberships for each droid
-	GROUPMAP *psMap = groups.value(engine);
+	GROUPMAP *psMap = getGroupMap(engine);
 	ASSERT_OR_RETURN(false, psMap, "Non-existent groupmap for engine");
-	for (GROUPMAP::const_iterator i = psMap->constBegin(); i != psMap->constEnd(); ++i)
+	for (GROUPMAP::const_iterator i = psMap->begin(); i != psMap->end(); ++i)
 	{
 		std::vector<WzString> value;
-		BASE_OBJECT *psObj = i.key();
+		BASE_OBJECT *psObj = i->first;
 		ASSERT(!isDead(psObj), "Wanted to save dead %s to savegame!", objInfo(psObj));
 		if (ini.contains(WzString::number(psObj->id)))
 		{
 			value.push_back(ini.value(WzString::number(psObj->id)).toWzString());
 		}
-		value.push_back(WzString::number(i.value()));
+		value.push_back(WzString::number(i->second));
 		ini.setValue(WzString::number(psObj->id), value);
 	}
 	return true;
@@ -2162,15 +2173,15 @@ static QScriptValue js_enumGroup(QScriptContext *context, QScriptEngine *engine)
 {
 	int groupId = context->argument(0).toInt32();
 	QList<BASE_OBJECT *> matches;
-	GROUPMAP *psMap = groups.value(engine);
+	GROUPMAP *psMap = getGroupMap(engine);
 
 	if (psMap != nullptr)
 	{
-		for (GROUPMAP::const_iterator i = psMap->constBegin(); i != psMap->constEnd(); ++i)
+		for (GROUPMAP::const_iterator i = psMap->begin(); i != psMap->end(); ++i)
 		{
-			if (i.value() == groupId)
+			if (i->second == groupId)
 			{
-				matches.push_back(i.key());
+				matches.push_back(i->first);
 			}
 		}
 	}
@@ -3832,9 +3843,15 @@ static QScriptValue js_setRevealStatus(QScriptContext *context, QScriptEngine *e
 
 bool unregisterFunctions(QScriptEngine *engine)
 {
-	GROUPMAP *psMap = groups.value(engine);
-	int num = groups.remove(engine);
-	delete psMap;
+	int num = 0;
+	auto it = groups.find(engine);
+	if (it != groups.end())
+	{
+		GROUPMAP *psMap = groups.at(engine);
+		groups.erase(it);
+		delete psMap;
+		num = 1;
+	}
 	ASSERT(num == 1, "Number of engines removed from group map is %d!", num);
 	labels.clear();
 	labelModel = nullptr;
@@ -3848,13 +3865,13 @@ void prepareLabels()
 	// load the label group data into every scripting context, with the same negative group id
 	for (ENGINEMAP::iterator iter = groups.begin(); iter != groups.end(); ++iter)
 	{
-		QScriptEngine *engine = iter.key();
+		QScriptEngine *engine = iter->first;
 		for (LABELMAP::iterator i = labels.begin(); i != labels.end(); ++i)
 		{
 			const LABEL &l = i->second;
 			if (l.type == SCRIPT_GROUP)
 			{
-				QScriptValue groupMembers = iter.key()->globalObject().property("groupSizes");
+				QScriptValue groupMembers = engine->globalObject().property("groupSizes");
 				groupMembers.setProperty(l.id, (int)l.idlist.size(), QScriptValue::ReadOnly);
 				for (std::vector<int>::const_iterator j = l.idlist.begin(); j != l.idlist.end(); j++)
 				{
@@ -4551,7 +4568,8 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 
 	// Create group map
 	GROUPMAP *psMap = new GROUPMAP;
-	groups.insert(engine, psMap);
+	auto insert_result = groups.insert(ENGINEMAP::value_type(engine, psMap));
+	ASSERT(insert_result.second, "Entry for this engine %p already exists in ENGINEMAP!", static_cast<void *>(engine));
 
 	/// Register 'Stats' object. It is a read-only representation of basic game component states.
 	//== * ```Stats``` A sparse, read-only array containing rules information for game entity types.
