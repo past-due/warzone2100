@@ -570,10 +570,186 @@ bool wzapi::autoSave(WZAPI_NO_PARAMS)
 	return ::autoSave();
 }
 
+// MARK: - horrible hacks follow -- do not rely on these being present!
+
+//-- ## hackNetOff()
+//--
+//-- Turn off network transmissions. FIXME - find a better way.
+//--
+wzapi::no_return_value wzapi::hackNetOff(WZAPI_NO_PARAMS)
+{
+	bMultiPlayer = false;
+	bMultiMessages = false;
+	return {};
+}
+
+//-- ## hackNetOn()
+//--
+//-- Turn on network transmissions. FIXME - find a better way.
+//--
+wzapi::no_return_value wzapi::hackNetOn(WZAPI_NO_PARAMS)
+{
+	bMultiPlayer = true;
+	bMultiMessages = true;
+	return {};
+}
+
+//-- ## hackAddMessage(message, type, player, immediate)
+//--
+//-- See wzscript docs for info, to the extent any exist. (3.2+ only)
+//--
+wzapi::no_return_value wzapi::hackAddMessage(WZAPI_PARAMS(std::string message, int type, int player, bool immediate))
+{
+	MESSAGE_TYPE msgType = (MESSAGE_TYPE)type;
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+	MESSAGE *psMessage = addMessage(msgType, false, player);
+	if (psMessage)
+	{
+		VIEWDATA *psViewData = getViewData(WzString::fromUtf8(message));
+		SCRIPT_ASSERT({}, context, psViewData, "Viewdata not found");
+		psMessage->pViewData = psViewData;
+		debug(LOG_MSG, "Adding %s pViewData=%p", psViewData->name.toUtf8().c_str(), static_cast<void *>(psMessage->pViewData));
+		if (msgType == MSG_PROXIMITY)
+		{
+			VIEW_PROXIMITY *psProx = (VIEW_PROXIMITY *)psViewData->pData;
+			// check the z value is at least the height of the terrain
+			int height = map_Height(psProx->x, psProx->y);
+			if (psProx->z < height)
+			{
+				psProx->z = height;
+			}
+		}
+		if (immediate)
+		{
+			displayImmediateMessage(psMessage);
+		}
+	}
+//	jsDebugMessageUpdate();
+	return {};
+}
+
+//-- ## hackRemoveMessage(message, type, player)
+//--
+//-- See wzscript docs for info, to the extent any exist. (3.2+ only)
+//--
+wzapi::no_return_value wzapi::hackRemoveMessage(WZAPI_PARAMS(std::string message, int type, int player))
+{
+	MESSAGE_TYPE msgType = (MESSAGE_TYPE)type;
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+	VIEWDATA *psViewData = getViewData(WzString::fromUtf8(message));
+	SCRIPT_ASSERT({}, context, psViewData, "Viewdata not found");
+	MESSAGE *psMessage = findMessage(psViewData, msgType, player);
+	if (psMessage)
+	{
+		debug(LOG_MSG, "Removing %s", psViewData->name.toUtf8().c_str());
+		removeMessage(psMessage, player);
+	}
+	else
+	{
+		debug(LOG_ERROR, "cannot find message - %s", psViewData->name.toUtf8().c_str());
+	}
+//	jsDebugMessageUpdate();
+	return {};
+}
+
+//-- ## hackGetObj(type, player, id)
+//--
+//-- Function to find and return a game object of DROID, FEATURE or STRUCTURE types, if it exists.
+//-- Otherwise, it will return null. This function is deprecated by getObject(). (3.2+ only)
+//--
+const BASE_OBJECT * wzapi::hackGetObj(WZAPI_PARAMS(int _type, int player, int id)) WZAPI_DEPRECATED
+{
+	OBJECT_TYPE type = (OBJECT_TYPE)_type;
+	SCRIPT_ASSERT_PLAYER(nullptr, context, player);
+	return IdToObject(type, id, player);
+}
+
+//-- ## hackChangeMe(player)
+//--
+//-- Change the 'me' who owns this script to the given player. This needs to be run
+//-- first in ```eventGameInit``` to make sure things do not get out of control.
+//--
+// This is only intended for use in campaign scripts until we get a way to add
+// scripts for each player. (3.2+ only)
+wzapi::no_return_value wzapi::hackChangeMe(WZAPI_PARAMS(int player))
+{
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+	context.hack_setMe(player);
+	return {};
+}
+
+//-- ## hackAssert(condition, message...)
+//--
+//-- Function to perform unit testing. It will throw a script error and a game assert. (3.2+ only)
+//--
+wzapi::no_return_value wzapi::hackAssert(WZAPI_PARAMS(bool condition, va_list_treat_as_strings message))
+{
+	if (condition)
+	{
+		return {}; // pass
+	}
+	// fail
+	std::string result;
+	for (const auto & s : message.strings)
+	{
+		if (!result.empty())
+		{
+			result.append(" ");
+		}
+		result.append(s);
+	}
+	context.throwError(result.c_str(), __LINE__, "hackAssert");
+	return {};
+}
+
+//-- ## receiveAllEvents(bool)
+//--
+//-- Make the current script receive all events, even those not meant for 'me'. (3.2+ only)
+//--
+bool wzapi::receiveAllEvents(WZAPI_PARAMS(optional<bool> enabled))
+{
+	if (enabled.has_value())
+	{
+		context.set_isReceivingAllEvents(enabled.value());
+	}
+	return context.get_isReceivingAllEvents();
+}
+
+//-- ## hackDoNotSave(name)
+//--
+//-- Do not save the given global given by name to savegames. Must be
+//-- done again each time game is loaded, since this too is not saved.
+//--
+wzapi::no_return_value wzapi::hackDoNotSave(WZAPI_PARAMS(std::string name))
+{
+	context.doNotSaveGlobal(name);
+	return {};
+}
+
+//-- ## hackPlayIngameAudio()
+//--
+//-- (3.3+ only)
+//--
+wzapi::no_return_value wzapi::hackPlayIngameAudio(WZAPI_NO_PARAMS)
+{
+	debug(LOG_SOUND, "Script wanted music to start");
+	cdAudio_PlayTrack(SONG_INGAME);
+	return {};
+}
+
+//-- ## hackStopIngameAudio()
+//--
+//-- (3.3+ only)
+//--
+wzapi::no_return_value wzapi::hackStopIngameAudio(WZAPI_NO_PARAMS)
+{
+	debug(LOG_SOUND, "Script wanted music to stop");
+	cdAudio_Stop();
+	return {};
+}
 
 
-
-
+// MARK: - General functions -- geared for use in AI scripts
 
 //-- ## console(strings...)
 //--
@@ -2777,5 +2953,191 @@ wzapi::no_return_value wzapi::setDroidExperience(WZAPI_PARAMS(DROID *psDroid, do
 {
 	SCRIPT_ASSERT({}, context, psDroid, "No valid droid provided");
 	psDroid->experience = experience * 65536;
+	return {};
+}
+
+//-- ## donateObject(object, to)
+//--
+//-- Donate a game object (restricted to droids before 3.2.3) to another player. Returns true if
+//-- donation was successful. May return false if this donation would push the receiving player
+//-- over unit limits. (3.2+ only)
+//--
+bool wzapi::donateObject(WZAPI_PARAMS(BASE_OBJECT *psObject, int toPlayer))
+{
+//	QScriptValue val = context->argument(0);
+//	uint32_t id = val.property("id").toUInt32();
+//	uint8_t player = val.property("player").toInt32();
+//	OBJECT_TYPE type = (OBJECT_TYPE)val.property("type").toInt32();
+	SCRIPT_ASSERT(false, context, psObject, "No valid object provided");
+	SCRIPT_ASSERT_PLAYER(false, context, toPlayer);
+
+	uint32_t object_id = psObject->id;
+	uint8_t from = psObject->player;
+	uint8_t to = static_cast<uint8_t>(toPlayer);
+	uint8_t giftType = 0;
+	if (psObject->type == OBJ_DROID)
+	{
+		// Check unit limits.
+		DROID *psDroid = (DROID *)psObject;
+		if ((psDroid->droidType == DROID_COMMAND && getNumCommandDroids(to) + 1 > getMaxCommanders(to))
+		    || (psDroid->droidType == DROID_CONSTRUCT && getNumConstructorDroids(to) + 1 > getMaxConstructors(to))
+		    || getNumDroids(to) + 1 > getMaxDroids(to))
+		{
+			return false;
+		}
+		giftType = DROID_GIFT;
+	}
+	else if (psObject->type == OBJ_STRUCTURE)
+	{
+		STRUCTURE *psStruct = (STRUCTURE *)psObject;
+		const int statidx = psStruct->pStructureType - asStructureStats;
+		if (asStructureStats[statidx].curCount[to] + 1 > asStructureStats[statidx].upgrade[to].limit)
+		{
+			return false;
+		}
+		giftType = STRUCTURE_GIFT;
+	}
+	else
+	{
+		return false;
+	}
+	NETbeginEncode(NETgameQueue(selectedPlayer), GAME_GIFT);
+	NETuint8_t(&giftType);
+	NETuint8_t(&from);
+	NETuint8_t(&to);
+	NETuint32_t(&object_id);
+	NETend();
+	return true;
+}
+
+//-- ## donatePower(amount, to)
+//--
+//-- Donate power to another player. Returns true. (3.2+ only)
+//--
+bool wzapi::donatePower(WZAPI_PARAMS(int amount, int toPlayer))
+{
+	int from = context.player();
+	giftPower(from, toPlayer, amount, true);
+	return true;
+}
+
+//-- ## setNoGoArea(x1, y1, x2, y2, player)
+//--
+//-- Creates an area on the map on which nothing can be built. If player is zero,
+//-- then landing lights are placed. If player is -1, then a limbo landing zone
+//-- is created and limbo droids placed.
+//--
+// FIXME: missing a way to call initNoGoAreas(); check if we can call this in
+// every level start instead of through scripts
+wzapi::no_return_value wzapi::setNoGoArea(WZAPI_PARAMS(int x1, int y1, int x2, int y2, int player))
+{
+	SCRIPT_ASSERT({}, context, x1 >= 0, "Minimum scroll x value %d is less than zero - ", x1);
+	SCRIPT_ASSERT({}, context, y1 >= 0, "Minimum scroll y value %d is less than zero - ", y1);
+	SCRIPT_ASSERT({}, context, x2 <= mapWidth, "Maximum scroll x value %d is greater than mapWidth %d", x2, (int)mapWidth);
+	SCRIPT_ASSERT({}, context, y2 <= mapHeight, "Maximum scroll y value %d is greater than mapHeight %d", y2, (int)mapHeight);
+	SCRIPT_ASSERT({}, context, player < MAX_PLAYERS && player >= -1, "Bad player value %d", player);
+
+	if (player == -1)
+	{
+		::setNoGoArea(x1, y1, x2, y2, LIMBO_LANDING);
+		placeLimboDroids();	// this calls the Droids from the Limbo list onto the map
+	}
+	else
+	{
+		::setNoGoArea(x1, y1, x2, y2, player);
+	}
+	return {};
+}
+
+//-- ## startTransporterEntry(x, y, player)
+//--
+//-- Set the entry position for the mission transporter, and make it start flying in
+//-- reinforcements. If you want the camera to follow it in, use cameraTrack() on it.
+//-- The transport needs to be set up with the mission droids, and the first transport
+//-- found will be used. (3.2+ only)
+//--
+wzapi::no_return_value wzapi::startTransporterEntry(WZAPI_PARAMS(int x, int y, int player))
+{
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+	missionSetTransporterEntry(player, x, y);
+	missionFlyTransportersIn(player, false);
+	return {};
+}
+
+//-- ## setTransporterExit(x, y, player)
+//--
+//-- Set the exit position for the mission transporter. (3.2+ only)
+//--
+wzapi::no_return_value wzapi::setTransporterExit(WZAPI_PARAMS(int x, int y, int player))
+{
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+	missionSetTransporterExit(player, x, y);
+	return {};
+}
+
+//-- ## setObjectFlag(object, flag, value)
+//--
+//-- Set or unset an object flag on a given game object. Does not take care of network sync, so for multiplayer games,
+//-- needs wrapping in a syncRequest. (3.3+ only.)
+//-- Recognized object flags: OBJECT_FLAG_UNSELECTABLE - makes object unavailable for selection from player UI.
+//--
+wzapi::no_return_value wzapi::setObjectFlag(WZAPI_PARAMS(BASE_OBJECT *psObj, int _flag, bool value)) MULTIPLAY_SYNCREQUEST_REQUIRED
+{
+	SCRIPT_ASSERT({}, context, psObj, "No valid object provided");
+	SCRIPT_ASSERT({}, context, psObj->type == OBJ_DROID || psObj->type == OBJ_STRUCTURE || psObj->type == OBJ_FEATURE, "Bad object type");
+	OBJECT_FLAG flag = (OBJECT_FLAG)_flag;
+	SCRIPT_ASSERT({}, context, flag >= 0 && flag < OBJECT_FLAG_COUNT, "Bad flag value %d", flag);
+	psObj->flags.set(flag, value);
+	return {};
+}
+
+//-- ## fireWeaponAtLoc(weapon, x, y[, player])
+//--
+//-- Fires a weapon at the given coordinates (3.3+ only). The player is who owns the projectile.
+//-- Please use fireWeaponAtObj() to damage objects as multiplayer and campaign
+//-- may have different friendly fire logic for a few weapons (like the lassat).
+//--
+wzapi::no_return_value wzapi::fireWeaponAtLoc(WZAPI_PARAMS(std::string weaponName, int x, int y, optional<int> _player))
+{
+	int weapon = getCompFromName(COMP_WEAPON, WzString::fromUtf8(weaponName));
+	SCRIPT_ASSERT({}, context, weapon > 0, "No such weapon: %s", weaponName.c_str());
+
+	int xLocation = x;
+	int yLocation = y;
+
+	int player = (_player.has_value()) ? _player.value() : context.player();
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+
+	Vector3i target;
+	target.x = world_coord(xLocation);
+	target.y = world_coord(yLocation);
+	target.z = map_Height(xLocation, yLocation);
+
+	WEAPON sWeapon;
+	sWeapon.nStat = weapon;
+
+	proj_SendProjectile(&sWeapon, nullptr, player, target, nullptr, true, 0);
+	return {};
+}
+
+//-- ## fireWeaponAtObj(weapon, game object[, player])
+//--
+//-- Fires a weapon at a game object (3.3+ only). The player is who owns the projectile.
+//--
+wzapi::no_return_value wzapi::fireWeaponAtObj(WZAPI_PARAMS(std::string weaponName, BASE_OBJECT *psObj, optional<int> _player))
+{
+	int weapon = getCompFromName(COMP_WEAPON, WzString::fromUtf8(weaponName));
+	SCRIPT_ASSERT({}, context, weapon > 0, "No such weapon: %s", weaponName.c_str());
+	SCRIPT_ASSERT({}, context, psObj, "No valid object provided");
+
+	int player = (_player.has_value()) ? _player.value() : context.player();
+	SCRIPT_ASSERT_PLAYER({}, context, player);
+
+	Vector3i target = psObj->pos;
+
+	WEAPON sWeapon;
+	sWeapon.nStat = weapon;
+
+	proj_SendProjectile(&sWeapon, nullptr, player, target, psObj, true, 0);
 	return {};
 }

@@ -44,6 +44,10 @@ namespace wzapi
 		virtual int player() const = 0;
 		virtual void throwError(const char *expr, int line, const char *function) const = 0;
 		virtual playerCallbackFunc getNamedScriptCallback(const WzString& func) const = 0;
+		virtual void hack_setMe(int player) const = 0;
+		virtual void set_isReceivingAllEvents(bool value) const = 0;
+		virtual bool get_isReceivingAllEvents() const = 0;
+		virtual void doNotSaveGlobal(const std::string &global) const = 0;
 	};
 
 	struct object_id_player_type
@@ -170,7 +174,20 @@ namespace wzapi
 	bool setRevealStatus(WZAPI_PARAMS(bool status));
 	bool autoSave(WZAPI_NO_PARAMS);
 
+	// horrible hacks follow -- do not rely on these being present!
+	no_return_value hackNetOff(WZAPI_NO_PARAMS);
+	no_return_value hackNetOn(WZAPI_NO_PARAMS);
+	no_return_value hackAddMessage(WZAPI_PARAMS(std::string message, int type, int player, bool immediate));
+	no_return_value hackRemoveMessage(WZAPI_PARAMS(std::string message, int type, int player));
+	const BASE_OBJECT * hackGetObj(WZAPI_PARAMS(int _type, int player, int id)) WZAPI_DEPRECATED;
+	no_return_value hackChangeMe(WZAPI_PARAMS(int player));
+	no_return_value hackAssert(WZAPI_PARAMS(bool condition, va_list_treat_as_strings message));
+	bool receiveAllEvents(WZAPI_PARAMS(optional<bool> enabled));
+	no_return_value hackDoNotSave(WZAPI_PARAMS(std::string name));
+	no_return_value hackPlayIngameAudio(WZAPI_NO_PARAMS);
+	no_return_value hackStopIngameAudio(WZAPI_NO_PARAMS);
 
+	// General functions -- geared for use in AI scripts
 	bool console(WZAPI_PARAMS(va_list_treat_as_strings strings));
 	bool clearConsole(WZAPI_NO_PARAMS);
 	bool structureIdle(WZAPI_PARAMS(const STRUCTURE *psStruct));
@@ -255,6 +272,14 @@ namespace wzapi
 	int countDroid(WZAPI_PARAMS(optional<int> _type, optional<int> _player));
 	no_return_value loadLevel(WZAPI_PARAMS(std::string levelName));
 	no_return_value setDroidExperience(WZAPI_PARAMS(DROID *psDroid, double experience));
+	bool donateObject(WZAPI_PARAMS(BASE_OBJECT *psObject, int toPlayer));
+	bool donatePower(WZAPI_PARAMS(int amount, int toPlayer));
+	no_return_value setNoGoArea(WZAPI_PARAMS(int x1, int y1, int x2, int y2, int player));
+	no_return_value startTransporterEntry(WZAPI_PARAMS(int x, int y, int player));
+	no_return_value setTransporterExit(WZAPI_PARAMS(int x, int y, int player));
+	no_return_value setObjectFlag(WZAPI_PARAMS(BASE_OBJECT *psObj, int _flag, bool value)) MULTIPLAY_SYNCREQUEST_REQUIRED;
+	no_return_value fireWeaponAtLoc(WZAPI_PARAMS(std::string weaponName, int x, int y, optional<int> _player));
+	no_return_value fireWeaponAtObj(WZAPI_PARAMS(std::string weaponName, BASE_OBJECT *psObj, optional<int> _player));
 }
 
 #endif
