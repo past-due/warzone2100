@@ -2713,3 +2713,69 @@ int wzapi::countStruct(WZAPI_PARAMS(std::string structureName, optional<int> _pl
 	}
 	return quantity;
 }
+
+//-- ## countDroid([droid type[, player]])
+//--
+//-- Count the number of droids that a given player has. Droid type must be either
+//-- DROID_ANY, DROID_COMMAND or DROID_CONSTRUCT.
+//-- The player parameter can be a specific player, ALL_PLAYERS, ALLIES or ENEMIES.
+//--
+int wzapi::countDroid(WZAPI_PARAMS(optional<int> _type, optional<int> _player))
+{
+	int type = (_type.has_value()) ? _type.value() : DROID_ANY;
+	SCRIPT_ASSERT(-1, context, type <= DROID_ANY, "Bad droid type parameter");
+	int me = context.player();
+	int player = (_player.has_value()) ? _player.value() : me;
+
+	int quantity = 0;
+	for (int i = 0; i < MAX_PLAYERS; i++)
+	{
+		if (player == i || player == ALL_PLAYERS
+		    || (player == ALLIES && aiCheckAlliances(i, me))
+		    || (player == ENEMIES && !aiCheckAlliances(i, me)))
+		{
+			if (type == DROID_ANY)
+			{
+				quantity += getNumDroids(i);
+			}
+			else if (type == DROID_CONSTRUCT)
+			{
+				quantity += getNumConstructorDroids(i);
+			}
+			else if (type == DROID_COMMAND)
+			{
+				quantity += getNumCommandDroids(i);
+			}
+		}
+	}
+	return quantity;
+}
+
+//-- ## loadLevel(level name)
+//--
+//-- Load the level with the given name.
+//--
+wzapi::no_return_value wzapi::loadLevel(WZAPI_PARAMS(std::string levelName))
+{
+	sstrcpy(aLevelName, levelName.c_str());
+
+	// Find the level dataset
+	LEVEL_DATASET *psNewLevel = levFindDataSet(levelName.c_str());
+	SCRIPT_ASSERT({}, context, psNewLevel, "Could not find level data for %s", levelName.c_str());
+
+	// Get the mission rolling...
+	nextMissionType = psNewLevel->type;
+	loopMissionState = LMS_CLEAROBJECTS;
+	return {};
+}
+
+//-- ## setDroidExperience(droid, experience)
+//--
+//-- Set the amount of experience a droid has. Experience is read using floating point precision.
+//--
+wzapi::no_return_value wzapi::setDroidExperience(WZAPI_PARAMS(DROID *psDroid, double experience))
+{
+	SCRIPT_ASSERT({}, context, psDroid, "No valid droid provided");
+	psDroid->experience = experience * 65536;
+	return {};
+}

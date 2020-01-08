@@ -252,6 +252,9 @@ namespace wzapi
 	const STRUCTURE * addStructure(WZAPI_PARAMS(std::string structureName, int player, int x, int y));
 	unsigned int getStructureLimit(WZAPI_PARAMS(std::string structureName, optional<int> _player));
 	int countStruct(WZAPI_PARAMS(std::string structureName, optional<int> _player));
+	int countDroid(WZAPI_PARAMS(optional<int> _type, optional<int> _player));
+	no_return_value loadLevel(WZAPI_PARAMS(std::string levelName));
+	no_return_value setDroidExperience(WZAPI_PARAMS(DROID *psDroid, double experience));
 }
 
 #endif

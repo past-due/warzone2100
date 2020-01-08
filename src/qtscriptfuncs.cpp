@@ -1194,6 +1194,17 @@ bool writeLabels(const char *filename)
 			}
 		};
 
+		template<>
+		struct unbox<double>
+		{
+			double operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			{
+				if (context->argumentCount() <= idx)
+					return {};
+				return context->argument(idx++).toNumber();
+			}
+		};
+
 //		template<>
 //		struct unbox<optional<float>>
 //		{
@@ -3098,13 +3109,7 @@ static QScriptValue js_objFromId(QScriptContext *context, QScriptEngine *engine)
 //--
 static QScriptValue js_setDroidExperience(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue droidVal = context->argument(0);
-	int id = droidVal.property("id").toInt32();
-	int player = droidVal.property("player").toInt32();
-	DROID *psDroid = IdToDroid(id, player);
-	SCRIPT_ASSERT(context, psDroid, "No such droid id %d belonging to player %d", id, player);
-	psDroid->experience = context->argument(1).toNumber() * 65536;
-	return QScriptValue();
+	return wrap_(wzapi::setDroidExperience, context, engine);
 }
 
 //-- ## donateObject(object, to)
@@ -3219,40 +3224,7 @@ static QScriptValue js_countStruct(QScriptContext *context, QScriptEngine *engin
 //--
 static QScriptValue js_countDroid(QScriptContext *context, QScriptEngine *engine)
 {
-	int me = engine->globalObject().property("me").toInt32();
-	int player = me;
-	int quantity = 0;
-	int type = DROID_ANY;
-	if (context->argumentCount() > 0)
-	{
-		type = context->argument(0).toInt32();
-	}
-	SCRIPT_ASSERT(context, type <= DROID_ANY, "Bad droid type parameter");
-	if (context->argumentCount() > 1)
-	{
-		player = context->argument(1).toInt32();
-	}
-	for (int i = 0; i < MAX_PLAYERS; i++)
-	{
-		if (player == i || player == ALL_PLAYERS
-		    || (player == ALLIES && aiCheckAlliances(i, me))
-		    || (player == ENEMIES && !aiCheckAlliances(i, me)))
-		{
-			if (type == DROID_ANY)
-			{
-				quantity += getNumDroids(i);
-			}
-			else if (type == DROID_CONSTRUCT)
-			{
-				quantity += getNumConstructorDroids(i);
-			}
-			else if (type == DROID_COMMAND)
-			{
-				quantity += getNumCommandDroids(i);
-			}
-		}
-	}
-	return QScriptValue(quantity);
+	return wrap_(wzapi::countDroid, context, engine);
 }
 
 //-- ## setNoGoArea(x1, y1, x2, y2, player)
@@ -3317,20 +3289,9 @@ static QScriptValue js_getScrollLimits(QScriptContext *context, QScriptEngine *e
 //--
 //-- Load the level with the given name.
 //--
-static QScriptValue js_loadLevel(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_loadLevel(QScriptContext *context, QScriptEngine *engine)
 {
-	QString level = context->argument(0).toString();
-
-	sstrcpy(aLevelName, level.toUtf8().constData());
-
-	// Find the level dataset
-	LEVEL_DATASET *psNewLevel = levFindDataSet(level.toUtf8().constData());
-	SCRIPT_ASSERT(context, psNewLevel, "Could not find level data for %s", level.toUtf8().constData());
-
-	// Get the mission rolling...
-	nextMissionType = psNewLevel->type;
-	loopMissionState = LMS_CLEAROBJECTS;
-	return QScriptValue();
+	return wrap_(wzapi::loadLevel, context, engine);
 }
 
 //-- ## autoSave()
@@ -5285,9 +5246,9 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 	engine->globalObject().setProperty("addStructure", engine->newFunction(js_addStructure)); // WZAPI
 	engine->globalObject().setProperty("getStructureLimit", engine->newFunction(js_getStructureLimit)); // WZAPI
 	engine->globalObject().setProperty("countStruct", engine->newFunction(js_countStruct)); // WZAPI
-	engine->globalObject().setProperty("countDroid", engine->newFunction(js_countDroid));
-	engine->globalObject().setProperty("loadLevel", engine->newFunction(js_loadLevel));
-	engine->globalObject().setProperty("setDroidExperience", engine->newFunction(js_setDroidExperience));
+	engine->globalObject().setProperty("countDroid", engine->newFunction(js_countDroid)); // WZAPI
+	engine->globalObject().setProperty("loadLevel", engine->newFunction(js_loadLevel)); // WZAPI
+	engine->globalObject().setProperty("setDroidExperience", engine->newFunction(js_setDroidExperience)); // WZAPI
 	engine->globalObject().setProperty("donateObject", engine->newFunction(js_donateObject));
 	engine->globalObject().setProperty("donatePower", engine->newFunction(js_donatePower));
 	engine->globalObject().setProperty("setNoGoArea", engine->newFunction(js_setNoGoArea));
