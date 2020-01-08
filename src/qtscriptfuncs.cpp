@@ -155,7 +155,7 @@ struct LABEL
 	int type;
 	int player;
 	int subscriber;
-	QList<int> idlist;
+	std::vector<int> idlist;
 	int triggered;
 
 	bool operator==(const LABEL &o) const
@@ -163,7 +163,7 @@ struct LABEL
 		return id == o.id && type == o.type && player == o.player;
 	}
 };
-typedef QMap<QString, LABEL> LABELMAP;
+typedef std::map<std::string, LABEL> LABELMAP;
 static LABELMAP labels;
 static QPointer<QStandardItemModel> labelModel;
 
@@ -232,8 +232,8 @@ static void updateLabelModel()
 	int nextRow = 0;
 	for (LABELMAP::iterator i = labels.begin(); i != labels.end(); i++)
 	{
-		const LABEL &l = i.value();
-		labelModel->setItem(nextRow, 0, new QStandardItem(i.key()));
+		const LABEL &l = i->second;
+		labelModel->setItem(nextRow, 0, new QStandardItem(QString::fromStdString(i->first)));
 		const char *c = "?";
 		switch (l.type)
 		{
@@ -302,9 +302,10 @@ void clearMarks()
 
 void markAllLabels(bool only_active)
 {
-	for (const auto &key : labels.keys())
+	for (const auto &it : labels)
 	{
-		const LABEL &l = labels[key];
+		const auto &key = it.first;
+		const LABEL &l = it.second;
 		if (!only_active || l.triggered <= 0)
 		{
 			showLabel(key, false, false);
@@ -312,11 +313,11 @@ void markAllLabels(bool only_active)
 	}
 }
 
-void showLabel(const QString &key, bool clear_old, bool jump_to)
+void showLabel(const std::string &key, bool clear_old, bool jump_to)
 {
-	if (!labels.contains(key))
+	if (labels.count(key) == 0)
 	{
-		debug(LOG_ERROR, "label %s not found", key.toUtf8().constData());
+		debug(LOG_ERROR, "label %s not found", key.c_str());
 		return;
 	}
 	LABEL &l = labels[key];
@@ -408,8 +409,9 @@ std::pair<bool, int> seenLabelCheck(QScriptEngine *engine, BASE_OBJECT *seen, BA
 	ASSERT_OR_RETURN(std::make_pair(false, 0), psMap != nullptr, "Non-existent groupmap for engine");
 	int groupId = psMap->value(seen);
 	bool foundObj = false, foundGroup = false;
-	for (auto &l : labels)
+	for (auto &it : labels)
 	{
+		LABEL &l = it.second;
 		if (l.triggered != 0 || !(l.subscriber == ALL_PLAYERS || l.subscriber == viewer->player))
 		{
 			continue;
@@ -442,7 +444,7 @@ bool areaLabelCheck(DROID *psDroid)
 	bool activated = false;
 	for (LABELMAP::iterator i = labels.begin(); i != labels.end(); i++)
 	{
-		LABEL &l = i.value();
+		LABEL &l = i->second;
 		if (l.triggered == 0 && (l.subscriber == ALL_PLAYERS || l.subscriber == psDroid->player)
 		    && ((l.type == SCRIPT_AREA && l.p1.x < x && l.p1.y < y && l.p2.x > x && l.p2.y > y)
 		        || (l.type == SCRIPT_RADIUS && iHypot(l.p1 - psDroid->pos.xy()) < l.p2.x)))
@@ -450,7 +452,7 @@ bool areaLabelCheck(DROID *psDroid)
 			// We're inside an untriggered area
 			activated = true;
 			l.triggered = psDroid->id;
-			triggerEventArea(i.key(), psDroid);
+			triggerEventArea(i->first, psDroid);
 		}
 	}
 	if (activated)
@@ -956,8 +958,8 @@ bool loadLabels(const char *filename)
 	{
 		ini.beginGroup(list[i]);
 		LABEL p;
-		QString label(QString::fromUtf8(ini.value("label").toWzString().toUtf8().c_str()));
-		if (labels.contains(label))
+		std::string label = ini.value("label").toWzString().toUtf8();
+		if (labels.count(label) > 0)
 		{
 			debug(LOG_ERROR, "Duplicate label found");
 		}
@@ -969,7 +971,7 @@ bool loadLabels(const char *filename)
 			p.player = ALL_PLAYERS;
 			p.id = -1;
 			p.triggered = -1; // always deactivated
-			labels.insert(label, p);
+			labels[label] = p;
 			p.triggered = ini.value("triggered", -1).toInt(); // deactivated by default
 		}
 		else if (list[i].startsWith("area"))
@@ -981,7 +983,7 @@ bool loadLabels(const char *filename)
 			p.triggered = ini.value("triggered", 0).toInt(); // activated by default
 			p.id = -1;
 			p.subscriber = ini.value("subscriber", ALL_PLAYERS).toInt();
-			labels.insert(label, p);
+			labels[label] = p;
 		}
 		else if (list[i].startsWith("radius"))
 		{
@@ -993,7 +995,7 @@ bool loadLabels(const char *filename)
 			p.triggered = ini.value("triggered", 0).toInt(); // activated by default
 			p.subscriber = ini.value("subscriber", ALL_PLAYERS).toInt();
 			p.id = -1;
-			labels.insert(label, p);
+			labels[label] = p;
 			p.triggered = ini.value("triggered", -1).toInt(); // deactivated by default
 		}
 		else if (list[i].startsWith("object"))
@@ -1001,7 +1003,7 @@ bool loadLabels(const char *filename)
 			p.id = ini.value("id").toInt();
 			p.type = ini.value("type").toInt();
 			p.player = ini.value("player").toInt();
-			labels.insert(label, p);
+			labels[label] = p;
 			p.triggered = ini.value("triggered", -1).toInt(); // deactivated by default
 			p.subscriber = ini.value("subscriber", ALL_PLAYERS).toInt();
 		}
@@ -1017,9 +1019,9 @@ bool loadLabels(const char *filename)
 				BASE_OBJECT *psObj = IdToPointer(id, p.player);
 				ASSERT(psObj, "Unit %d belonging to player %d not found from label %s",
 				       id, p.player, list[i].toUtf8().c_str());
-				p.idlist += id;
+				p.idlist.push_back(id);
 			}
-			labels.insert(label, p);
+			labels[label] = p;
 			p.triggered = ini.value("triggered", -1).toInt(); // deactivated by default
 		}
 		else
@@ -1036,15 +1038,15 @@ bool writeLabels(const char *filename)
 	int c[5]; // make unique, incremental section names
 	memset(c, 0, sizeof(c));
 	WzConfig ini(filename, WzConfig::ReadAndWrite);
-	for (LABELMAP::const_iterator i = labels.constBegin(); i != labels.constEnd(); i++)
+	for (LABELMAP::const_iterator i = labels.begin(); i != labels.end(); i++)
 	{
-		const QString& key = i.key();
-		LABEL l = i.value();
+		const std::string& key = i->first;
+		const LABEL &l = i->second;
 		if (l.type == SCRIPT_POSITION)
 		{
 			ini.beginGroup("position_" + WzString::number(c[0]++));
 			ini.setVector2i("pos", l.p1);
-			ini.setValue("label", QStringToWzString(key));
+			ini.setValue("label", WzString::fromUtf8(key));
 			ini.setValue("triggered", l.triggered);
 			ini.endGroup();
 		}
@@ -1053,7 +1055,7 @@ bool writeLabels(const char *filename)
 			ini.beginGroup("area_" + WzString::number(c[1]++));
 			ini.setVector2i("pos1", l.p1);
 			ini.setVector2i("pos2", l.p2);
-			ini.setValue("label", QStringToWzString(key));
+			ini.setValue("label", WzString::fromUtf8(key));
 			ini.setValue("player", l.player);
 			ini.setValue("triggered", l.triggered);
 			ini.setValue("subscriber", l.subscriber);
@@ -1064,7 +1066,7 @@ bool writeLabels(const char *filename)
 			ini.beginGroup("radius_" + WzString::number(c[2]++));
 			ini.setVector2i("pos", l.p1);
 			ini.setValue("radius", l.p2.x);
-			ini.setValue("label", QStringToWzString(key));
+			ini.setValue("label", WzString::fromUtf8(key));
 			ini.setValue("player", l.player);
 			ini.setValue("triggered", l.triggered);
 			ini.setValue("subscriber", l.subscriber);
@@ -1084,7 +1086,7 @@ bool writeLabels(const char *filename)
 			std::transform(list.constBegin(), list.constEnd(), std::back_inserter(wzlist),
 						   [](const QString& qs) -> WzString { return QStringToWzString(qs); });
 			ini.setValue("members", wzlist);
-			ini.setValue("label", QStringToWzString(key));
+			ini.setValue("label", WzString::fromUtf8(key));
 			ini.setValue("subscriber", l.subscriber);
 			ini.endGroup();
 		}
@@ -1094,7 +1096,7 @@ bool writeLabels(const char *filename)
 			ini.setValue("id", l.id);
 			ini.setValue("player", l.player);
 			ini.setValue("type", l.type);
-			ini.setValue("label", QStringToWzString(key));
+			ini.setValue("label", WzString::fromUtf8(key));
 			ini.setValue("triggered", l.triggered);
 			ini.endGroup();
 		}
@@ -1879,8 +1881,8 @@ static QScriptValue js_getWeaponInfo(QScriptContext *context, QScriptEngine *eng
 //--
 static QScriptValue js_resetLabel(QScriptContext *context, QScriptEngine *)
 {
-	QString labelName = context->argument(0).toString();
-	SCRIPT_ASSERT(context, labels.contains(labelName), "Label %s not found", labelName.toUtf8().constData());
+	std::string labelName = context->argument(0).toString().toStdString();
+	SCRIPT_ASSERT(context, labels.count(labelName) > 0, "Label %s not found", labelName.c_str());
 	LABEL &l = labels[labelName];
 	l.triggered = 0; // make active again
 	if (context->argumentCount() > 1)
@@ -1897,29 +1899,35 @@ static QScriptValue js_resetLabel(QScriptContext *context, QScriptEngine *)
 //--
 static QScriptValue js_enumLabels(QScriptContext *context, QScriptEngine *engine)
 {
-	QStringList matches;
 	if (context->argumentCount() > 0) // filter
 	{
+		QStringList matches;
 		SCRIPT_TYPE type = (SCRIPT_TYPE)context->argument(0).toInt32();
-		for (LABELMAP::iterator i = labels.begin(); i != labels.end(); i++)
+		for (LABELMAP::const_iterator i = labels.begin(); i != labels.end(); i++)
 		{
-			LABEL &l = (*i);
+			const LABEL &l = i->second;
 			if (l.type == type)
 			{
-				matches += i.key();
+				matches += QString::fromStdString(i->first);
 			}
 		}
+		QScriptValue result = engine->newArray(matches.size());
+		for (int i = 0; i < matches.size(); i++)
+		{
+			result.setProperty(i, QScriptValue(matches[i]), QScriptValue::ReadOnly);
+		}
+		return result;
 	}
 	else // fast path, give all
 	{
-		matches = labels.keys();
+		QScriptValue result = engine->newArray(labels.size());
+		int num = 0;
+		for (LABELMAP::const_iterator i = labels.begin(); i != labels.end(); i++)
+		{
+			result.setProperty(num++, QScriptValue(QString::fromStdString(i->first)), QScriptValue::ReadOnly);
+		}
+		return result;
 	}
-	QScriptValue result = engine->newArray(matches.size());
-	for (int i = 0; i < matches.size(); i++)
-	{
-		result.setProperty(i, QScriptValue(matches[i]), QScriptValue::ReadOnly);
-	}
-	return result;
 }
 
 //-- ## addLabel(object, label)
@@ -1957,8 +1965,8 @@ static QScriptValue js_addLabel(QScriptContext *context, QScriptEngine *engine)
 		BASE_OBJECT *psObj = IdToObject((OBJECT_TYPE)value.type, value.id, value.player);
 		SCRIPT_ASSERT(context, psObj, "Object id %d not found belonging to player %d", value.id, value.player);
 	}
-	QString key = context->argument(1).toString();
-	labels.insert(key, value);
+	std::string key = context->argument(1).toString().toStdString();
+	labels[key] = value;
 	updateLabelModel();
 	return QScriptValue();
 }
@@ -1970,8 +1978,8 @@ static QScriptValue js_addLabel(QScriptContext *context, QScriptEngine *engine)
 //--
 static QScriptValue js_removeLabel(QScriptContext *context, QScriptEngine *engine)
 {
-	QString key = context->argument(0).toString();
-	int result = labels.remove(key);
+	std::string key = context->argument(0).toString().toStdString();
+	int result = labels.erase(key);
 	updateLabelModel();
 	return QScriptValue(result);
 }
@@ -1989,10 +1997,18 @@ static QScriptValue js_getLabel(QScriptContext *context, QScriptEngine *engine)
 	value.id = objparam.property("id").toInt32();
 	value.player = objparam.property("player").toInt32();
 	value.type = (OBJECT_TYPE)objparam.property("type").toInt32();
-	QString label = labels.key(value, QString());
-	if (!label.isEmpty())
+	std::string label;
+	for (const auto &it : labels)
 	{
-		return QScriptValue(label);
+		if (it.second == value)
+		{
+			label = it.first;
+			break;
+		}
+	}
+	if (!label.empty())
+	{
+		return QScriptValue(QString::fromStdString(label));
 	}
 	return QScriptValue::NullValue;
 }
@@ -2036,12 +2052,12 @@ static QScriptValue js_getObject(QScriptContext *context, QScriptEngine *engine)
 	}
 	// get by label case
 	BASE_OBJECT *psObj;
-	QString label = context->argument(0).toString();
+	std::string label = context->argument(0).toString().toStdString();
 	QScriptValue ret;
-	if (labels.contains(label))
+	if (labels.count(label) > 0)
 	{
 		ret = engine->newObject();
-		LABEL p = labels.value(label);
+		const LABEL &p = labels[label];
 		ret.setProperty("type", p.type, QScriptValue::ReadOnly);
 		switch (p.type)
 		{
@@ -2073,7 +2089,7 @@ static QScriptValue js_getObject(QScriptContext *context, QScriptEngine *engine)
 			psObj = IdToObject((OBJECT_TYPE)p.type, p.id, p.player);
 			return convMax(psObj, engine);
 		default:
-			SCRIPT_ASSERT(context, false, "Bad object label type found for label %s!", label.toUtf8().constData());
+			SCRIPT_ASSERT(context, false, "Bad object label type found for label %s!", label.c_str());
 			break;
 		}
 	}
@@ -3238,11 +3254,11 @@ static QScriptValue js_enumArea(QScriptContext *context, QScriptEngine *engine)
 	bool seen = true;
 	if (context->argument(0).isString())
 	{
-		QString label = context->argument(0).toString();
+		std::string label = context->argument(0).toString().toStdString();
 		nextparam = 1;
-		SCRIPT_ASSERT(context, labels.contains(label), "Label %s not found", label.toUtf8().constData());
-		LABEL p = labels.value(label);
-		SCRIPT_ASSERT(context, p.type == SCRIPT_AREA, "Wrong label type for %s", label.toUtf8().constData());
+		SCRIPT_ASSERT(context, labels.count(label) > 0, "Label %s not found", label.c_str());
+		const LABEL &p = labels[label];
+		SCRIPT_ASSERT(context, p.type == SCRIPT_AREA, "Wrong label type for %s", label.c_str());
 		x1 = p.p1.x;
 		y1 = p.p1.y;
 		x2 = p.p2.x;
@@ -3547,8 +3563,8 @@ static QScriptValue js_hackMarkTiles(QScriptContext *context, QScriptEngine *)
 	}
 	else if (context->argumentCount() == 1) // label
 	{
-		QString label = context->argument(0).toString();
-		SCRIPT_ASSERT(context, labels.contains(label), "Label %s not found", label.toUtf8().constData());
+		std::string label = context->argument(0).toString().toStdString();
+		SCRIPT_ASSERT(context, labels.count(label) > 0, "Label %s not found", label.c_str());
 		const LABEL &l = labels[label];
 		if (l.type == SCRIPT_AREA)
 		{
@@ -3835,12 +3851,12 @@ void prepareLabels()
 		QScriptEngine *engine = iter.key();
 		for (LABELMAP::iterator i = labels.begin(); i != labels.end(); ++i)
 		{
-			LABEL l = i.value();
+			const LABEL &l = i->second;
 			if (l.type == SCRIPT_GROUP)
 			{
 				QScriptValue groupMembers = iter.key()->globalObject().property("groupSizes");
-				groupMembers.setProperty(l.id, l.idlist.length(), QScriptValue::ReadOnly);
-				for (QList<int>::iterator j = l.idlist.begin(); j != l.idlist.end(); j++)
+				groupMembers.setProperty(l.id, (int)l.idlist.size(), QScriptValue::ReadOnly);
+				for (std::vector<int>::const_iterator j = l.idlist.begin(); j != l.idlist.end(); j++)
 				{
 					int id = (*j);
 					BASE_OBJECT *psObj = IdToPointer(id, l.player);

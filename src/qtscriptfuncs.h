@@ -88,7 +88,7 @@ QScriptValue js_enumSelected(QScriptContext *, QScriptEngine *engine);
 QStandardItemModel *createLabelModel();
 
 /// Mark and show label
-void showLabel(const QString &key, bool clear_old = true, bool jump_to = true);
+void showLabel(const std::string &key, bool clear_old = true, bool jump_to = true);
 
 /// Show all labels or all currently active labels
 void markAllLabels(bool only_active);
