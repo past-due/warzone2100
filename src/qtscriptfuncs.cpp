@@ -1132,6 +1132,26 @@ bool writeLabels(const char *filename)
 				::namedScriptCallback(pEngine, func, player);
 			};
 		}
+
+		virtual void hack_setMe(int player) const override
+		{
+			engine->globalObject().setProperty("me", player);
+		}
+
+		virtual void set_isReceivingAllEvents(bool value) const override
+		{
+			engine->globalObject().setProperty("isReceivingAllEvents", value, QScriptValue::ReadOnly | QScriptValue::Undeletable);
+		}
+
+		virtual bool get_isReceivingAllEvents() const override
+		{
+			return (engine->globalObject().property("isReceivingAllEvents")).toBool();
+		}
+
+		virtual void doNotSaveGlobal(const std::string &name) const override
+		{
+			::doNotSaveGlobal(QString::fromStdString(name));
+		}
 	};
 
 	/// Assert for scripts that give useful backtraces and other info.
@@ -2628,14 +2648,9 @@ static QScriptValue js_getMissionTime(QScriptContext *context, QScriptEngine *en
 //--
 //-- Set the exit position for the mission transporter. (3.2+ only)
 //--
-static QScriptValue js_setTransporterExit(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_setTransporterExit(QScriptContext *context, QScriptEngine *engine)
 {
-	int x = context->argument(0).toInt32();
-	int y = context->argument(1).toInt32();
-	int player = context->argument(2).toInt32();
-	SCRIPT_ASSERT_PLAYER(context, player);
-	missionSetTransporterExit(player, x, y);
-	return QScriptValue();
+	return wrap_(wzapi::setTransporterExit, context, engine);
 }
 
 //-- ## startTransporterEntry(x, y, player)
@@ -2645,15 +2660,9 @@ static QScriptValue js_setTransporterExit(QScriptContext *context, QScriptEngine
 //-- The transport needs to be set up with the mission droids, and the first transport
 //-- found will be used. (3.2+ only)
 //--
-static QScriptValue js_startTransporterEntry(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_startTransporterEntry(QScriptContext *context, QScriptEngine *engine)
 {
-	int x = context->argument(0).toInt32();
-	int y = context->argument(1).toInt32();
-	int player = context->argument(2).toInt32();
-	SCRIPT_ASSERT_PLAYER(context, player);
-	missionSetTransporterEntry(player, x, y);
-	missionFlyTransportersIn(player, false);
-	return QScriptValue();
+	return wrap_(wzapi::startTransporterEntry, context, engine);
 }
 
 //-- ## useSafetyTransport(flag)
@@ -2717,22 +2726,18 @@ static QScriptValue js_centreView(QScriptContext *context, QScriptEngine *engine
 //--
 //-- (3.3+ only)
 //--
-static QScriptValue js_hackPlayIngameAudio(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_hackPlayIngameAudio(QScriptContext *context, QScriptEngine *engine)
 {
-	debug(LOG_SOUND, "Script wanted music to start");
-	cdAudio_PlayTrack(SONG_INGAME);
-	return QScriptValue();
+	return wrap_(wzapi::hackPlayIngameAudio, context, engine);
 }
 
 //-- ## hackStopIngameAudio()
 //--
 //-- (3.3+ only)
 //--
-static QScriptValue js_hackStopIngameAudio(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_hackStopIngameAudio(QScriptContext *context, QScriptEngine *engine)
 {
-	debug(LOG_SOUND, "Script wanted music to stop");
-	cdAudio_Stop();
-	return QScriptValue();
+	return wrap_(wzapi::hackStopIngameAudio, context, engine);
 }
 
 //-- ## playSound(sound[, x, y, z])
@@ -3023,11 +3028,7 @@ static QScriptValue js_isVTOL(QScriptContext *context, QScriptEngine *engine)
 //--
 static QScriptValue js_hackGetObj(QScriptContext *context, QScriptEngine *engine)
 {
-	OBJECT_TYPE type = (OBJECT_TYPE)context->argument(0).toInt32();
-	int player = context->argument(1).toInt32();
-	int id = context->argument(2).toInt32();
-	SCRIPT_ASSERT_PLAYER(context, player);
-	return QScriptValue(convMax(IdToObject(type, id, player), engine));
+	return wrap_(wzapi::hackGetObj, context, engine);
 }
 
 //-- ## hackChangeMe(player)
@@ -3039,10 +3040,7 @@ static QScriptValue js_hackGetObj(QScriptContext *context, QScriptEngine *engine
 // scripts for each player. (3.2+ only)
 static QScriptValue js_hackChangeMe(QScriptContext *context, QScriptEngine *engine)
 {
-	int me = context->argument(0).toInt32();
-	SCRIPT_ASSERT_PLAYER(context, me);
-	engine->globalObject().setProperty("me", me);
-	return QScriptValue();
+	return wrap_(wzapi::hackChangeMe, context, engine);
 }
 
 //-- ## receiveAllEvents(bool)
@@ -3051,12 +3049,7 @@ static QScriptValue js_hackChangeMe(QScriptContext *context, QScriptEngine *engi
 //--
 static QScriptValue js_receiveAllEvents(QScriptContext *context, QScriptEngine *engine)
 {
-	if (context->argumentCount() > 0)
-	{
-		bool value = context->argument(0).toBool();
-		engine->globalObject().setProperty("isReceivingAllEvents", value, QScriptValue::ReadOnly | QScriptValue::Undeletable);
-	}
-	return engine->globalObject().property("isReceivingAllEvents");
+	return wrap_(wzapi::receiveAllEvents, context, engine);
 }
 
 //-- ## hackAssert(condition, message...)
@@ -3065,28 +3058,7 @@ static QScriptValue js_receiveAllEvents(QScriptContext *context, QScriptEngine *
 //--
 static QScriptValue js_hackAssert(QScriptContext *context, QScriptEngine *engine)
 {
-	bool condition = context->argument(0).toBool();
-	if (condition)
-	{
-		return QScriptValue(); // pass
-	}
-	// fail
-	QString result;
-	for (int i = 1; i < context->argumentCount(); ++i)
-	{
-		if (i != 1)
-		{
-			result.append(QLatin1String(" "));
-		}
-		QString s = context->argument(i).toString();
-		if (context->state() == QScriptContext::ExceptionState)
-		{
-			break;
-		}
-		result.append(s);
-	}
-	context->throwError(QScriptContext::ReferenceError, result +  " in " + QString(__FUNCTION__) + " at line " + QString::number(__LINE__));
-	return QScriptValue();
+	return wrap_(wzapi::hackAssert, context, engine);
 }
 
 //-- ## objFromId(fake game object)
@@ -3120,47 +3092,7 @@ static QScriptValue js_setDroidExperience(QScriptContext *context, QScriptEngine
 //--
 static QScriptValue js_donateObject(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue val = context->argument(0);
-	uint32_t id = val.property("id").toUInt32();
-	uint8_t player = val.property("player").toInt32();
-	OBJECT_TYPE type = (OBJECT_TYPE)val.property("type").toInt32();
-	uint8_t to = context->argument(1).toInt32();
-	uint8_t giftType = 0;
-	if (type == OBJ_DROID)
-	{
-		// Check unit limits.
-		DROID *psDroid = IdToDroid(id, player);
-		SCRIPT_ASSERT(context, psDroid, "No such droid id %u belonging to player %u", id, player);
-		if ((psDroid->droidType == DROID_COMMAND && getNumCommandDroids(to) + 1 > getMaxCommanders(to))
-		    || (psDroid->droidType == DROID_CONSTRUCT && getNumConstructorDroids(to) + 1 > getMaxConstructors(to))
-		    || getNumDroids(to) + 1 > getMaxDroids(to))
-		{
-			return QScriptValue(false);
-		}
-		giftType = DROID_GIFT;
-	}
-	else if (type == OBJ_STRUCTURE)
-	{
-		STRUCTURE *psStruct = IdToStruct(id, player);
-		SCRIPT_ASSERT(context, psStruct, "No such struct id %u belonging to player %u", id, player);
-		const int statidx = psStruct->pStructureType - asStructureStats;
-		if (asStructureStats[statidx].curCount[to] + 1 > asStructureStats[statidx].upgrade[to].limit)
-		{
-			return QScriptValue(false);
-		}
-		giftType = STRUCTURE_GIFT;
-	}
-	else
-	{
-		return QScriptValue(false);
-	}
-	NETbeginEncode(NETgameQueue(selectedPlayer), GAME_GIFT);
-	NETuint8_t(&giftType);
-	NETuint8_t(&player);
-	NETuint8_t(&to);
-	NETuint32_t(&id);
-	NETend();
-	return QScriptValue(true);
+	return wrap_(wzapi::donateObject, context, engine);
 }
 
 //-- ## donatePower(amount, to)
@@ -3169,11 +3101,7 @@ static QScriptValue js_donateObject(QScriptContext *context, QScriptEngine *engi
 //--
 static QScriptValue js_donatePower(QScriptContext *context, QScriptEngine *engine)
 {
-	int amount = context->argument(0).toInt32();
-	int to = context->argument(1).toInt32();
-	int from = engine->globalObject().property("me").toInt32();
-	giftPower(from, to, amount, true);
-	return QScriptValue(true);
+	return wrap_(wzapi::donatePower, context, engine);
 }
 
 //-- ## safeDest(player, x, y)
@@ -3233,32 +3161,9 @@ static QScriptValue js_countDroid(QScriptContext *context, QScriptEngine *engine
 //-- then landing lights are placed. If player is -1, then a limbo landing zone
 //-- is created and limbo droids placed.
 //--
-// FIXME: missing a way to call initNoGoAreas(); check if we can call this in
-// every level start instead of through scripts
-static QScriptValue js_setNoGoArea(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_setNoGoArea(QScriptContext *context, QScriptEngine *engine)
 {
-	const int x1 = context->argument(0).toInt32();
-	const int y1 = context->argument(1).toInt32();
-	const int x2 = context->argument(2).toInt32();
-	const int y2 = context->argument(3).toInt32();
-	const int player = context->argument(4).toInt32();
-
-	SCRIPT_ASSERT(context, x1 >= 0, "Minimum scroll x value %d is less than zero - ", x1);
-	SCRIPT_ASSERT(context, y1 >= 0, "Minimum scroll y value %d is less than zero - ", y1);
-	SCRIPT_ASSERT(context, x2 <= mapWidth, "Maximum scroll x value %d is greater than mapWidth %d", x2, (int)mapWidth);
-	SCRIPT_ASSERT(context, y2 <= mapHeight, "Maximum scroll y value %d is greater than mapHeight %d", y2, (int)mapHeight);
-	SCRIPT_ASSERT(context, player < MAX_PLAYERS && player >= -1, "Bad player value %d", player);
-
-	if (player == -1)
-	{
-		setNoGoArea(x1, y1, x2, y2, LIMBO_LANDING);
-		placeLimboDroids();	// this calls the Droids from the Limbo list onto the map
-	}
-	else
-	{
-		setNoGoArea(x1, y1, x2, y2, player);
-	}
-	return QScriptValue();
+	return wrap_(wzapi::setNoGoArea, context, engine);
 }
 
 //-- ## setScrollLimits(x1, y1, x2, y2)
@@ -3449,22 +3354,18 @@ static QScriptValue js_setAssemblyPoint(QScriptContext *context, QScriptEngine *
 //--
 //-- Turn off network transmissions. FIXME - find a better way.
 //--
-static QScriptValue js_hackNetOff(QScriptContext *, QScriptEngine *)
+static QScriptValue js_hackNetOff(QScriptContext *context, QScriptEngine *engine)
 {
-	bMultiPlayer = false;
-	bMultiMessages = false;
-	return QScriptValue();
+	return wrap_(wzapi::hackNetOff, context, engine);
 }
 
 //-- ## hackNetOn()
 //--
 //-- Turn on network transmissions. FIXME - find a better way.
 //--
-static QScriptValue js_hackNetOn(QScriptContext *, QScriptEngine *)
+static QScriptValue js_hackNetOn(QScriptContext *context, QScriptEngine *engine)
 {
-	bMultiPlayer = true;
-	bMultiMessages = true;
-	return QScriptValue();
+	return wrap_(wzapi::hackNetOn, context, engine);
 }
 
 //-- ## getDroidProduction(factory)
@@ -3550,61 +3451,22 @@ static QScriptValue js_setConstructorLimit(QScriptContext *context, QScriptEngin
 //--
 //-- See wzscript docs for info, to the extent any exist. (3.2+ only)
 //--
-static QScriptValue js_hackAddMessage(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_hackAddMessage(QScriptContext *context, QScriptEngine *engine)
 {
-	QString mess = context->argument(0).toString();
-	MESSAGE_TYPE msgType = (MESSAGE_TYPE)context->argument(1).toInt32();
-	int player = context->argument(2).toInt32();
-	bool immediate = context->argument(3).toBool();
-	MESSAGE *psMessage = addMessage(msgType, false, player);
-	if (psMessage)
-	{
-		VIEWDATA *psViewData = getViewData(QStringToWzString(mess));
-		SCRIPT_ASSERT(context, psViewData, "Viewdata not found");
-		psMessage->pViewData = psViewData;
-		debug(LOG_MSG, "Adding %s pViewData=%p", psViewData->name.toUtf8().c_str(), static_cast<void *>(psMessage->pViewData));
-		if (msgType == MSG_PROXIMITY)
-		{
-			VIEW_PROXIMITY *psProx = (VIEW_PROXIMITY *)psViewData->pData;
-			// check the z value is at least the height of the terrain
-			int height = map_Height(psProx->x, psProx->y);
-			if (psProx->z < height)
-			{
-				psProx->z = height;
-			}
-		}
-		if (immediate)
-		{
-			displayImmediateMessage(psMessage);
-		}
-	}
+	QScriptValue retVal = wrap_(wzapi::hackAddMessage, context, engine);
 	jsDebugMessageUpdate();
-	return QScriptValue();
+	return retVal;
 }
 
 //-- ## hackRemoveMessage(message, type, player)
 //--
 //-- See wzscript docs for info, to the extent any exist. (3.2+ only)
 //--
-static QScriptValue js_hackRemoveMessage(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_hackRemoveMessage(QScriptContext *context, QScriptEngine *engine)
 {
-	QString mess = context->argument(0).toString();
-	MESSAGE_TYPE msgType = (MESSAGE_TYPE)context->argument(1).toInt32();
-	int player = context->argument(2).toInt32();
-	VIEWDATA *psViewData = getViewData(QStringToWzString(mess));
-	SCRIPT_ASSERT(context, psViewData, "Viewdata not found");
-	MESSAGE *psMessage = findMessage(psViewData, msgType, player);
-	if (psMessage)
-	{
-		debug(LOG_MSG, "Removing %s", psViewData->name.toUtf8().c_str());
-		removeMessage(psMessage, player);
-	}
-	else
-	{
-		debug(LOG_ERROR, "cannot find message - %s", psViewData->name.toUtf8().c_str());
-	}
+	QScriptValue retVal = wrap_(wzapi::hackRemoveMessage, context, engine);
 	jsDebugMessageUpdate();
-	return QScriptValue();
+	return retVal;
 }
 
 //-- ## setSunPosition(x, y, z)
@@ -3648,11 +3510,9 @@ static QScriptValue js_setSky(QScriptContext *context, QScriptEngine *engine)
 //-- Do not save the given global given by name to savegames. Must be
 //-- done again each time game is loaded, since this too is not saved.
 //--
-static QScriptValue js_hackDoNotSave(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_hackDoNotSave(QScriptContext *context, QScriptEngine *engine)
 {
-	QString name = context->argument(0).toString();
-	doNotSaveGlobal(name);
-	return QScriptValue();
+	return wrap_(wzapi::hackDoNotSave, context, engine);
 }
 
 //-- ## hackMarkTiles([label | x, y[, x2, y2]])
@@ -3766,20 +3626,9 @@ static QScriptValue js_setHealth(QScriptContext *context, QScriptEngine *engine)
 //-- needs wrapping in a syncRequest. (3.3+ only.)
 //-- Recognized object flags: OBJECT_FLAG_UNSELECTABLE - makes object unavailable for selection from player UI.
 //--
-static QScriptValue js_setObjectFlag(QScriptContext *context, QScriptEngine *)
+static QScriptValue js_setObjectFlag(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue obj = context->argument(0);
-	OBJECT_FLAG flag = (OBJECT_FLAG)context->argument(1).toInt32();
-	SCRIPT_ASSERT(context, flag < OBJECT_FLAG_COUNT, "Bad flag value %d", context->argument(1).toInt32());
-	int id = obj.property("id").toInt32();
-	int player = obj.property("player").toInt32();
-	OBJECT_TYPE type = (OBJECT_TYPE)obj.property("type").toInt32();
-	SCRIPT_ASSERT(context, type == OBJ_DROID || type == OBJ_STRUCTURE || type == OBJ_FEATURE, "Bad object type");
-	BASE_OBJECT *psObj = IdToObject(type, id, player);
-	SCRIPT_ASSERT(context, psObj, "Object not found!");
-	bool value = context->argument(2).toBool();
-	psObj->flags.set(flag, value);
-	return QScriptValue();
+	return wrap_(wzapi::setObjectFlag, context, engine);
 }
 
 //-- ## addSpotter(x, y, player, range, type, expiry)
@@ -3884,33 +3733,7 @@ static QScriptValue js_replaceTexture(QScriptContext *context, QScriptEngine *en
 //--
 static QScriptValue js_fireWeaponAtLoc(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue weaponValue = context->argument(0);
-	int weapon = getCompFromName(COMP_WEAPON, QStringToWzString(weaponValue.toString()));
-	SCRIPT_ASSERT(context, weapon > 0, "No such weapon: %s", weaponValue.toString().toUtf8().constData());
-
-	int xLocation = context->argument(1).toInt32();
-	int yLocation = context->argument(2).toInt32();
-
-	int player;
-	if (context->argumentCount() > 3)
-	{
-		player = context->argument(3).toInt32();
-	}
-	else
-	{
-		player = engine->globalObject().property("me").toInt32();
-	}
-
-	Vector3i target;
-	target.x = world_coord(xLocation);
-	target.y = world_coord(yLocation);
-	target.z = map_Height(xLocation, yLocation);
-
-	WEAPON sWeapon;
-	sWeapon.nStat = weapon;
-
-	proj_SendProjectile(&sWeapon, nullptr, player, target, nullptr, true, 0);
-	return QScriptValue();
+	return wrap_(wzapi::fireWeaponAtLoc, context, engine);
 }
 
 //-- ## fireWeaponAtObj(weapon, game object[, player])
@@ -3919,35 +3742,7 @@ static QScriptValue js_fireWeaponAtLoc(QScriptContext *context, QScriptEngine *e
 //--
 static QScriptValue js_fireWeaponAtObj(QScriptContext *context, QScriptEngine *engine)
 {
-	QScriptValue weaponValue = context->argument(0);
-	int weapon = getCompFromName(COMP_WEAPON, QStringToWzString(weaponValue.toString()));
-	SCRIPT_ASSERT(context, weapon > 0, "No such weapon: %s", weaponValue.toString().toUtf8().constData());
-
-	BASE_OBJECT *psObj = nullptr;
-	QScriptValue objVal = context->argument(1);
-	int oid = objVal.property("id").toInt32();
-	int oplayer = objVal.property("player").toInt32();
-	OBJECT_TYPE otype = (OBJECT_TYPE)objVal.property("type").toInt32();
-	psObj = IdToObject(otype, oid, oplayer);
-	SCRIPT_ASSERT(context, psObj, "No such object id %d belonging to player %d", oid, oplayer);
-
-	int player;
-	if (context->argumentCount() > 3)
-	{
-		player = context->argument(3).toInt32();
-	}
-	else
-	{
-		player = engine->globalObject().property("me").toInt32();
-	}
-
-	Vector3i target = psObj->pos;
-
-	WEAPON sWeapon;
-	sWeapon.nStat = weapon;
-
-	proj_SendProjectile(&sWeapon, nullptr, player, target, psObj, true, 0);
-	return QScriptValue();
+	return wrap_(wzapi::fireWeaponAtObj, context, engine);
 }
 
 //-- ## changePlayerColour(player, colour)
@@ -5134,19 +4929,19 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 	engine->globalObject().setProperty("autoSave", engine->newFunction(js_autoSave)); // WZAPI
 
 	// horrible hacks follow -- do not rely on these being present!
-	engine->globalObject().setProperty("hackNetOff", engine->newFunction(js_hackNetOff));
-	engine->globalObject().setProperty("hackNetOn", engine->newFunction(js_hackNetOn));
-	engine->globalObject().setProperty("hackAddMessage", engine->newFunction(js_hackAddMessage));
-	engine->globalObject().setProperty("hackRemoveMessage", engine->newFunction(js_hackRemoveMessage));
+	engine->globalObject().setProperty("hackNetOff", engine->newFunction(js_hackNetOff)); // WZAPI
+	engine->globalObject().setProperty("hackNetOn", engine->newFunction(js_hackNetOn)); // WZAPI
+	engine->globalObject().setProperty("hackAddMessage", engine->newFunction(js_hackAddMessage)); // WZAPI
+	engine->globalObject().setProperty("hackRemoveMessage", engine->newFunction(js_hackRemoveMessage)); // WZAPI
 	engine->globalObject().setProperty("objFromId", engine->newFunction(js_objFromId));
-	engine->globalObject().setProperty("hackGetObj", engine->newFunction(js_hackGetObj));
-	engine->globalObject().setProperty("hackChangeMe", engine->newFunction(js_hackChangeMe));
-	engine->globalObject().setProperty("hackAssert", engine->newFunction(js_hackAssert));
+	engine->globalObject().setProperty("hackGetObj", engine->newFunction(js_hackGetObj)); // WZAPI
+	engine->globalObject().setProperty("hackChangeMe", engine->newFunction(js_hackChangeMe)); // WZAPI
+	engine->globalObject().setProperty("hackAssert", engine->newFunction(js_hackAssert)); // WZAPI
 	engine->globalObject().setProperty("hackMarkTiles", engine->newFunction(js_hackMarkTiles));
-	engine->globalObject().setProperty("receiveAllEvents", engine->newFunction(js_receiveAllEvents));
-	engine->globalObject().setProperty("hackDoNotSave", engine->newFunction(js_hackDoNotSave));
-	engine->globalObject().setProperty("hackPlayIngameAudio", engine->newFunction(js_hackPlayIngameAudio));
-	engine->globalObject().setProperty("hackStopIngameAudio", engine->newFunction(js_hackStopIngameAudio));
+	engine->globalObject().setProperty("receiveAllEvents", engine->newFunction(js_receiveAllEvents)); // WZAPI
+	engine->globalObject().setProperty("hackDoNotSave", engine->newFunction(js_hackDoNotSave)); // WZAPI
+	engine->globalObject().setProperty("hackPlayIngameAudio", engine->newFunction(js_hackPlayIngameAudio)); // WZAPI
+	engine->globalObject().setProperty("hackStopIngameAudio", engine->newFunction(js_hackStopIngameAudio)); // WZAPI
 
 	// General functions -- geared for use in AI scripts
 	engine->globalObject().setProperty("debug", engine->newFunction(js_debug));
@@ -5249,14 +5044,14 @@ bool registerFunctions(QScriptEngine *engine, const QString& scriptName)
 	engine->globalObject().setProperty("countDroid", engine->newFunction(js_countDroid)); // WZAPI
 	engine->globalObject().setProperty("loadLevel", engine->newFunction(js_loadLevel)); // WZAPI
 	engine->globalObject().setProperty("setDroidExperience", engine->newFunction(js_setDroidExperience)); // WZAPI
-	engine->globalObject().setProperty("donateObject", engine->newFunction(js_donateObject));
-	engine->globalObject().setProperty("donatePower", engine->newFunction(js_donatePower));
-	engine->globalObject().setProperty("setNoGoArea", engine->newFunction(js_setNoGoArea));
-	engine->globalObject().setProperty("startTransporterEntry", engine->newFunction(js_startTransporterEntry));
-	engine->globalObject().setProperty("setTransporterExit", engine->newFunction(js_setTransporterExit));
-	engine->globalObject().setProperty("setObjectFlag", engine->newFunction(js_setObjectFlag));
-	engine->globalObject().setProperty("fireWeaponAtLoc", engine->newFunction(js_fireWeaponAtLoc));
-	engine->globalObject().setProperty("fireWeaponAtObj", engine->newFunction(js_fireWeaponAtObj));
+	engine->globalObject().setProperty("donateObject", engine->newFunction(js_donateObject)); // WZAPI
+	engine->globalObject().setProperty("donatePower", engine->newFunction(js_donatePower)); // WZAPI
+	engine->globalObject().setProperty("setNoGoArea", engine->newFunction(js_setNoGoArea)); // WZAPI
+	engine->globalObject().setProperty("startTransporterEntry", engine->newFunction(js_startTransporterEntry)); // WZAPI
+	engine->globalObject().setProperty("setTransporterExit", engine->newFunction(js_setTransporterExit)); // WZAPI
+	engine->globalObject().setProperty("setObjectFlag", engine->newFunction(js_setObjectFlag)); // WZAPI
+	engine->globalObject().setProperty("fireWeaponAtLoc", engine->newFunction(js_fireWeaponAtLoc)); // WZAPI
+	engine->globalObject().setProperty("fireWeaponAtObj", engine->newFunction(js_fireWeaponAtObj)); // WZAPI
 
 	// Set some useful constants
 	engine->globalObject().setProperty("TER_WATER", TER_WATER, QScriptValue::ReadOnly | QScriptValue::Undeletable);
