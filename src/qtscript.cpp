@@ -68,7 +68,6 @@
 #include <QtCore/QString>
 #include <QtCore/QStringList>
 #include <QtCore/QFileInfo>
-#include <QtCore/QElapsedTimer>
 #include <QtGui/QStandardItemModel>
 #include <QtWidgets/QFileDialog>
 
