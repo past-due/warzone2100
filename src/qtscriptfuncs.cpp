@@ -1387,21 +1387,6 @@ bool writeLabels(const char *filename)
 		};
 
 		template<>
-		struct unbox<wzapi::object_id_player_type>
-		{
-			wzapi::object_id_player_type operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
-			{
-				if (context->argumentCount() <= idx)
-					return {};
-				QScriptValue objVal = context->argument(idx++);
-				int id = objVal.property("id").toInt32();
-				int player = objVal.property("player").toInt32();
-				OBJECT_TYPE type = (OBJECT_TYPE)objVal.property("type").toInt32();
-				return { id, player, type };
-			}
-		};
-
-		template<>
 		struct unbox<wzapi::string_or_string_list>
 		{
 			wzapi::string_or_string_list operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
@@ -1560,6 +1545,10 @@ bool writeLabels(const char *filename)
 
 		QScriptValue box(const wzapi::researchResult& result, QScriptEngine* engine)
 		{
+			if (result.psResearch == nullptr)
+			{
+				return QScriptValue::NullValue;
+			}
 			return convResearch(result.psResearch, engine, result.player);
 		}
 

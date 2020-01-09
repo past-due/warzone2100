@@ -50,13 +50,6 @@ namespace wzapi
 		virtual void doNotSaveGlobal(const std::string &global) const = 0;
 	};
 
-	struct object_id_player_type
-	{
-		int id;
-		int player;
-		OBJECT_TYPE type;
-	};
-
 	struct droid_id_player
 	{
 		int id = -1;
@@ -159,7 +152,7 @@ namespace wzapi
 	bool syncRequest(WZAPI_PARAMS(int32_t req_id, int32_t x, int32_t y, optional<const BASE_OBJECT *> _psObj, optional<const BASE_OBJECT *> _psObj2));
 	bool replaceTexture(WZAPI_PARAMS(std::string oldfile, std::string newfile));
 	bool changePlayerColour(WZAPI_PARAMS(int player, int colour));
-	bool setHealth(WZAPI_PARAMS(object_id_player_type objVal, int health)); MULTIPLAY_SYNCREQUEST_REQUIRED
+	bool setHealth(WZAPI_PARAMS(BASE_OBJECT* psObject, int health)); MULTIPLAY_SYNCREQUEST_REQUIRED
 	bool useSafetyTransport(WZAPI_PARAMS(bool flag));
 	bool restoreLimboMissionData(WZAPI_NO_PARAMS);
 	uint32_t getMultiTechLevel(WZAPI_NO_PARAMS);
@@ -223,7 +216,7 @@ namespace wzapi
 	int getExperienceModifier(WZAPI_PARAMS(int player));
 	bool setDroidLimit(WZAPI_PARAMS(int player, int value, optional<int> _droidType));
 	bool setExperienceModifier(WZAPI_PARAMS(int player, int percent));
-	std::vector<const DROID *> enumCargo(WZAPI_PARAMS(DROID *psDroid));
+	std::vector<const DROID *> enumCargo(WZAPI_PARAMS(const DROID *psDroid));
 
 	// MARK: - Functions that operate on the current player only
 	bool centreView(WZAPI_PARAMS(int x, int y));

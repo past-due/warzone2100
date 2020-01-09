@@ -166,17 +166,10 @@ wzapi::no_return_value wzapi::sendAllianceRequest(WZAPI_PARAMS(int player2))
 //--
 bool wzapi::orderDroid(WZAPI_PARAMS(DROID* psDroid, int order))
 {
-//	QScriptValue droidVal = context->argument(0);
-//	int id = droidVal.property("id").toInt32();
-//	int player = droidVal.property("player").toInt32();
-//	DROID *psDroid = IdToDroid(id, player);
-	SCRIPT_ASSERT(false, context, psDroid, "Droid id not found belonging to player");//, psDroid->id, (int)psDroid->player);
-//	DROID_ORDER order = (DROID_ORDER)context->argument(1).toInt32();
+	SCRIPT_ASSERT(false, context, psDroid, "No valid droid provided");
 	SCRIPT_ASSERT(false, context, order == DORDER_HOLD || order == DORDER_RTR || order == DORDER_STOP
 	              || order == DORDER_RTB || order == DORDER_REARM || order == DORDER_RECYCLE,
 	              "Invalid order: %s", getDroidOrderName((DROID_ORDER)order));
-
-	debug(LOG_3D, "WZAPI: droid.id=%d, droid.player=%d, order=%d", psDroid->id, (int)psDroid->player, (int)order);
 
 	DROID_ORDER_DATA *droidOrder = &psDroid->order;
 	if (droidOrder->type == order)
@@ -207,29 +200,15 @@ bool wzapi::orderDroid(WZAPI_PARAMS(DROID* psDroid, int order))
 //--
 bool wzapi::orderDroidBuild(WZAPI_PARAMS(DROID* psDroid, int order, std::string statName, int x, int y, optional<float> _direction))
 {
-	// TODO: Change this so instead of taking a DROID *, it takes a droid_id_player struct??
-	SCRIPT_ASSERT(false, context, psDroid, "No droid specified");
-	debug(LOG_3D, "WZAPI: droid.id=%d, droid.player=%d, order=%d, statName=%s", psDroid->id, (int)psDroid->player, (int)order, statName.c_str());
+	SCRIPT_ASSERT(false, context, psDroid, "No valid droid provided");
 
-//	QScriptValue droidVal = context->argument(0);
-//	int id = droidVal.property("id").toInt32();
-//	int player = droidVal.property("player").toInt32();
-//	DROID *psDroid = IdToDroid(id, player);
-//	DROID_ORDER order = (DROID_ORDER)context->argument(1).toInt32();
-//	QString statName = context->argument(2).toString();
 	int index = getStructStatFromName(WzString::fromUtf8(statName));
 	SCRIPT_ASSERT(false, context, index >= 0, "%s not found", statName.c_str());
 	STRUCTURE_STATS	*psStats = &asStructureStats[index];
-//	int x = context->argument(3).toInt32();
-//	int y = context->argument(4).toInt32();
-//	uint16_t direction = 0;
-//
+
 	SCRIPT_ASSERT(false, context, order == DORDER_BUILD, "Invalid order");
 	SCRIPT_ASSERT(false, context, psStats->id.compare("A0ADemolishStructure") != 0, "Cannot build demolition");
-//	if (context->argumentCount() > 5)
-//	{
-//		direction = DEG(context->argument(5).toNumber());
-//	}
+
 	uint16_t uint_direction = 0;
 	if (_direction.has_value())
 	{
@@ -251,13 +230,7 @@ bool wzapi::orderDroidBuild(WZAPI_PARAMS(DROID* psDroid, int order, std::string 
 //--
 bool wzapi::setAssemblyPoint(WZAPI_PARAMS(STRUCTURE *psStruct, int x, int y))
 {
-//	QScriptValue structVal = context->argument(0);
-//	int id = structVal.property("id").toInt32();
-//	int player = structVal.property("player").toInt32();
-//	STRUCTURE *psStruct = IdToStruct(structVal.id, structVal.player);
-	SCRIPT_ASSERT(false, context, psStruct, "No structure provided");
-//	int x = context->argument(1).toInt32();
-//	int y = context->argument(2).toInt32();
+	SCRIPT_ASSERT(false, context, psStruct, "No valid structure provided");
 	SCRIPT_ASSERT(false, context, psStruct->pStructureType->type == REF_FACTORY
 	              || psStruct->pStructureType->type == REF_CYBORG_FACTORY
 	              || psStruct->pStructureType->type == REF_VTOL_FACTORY, "Structure not a factory");
@@ -271,9 +244,6 @@ bool wzapi::setAssemblyPoint(WZAPI_PARAMS(STRUCTURE *psStruct, int x, int y))
 //--
 bool wzapi::setSunPosition(WZAPI_PARAMS(float x, float y, float z))
 {
-//	float x = context->argument(0).toNumber();
-//	float y = context->argument(1).toNumber();
-//	float z = context->argument(2).toNumber();
 	setTheSun(Vector3f(x, y, z));
 	return true;
 }
@@ -322,9 +292,6 @@ bool wzapi::setWeather(WZAPI_PARAMS(int weather))
 //--
 bool wzapi::setSky(WZAPI_PARAMS(std::string page, float wind, float scale))
 {
-//	QString page = context->argument(0).toString();
-//	float wind = context->argument(1).toNumber();
-//	float scale = context->argument(2).toNumber();
 	setSkyBox(page.c_str(), wind, scale);
 	return true; // TODO: modify setSkyBox to return bool, success / failure
 }
@@ -335,8 +302,6 @@ bool wzapi::setSky(WZAPI_PARAMS(std::string page, float wind, float scale))
 //--
 bool wzapi::cameraSlide(WZAPI_PARAMS(float x, float y))
 {
-//	float x = context->argument(0).toNumber();
-//	float y = context->argument(1).toNumber();
 	requestRadarTrack(x, y);
 	return true;
 }
@@ -347,8 +312,6 @@ bool wzapi::cameraSlide(WZAPI_PARAMS(float x, float y))
 //--
 bool wzapi::cameraZoom(WZAPI_PARAMS(float viewDistance, float speed))
 {
-//	float viewDistance = context->argument(0).toNumber();
-//	float speed = context->argument(1).toNumber();
 	animateToViewDistance(viewDistance, speed);
 	return true;
 }
@@ -359,18 +322,14 @@ bool wzapi::cameraZoom(WZAPI_PARAMS(float viewDistance, float speed))
 //--
 bool wzapi::cameraTrack(WZAPI_PARAMS(optional<DROID *> _targetDroid))
 {
-//	if (context->argument(0).isNull())
 	if (!_targetDroid.has_value())
 	{
 		setWarCamActive(false);
 	}
 	else
 	{
-//		QScriptValue droidVal = context->argument(0);
-//		int id = droidVal.property("id").toInt32();
-//		int player = droidVal.property("player").toInt32();
-		DROID *targetDroid = _targetDroid.value(); // DROID *targetDroid = IdToDroid(id, player);
-		SCRIPT_ASSERT(false, context, targetDroid, "No such droid id belonging to player");//, id, player);
+		DROID *targetDroid = _targetDroid.value();
+		SCRIPT_ASSERT(false, context, targetDroid, "No valid droid provided");
 		for (DROID *psDroid = apsDroidLists[selectedPlayer]; psDroid != nullptr; psDroid = psDroid->psNext)
 		{
 			psDroid->selected = (psDroid == targetDroid); // select only the target droid
@@ -389,12 +348,6 @@ bool wzapi::cameraTrack(WZAPI_PARAMS(optional<DROID *> _targetDroid))
 //--
 uint32_t wzapi::addSpotter(WZAPI_PARAMS(int x, int y, int player, int range, bool radar, uint32_t expiry))
 {
-//	int x = context->argument(0).toInt32();
-//	int y = context->argument(1).toInt32();
-//	int player = context->argument(2).toInt32();
-//	int range = context->argument(3).toInt32();
-//	bool radar = context->argument(4).toBool();
-//	uint32_t expiry = context->argument(5).toUInt32();
 	uint32_t id = ::addSpotter(x, y, player, range, radar, expiry);
 	return id;
 }
@@ -405,7 +358,6 @@ uint32_t wzapi::addSpotter(WZAPI_PARAMS(int x, int y, int player, int range, boo
 //--
 bool wzapi::removeSpotter(WZAPI_PARAMS(uint32_t id))
 {
-//	uint32_t id = context->argument(0).toUInt32();
 	return ::removeSpotter(id);
 }
 
@@ -417,31 +369,18 @@ bool wzapi::removeSpotter(WZAPI_PARAMS(uint32_t id))
 //--
 bool wzapi::syncRequest(WZAPI_PARAMS(int32_t req_id, int32_t _x, int32_t _y, optional<const BASE_OBJECT *> _psObj, optional<const BASE_OBJECT *> _psObj2))
 {
-//	int32_t req_id = context->argument(0).toInt32();
-	int32_t x = world_coord(_x); //context->argument(1).toInt32());
-	int32_t y = world_coord(_y); //context->argument(2).toInt32());
+	int32_t x = world_coord(_x);
+	int32_t y = world_coord(_y);
 	const BASE_OBJECT *psObj = nullptr, *psObj2 = nullptr;
-//	if (context->argumentCount() > 3)
 	if (_psObj.has_value())
 	{
-//		QScriptValue objVal = context->argument(3);
-//		int oid = objVal.property("id").toInt32();
-//		int oplayer = objVal.property("player").toInt32();
-//		OBJECT_TYPE otype = (OBJECT_TYPE)objVal.property("type").toInt32();
-		psObj = _psObj.value(); // psObj = IdToObject(otype, oid, oplayer);
-//		SCRIPT_ASSERT(false, context, psObj, "No such object id %d belonging to player %d", oid, oplayer);
-		SCRIPT_ASSERT(false, context, psObj, "No such object id belonging to player");
+		psObj = _psObj.value();
+		SCRIPT_ASSERT(false, context, psObj, "No valid object (obj1) provided");
 	}
-//	if (context->argumentCount() > 4)
 	if (_psObj2.has_value())
 	{
-//		QScriptValue objVal = context->argument(4);
-//		int oid = objVal.property("id").toInt32();
-//		int oplayer = objVal.property("player").toInt32();
-//		OBJECT_TYPE otype = (OBJECT_TYPE)objVal.property("type").toInt32();
-		psObj2 = _psObj2.value(); // psObj2 = IdToObject(otype, oid, oplayer);
-//		SCRIPT_ASSERT(false, context, psObj2, "No such object id %d belonging to player %d", oid, oplayer);
-		SCRIPT_ASSERT(false, context, psObj2, "No such object id belonging to player");
+		psObj2 = _psObj2.value();
+		SCRIPT_ASSERT(false, context, psObj2, "No valid object (obj2) provided");
 	}
 	sendSyncRequest(req_id, x, y, psObj, psObj2);
 	return true;
@@ -454,8 +393,6 @@ bool wzapi::syncRequest(WZAPI_PARAMS(int32_t req_id, int32_t _x, int32_t _y, opt
 //--
 bool wzapi::replaceTexture(WZAPI_PARAMS(std::string oldfile, std::string newfile))
 {
-//	QString oldfile = context->argument(0).toString();
-//	QString newfile = context->argument(1).toString();
 	return replaceTexture(WzString::fromUtf8(oldfile), WzString::fromUtf8(newfile));
 }
 
@@ -466,8 +403,6 @@ bool wzapi::replaceTexture(WZAPI_PARAMS(std::string oldfile, std::string newfile
 //--
 bool wzapi::changePlayerColour(WZAPI_PARAMS(int player, int colour))
 {
-//	int player = context->argument(0).toInt32();
-//	int colour = context->argument(1).toInt32();
 	return setPlayerColour(player, colour);
 }
 
@@ -476,30 +411,29 @@ bool wzapi::changePlayerColour(WZAPI_PARAMS(int player, int colour))
 //-- Change the health of the given game object, in percentage. Does not take care of network sync, so for multiplayer games,
 //-- needs wrapping in a syncRequest. (3.2.3+ only.)
 //--
-bool wzapi::setHealth(WZAPI_PARAMS(object_id_player_type objVal, int health)) MULTIPLAY_SYNCREQUEST_REQUIRED
+bool wzapi::setHealth(WZAPI_PARAMS(BASE_OBJECT* psObject, int health)) MULTIPLAY_SYNCREQUEST_REQUIRED
 {
-//	QScriptValue objVal = context->argument(0);
-//	int health = context->argument(1).toInt32();
+	SCRIPT_ASSERT(false, context, psObject, "No valid object provided");
 	SCRIPT_ASSERT(false, context, health >= 1, "Bad health value %d", health);
-	int id = objVal.id; //objVal.property("id").toInt32();
-	int player = objVal.player; //objVal.property("player").toInt32();
-	OBJECT_TYPE type = objVal.type; //(OBJECT_TYPE)objVal.property("type").toInt32();
+	int id = psObject->id;
+	int player = psObject->player;
+	OBJECT_TYPE type = psObject->type;
 	SCRIPT_ASSERT(false, context, type == OBJ_DROID || type == OBJ_STRUCTURE || type == OBJ_FEATURE, "Bad object type");
 	if (type == OBJ_DROID)
 	{
-		DROID *psDroid = IdToDroid(id, player);
+		DROID *psDroid = (DROID *)psObject;
 		SCRIPT_ASSERT(false, context, psDroid, "No such droid id %d belonging to player %d", id, player);
 		psDroid->body = health * (double)psDroid->originalBody / 100;
 	}
 	else if (type == OBJ_STRUCTURE)
 	{
-		STRUCTURE *psStruct = IdToStruct(id, player);
+		STRUCTURE *psStruct = (STRUCTURE *)psObject;
 		SCRIPT_ASSERT(false, context, psStruct, "No such structure id %d belonging to player %d", id, player);
 		psStruct->body = health * MAX(1, structureBody(psStruct)) / 100;
 	}
 	else
 	{
-		FEATURE *psFeat = IdToFeature(id, player);
+		FEATURE *psFeat = (FEATURE *)psObject;
 		SCRIPT_ASSERT(false, context, psFeat, "No such feature id %d belonging to player %d", id, player);
 		psFeat->body = health * psFeat->psStats->body / 100;
 	}
@@ -514,7 +448,6 @@ bool wzapi::setHealth(WZAPI_PARAMS(object_id_player_type objVal, int health)) MU
 //--
 bool wzapi::useSafetyTransport(WZAPI_PARAMS(bool flag))
 {
-//	bool flag = context->argument(0).toBool();
 	setDroidsToSafetyFlag(flag);
 	return true;
 }
@@ -545,7 +478,6 @@ uint32_t wzapi::getMultiTechLevel(WZAPI_NO_PARAMS)
 //--
 bool wzapi::setCampaignNumber(WZAPI_PARAMS(int num))
 {
-//	int num = context->argument(0).toInt32();
 	::setCampaignNumber(num);
 	return true;
 }
@@ -555,7 +487,6 @@ bool wzapi::setCampaignNumber(WZAPI_PARAMS(int num))
 //-- Set the fog reveal status. (3.3+ only)
 bool wzapi::setRevealStatus(WZAPI_PARAMS(bool status))
 {
-//	bool status = context->argument(0).toBool();
 	::setRevealStatus(status);
 	preProcessVisibility();
 	return true;
@@ -758,7 +689,7 @@ wzapi::no_return_value wzapi::hackStopIngameAudio(WZAPI_NO_PARAMS)
 // TODO, should cover scrShowConsoleText, scrAddConsoleText, scrTagConsoleText and scrConsole
 bool wzapi::console(WZAPI_PARAMS(va_list_treat_as_strings strings))
 {
-	int player = context.player(); //engine->globalObject().property("me").toInt32();
+	int player = context.player();
 	if (player == selectedPlayer)
 	{
 		std::string result;
@@ -768,11 +699,6 @@ bool wzapi::console(WZAPI_PARAMS(va_list_treat_as_strings strings))
 			{
 				result.append(" ");
 			}
-//			QString s = context->argument(i).toString();
-//			if (context->state() == QScriptContext::ExceptionState)
-//			{
-//				break;
-//			}
 			result.append(s);
 		}
 		//permitNewConsoleMessages(true);
@@ -799,11 +725,7 @@ bool wzapi::clearConsole(WZAPI_NO_PARAMS)
 //--
 bool wzapi::structureIdle(WZAPI_PARAMS(const STRUCTURE *psStruct))
 {
-//	QScriptValue structVal = context->argument(0);
-//	int id = structVal.property("id").toInt32();
-//	int player = structVal.property("player").toInt32();
-//	STRUCTURE *psStruct = IdToStruct(structVal.id, structVal.player);
-	SCRIPT_ASSERT(false, context, psStruct, "No structure provided");
+	SCRIPT_ASSERT(false, context, psStruct, "No valid structure provided");
 	return ::structureIdle(psStruct);
 }
 
@@ -813,23 +735,6 @@ std::vector<const STRUCTURE *> _enumStruct_fromList(WZAPI_PARAMS(optional<int> _
 	int player = -1, looking = -1;
 	WzString statsName;
 	STRUCTURE_TYPE type = NUM_DIFF_BUILDINGS;
-
-//	switch (context->argumentCount())
-//	{
-//	default:
-//	case 3: looking = context->argument(2).toInt32(); // fall-through
-//	case 2: val = context->argument(1);
-//		if (val.isNumber())
-//		{
-//			type = (STRUCTURE_TYPE)val.toInt32();
-//		}
-//		else
-//		{
-//			statsName = WzString::fromUtf8(val.toString().toUtf8().constData());
-//		} // fall-through
-//	case 1: player = context->argument(0).toInt32(); break;
-//	case 0: player = engine->globalObject().property("me").toInt32();
-//	}
 
 	player = (_player.has_value()) ? _player.value() : context.player();
 
@@ -844,7 +749,6 @@ std::vector<const STRUCTURE *> _enumStruct_fromList(WZAPI_PARAMS(optional<int> _
 	}
 
 	SCRIPT_ASSERT_PLAYER({}, context, player);
-//	SCRIPT_ASSERT({}, context, player < MAX_PLAYERS && player >= 0, "Target player index out of range: %d", player);
 	SCRIPT_ASSERT({}, context, looking < MAX_PLAYERS && looking >= -1, "Looking player index out of range: %d", looking);
 	for (STRUCTURE *psStruct = psStructLists[player]; psStruct; psStruct = psStruct->psNext)
 	{
@@ -902,24 +806,7 @@ std::vector<const DROID *> wzapi::enumDroid(WZAPI_PARAMS(optional<int> _player, 
 	DROID_TYPE droidType = DROID_ANY;
 	DROID_TYPE droidType2;
 
-//	switch (context->argumentCount())
-//	{
-//	default:
-//	case 3: looking = context->argument(2).toInt32(); // fall-through
-//	case 2: droidType = (DROID_TYPE)context->argument(1).toInt32(); // fall-through
-//	case 1: player = context->argument(0).toInt32(); break;
-//	case 0: player = engine->globalObject().property("me").toInt32();
-//	}
-
-//	player = (_player.has_value()) ? _player.value() : context.player();
-	if (_player.has_value())
-	{
-		player = _player.value();
-	}
-	else
-	{
-		player = context.player();
-	}
+	player = (_player.has_value()) ? _player.value() : context.player();
 
 	if (_droidType.has_value())
 	{
@@ -966,18 +853,14 @@ std::vector<const DROID *> wzapi::enumDroid(WZAPI_PARAMS(optional<int> _player, 
 //--
 std::vector<const FEATURE *> wzapi::enumFeature(WZAPI_PARAMS(int looking, optional<std::string> _statsName))
 {
-	std::vector<const FEATURE *> matches;
-//	int looking = context->argument(0).toInt32();
+	SCRIPT_ASSERT({}, context, looking < MAX_PLAYERS && looking >= -1, "Looking player index out of range: %d", looking);
 	WzString statsName;
 	if (_statsName.has_value())
 	{
 		statsName = WzString::fromUtf8(_statsName.value());
 	}
-//	if (context->argumentCount() > 1)
-//	{
-//		statsName = WzString::fromUtf8(context->argument(1).toString().toUtf8().constData());
-//	}
-	SCRIPT_ASSERT({}, context, looking < MAX_PLAYERS && looking >= -1, "Looking player index out of range: %d", looking);
+
+	std::vector<const FEATURE *> matches;
 	for (FEATURE *psFeat = apsFeatureLists[0]; psFeat; psFeat = psFeat->psNext)
 	{
 		if ((looking == -1 || psFeat->visible[looking])
@@ -998,9 +881,8 @@ std::vector<const FEATURE *> wzapi::enumFeature(WZAPI_PARAMS(int looking, option
 //--
 std::vector<Position> wzapi::enumBlips(WZAPI_PARAMS(int player))
 {
-	std::vector<Position> matches;
-//	int player = context->argument(0).toInt32();
 	SCRIPT_ASSERT_PLAYER({}, context, player);
+	std::vector<Position> matches;
 	for (BASE_OBJECT *psSensor = apsSensorList[0]; psSensor; psSensor = psSensor->psNextFunc)
 	{
 		if (psSensor->visible[player] > 0 && psSensor->visible[player] < UBYTE_MAX)
@@ -1045,23 +927,10 @@ wzapi::researchResult wzapi::getResearch(WZAPI_PARAMS(std::string resName, optio
 {
 	researchResult result;
 	int player = (_player.has_value()) ? _player.value() : context.player();
-//	if (context->argumentCount() == 2)
-//	{
-//		player = context->argument(1).toInt32();
-//	}
-//	else
-//	{
-//		player = engine->globalObject().property("me").toInt32();
-//	}
-//	QString resName = context->argument(0).toString();
+
 	result.psResearch = ::getResearch(resName.c_str());
 	result.player = player;
 	return result;
-//	if (!psResearch)
-//	{
-//		return QScriptValue::NullValue;
-//	}
-//	return convResearch(psResearch, engine, player);
 }
 
 //-- ## enumResearch()
@@ -1071,7 +940,7 @@ wzapi::researchResult wzapi::getResearch(WZAPI_PARAMS(std::string resName, optio
 wzapi::researchResults wzapi::enumResearch(WZAPI_NO_PARAMS)
 {
 	researchResults result;
-	int player = context.player(); //engine->globalObject().property("me").toInt32();
+	int player = context.player();
 	for (int i = 0; i < asResearch.size(); i++)
 	{
 		RESEARCH *psResearch = &asResearch[i];
@@ -1094,21 +963,14 @@ wzapi::researchResults wzapi::enumResearch(WZAPI_NO_PARAMS)
 //--
 std::vector<const BASE_OBJECT *> wzapi::enumRange(WZAPI_PARAMS(int _x, int _y, int _range, optional<int> _filter, optional<bool> _seen))
 {
-	int player = context.player(); // engine->globalObject().property("me").toInt32();
-	int x = world_coord(_x);//context->argument(0).toInt32());
-	int y = world_coord(_y);//context->argument(1).toInt32());
-	int range = world_coord(_range);//context->argument(2).toInt32());
+	int player = context.player();
+	int x = world_coord(_x);
+	int y = world_coord(_y);
+	int range = world_coord(_range);
 	int filter = (_filter.has_value()) ? _filter.value() : ALL_PLAYERS;
 	bool seen = (_seen.has_value()) ? _seen.value() : true;
-//	if (context->argumentCount() > 3)
-//	{
-//		filter = context->argument(3).toInt32();
-//	}
-//	if (context->argumentCount() > 4)
-//	{
-//		seen = context->argument(4).toBool();
-//	}
-	static GridList gridList;  // static to avoid allocations.
+
+	static GridList gridList;  // static to avoid allocations. // WARNING: THREAD-SAFETY
 	gridList = gridStartIterate(x, y, range);
 	std::vector<const BASE_OBJECT *> list;
 	for (GridIterator gi = gridList.begin(); gi != gridList.end(); ++gi)
@@ -1137,13 +999,9 @@ std::vector<const BASE_OBJECT *> wzapi::enumRange(WZAPI_PARAMS(int _x, int _y, i
 //--
 bool wzapi::pursueResearch(WZAPI_PARAMS(const STRUCTURE *psStruct, string_or_string_list research))
 {
-//	QScriptValue structVal = context->argument(0);
-//	int id = structVal.id; //structVal.property("id").toInt32();
-//	int player = structVal.player; //structVal.property("player").toInt32();
-//	STRUCTURE *psStruct = IdToStruct(id, player);
-	SCRIPT_ASSERT(false, context, psStruct, "No structure provided");
+	SCRIPT_ASSERT(false, context, psStruct, "No valid structure provided");
 	int player = psStruct->player;
-//	QScriptValue list = context->argument(1);
+
 	RESEARCH *psResearch = nullptr;  // Dummy initialisation.
 	for (const auto& resName : research.strings)
 	{
@@ -1233,7 +1091,6 @@ bool wzapi::pursueResearch(WZAPI_PARAMS(const STRUCTURE *psStruct, string_or_str
 //--
 wzapi::researchResults wzapi::findResearch(WZAPI_PARAMS(std::string resName, optional<int> _player))
 {
-//	QString resName = context->argument(0).toString();
 	int player = (_player.has_value()) ? _player.value() : context.player();
 	SCRIPT_ASSERT_PLAYER({}, context, player);
 
@@ -1294,16 +1151,9 @@ int32_t wzapi::distBetweenTwoPoints(WZAPI_PARAMS(int32_t x1, int32_t y1, int32_t
 //--
 bool wzapi::orderDroidLoc(WZAPI_PARAMS(DROID *psDroid, int order_, int x, int y))
 {
-//	QScriptValue droidVal = context->argument(0);
-//	int id = droidVal.property("id").toInt32();
-//	int player = droidVal.property("player").toInt32();
-//	QScriptValue orderVal = context->argument(1);
-//	int x = context->argument(2).toInt32();
-//	int y = context->argument(3).toInt32();
+	SCRIPT_ASSERT(false, context, psDroid, "No valid droid provided");
 	DROID_ORDER order = (DROID_ORDER)order_;
 	SCRIPT_ASSERT(false, context, validOrderForLoc(order), "Invalid location based order: %s", getDroidOrderName(order));
-//	DROID *psDroid = IdToDroid(id, player);
-	SCRIPT_ASSERT(false, context, psDroid, "Droid not provided");
 	SCRIPT_ASSERT(false, context, tileOnMap(x, y), "Outside map bounds (%d, %d)", x, y);
 	DROID_ORDER_DATA *droidOrder = &psDroid->order;
 	if (droidOrder->type == order && psDroid->actionPos.x == world_coord(x) && psDroid->actionPos.y == world_coord(y))
@@ -1432,24 +1282,19 @@ static bool structDoubleCheck(BASE_STATS *psStat, UDWORD xx, UDWORD yy, SDWORD m
 //--
 optional<wzapi::position_in_map_coords> wzapi::pickStructLocation(WZAPI_PARAMS(DROID *psDroid, std::string statName, int startX, int startY, optional<int> _maxBlockingTiles))
 {
-//	QScriptValue droidVal = context->argument(0);
-//	const int id = droidVal.property("id").toInt32();
-//	const int player = droidVal.property("player").toInt32();
-//	DROID *psDroid = IdToDroid(id, player);
-//	QString statName = context->argument(1).toString();
+	SCRIPT_ASSERT({}, context, psDroid, "No valid droid provided");
 	const int player = psDroid->player;
+	SCRIPT_ASSERT_PLAYER({}, context, player);
 	int index = getStructStatFromName(WzString::fromUtf8(statName));
 	SCRIPT_ASSERT({}, context, index >= 0, "%s not found", statName.c_str());
 	STRUCTURE_STATS	*psStat = &asStructureStats[index];
+	SCRIPT_ASSERT({}, context, psStat, "No such stat found: %s", statName.c_str());
 
 	int numIterations = 30;
 	bool found = false;
 	int incX, incY, x, y;
 	int maxBlockingTiles = 0;
 
-	SCRIPT_ASSERT({}, context, psDroid, "No droid provided");
-	SCRIPT_ASSERT({}, context, psStat, "No such stat found: %s", statName.c_str());
-	SCRIPT_ASSERT_PLAYER({}, context, player);
 	SCRIPT_ASSERT({}, context, startX >= 0 && startX < mapWidth && startY >= 0 && startY < mapHeight, "Bad position (%d, %d)", startX, startY);
 
 	if (_maxBlockingTiles.has_value())
@@ -1538,13 +1383,7 @@ endstructloc:
 //--
 bool wzapi::droidCanReach(WZAPI_PARAMS(const DROID *psDroid, int x, int y))
 {
-//	QScriptValue droidVal = context->argument(0);
-//	int id = droidVal.property("id").toInt32();
-//	int player = droidVal.property("player").toInt32();
-//	int x = context->argument(1).toInt32();
-//	int y = context->argument(2).toInt32();
-//	DROID *psDroid = IdToDroid(id, player);
-	SCRIPT_ASSERT(false, context, psDroid, "Droid not provided");
+	SCRIPT_ASSERT(false, context, psDroid, "No valid droid provided");
 	const PROPULSION_STATS *psPropStats = asPropulsionStats + psDroid->asBits[COMP_PROPULSION];
 	return fpathCheck(psDroid->pos, Vector3i(world_coord(x), world_coord(y), 0), psPropStats->propulsionType);
 }
@@ -1556,7 +1395,6 @@ bool wzapi::droidCanReach(WZAPI_PARAMS(const DROID *psDroid, int x, int y))
 //--
 bool wzapi::propulsionCanReach(WZAPI_PARAMS(std::string propulsionName, int x1, int y1, int x2, int y2))
 {
-//	QScriptValue propulsionValue = context->argument(0);
 	int propulsion = getCompFromName(COMP_PROPULSION, WzString::fromUtf8(propulsionName));
 	SCRIPT_ASSERT(false, context, propulsion > 0, "No such propulsion: %s", propulsionName.c_str());
 	const PROPULSION_STATS *psPropStats = asPropulsionStats + propulsion;
@@ -1579,18 +1417,9 @@ int wzapi::terrainType(WZAPI_PARAMS(int x, int y))
 //--
 bool wzapi::orderDroidObj(WZAPI_PARAMS(DROID *psDroid, int _order, BASE_OBJECT *psObj))
 {
-//	QScriptValue droidVal = context->argument(0);
-//	int id = droidVal.property("id").toInt32();
-//	int player = droidVal.property("player").toInt32();
-//	DROID *psDroid = IdToDroid(id, player);
-	SCRIPT_ASSERT(false, context, psDroid, "Droid not provided");
-	DROID_ORDER order = (DROID_ORDER)_order; //context->argument(1).toInt32();
-//	QScriptValue objVal = context->argument(2);
-//	int oid = objVal.property("id").toInt32();
-//	int oplayer = objVal.property("player").toInt32();
-//	OBJECT_TYPE otype = (OBJECT_TYPE)objVal.property("type").toInt32();
-//	BASE_OBJECT *psObj = IdToObject(otype, oid, oplayer);
-	SCRIPT_ASSERT(false, context, psObj, "Object not provided");
+	SCRIPT_ASSERT(false, context, psDroid, "No valid droid provided");
+	DROID_ORDER order = (DROID_ORDER)_order;
+	SCRIPT_ASSERT(false, context, psObj, "No valid object provided");
 	SCRIPT_ASSERT(false, context, validOrderForObj(order), "Invalid order: %s", getDroidOrderName(order));
 	DROID_ORDER_DATA *droidOrder = &psDroid->order;
 	if (droidOrder->type == order && psDroid->order.psObj == psObj)
@@ -1625,9 +1454,8 @@ static int get_first_available_component(int player, int capacity, const wzapi::
 
 static DROID_TEMPLATE *makeTemplate(int player, const std::string &templName, const wzapi::string_or_string_list& _body, const wzapi::string_or_string_list& _propulsion, const wzapi::va_list<wzapi::string_or_string_list>& _turrets, int capacity, bool strict)
 {
-//	const int firstTurret = paramstart + 4; // index position of first turret parameter
 	DROID_TEMPLATE *psTemplate = new DROID_TEMPLATE;
-	int numTurrets = _turrets.va_list.size(); // anything beyond first six parameters, are turrets
+	int numTurrets = _turrets.va_list.size();
 	int result;
 
 	memset(psTemplate->asParts, 0, sizeof(psTemplate->asParts)); // reset to defaults
@@ -1724,15 +1552,12 @@ static DROID_TEMPLATE *makeTemplate(int player, const std::string &templName, co
 //--
 bool wzapi::buildDroid(WZAPI_PARAMS(STRUCTURE *psFactory, std::string templName, string_or_string_list body, string_or_string_list propulsion, reservedParam reserved1, reservedParam reserved2, va_list<string_or_string_list> turrets))
 {
-//	QScriptValue structVal = context->argument(0);
-//	int id = structVal.property("id").toInt32();
-//	int player = structVal.property("player").toInt32();
-	STRUCTURE *psStruct = psFactory; //IdToStruct(id, player);
-	SCRIPT_ASSERT(false, context, psStruct, "No structure provided");
+	STRUCTURE *psStruct = psFactory;
+	SCRIPT_ASSERT(false, context, psStruct, "No valid structure provided");
 	SCRIPT_ASSERT(false, context, (psStruct->pStructureType->type == REF_FACTORY || psStruct->pStructureType->type == REF_CYBORG_FACTORY
 	                        || psStruct->pStructureType->type == REF_VTOL_FACTORY), "Structure %s is not a factory", objInfo(psStruct));
 	int player = psStruct->player;
-//	QString templName = context->argument(1).toString();
+	SCRIPT_ASSERT_PLAYER(false, context, player);
 	const int capacity = psStruct->capacity; // body size limit
 	DROID_TEMPLATE *psTemplate = ::makeTemplate(player, templName, body, propulsion, turrets, capacity, true);
 	if (psTemplate)
@@ -1773,11 +1598,7 @@ bool wzapi::buildDroid(WZAPI_PARAMS(STRUCTURE *psFactory, std::string templName,
 //--
 const DROID* wzapi::addDroid(WZAPI_PARAMS(int player, int x, int y, std::string templName, string_or_string_list body, string_or_string_list propulsion, reservedParam reserved1, reservedParam reserved2, va_list<string_or_string_list> turrets)) MUTLIPLAY_UNSAFE
 {
-//	int player = context->argument(0).toInt32();
 	SCRIPT_ASSERT_PLAYER(nullptr, context, player);
-//	int x = context->argument(1).toInt32();
-//	int y = context->argument(2).toInt32();
-//	QString templName = context->argument(3).toString();
 	bool onMission = (x == -1) && (y == -1);
 	SCRIPT_ASSERT(nullptr, context, (onMission || (x >= 0 && y >= 0)), "Invalid coordinates (%d, %d) for droid", x, y);
 	DROID_TEMPLATE *psTemplate = ::makeTemplate(player, templName, body, propulsion, turrets, SIZE_NUM, false);
@@ -1826,8 +1647,7 @@ const DROID* wzapi::addDroid(WZAPI_PARAMS(int player, int x, int y, std::string 
 //--
 std::unique_ptr<const DROID_TEMPLATE> wzapi::makeTemplate(WZAPI_PARAMS(int player, std::string templName, string_or_string_list body, string_or_string_list propulsion, reservedParam reserved1, va_list<string_or_string_list> turrets))
 {
-//	int player = context->argument(0).toInt32();
-//	QString templName = context->argument(1).toString();
+	SCRIPT_ASSERT_PLAYER(nullptr, context, player);
 	DROID_TEMPLATE *psTemplate = ::makeTemplate(player, templName, body, propulsion, turrets, SIZE_NUM, true);
 	return std::unique_ptr<const DROID_TEMPLATE>(psTemplate);
 }
@@ -1840,15 +1660,13 @@ std::unique_ptr<const DROID_TEMPLATE> wzapi::makeTemplate(WZAPI_PARAMS(int playe
 //--
 bool wzapi::addDroidToTransporter(WZAPI_PARAMS(droid_id_player transporter, droid_id_player droid))
 {
-//	QScriptValue transporterVal = context->argument(0);
-	int transporterId = transporter.id; //transporterVal.property("id").toInt32();
-	int transporterPlayer = transporter.player; //transporterVal.property("player").toInt32();
+	int transporterId = transporter.id;
+	int transporterPlayer = transporter.player;
 	DROID *psTransporter = IdToMissionDroid(transporterId, transporterPlayer);
 	SCRIPT_ASSERT(false, context, psTransporter, "No such transporter id %d belonging to player %d", transporterId, transporterPlayer);
 	SCRIPT_ASSERT(false, context, isTransporter(psTransporter), "Droid id %d belonging to player %d is not a transporter", transporterId, transporterPlayer);
-//	QScriptValue droidVal = context->argument(1);
-	int droidId = droid.id; //droidVal.property("id").toInt32();
-	int droidPlayer = droid.player; //droidVal.property("player").toInt32();
+	int droidId = droid.id;
+	int droidPlayer = droid.player;
 	DROID *psDroid = IdToMissionDroid(droidId, droidPlayer);
 	SCRIPT_ASSERT(false, context, psDroid, "No such droid id %d belonging to player %d", droidId, droidPlayer);
 	SCRIPT_ASSERT(false, context, checkTransporterSpace(psTransporter, psDroid), "Not enough room in transporter %d for droid %d", transporterId, droidId);
@@ -1865,9 +1683,6 @@ bool wzapi::addDroidToTransporter(WZAPI_PARAMS(droid_id_player transporter, droi
 //--
 const FEATURE * wzapi::addFeature(WZAPI_PARAMS(std::string featName, int x, int y)) MUTLIPLAY_UNSAFE
 {
-//	QString featName = context->argument(0).toString();
-//	int x = context->argument(1).toInt32();
-//	int y = context->argument(2).toInt32();
 	int feature = getFeatureStatFromName(WzString::fromUtf8(featName));
 	FEATURE_STATS *psStats = &asFeatureStats[feature];
 	for (FEATURE *psFeat = apsFeatureLists[0]; psFeat; psFeat = psFeat->psNext)
@@ -1886,8 +1701,7 @@ const FEATURE * wzapi::addFeature(WZAPI_PARAMS(std::string featName, int x, int 
 //--
 bool wzapi::componentAvailable(WZAPI_PARAMS(std::string arg1, optional<std::string> arg2))
 {
-	int player = context.player(); //engine->globalObject().property("me").toInt32();
-//	QString id = (context->argumentCount() == 1) ? context->argument(0).toString() : context->argument(1).toString();
+	int player = context.player();
 	std::string &id = (arg2.has_value()) ? arg2.value() : arg1;
 	COMPONENT_STATS *psComp = getCompStatsFromName(WzString::fromUtf8(id.c_str()));
 	SCRIPT_ASSERT(false, context, psComp, "No such component: %s", id.c_str());
@@ -1901,11 +1715,7 @@ bool wzapi::componentAvailable(WZAPI_PARAMS(std::string arg1, optional<std::stri
 //--
 bool wzapi::isVTOL(WZAPI_PARAMS(const DROID *psDroid))
 {
-//	QScriptValue droidVal = context->argument(0);
-//	int id = droidVal.property("id").toInt32();
-//	int player = droidVal.property("player").toInt32();
-//	DROID *psDroid = IdToDroid(id, player);
-	SCRIPT_ASSERT(false, context, psDroid, "No droid provided");
+	SCRIPT_ASSERT(false, context, psDroid, "No valid droid provided");
 	return isVtolDroid(psDroid);
 }
 
@@ -1916,10 +1726,7 @@ bool wzapi::isVTOL(WZAPI_PARAMS(const DROID *psDroid))
 //--
 bool wzapi::safeDest(WZAPI_PARAMS(int player, int x, int y))
 {
-//	int player = context->argument(0).toInt32();
 	SCRIPT_ASSERT_PLAYER(false, context, player);
-//	int x = context->argument(1).toInt32();
-//	int y = context->argument(2).toInt32();
 	SCRIPT_ASSERT(false, context, tileOnMap(x, y), "Out of bounds coordinates(%d, %d)", x, y);
 	return (!(auxTile(x, y, player) & AUXBITS_DANGER));
 }
@@ -1931,20 +1738,11 @@ bool wzapi::safeDest(WZAPI_PARAMS(int player, int x, int y))
 //--
 bool wzapi::activateStructure(WZAPI_PARAMS(STRUCTURE *psStruct, optional<BASE_OBJECT *> _psTarget))
 {
-//	QScriptValue structVal = context->argument(0);
-//	int id = structVal.property("id").toInt32();
-//	int player = structVal.property("player").toInt32();
-//	STRUCTURE *psStruct = IdToStruct(id, player);
-	SCRIPT_ASSERT(false, context, psStruct, "No structure provided");
+	SCRIPT_ASSERT(false, context, psStruct, "No valid structure provided");
 	int player = psStruct->player;
 	// ... and then do nothing with psStruct yet
-//	QScriptValue objVal = context->argument(1);
-//	int oid = objVal.property("id").toInt32();
-//	int oplayer = objVal.property("player").toInt32();
-//	OBJECT_TYPE otype = (OBJECT_TYPE)objVal.property("type").toInt32();
-//	BASE_OBJECT *psObj = IdToObject(otype, oid, oplayer);
 	BASE_OBJECT *psTarget = (_psTarget.has_value()) ? _psTarget.value() : nullptr;
-	SCRIPT_ASSERT(false, context, psTarget, "No target provided");
+	SCRIPT_ASSERT(false, context, psTarget, "No valid target provided");
 	orderStructureObj(player, psTarget);
 	return true;
 }
@@ -1956,9 +1754,7 @@ bool wzapi::activateStructure(WZAPI_PARAMS(STRUCTURE *psStruct, optional<BASE_OB
 //--
 bool wzapi::chat(WZAPI_PARAMS(int target, std::string message))
 {
-	int player = context.player(); //engine->globalObject().property("me").toInt32();
-//	int target = context->argument(0).toInt32();
-//	QString message = context->argument(1).toString();
+	int player = context.player();
 	SCRIPT_ASSERT(false, context, target >= 0 || target == ALL_PLAYERS || target == ALLIES, "Message to invalid player %d", target);
 	if (target == ALL_PLAYERS) // all
 	{
@@ -1982,16 +1778,15 @@ bool wzapi::chat(WZAPI_PARAMS(int target, std::string message))
 //--
 bool wzapi::addBeacon(WZAPI_PARAMS(int _x, int _y, int target, optional<std::string> _message))
 {
-	int x = world_coord(_x); //context->argument(0).toInt32());
-	int y = world_coord(_y); //context->argument(1).toInt32());
-//	int target = context->argument(2).toInt32();
-//	QString message = context->argument(3).toString();
+	int x = world_coord(_x);
+	int y = world_coord(_y);
+
 	std::string message;
 	if (_message.has_value())
 	{
 		message = _message.value();
 	}
-	int me = context.player(); //engine->globalObject().property("me").toInt32();
+	int me = context.player();
 	SCRIPT_ASSERT(false, context, target >= 0 || target == ALLIES, "Message to invalid player %d", target);
 	for (int i = 0; i < MAX_PLAYERS; i++)
 	{
@@ -2011,8 +1806,8 @@ bool wzapi::addBeacon(WZAPI_PARAMS(int _x, int _y, int target, optional<std::str
 //--
 bool wzapi::removeBeacon(WZAPI_PARAMS(int target))
 {
-	int me = context.player(); //engine->globalObject().property("me").toInt32();
-//	int target = context->argument(0).toInt32();
+	int me = context.player();
+
 	SCRIPT_ASSERT(false, context, target >= 0 || target == ALLIES, "Message to invalid player %d", target);
 	for (int i = 0; i < MAX_PLAYERS; i++)
 	{
@@ -2037,12 +1832,12 @@ bool wzapi::removeBeacon(WZAPI_PARAMS(int target))
 //--
 std::unique_ptr<const DROID> wzapi::getDroidProduction(WZAPI_PARAMS(STRUCTURE *_psFactory))
 {
-//	QScriptValue structVal = context->argument(0);
-//	int id = structVal.property("id").toInt32();
-//	int player = structVal.property("player").toInt32();
-	STRUCTURE *psStruct = _psFactory; //IdToStruct(id, player);
-	SCRIPT_ASSERT(nullptr, context, psStruct, "No structure provided");
+	STRUCTURE *psStruct = _psFactory;
+	SCRIPT_ASSERT(nullptr, context, psStruct, "No valid structure provided");
 	int player = psStruct->player;
+	SCRIPT_ASSERT(nullptr, context, psStruct->pStructureType->type == REF_FACTORY
+				  || psStruct->pStructureType->type == REF_CYBORG_FACTORY
+				  || psStruct->pStructureType->type == REF_VTOL_FACTORY, "Structure not a factory");
 	FACTORY *psFactory = &psStruct->pFunctionality->factory;
 	DROID_TEMPLATE *psTemp = psFactory->psSubject;
 	if (!psTemp)
@@ -2108,13 +1903,8 @@ int wzapi::getExperienceModifier(WZAPI_PARAMS(int player))
 bool wzapi::setDroidLimit(WZAPI_PARAMS(int player, int value, optional<int> _droidType))
 {
 	SCRIPT_ASSERT_PLAYER(false, context, player);
-//	int player = context->argument(0).toInt32();
-//	int value = context->argument(1).toInt32();
-	DROID_TYPE type = DROID_ANY;
-	if (_droidType.has_value())
-	{
-		type = (DROID_TYPE)_droidType.value();
-	}
+	DROID_TYPE type = (_droidType.has_value()) ? (DROID_TYPE)_droidType.value() : DROID_ANY;
+
 	switch (type)
 	{
 	case DROID_CONSTRUCT:
@@ -2146,17 +1936,12 @@ bool wzapi::setExperienceModifier(WZAPI_PARAMS(int player, int percent))
 //--
 //-- Returns an array of droid objects inside given transport. (3.2+ only)
 //--
-std::vector<const DROID *> wzapi::enumCargo(WZAPI_PARAMS(DROID *psDroid))
+std::vector<const DROID *> wzapi::enumCargo(WZAPI_PARAMS(const DROID *psDroid))
 {
-//	QScriptValue droidVal = context->argument(0);
-//	int id = droidVal.property("id").toInt32();
-//	int player = droidVal.property("player").toInt32();
-//	DROID *psDroid = IdToDroid(id, player);
-	SCRIPT_ASSERT({}, context, psDroid, "No droid provided");
+	SCRIPT_ASSERT({}, context, psDroid, "No valid droid provided");
 	SCRIPT_ASSERT({}, context, isTransporter(psDroid), "Wrong droid type (expecting: transporter)");
 	std::vector<const DROID *> result;
 	result.reserve(psDroid->psGroup->getNumMembers());
-//	QScriptValue result = engine->newArray(psDroid->psGroup->getNumMembers());
 	int i = 0;
 	for (DROID *psCurr = psDroid->psGroup->psList; psCurr; psCurr = psCurr->psGrpNext, i++)
 	{
@@ -2186,7 +1971,7 @@ bool wzapi::centreView(WZAPI_PARAMS(int x, int y))
 //--
 bool wzapi::playSound(WZAPI_PARAMS(std::string sound, optional<int> _x, optional<int> _y, optional<int> _z))
 {
-	int player = context.player(); //engine->globalObject().property("me").toInt32();
+	int player = context.player();
 	if (player != selectedPlayer)
 	{
 		return false;
@@ -2216,7 +2001,7 @@ bool wzapi::playSound(WZAPI_PARAMS(std::string sound, optional<int> _x, optional
 //--
 bool wzapi::gameOverMessage(WZAPI_PARAMS(bool gameWon, optional<bool> _showBackDrop, optional<bool> _showOutro))
 {
-	int player = context.player(); //engine->globalObject().property("me").toInt32();
+	int player = context.player();
 	const MESSAGE_TYPE msgType = MSG_MISSION;	// always
 	bool showOutro = false;
 	bool showBackDrop = true;
@@ -2283,8 +2068,6 @@ bool wzapi::gameOverMessage(WZAPI_PARAMS(bool gameWon, optional<bool> _showBackD
 //--
 bool wzapi::setStructureLimits(WZAPI_PARAMS(std::string building, int limit, optional<int> _player))
 {
-//	QString building = context->argument(0).toString();
-//	int limit = context->argument(1).toInt32();
 	int structInc = getStructStatFromName(WzString::fromUtf8(building));
 	int player = (_player.has_value()) ? _player.value() : context.player();
 	SCRIPT_ASSERT_PLAYER(false, context, player);
@@ -2630,9 +2413,7 @@ wzapi::no_return_value wzapi::setReticuleButton(WZAPI_PARAMS(int buttonID, std::
 {
 	int button = buttonID;
 	SCRIPT_ASSERT({}, context, button >= 0 && button <= 6, "Invalid button %d", button);
-	//std::string tip = //std::string(context->argument(1).toString().toUtf8().constData());
-	//std::string file = //std::string(context->argument(2).toString().toUtf8().constData());
-	//std::string fileDown = //std::string(context->argument(3).toString().toUtf8().constData());
+
 	WzString func;
 	if (callbackFuncName.has_value())
 	{
@@ -2761,11 +2542,6 @@ bool wzapi::removeStruct(WZAPI_PARAMS(STRUCTURE *psStruct)) WZAPI_DEPRECATED
 //--
 bool wzapi::removeObject(WZAPI_PARAMS(BASE_OBJECT *psObj, optional<bool> _sfx))
 {
-//	QScriptValue qval = context->argument(0);
-//	int id = qval.property("id").toInt32();
-//	int player = qval.property("player").toInt32();
-//	OBJECT_TYPE type = (OBJECT_TYPE)qval.property("type").toInt32();
-//	BASE_OBJECT *psObj = IdToObject(type, id, player);
 	SCRIPT_ASSERT(false, context, psObj, "No valid object provided");
 	bool sfx = (_sfx.has_value()) ? _sfx.value() : false;
 
@@ -2839,8 +2615,7 @@ const STRUCTURE * wzapi::addStructure(WZAPI_PARAMS(std::string structureName, in
 	int index = getStructStatFromName(WzString::fromUtf8(structureName.c_str()));
 	SCRIPT_ASSERT(nullptr, context, index >= 0, "%s not found", structureName.c_str());
 	SCRIPT_ASSERT_PLAYER(nullptr, context, player);
-//	int x = context->argument(2).toInt32();
-//	int y = context->argument(3).toInt32();
+
 	STRUCTURE_STATS *psStat = &asStructureStats[index];
 	STRUCTURE *psStruct = buildStructure(psStat, x, y, player, false);
 	if (psStruct)
@@ -2964,10 +2739,6 @@ wzapi::no_return_value wzapi::setDroidExperience(WZAPI_PARAMS(DROID *psDroid, do
 //--
 bool wzapi::donateObject(WZAPI_PARAMS(BASE_OBJECT *psObject, int toPlayer))
 {
-//	QScriptValue val = context->argument(0);
-//	uint32_t id = val.property("id").toUInt32();
-//	uint8_t player = val.property("player").toInt32();
-//	OBJECT_TYPE type = (OBJECT_TYPE)val.property("type").toInt32();
 	SCRIPT_ASSERT(false, context, psObject, "No valid object provided");
 	SCRIPT_ASSERT_PLAYER(false, context, toPlayer);
 
