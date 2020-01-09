@@ -57,12 +57,6 @@ namespace wzapi
 		OBJECT_TYPE type;
 	};
 
-	struct structure_id_player
-	{
-		int id;
-		int player;
-	};
-
 	struct droid_id_player
 	{
 		int id = -1;
