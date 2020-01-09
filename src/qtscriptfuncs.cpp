@@ -1184,7 +1184,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<int>
 		{
-			int operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			int operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1195,7 +1195,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<unsigned int>
 		{
-			unsigned int operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			unsigned int operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1206,7 +1206,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<bool>
 		{
-			bool operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			bool operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1219,7 +1219,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<float>
 		{
-			float operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			float operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1230,7 +1230,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<double>
 		{
-			double operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			double operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1238,21 +1238,10 @@ bool writeLabels(const char *filename)
 			}
 		};
 
-//		template<>
-//		struct unbox<optional<float>>
-//		{
-//			optional<float> operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
-//			{
-//				if (context->argumentCount() < idx)
-//					return {};
-//				return optional<float>(context->argument(idx++).toNumber());
-//			}
-//		};
-
 		template<>
 		struct unbox<DROID*>
 		{
-			DROID* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			DROID* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1268,7 +1257,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<const DROID*>
 		{
-			const DROID* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			const DROID* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
 			{
 				return unbox<DROID*>()(idx, context, engine, function);
 			}
@@ -1277,7 +1266,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<STRUCTURE*>
 		{
-			STRUCTURE* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			STRUCTURE* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1293,7 +1282,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<const STRUCTURE*>
 		{
-			const STRUCTURE* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			const STRUCTURE* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
 			{
 				return unbox<STRUCTURE*>()(idx, context, engine, function);
 			}
@@ -1302,7 +1291,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<BASE_OBJECT*>
 		{
-			BASE_OBJECT* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			BASE_OBJECT* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1319,7 +1308,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<const BASE_OBJECT*>
 		{
-			const BASE_OBJECT* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			const BASE_OBJECT* operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
 			{
 				return unbox<BASE_OBJECT*>()(idx, context, engine, function);
 			}
@@ -1328,42 +1317,18 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<std::string>
 		{
-			std::string operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			std::string operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
-				return context->argument(idx++).toString().toStdString();//.toUtf8();
-//				auto&& tmp2 = tmp.constData();
-//				if (strcmp(tmp2, "Crate") == 0)
-//				{
-//					printf("here");
-//				}
-//				auto* result = (char*)stack_space;
-//				strcpy(result, tmp.constData());
-//				stack_space = (char*)stack_space + strlen(tmp) + 1;
-//
-//				return result;
+				return context->argument(idx++).toString().toStdString();
 			}
 		};
-
-//		template<>
-//		struct unbox<optional<DROID*>>
-//		{
-//			optional<DROID*> operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)//, void*& stack_space)
-//			{
-//				if (context->argumentCount() < idx)
-//					return {};
-//				QScriptValue droidVal = context->argument(idx++);
-//				int id = droidVal.property("id").toInt32();
-//				int player = droidVal.property("player").toInt32();
-//				return optional<DROID*>(IdToDroid(id, player));
-//			}
-//		};
 
 		template<>
 		struct unbox<wzapi::STRUCTURE_TYPE_or_statsName_string>
 		{
-			wzapi::STRUCTURE_TYPE_or_statsName_string operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			wzapi::STRUCTURE_TYPE_or_statsName_string operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
 			{
 				wzapi::STRUCTURE_TYPE_or_statsName_string result;
 				if (context->argumentCount() <= idx)
@@ -1384,7 +1349,7 @@ bool writeLabels(const char *filename)
 		template<typename OptionalType>
 		struct unbox<optional<OptionalType>>
 		{
-			optional<OptionalType> operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			optional<OptionalType> operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1392,36 +1357,10 @@ bool writeLabels(const char *filename)
 			}
 		};
 
-//		template<>
-//		struct unbox<wzapi::execution_context>
-//		{
-//			qtscript_execution_context operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine)
-//			{
-//				if (context->argumentCount() < idx)
-//					return qtscript_execution_context(nullptr);
-//				idx--;
-//				return qtscript_execution_context(engine);
-//			};
-//		};
-
-		template<>
-		struct unbox<wzapi::structure_id_player>
-		{
-			wzapi::structure_id_player operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
-			{
-				if (context->argumentCount() <= idx)
-					return {};
-				QScriptValue structVal = context->argument(idx++);
-				int id = structVal.property("id").toInt32();
-				int player = structVal.property("player").toInt32();
-				return { id, player };
-			}
-		};
-
 		template<>
 		struct unbox<wzapi::reservedParam>
 		{
-			wzapi::reservedParam operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			wzapi::reservedParam operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1435,7 +1374,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<wzapi::droid_id_player>
 		{
-			wzapi::droid_id_player operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function) //void*& stack_space)
+			wzapi::droid_id_player operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
 			{
 				if (context->argumentCount() < idx)
 					return {};
@@ -1450,7 +1389,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<wzapi::object_id_player_type>
 		{
-			wzapi::object_id_player_type operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function) //, void*& stack_space)
+			wzapi::object_id_player_type operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1461,65 +1400,11 @@ bool writeLabels(const char *filename)
 				return { id, player, type };
 			}
 		};
-//
-//		template<>
-//		struct unbox<wzapi::me>
-//		{
-//			wzapi::me operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, void*& stack_space)
-//			{
-//				if (context->argumentCount() < idx)
-//					return {};
-//				idx++;
-//				return { engine->globalObject().property("me").toInt32() };
-//			}
-//		};
-//
-//		template<>
-//		struct unbox<wzapi::me_or_specified_player>
-//		{
-//			wzapi::me_or_specified_player operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, void*& stack_space)
-//			{
-////				const auto& tmp = context->argumentCount();
-//				if (context->argumentCount() < idx)
-//					return {};
-//				if (context->argumentCount() > idx--)
-//				{
-//					return { context->argument(idx + 1).toInt32() };
-//				}
-//				return { engine->globalObject().property("me").toInt32() };
-//			}
-//		};
-//
-//		template<>
-//		struct unbox<string_list>
-//		{
-//			string_list operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, void*& stack_space)
-//			{
-//				if (context->argumentCount() < idx)
-//					return {};
-//				QScriptValue list = context->argument(idx--);
-//				if (list.isArray())
-//				{
-//					size_t length = list.property("length").toInt32();
-//					// Should be allocated in some function local stack...
-//					const char** result = (const char**)malloc(length * sizeof(const char*));
-//					for (int k = 0; k < length; k++)
-//					{
-//						QString str = list.property(k).toString();
-//						char* ptr = (char*)malloc(str.length() * sizeof(char));
-//						strcpy(ptr, str.toUtf8().constData());
-//						result[k] = ptr;
-//					}
-//					return { result, length };
-//				}
-//				return { };
-//			}
-//		};
 
 		template<>
 		struct unbox<wzapi::string_or_string_list>
 		{
-			wzapi::string_or_string_list operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			wzapi::string_or_string_list operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1547,7 +1432,7 @@ bool writeLabels(const char *filename)
 		template<>
 		struct unbox<wzapi::va_list_treat_as_strings>
 		{
-			wzapi::va_list_treat_as_strings operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			wzapi::va_list_treat_as_strings operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1568,7 +1453,7 @@ bool writeLabels(const char *filename)
 		template<typename ContainedType>
 		struct unbox<wzapi::va_list<ContainedType>>
 		{
-			wzapi::va_list<ContainedType> operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)//, void*& stack_space)
+			wzapi::va_list<ContainedType> operator()(size_t& idx, QScriptContext *context, QScriptEngine *engine, const char *function)
 			{
 				if (context->argumentCount() <= idx)
 					return {};
@@ -1587,65 +1472,16 @@ bool writeLabels(const char *filename)
 			return QScriptValue(a);
 		}
 
-//		QScriptValue box(char const * str, QScriptEngine* engine)
-//		{
-//			// The redundant QString cast is a workaround for a Qt5 bug, the QScriptValue(char const *) constructor interprets as Latin1 instead of UTF-8!
-//			return QScriptValue(QString(str));
-//		}
-
 		QScriptValue box(std::string str, QScriptEngine* engine)
 		{
 			// The redundant QString cast is a workaround for a Qt5 bug, the QScriptValue(char const *) constructor interprets as Latin1 instead of UTF-8!
-			return QScriptValue(QString(str.c_str()));
+			return QScriptValue(QString::fromUtf8(str.c_str()));
 		}
-
-//		QScriptValue box(FEATURE* psFeature, QScriptEngine* engine)
-//		{
-//			return convFeature(psFeature, engine);
-//		}
-//
-//		QScriptValue box(STRUCTURE* psStruct, QScriptEngine* engine)
-//		{
-//			return convStructure(psStruct, engine);
-//		}
 
 		QScriptValue box(wzapi::no_return_value, QScriptEngine* engine)
 		{
 			return QScriptValue();
 		}
-
-//		QScriptValue box(std::vector<const STRUCTURE *> value, QScriptEngine* engine)
-//		{
-//			QScriptValue result = engine->newArray(value.size());
-//			for (int i = 0; i < value.size(); i++)
-//			{
-//				const STRUCTURE *psStruct = value.at(i);
-//				result.setProperty(i, convStructure(psStruct, engine));
-//			}
-//			return result;
-//		}
-//
-//		QScriptValue box(std::vector<const DROID *> value, QScriptEngine* engine)
-//		{
-//			QScriptValue result = engine->newArray(value.size());
-//			for (int i = 0; i < value.size(); i++)
-//			{
-//				const DROID *psDroid = value.at(i);
-//				result.setProperty(i, convDroid(psDroid, engine));
-//			}
-//			return result;
-//		}
-//
-//		QScriptValue box(std::vector<const FEATURE *> value, QScriptEngine* engine)
-//		{
-//			QScriptValue result = engine->newArray(value.size());
-//			for (int i = 0; i < value.size(); i++)
-//			{
-//				const FEATURE *psFeat = value.at(i);
-//				result.setProperty(i, convFeature(psFeat, engine));
-//			}
-//			return result;
-//		}
 
 		QScriptValue box(const BASE_OBJECT * psObj, QScriptEngine* engine)
 		{
@@ -1691,12 +1527,6 @@ bool writeLabels(const char *filename)
 			}
 			return convTemplate(psTemplate, engine);
 		}
-
-//		QScriptValue box(const RESEARCH * psResearch, QScriptEngine* engine)
-//		{
-//			#error "Cannot call box with RESEARCH* directly - instead, return researchResult / researchResults."
-//			return QScriptValue();
-//		}
 
 		QScriptValue box(Position p, QScriptEngine* engine)
 		{
@@ -1771,26 +1601,6 @@ bool writeLabels(const char *filename)
 			}
 		}
 
-//		QScriptValue box(optional_position pos, QScriptEngine* engine)
-//		{
-//			if (!pos.valid)
-//				return {};
-//			QScriptValue retval = engine->newObject();
-//			retval.setProperty("x", pos.x, QScriptValue::ReadOnly);
-//			retval.setProperty("y", pos.y, QScriptValue::ReadOnly);
-//			retval.setProperty("type", SCRIPT_POSITION, QScriptValue::ReadOnly);
-//			return retval;
-//		}
-
-//		template<typename R, typename...Args>
-//		QScriptValue wrap_(R(*f)(Args...), QScriptContext *context, QScriptEngine *engine)
-//		{
-//			uint8_t stack_space[10000];
-//			void* stack_ptr = stack_space;
-//			size_t idx = sizeof...(Args) - 1;
-//			return box(f(unbox<Args>{}(idx, context, engine, stack_ptr)...), engine);
-//		}
-
 		#include <cstddef>
 		#include <tuple>
 		#include <type_traits>
@@ -1838,10 +1648,7 @@ bool writeLabels(const char *filename)
 		template<typename R, typename...Args>
 		QScriptValue wrap__(R(*f)(const wzapi::execution_context&, Args...), WZ_DECL_UNUSED const char *wrappedFunctionName, QScriptContext *context, QScriptEngine *engine)
 		{
-			//uint8_t stack_space[10000];
-			//void* stack_ptr = stack_space;
-			size_t idx WZ_DECL_UNUSED = 0; //sizeof...(Args) - 1; // unused when Args... is empty
-//			return box(f(unbox<Args>{}(idx, context, engine)...), engine);
+			size_t idx WZ_DECL_UNUSED = 0; // unused when Args... is empty
 			qtscript_execution_context execution_context(context, engine);
 			return box(apply(f, std::tuple<const wzapi::execution_context&, Args...>{static_cast<const wzapi::execution_context&>(execution_context), unbox<Args>{}(idx, context, engine, wrappedFunctionName)...}), engine);
 		}
@@ -2700,9 +2507,6 @@ static QScriptValue js_startTransporterEntry(QScriptContext *context, QScriptEng
 //--
 static QScriptValue js_useSafetyTransport(QScriptContext *context, QScriptEngine *engine)
 {
-//	bool flag = context->argument(0).toBool();
-//	setDroidsToSafetyFlag(flag);
-//	return QScriptValue();
 	return wrap_(wzapi::useSafetyTransport, context, engine);
 }
 
@@ -2713,8 +2517,6 @@ static QScriptValue js_useSafetyTransport(QScriptContext *context, QScriptEngine
 //--
 static QScriptValue js_restoreLimboMissionData(QScriptContext *context, QScriptEngine *engine)
 {
-//	resetLimboMission();
-//	return QScriptValue();
 	return wrap_(wzapi::restoreLimboMissionData, context, engine);
 }
 
@@ -3007,9 +2809,7 @@ static QScriptValue js_allianceExistsBetween(QScriptContext *context, QScriptEng
 //--
 static QScriptValue js_translate(QScriptContext *context, QScriptEngine *engine)
 {
-	// The redundant QString cast is a workaround for a Qt5 bug, the QScriptValue(char const *) constructor interprets as Latin1 instead of UTF-8!
 	return wrap_(wzapi::translate, context, engine);
-//	return QScriptValue(QString(wzapi::translate(context->argument(0).toString().toUtf8().constData())));
 }
 
 //-- ## playerPower(player)
@@ -3667,14 +3467,6 @@ static QScriptValue js_setObjectFlag(QScriptContext *context, QScriptEngine *eng
 //--
 static QScriptValue js_addSpotter(QScriptContext *context, QScriptEngine *engine)
 {
-//	int x = context->argument(0).toInt32();
-//	int y = context->argument(1).toInt32();
-//	int player = context->argument(2).toInt32();
-//	int range = context->argument(3).toInt32();
-//	bool radar = context->argument(4).toBool();
-//	uint32_t expiry = context->argument(5).toUInt32();
-//	uint32_t id = addSpotter(x, y, player, range, radar, expiry);
-//	return QScriptValue(id);
 	return wrap_(wzapi::addSpotter, context, engine);
 }
 
@@ -3684,9 +3476,6 @@ static QScriptValue js_addSpotter(QScriptContext *context, QScriptEngine *engine
 //--
 static QScriptValue js_removeSpotter(QScriptContext *context, QScriptEngine *engine)
 {
-//	uint32_t id = context->argument(0).toUInt32();
-//	removeSpotter(id);
-//	return QScriptValue();
 	return wrap_(wzapi::removeSpotter, context, engine);
 }
 
@@ -3699,8 +3488,6 @@ static QScriptValue js_removeSpotter(QScriptContext *context, QScriptEngine *eng
 static QScriptValue js_syncRandom(QScriptContext *context, QScriptEngine * engine)
 {
 	return wrap_(wzapi::syncRandom, context, engine);
-//	uint32_t limit = context->argument(0).toInt32();
-//	return QScriptValue(wzapi::syncRandom(limit));
 }
 
 //-- ## syncRequest(req_id, x, y[, obj[, obj2]])
@@ -3711,30 +3498,6 @@ static QScriptValue js_syncRandom(QScriptContext *context, QScriptEngine * engin
 //--
 static QScriptValue js_syncRequest(QScriptContext *context, QScriptEngine *engine)
 {
-//	int32_t req_id = context->argument(0).toInt32();
-//	int32_t x = world_coord(context->argument(1).toInt32());
-//	int32_t y = world_coord(context->argument(2).toInt32());
-//	BASE_OBJECT *psObj = nullptr, *psObj2 = nullptr;
-//	if (context->argumentCount() > 3)
-//	{
-//		QScriptValue objVal = context->argument(3);
-//		int oid = objVal.property("id").toInt32();
-//		int oplayer = objVal.property("player").toInt32();
-//		OBJECT_TYPE otype = (OBJECT_TYPE)objVal.property("type").toInt32();
-//		psObj = IdToObject(otype, oid, oplayer);
-//		SCRIPT_ASSERT(context, psObj, "No such object id %d belonging to player %d", oid, oplayer);
-//	}
-//	if (context->argumentCount() > 4)
-//	{
-//		QScriptValue objVal = context->argument(4);
-//		int oid = objVal.property("id").toInt32();
-//		int oplayer = objVal.property("player").toInt32();
-//		OBJECT_TYPE otype = (OBJECT_TYPE)objVal.property("type").toInt32();
-//		psObj2 = IdToObject(otype, oid, oplayer);
-//		SCRIPT_ASSERT(context, psObj2, "No such object id %d belonging to player %d", oid, oplayer);
-//	}
-//	sendSyncRequest(req_id, x, y, psObj, psObj2);
-//	return QScriptValue();
 	return wrap_(wzapi::syncRequest, context, engine);
 }
 
@@ -3745,10 +3508,6 @@ static QScriptValue js_syncRequest(QScriptContext *context, QScriptEngine *engin
 //--
 static QScriptValue js_replaceTexture(QScriptContext *context, QScriptEngine *engine)
 {
-//	QString oldfile = context->argument(0).toString();
-//	QString newfile = context->argument(1).toString();
-//	replaceTexture(WzString::fromUtf8(oldfile.toUtf8().constData()), WzString::fromUtf8(newfile.toUtf8().constData()));
-//	return QScriptValue();
 	return wrap_(wzapi::replaceTexture, context, engine);
 }
 
@@ -3779,10 +3538,6 @@ static QScriptValue js_fireWeaponAtObj(QScriptContext *context, QScriptEngine *e
 //--
 static QScriptValue js_changePlayerColour(QScriptContext *context, QScriptEngine *engine)
 {
-//	int player = context->argument(0).toInt32();
-//	int colour = context->argument(1).toInt32();
-//	setPlayerColour(player, colour);
-//	return QScriptValue();
 	return wrap_(wzapi::changePlayerColour, context, engine);
 }
 
@@ -3792,7 +3547,6 @@ static QScriptValue js_changePlayerColour(QScriptContext *context, QScriptEngine
 //--
 static QScriptValue js_getMultiTechLevel(QScriptContext *context, QScriptEngine *engine)
 {
-//	return QScriptValue(game.techLevel);
 	return wrap_(wzapi::getMultiTechLevel, context, engine);
 }
 
@@ -3802,9 +3556,6 @@ static QScriptValue js_getMultiTechLevel(QScriptContext *context, QScriptEngine 
 //--
 static QScriptValue js_setCampaignNumber(QScriptContext *context, QScriptEngine *engine)
 {
-//	int num = context->argument(0).toInt32();
-//	setCampaignNumber(num);
-//	return QScriptValue();
 	return wrap_(wzapi::setCampaignNumber, context, engine);
 }
 
@@ -3831,10 +3582,6 @@ static QScriptValue js_getRevealStatus(QScriptContext *context, QScriptEngine *)
 //-- Set the fog reveal status. (3.3+ only)
 static QScriptValue js_setRevealStatus(QScriptContext *context, QScriptEngine *engine)
 {
-//	bool status = context->argument(0).toBool();
-//	setRevealStatus(status);
-//	preProcessVisibility();
-//	return QScriptValue();
 	return wrap_(wzapi::setRevealStatus, context, engine);
 }
 
