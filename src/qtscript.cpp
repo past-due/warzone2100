@@ -442,8 +442,9 @@ static QScriptValue js_setTimer(QScriptContext *context, QScriptEngine *engine)
 	return QScriptValue();
 }
 
+// removes any timer(s) that satisfy _pred
 template< class UnaryPredicate >
-std::vector<uniqueTimerID> timers_RemoveIf(UnaryPredicate _pred)
+std::vector<uniqueTimerID> removeTimersIf(UnaryPredicate _pred)
 {
 	std::vector<uniqueTimerID> removedTimerIDs;
 	timers.remove_if([_pred, &removedTimerIDs](const timerNode& node) {
@@ -461,6 +462,18 @@ std::vector<uniqueTimerID> timers_RemoveIf(UnaryPredicate _pred)
 	return removedTimerIDs;
 }
 
+bool removeTimer(uniqueTimerID timerID)
+{
+	auto it = timerIDMap.find(timerID);
+	if (it != timerIDMap.end())
+	{
+		timers.erase(it->second);
+		timerIDMap.erase(it);
+		return true;
+	}
+	return false;
+}
+
 //-- ## removeTimer(function)
 //--
 //-- Removes an existing timer. The first parameter is the function timer to remove,
@@ -471,7 +484,7 @@ static QScriptValue js_removeTimer(QScriptContext *context, QScriptEngine *engin
 	SCRIPT_ASSERT(context, context->argument(0).isString(), "Timer functions must be quoted");
 	std::string function = context->argument(0).toString().toStdString();
 	int player = engine->globalObject().property("me").toInt32();
-	std::vector<uniqueTimerID> removedTimerIDs = timers_RemoveIf(
+	std::vector<uniqueTimerID> removedTimerIDs = removeTimersIf(
 		[engine, function, player](const timerNode& node)
 	{
 		return (node.engine == engine) && (node.timerName == function) && (node.player == player);
@@ -579,7 +592,7 @@ static QScriptValue js_profile(QScriptContext *context, QScriptEngine *engine)
 void scriptRemoveObject(BASE_OBJECT *psObj)
 {
 	// Weed out timers with dead objects
-	timers_RemoveIf([psObj](const timerNode& node)
+	removeTimersIf([psObj](const timerNode& node)
 	{
 		return (node.baseobj == psObj->id);
 	});
@@ -736,7 +749,7 @@ bool updateScripts()
 		engine->globalObject().setProperty("gameTime", gameTime, QScriptValue::ReadOnly | QScriptValue::Undeletable);
 	}
 	// Weed out dead timers
-	timers_RemoveIf([](const timerNode& node)
+	removeTimersIf([](const timerNode& node)
 	{
 		return (node.type == TIMER_ONESHOT_DONE);
 	});
