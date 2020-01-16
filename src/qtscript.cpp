@@ -115,8 +115,15 @@ static bool selectionChanged = false;
 extern bool doUpdateModels; // ugh-ly hack; fix with signal when moc-ing this file
 
 typedef uint64_t uniqueTimerID;
-typedef std::function<void (uniqueTimerID, BASE_OBJECT*, void *)> TimerFunc;
-typedef std::function<void (uniqueTimerID, BASE_OBJECT*, void *)> TimerOnDeleteFunc;
+class timerAdditionalData
+{
+public:
+	virtual ~timerAdditionalData() { }
+public:
+	virtual void onTimerDelete(uniqueTimerID, BASE_OBJECT*) { };
+};
+
+typedef std::function<void (uniqueTimerID, BASE_OBJECT*, timerAdditionalData *)> TimerFunc;
 
 enum timerType
 {
@@ -131,22 +138,21 @@ struct timerNode
 	QScriptEngine *engine;
 	int baseobj;
 	OBJECT_TYPE baseobjtype;
-	void* additionalTimerFuncParam;
-	TimerOnDeleteFunc onDeleteFunc;
+	timerAdditionalData* additionalTimerFuncParam;
 	int frameTime;
 	int ms;
 	int player;
 	int calls;
 	timerType type;
 	timerNode() : engine(nullptr), baseobjtype(OBJ_NUM_TYPES), additionalTimerFuncParam(nullptr) {}
-	timerNode(QScriptEngine *caller, const TimerFunc& func, const std::string& timerName, int plr, int frame, void* additionalParam = nullptr, const TimerOnDeleteFunc& onDeleteFunc = nullptr)
-		: function(func), timerName(timerName), engine(caller), baseobj(-1), baseobjtype(OBJ_NUM_TYPES), additionalTimerFuncParam(additionalParam), onDeleteFunc(onDeleteFunc),
+	timerNode(QScriptEngine *caller, const TimerFunc& func, const std::string& timerName, int plr, int frame, timerAdditionalData* additionalParam = nullptr)
+		: function(func), timerName(timerName), engine(caller), baseobj(-1), baseobjtype(OBJ_NUM_TYPES), additionalTimerFuncParam(additionalParam),
 			frameTime(frame + gameTime), ms(frame), player(plr), calls(0), type(TIMER_REPEAT) {}
 	~timerNode()
 	{
-		if (onDeleteFunc)
+		if (additionalTimerFuncParam)
 		{
-			onDeleteFunc(timerID, IdToObject(baseobjtype, baseobj, player), additionalTimerFuncParam);
+			additionalTimerFuncParam->onTimerDelete(timerID, IdToObject(baseobjtype, baseobj, player));
 		}
 	}
 	bool operator== (const timerNode &t)
@@ -175,7 +181,6 @@ private:
 		std::swap(baseobj, _rhs.baseobj);
 		std::swap(baseobjtype, _rhs.baseobjtype);
 		std::swap(additionalTimerFuncParam, _rhs.additionalTimerFuncParam);
-		std::swap(onDeleteFunc, _rhs.onDeleteFunc);
 		std::swap(frameTime, _rhs.frameTime);
 		std::swap(ms, _rhs.ms);
 		std::swap(player, _rhs.player);
@@ -202,10 +207,10 @@ uniqueTimerID getNextAvailableTimerID()
 	return lastTimerID;
 }
 
-uniqueTimerID setTimer(QScriptEngine *caller, const TimerFunc& timerFunc, int player, int milliseconds, std::string timerName = "", const BASE_OBJECT * obj = nullptr, timerType type = TIMER_REPEAT, void* additionalParam = nullptr, const TimerOnDeleteFunc& timerOnDeleteFunc = nullptr)
+uniqueTimerID setTimer(QScriptEngine *caller, const TimerFunc& timerFunc, int player, int milliseconds, std::string timerName = "", const BASE_OBJECT * obj = nullptr, timerType type = TIMER_REPEAT, timerAdditionalData* additionalParam = nullptr)
 {
 	uniqueTimerID newTimerID = getNextAvailableTimerID();
-	timerNode node(caller, timerFunc, timerName, player, milliseconds, additionalParam, timerOnDeleteFunc);
+	timerNode node(caller, timerFunc, timerName, player, milliseconds, additionalParam);
 	if (obj != nullptr)
 	{
 		node.baseobj = obj->id;
@@ -377,8 +382,9 @@ static QScriptValue callFunction(QScriptEngine *engine, const QString &function,
 //--   setTimer("conDroids", 4000);
 //-- ```
 //--
-struct qtscript_timer_additionaldata
+class qtscript_timer_additionaldata : public timerAdditionalData
 {
+public:
 	QString stringArg;
 	qtscript_timer_additionaldata(const QString& _stringArg)
 	: stringArg(_stringArg)
@@ -414,7 +420,7 @@ static QScriptValue js_setTimer(QScriptContext *context, QScriptEngine *engine)
 
 	setTimer(engine
 	  // timerFunc
-	, [engine, funcName](uniqueTimerID timerID, BASE_OBJECT* baseObject, void* additionalParams) {
+	, [engine, funcName](uniqueTimerID timerID, BASE_OBJECT* baseObject, timerAdditionalData* additionalParams) {
 		qtscript_timer_additionaldata* pData = static_cast<qtscript_timer_additionaldata*>(additionalParams);
 		QScriptValueList args;
 		if (baseObject != nullptr)
@@ -429,15 +435,7 @@ static QScriptValue js_setTimer(QScriptContext *context, QScriptEngine *engine)
 	}
 	, player, ms.toInt32(), funcName.toStdString(), psObj, TIMER_REPEAT
 	// additionalParams
-	, new qtscript_timer_additionaldata(stringArg)
-	// onDeleteFunc
-	, [](uniqueTimerID timerID, BASE_OBJECT* baseObject, void* additionalParams) {
-		if (additionalParams != nullptr)
-		{
-			qtscript_timer_additionaldata* pData = static_cast<qtscript_timer_additionaldata*>(additionalParams);
-			delete pData;
-		}
-	});
+	, new qtscript_timer_additionaldata(stringArg));
 
 	return QScriptValue();
 }
@@ -544,7 +542,7 @@ static QScriptValue js_queue(QScriptContext *context, QScriptEngine *engine)
 
 	setTimer(engine
 	  // timerFunc
-	, [engine, funcName](uniqueTimerID timerID, BASE_OBJECT* baseObject, void* additionalParams) {
+	, [engine, funcName](uniqueTimerID timerID, BASE_OBJECT* baseObject, timerAdditionalData* additionalParams) {
 		qtscript_timer_additionaldata* pData = static_cast<qtscript_timer_additionaldata*>(additionalParams);
 		QScriptValueList args;
 		if (baseObject != nullptr)
@@ -559,15 +557,7 @@ static QScriptValue js_queue(QScriptContext *context, QScriptEngine *engine)
 	}
 	, player, ms, funcName.toStdString(), psObj, TIMER_ONESHOT_READY
 	// additionalParams
-	, new qtscript_timer_additionaldata(stringArg)
-	// onDeleteFunc
-	, [](uniqueTimerID timerID, BASE_OBJECT* baseObject, void* additionalParams) {
-		if (additionalParams != nullptr)
-		{
-			qtscript_timer_additionaldata* pData = static_cast<qtscript_timer_additionaldata*>(additionalParams);
-			delete pData;
-		}
-	});
+	, new qtscript_timer_additionaldata(stringArg));
 	return QScriptValue();
 }
 
@@ -1106,7 +1096,7 @@ bool saveScriptGlobals(nlohmann::json &result, QScriptEngine *engine)
 	return true;
 }
 
-nlohmann::json saveTimerFunction(uniqueTimerID timerID, std::string timerName, void* additionalParam)
+nlohmann::json saveTimerFunction(uniqueTimerID timerID, std::string timerName, timerAdditionalData* additionalParam)
 {
 	nlohmann::json result = nlohmann::json::object();
 	result["function"] = timerName;
@@ -1179,7 +1169,7 @@ static QScriptEngine *findEngineForPlayer(int match, const QString& scriptName)
 }
 
 // recreates timer functions (and additional userdata) based on the information saved by the saveTimer() method
-std::tuple<TimerFunc, void *, TimerOnDeleteFunc> restoreTimerFunction(QScriptEngine *engine, const nlohmann::json& savedTimerFuncData)
+std::tuple<TimerFunc, timerAdditionalData *> restoreTimerFunction(QScriptEngine *engine, const nlohmann::json& savedTimerFuncData)
 {
 	QString funcName = QString::fromStdString(json_getValue(savedTimerFuncData, WzString::fromUtf8("function")).toWzString().toStdString());
 	if (funcName.isEmpty())
@@ -1190,7 +1180,7 @@ std::tuple<TimerFunc, void *, TimerOnDeleteFunc> restoreTimerFunction(QScriptEng
 
 	return {
 		// timerFunc
-		[engine, funcName](uniqueTimerID timerID, BASE_OBJECT* baseObject, void* additionalParams) {
+		[engine, funcName](uniqueTimerID timerID, BASE_OBJECT* baseObject, timerAdditionalData* additionalParams) {
 			qtscript_timer_additionaldata* pData = static_cast<qtscript_timer_additionaldata*>(additionalParams);
 			QScriptValueList args;
 			if (baseObject != nullptr)
@@ -1205,14 +1195,6 @@ std::tuple<TimerFunc, void *, TimerOnDeleteFunc> restoreTimerFunction(QScriptEng
 		}
 		// additionalParams
 		, new qtscript_timer_additionaldata(stringArg)
-		// onDeleteFunc
-		, [](uniqueTimerID timerID, BASE_OBJECT* baseObject, void* additionalParams) {
-			if (additionalParams != nullptr)
-			{
-				qtscript_timer_additionaldata* pData = static_cast<qtscript_timer_additionaldata*>(additionalParams);
-				delete pData;
-			}
-		}
 	};
 }
 
@@ -1244,7 +1226,7 @@ bool loadScriptStates(const char *filename)
 			node.calls = ini.value("calls").toInt();
 			node.type = (timerType)ini.value("type", TIMER_REPEAT).toInt();
 
-			std::tuple<TimerFunc, void *, TimerOnDeleteFunc> restoredTimerInfo;
+			std::tuple<TimerFunc, timerAdditionalData *> restoredTimerInfo;
 			try
 			{
 				restoredTimerInfo = restoreTimerFunction(engine, ini.value("functionRestoreInfo").jsonValue());
@@ -1257,7 +1239,6 @@ bool loadScriptStates(const char *filename)
 
 			node.function = std::get<0>(restoredTimerInfo);
 			node.additionalTimerFuncParam = std::get<1>(restoredTimerInfo);
-			node.onDeleteFunc = std::get<2>(restoredTimerInfo);
 
 			maxRestoredTimerID = std::max(maxRestoredTimerID, node.timerID);
 
