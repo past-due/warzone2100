@@ -455,53 +455,6 @@ void wzDelay(unsigned int delay)
 	SDL_Delay(delay);
 }
 
-#if !defined(WZ_OS_MAC)
-void wzSetSwapInterval(int interval)
-{
-	switch (WZbackend)
-	{
-#if defined(WZ_BACKEND_DIRECTX)
-		case video_backend::directx: // because DirectX is supported via OpenGLES (LibANGLE)
-#endif
-		case video_backend::opengl:
-		case video_backend::opengles:
-			if (SDL_GL_SetSwapInterval(interval) != 0)
-			{
-				debug(LOG_ERROR, "Error: SDL_GL_SetSwapInterval(%d) failed (%s).", interval, SDL_GetError());
-				return;
-			}
-			return;
-		case video_backend::vulkan:
-			// Not currently implemented
-			return;
-		case video_backend::num_backends:
-			debug(LOG_FATAL, "Should never happen");
-			return;
-	}
-	return;
-}
-
-int wzGetSwapInterval()
-{
-	switch (WZbackend)
-	{
-#if defined(WZ_BACKEND_DIRECTX)
-		case video_backend::directx: // because DirectX is supported via OpenGLES (LibANGLE)
-#endif
-		case video_backend::opengl:
-		case video_backend::opengles:
-			return SDL_GL_GetSwapInterval();
-		case video_backend::vulkan:
-			// Not currently implemented
-			return 0;
-		case video_backend::num_backends:
-			debug(LOG_FATAL, "Should never happen");
-			return 0;
-	}
-	return 0; // avoid GCC warning
-}
-#endif
-
 /**************************/
 /***    Thread support  ***/
 /**************************/
@@ -2058,7 +2011,7 @@ bool wzMainScreenSetup(const video_backend& backend, int antialiasing, bool full
 	cocoaSetupWZMenus();
 #endif
 
-	if (!gfx_api::context::initialize(SDL_gfx_api_Impl_Factory(WZwindow, useOpenGLES, useOpenGLESLibrary), antialiasing, usesSDLBackend_Vulkan))
+	if (!gfx_api::context::initialize(SDL_gfx_api_Impl_Factory(WZwindow, useOpenGLES, useOpenGLESLibrary), antialiasing, (vsync) ? gfx_api::context::swap_interval_mode::vsync : gfx_api::context::swap_interval_mode::immediate, usesSDLBackend_Vulkan))
 	{
 		// Failed to initialize desired backend / renderer settings
 		video_backend defaultBackend = wzGetDefaultGfxBackendForCurrentSystem();
@@ -2102,9 +2055,6 @@ bool wzMainScreenSetup(const video_backend& backend, int antialiasing, bool full
 		exit(1);
 		break;
 	}
-
-	// Enable/disable vsync if requested by the user
-	wzSetSwapInterval(vsync);
 
 	return true;
 }
