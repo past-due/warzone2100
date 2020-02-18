@@ -1,8 +1,8 @@
 cmake_minimum_required (VERSION 3.5)
 project (exception-handler CXX)
 
-file(GLOB HEADERS "*.h")
-set(SRC "dumpinfo.cpp" "exceptionhandler.cpp")
+file(GLOB HEADERS "*.h" "3rdparty/LaunchInfo.h")
+set(SRC "dumpinfo.cpp" "exceptionhandler.cpp" "3rdparty/LaunchInfo.cpp")
 
 add_library(exception-handler STATIC ${HEADERS} ${SRC})
 set_property(TARGET exception-handler PROPERTY FOLDER "lib")

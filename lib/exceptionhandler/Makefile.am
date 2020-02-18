@@ -6,13 +6,15 @@ noinst_HEADERS = \
 	dumpinfo.h \
 	exceptionhandler.h \
 	exchndl.h \
+	3rdparty/LaunchInfo.h \
 	include/coff/internal.h \
 	include/demangle.h \
 	include/libcoff.h
 
 libexceptionhandler_a_SOURCES = \
 	dumpinfo.cpp \
-	exceptionhandler.cpp
+	exceptionhandler.cpp \
+	3rdparty/LaunchInfo.cpp
 
 EXTRA_DIST= \
 	exchndl_win.cpp \

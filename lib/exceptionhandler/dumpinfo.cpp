@@ -19,6 +19,7 @@
 */
 
 #include "dumpinfo.h"
+#include "3rdparty/LaunchInfo.h"
 #include <cerrno>
 #include <climits>
 #include <ctime>
@@ -487,6 +488,10 @@ static void createHeader(int const argc, const char * const *argv, const char *p
 	}
 
 	os << endl;
+	if (LaunchInfo::getParentPID() > 0 || !LaunchInfo::getParentImageName().empty())
+	{
+		os << "Parent: "      << "(" << LaunchInfo::getParentPID() << ") " << LaunchInfo::getParentImageName() << endl;
+	}
 	os << "Version: "     << packageVersion << endl
 	   << "Distributor: " PACKAGE_DISTRIBUTOR << endl
 	   << "Compiled on: " << getCompileDate() << " " << __TIME__ << endl
