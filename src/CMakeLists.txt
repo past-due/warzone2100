@@ -127,6 +127,10 @@ endif()
 
 if(CMAKE_SYSTEM_NAME MATCHES "Windows")
     target_link_libraries(warzone2100 ws2_32 iphlpapi)
+
+	# Find + link the Detours library
+	find_package (Detours REQUIRED)
+	target_link_libraries(warzone2100 detours::detours)
 endif()
 
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")

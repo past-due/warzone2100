@@ -1,0 +1,31 @@
+# - Try to locate Detours
+# This module defines:
+#
+#  DETOURS_INCLUDE_DIR
+#  DETOURS_LIBRARY
+#  DETOURS_FOUND
+#
+#  and an imported target `detours::detours`
+#
+
+# Attempt to find Detours
+
+FIND_PATH(
+	DETOURS_INCLUDE_DIR detours.h
+	PATH_SUFFIXES detours
+)
+FIND_LIBRARY(
+	DETOURS_LIBRARY NAMES detours
+)
+
+add_library(detours::detours UNKNOWN IMPORTED)
+set_target_properties(detours::detours
+	PROPERTIES
+	IMPORTED_LOCATION ${DETOURS_LIBRARY}
+	INTERFACE_INCLUDE_DIRECTORIES ${DETOURS_INCLUDE_DIR})
+
+INCLUDE(FindPackageHandleStandardArgs)
+
+FIND_PACKAGE_HANDLE_STANDARD_ARGS(Detours REQUIRED_VARS DETOURS_INCLUDE_DIR DETOURS_LIBRARY)
+
+MARK_AS_ADVANCED(DETOURS_INCLUDE_DIR DETOURS_LIBRARY)

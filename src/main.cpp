@@ -1100,6 +1100,323 @@ bool getUTF8CmdLine(int *const utfargc WZ_DECL_UNUSED, char *** const utfargv WZ
 	return true;
 }
 
+#if defined(WZ_OS_WIN)
+#include "detours.h"
+#include <mutex>
+#include <vector>
+#include <unordered_set>
+
+const std::vector<std::string> incompatibleLibrariesA = { "gameoverlayrenderer.dll", "gameoverlayrenderer64.dll" };
+const std::vector<std::wstring> incompatibleLibrariesW = { L"gameoverlayrenderer.dll", L"gameoverlayrenderer64.dll" };
+
+HMODULE (WINAPI * Real_LoadLibraryExA)(LPCSTR a0,
+							   HANDLE a1,
+							   DWORD a2)
+	= LoadLibraryExA;
+
+HMODULE (WINAPI *
+         Real_LoadLibraryExW)(LPCWSTR a0,
+                              HANDLE a1,
+                              DWORD a2)
+    = LoadLibraryExW;
+
+HMODULE (WINAPI * Real_LoadLibraryA)(LPCSTR a0)
+	= LoadLibraryA;
+
+HMODULE (WINAPI *
+         Real_LoadLibraryW)(LPCWSTR a0)
+    = LoadLibraryW;
+
+static std::string detoursLogging;
+static std::mutex detoursLoggingMutex;
+
+template <typename... P>
+void _PrintEnter(char const *format, P &&... params)
+{
+	std::string formattedStr = astringf(format, std::forward<P>(params)...);
+	const std::lock_guard<std::mutex> lock(detoursLoggingMutex);
+	detoursLogging += formattedStr;
+}
+
+template <typename... P>
+void _PrintExit(char const *format, P &&... params)
+{
+	std::string formattedStr = astringf(format, std::forward<P>(params)...);
+	const std::lock_guard<std::mutex> lock(detoursLoggingMutex);
+	detoursLogging += formattedStr;
+}
+
+template <typename... P>
+void _PrintError(char const *format, P &&... params)
+{
+	std::string formattedStr = astringf(format, std::forward<P>(params)...);
+	const std::lock_guard<std::mutex> lock(detoursLoggingMutex);
+	detoursLogging += formattedStr;
+}
+
+template<typename strtype>
+bool strTypeHasEnding(strtype const &fullString, strtype const &ending)
+{
+    if (fullString.length() >= ending.length()) {
+        return (0 == fullString.compare (fullString.length() - ending.length(), ending.length(), ending));
+    } else {
+        return false;
+    }
+}
+
+template<typename chartype, typename strtype>
+bool preventDllLoading(const chartype *fn, const std::vector<strtype>& filter)
+{
+	if (!fn) return false;
+	strtype fn_str = strtype(fn);
+	std::transform(fn_str.begin(), fn_str.end(), fn_str.begin(),
+				   [](strtype::value_type c){ return std::tolower(c); });
+	for (const auto& item : filter)
+	{
+		if (strTypeHasEnding(fn_str, item))
+		{
+			SetLastError(ERROR_ACCESS_DENIED);
+			return true;
+		}
+	}
+	return false;
+}
+
+PCHAR DetRealName(PCHAR psz)
+{
+    PCHAR pszBeg = psz;
+    // Move to end of name.
+    while (*psz) {
+        psz++;
+    }
+    // Move back through A-Za-z0-9 names.
+    while (psz > pszBeg &&
+           ((psz[-1] >= 'A' && psz[-1] <= 'Z') ||
+            (psz[-1] >= 'a' && psz[-1] <= 'z') ||
+            (psz[-1] >= '0' && psz[-1] <= '9'))) {
+        psz--;
+    }
+    return psz;
+}
+
+VOID DetAttach(PVOID *ppbReal, PVOID pbMine, PCHAR psz)
+{
+    LONG l = DetourAttach(ppbReal, pbMine);
+    if (l != 0) {
+        _PrintError("Attach failed: `%s': error %d\n", DetRealName(psz), l);
+    }
+}
+
+VOID DetDetach(PVOID *ppbReal, PVOID pbMine, PCHAR psz)
+{
+    LONG l = DetourDetach(ppbReal, pbMine);
+    if (l != 0) {
+        _PrintError("Detach failed: `%s': error %d\n", DetRealName(psz), l);
+    }
+}
+
+HMODULE WINAPI Mine_LoadLibraryExA(LPCSTR a0,
+                                   HANDLE a1,
+                                   DWORD a2)
+{
+	_PrintEnter("LoadLibraryExA(%s,%p,%x)\n", a0, a1, a2);
+
+	HMODULE rv = NULL;
+	if (preventDllLoading(a0, incompatibleLibrariesA))
+	{
+		_PrintExit("LoadLibraryExA(%s,,) -> ERROR_ACCESS_DENIED\n", a0);
+		return NULL;
+	}
+
+	__try {
+		rv = Real_LoadLibraryExA(a0, a1, a2);
+	} __finally {
+		_PrintExit("LoadLibraryExA(,,) -> %p\n", rv);
+	};
+	return rv;
+}
+
+HMODULE WINAPI Mine_LoadLibraryExW(LPCWSTR a0,
+                                   HANDLE a1,
+                                   DWORD a2)
+{
+	_PrintEnter("LoadLibraryExW(%ls,%p,%x)\n", a0, a1, a2);
+
+	HMODULE rv = NULL;
+	if (a0 && preventDllLoading(a0, incompatibleLibrariesW))
+	{
+		_PrintExit("LoadLibraryExW((%ls,,) -> ERROR_ACCESS_DENIED\n", a0);
+		return NULL;
+	}
+
+	__try {
+		rv = Real_LoadLibraryExW(a0, a1, a2);
+	} __finally {
+		_PrintExit("LoadLibraryExW(,,) -> %p\n", rv);
+//        if (rv) {
+//            InstanceEnumerate(rv);
+//            ImportEnumerate(rv);
+//        }
+	};
+    return rv;
+}
+
+HMODULE WINAPI Mine_LoadLibraryA(LPCSTR a0)
+{
+	_PrintEnter("LoadLibraryA(%s)\n", a0);
+
+	HMODULE rv = NULL;
+
+	if (a0 && preventDllLoading(a0, incompatibleLibrariesA))
+	{
+		_PrintExit("LoadLibraryA(%s) -> ERROR_ACCESS_DENIED\n", a0);
+		return NULL;
+	}
+
+	__try {
+		rv = Real_LoadLibraryA(a0);
+	} __finally {
+		_PrintExit("LoadLibraryA() -> %p\n", rv);
+	};
+	return rv;
+}
+
+HMODULE WINAPI Mine_LoadLibraryW(LPCWSTR a0)
+{
+	_PrintEnter("LoadLibraryW(%ls)\n", a0);
+
+	HMODULE rv = NULL;
+
+	if (a0 && preventDllLoading(a0, incompatibleLibrariesW))
+	{
+		_PrintExit("LoadLibraryW(%ls) -> ERROR_ACCESS_DENIED\n", a0);
+		return NULL;
+	}
+
+	__try {
+		rv = Real_LoadLibraryW(a0);
+	} __finally {
+		_PrintExit("LoadLibraryW() -> %p\n", rv);
+	};
+	return rv;
+}
+
+#define ATTACH(x)       DetAttach(&(PVOID&)Real_##x,Mine_##x,#x)
+#define DETACH(x)       DetDetach(&(PVOID&)Real_##x,Mine_##x,#x)
+
+typedef BOOL (WINAPI *SetDefaultDllDirectoriesFunction)(
+  DWORD DirectoryFlags
+);
+#if !defined(LOAD_LIBRARY_SEARCH_APPLICATION_DIR)
+# define LOAD_LIBRARY_SEARCH_APPLICATION_DIR	0x00000200
+#endif
+#if !defined(LOAD_LIBRARY_SEARCH_DEFAULT_DIRS)
+# define LOAD_LIBRARY_SEARCH_DEFAULT_DIRS		0x00001000
+#endif
+#if !defined(LOAD_LIBRARY_SEARCH_SYSTEM32)
+# define LOAD_LIBRARY_SEARCH_SYSTEM32			0x00000800
+#endif
+
+typedef BOOL (WINAPI *SetDllDirectoryWFunction)(
+  LPCWSTR lpPathName
+);
+
+typedef BOOL (WINAPI *SetSearchPathModeFunction)(
+  DWORD Flags
+);
+#if !defined(BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE)
+# define BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE	0x00000001
+#endif
+#if !defined(BASE_SEARCH_PATH_PERMANENT)
+# define BASE_SEARCH_PATH_PERMANENT					0x00008000
+#endif
+
+typedef BOOL (WINAPI *SetProcessDEPPolicyFunction)(
+  DWORD dwFlags
+);
+#if !defined(PROCESS_DEP_ENABLE)
+# define PROCESS_DEP_ENABLE		0x00000001
+#endif
+
+void osSpecificFirstChanceProcessSetup_Win()
+{
+	HMODULE hKernel32 = GetModuleHandleW(L"kernel32");
+	SetDefaultDllDirectoriesFunction _SetDefaultDllDirectories = reinterpret_cast<SetDefaultDllDirectoriesFunction>(reinterpret_cast<void*>(GetProcAddress(hKernel32, "SetDefaultDllDirectories")));
+
+	if (_SetDefaultDllDirectories)
+	{
+		// Use SetDefaultDllDirectories to limit directories to search
+		_SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+	}
+
+	SetDllDirectoryWFunction _SetDllDirectoryW = reinterpret_cast<SetDllDirectoryWFunction>(reinterpret_cast<void*>(GetProcAddress(hKernel32, "SetDllDirectoryW")));
+
+	if (_SetDllDirectoryW)
+	{
+		// Remove the current working directory from the default DLL search order
+		_SetDllDirectoryW(L"");
+	}
+
+	SetSearchPathModeFunction _SetSearchPathMode = reinterpret_cast<SetSearchPathModeFunction>(reinterpret_cast<void*>(GetProcAddress(hKernel32, "SetSearchPathMode")));
+	if (_SetSearchPathMode)
+	{
+		// Enable safe search mode for the process
+		_SetSearchPathMode(BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE | BASE_SEARCH_PATH_PERMANENT);
+	}
+
+    // Enable heap terminate-on-corruption.
+    // A correct application can continue to run even if this call fails,
+    // so it is safe to ignore the return value and call the function as follows:
+    // (void)HeapSetInformation(NULL, HeapEnableTerminationOnCorruption, NULL, 0);
+    //
+	typedef BOOL (WINAPI *HSI)
+		   (HANDLE, HEAP_INFORMATION_CLASS, PVOID, SIZE_T);
+	HSI pHsi = reinterpret_cast<HSI>(reinterpret_cast<void*>(GetProcAddress(hKernel32, "HeapSetInformation")));
+	if (pHsi)
+	{
+		#ifndef HeapEnableTerminationOnCorruption
+		#   define HeapEnableTerminationOnCorruption (HEAP_INFORMATION_CLASS)1
+		#endif
+
+//		BOOL bResult = HeapSetInformation(NULL, HeapEnableTerminationOnCorruption, NULL, 0);
+		BOOL bResult = (pHsi)(NULL, HeapEnableTerminationOnCorruption, NULL, 0);
+		if (bResult != FALSE)
+		{
+			// succeeded at enabling heap terminate on corruption
+		}
+		else
+		{
+			// failed to enable heap terminate on corruption
+		}
+	}
+
+	SetProcessDEPPolicyFunction _SetProcessDEPPolicy = reinterpret_cast<SetProcessDEPPolicyFunction>(reinterpret_cast<void*>(GetProcAddress(hKernel32, "SetProcessDEPPolicy")));
+	if (_SetProcessDEPPolicy)
+	{
+		// Ensure DEP is enabled
+		_SetProcessDEPPolicy(PROCESS_DEP_ENABLE);
+	}
+
+	// Enable Detours
+	DetourTransactionBegin();
+	DetourUpdateThread(GetCurrentThread());
+	ATTACH(LoadLibraryExA);
+	ATTACH(LoadLibraryExW);
+	ATTACH(LoadLibraryA);
+	ATTACH(LoadLibraryW);
+	DetourTransactionCommit();
+}
+#endif
+
+void osSpecificFirstChanceProcessSetup()
+{
+#if defined(WZ_OS_WIN)
+	osSpecificFirstChanceProcessSetup_Win();
+#else
+	// currently, no-op
+#endif
+}
+
 // for backend detection
 extern const char *BACKEND;
 
@@ -1107,6 +1424,9 @@ int realmain(int argc, char *argv[])
 {
 	int utfargc = argc;
 	char **utfargv = (char **)argv;
+
+	osSpecificFirstChanceProcessSetup();
+
 	wzMain(argc, argv);		// init Qt integration first
 
 	debug_init();
@@ -1393,6 +1713,16 @@ int realmain(int argc, char *argv[])
 #endif
 	debug(LOG_MAIN, "Entering main loop");
 	wzMainEventLoop();
+
+#if defined(WZ_OS_WIN)
+	std::string copyLogging;
+	{
+		const std::lock_guard<std::mutex> lock(detoursLoggingMutex);
+		copyLogging = detoursLogging;
+	}
+	_debug_multiline(0, LOG_INFO, "main", copyLogging);
+#endif
+
 	saveConfig();
 	systemShutdown();
 #ifdef WZ_OS_WIN	// clean up the memory allocated for the command line conversion
