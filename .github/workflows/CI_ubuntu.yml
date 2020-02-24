@@ -123,6 +123,9 @@ jobs:
         uses: actions/download-artifact@v1
         with:
           name: warzone2100_src
+      - name: Debug output
+        run: |
+          ls -al
       - name: Upload source tarball to release
         uses: past-due/upload-release-action@master
         with:
