@@ -132,5 +132,5 @@ jobs:
         with:
           tag_name: ${{ github.ref }}
           files: warzone2100_src.tar.gz
-          env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
