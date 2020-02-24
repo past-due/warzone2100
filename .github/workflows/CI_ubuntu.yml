@@ -126,7 +126,7 @@ jobs:
       - name: Upload source tarball to release
         uses: past-due/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref }}
+          # Do not explicitly specify a tag_name, so this action takes the github.ref and parses it for just the tag
           files: warzone2100_src/warzone2100_src.tar.gz
           draft: true
         env:
