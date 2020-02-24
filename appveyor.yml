@@ -152,3 +152,17 @@ artifacts:
     name: Warzone2100 Installer
   - path: warzone2100_*.DEBUGSYMBOLS.7z
     name: Debug Symbols (7z)
+
+deploy:
+  # description: 'Release description'
+  provider: GitHub
+  auth_token:
+    secure: QcMz2UviJrg7oaQDirgkbxBLqF8QLfJe1zq1D0zGiEK/EaaUTbf9UMF07uEUTy4h
+  artifact: /warzone2100_.*\..*/
+  draft: true
+  prerelease: false
+  force_update: true
+  on:
+    #branch: master                 # release from master branch only
+    branch: /.*/
+    APPVEYOR_REPO_TAG: true        # deploy on tag push only
