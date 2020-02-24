@@ -119,18 +119,18 @@ jobs:
     needs: package-source
     runs-on: ubuntu-latest
     steps:
-      - name: Download source tarbll
+      - name: Download source tarball
         uses: actions/download-artifact@v1
         with:
           name: warzone2100_src
       - name: Debug output
         run: |
+          echo "Current dir: $(pwd)"
           ls -al
       - name: Upload source tarball to release
-        uses: past-due/upload-release-action@master
+        uses: past-due/action-gh-release@v1
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: warzone2100_src.tar.gz
-          asset_name: warzone2100_src.tar.gz
-          tag: ${{ github.ref }}
-          overwrite: true
+          tag_name: ${{ github.ref }}
+          files: warzone2100_src.tar.gz
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
