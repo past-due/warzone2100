@@ -123,17 +123,11 @@ jobs:
         uses: actions/download-artifact@v1
         with:
           name: warzone2100_src
-      - name: Debug output
-        run: |
-          cd "warzone2100_src"
-          echo "Current dir: $(pwd)"
-          ls -al
-          cd ..
       - name: Upload source tarball to release
         uses: past-due/action-gh-release@v1
         with:
           # Do not explicitly specify a tag_name, so this action takes the github.ref and parses it for just the tag
-          files: ./warzone2100_src/warzone2100_src.tar.gz
+          files: ./warzone2100_src/warzone2100_src.tar.xz
           draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
