@@ -14,9 +14,10 @@ jobs:
     steps:
       - name: Checkout Repo (to obtain template files)
         uses: actions/checkout@v2
-        persist-credentials: false
-        fetch-depth: 1
-        lfs: false
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          lfs: false
       - name: Create Draft Release
         uses: past-due/action-gh-release@v1
         with:
