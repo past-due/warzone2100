@@ -65,10 +65,617 @@ static std::vector<WIDGET *> widgetDeletionQueue;
 static bool debugBoundingBoxesOnly = false;
 
 
+// New in-game notification system
+#include <list>
+#include <memory>
+class WZ_Notification
+{
+public:
+	uint32_t duration = 0; // set to 0 for "until dismissed by user"
+	std::string contentTitle;
+	std::string contentText;
+	std::string smallIconPath;
+	std::string largeIconPath;
+	std::string actionButtonTitle;
+	std::function<void (WZ_Notification&)> onClick;
+	std::function<void (WZ_Notification&)> onDismissed;
+
+	iV_Image* largeIcon = nullptr;
+};
+class WZ_Notification_Status
+{
+public:
+	WZ_Notification_Status(uint32_t queuedTime)
+	: queuedTime(queuedTime)
+	{ }
+	enum NotificationState
+	{
+		submitted,
+		opening,
+		shown,
+		closing,
+		closed
+	};
+	NotificationState state = NotificationState::submitted;
+	uint32_t stateStartTime = 0;
+	uint32_t queuedTime = 0;
+};
+
+class WZ_Notification_Trigger
+{
+public:
+	WZ_Notification_Trigger(uint32_t timeInterval)
+	: timeInterval(timeInterval)
+	{ }
+	static WZ_Notification_Trigger Immediate()
+	{
+		return WZ_Notification_Trigger(0);
+	}
+public:
+	uint32_t timeInterval = 0;
+};
+class WZ_Queued_Notification
+{
+public:
+	WZ_Queued_Notification(const WZ_Notification& notification, const WZ_Notification_Status& status, const WZ_Notification_Trigger& trigger)
+	: notification(notification)
+	, status(status)
+	, trigger(trigger)
+	{ }
+	WZ_Notification notification;
+	WZ_Notification_Status status;
+	WZ_Notification_Trigger trigger;
+};
+static std::list<std::unique_ptr<WZ_Queued_Notification>> notificationQueue;
+std::unique_ptr<WZ_Queued_Notification> popNextQueuedNotification()
+{
+	for (auto it = notificationQueue.begin(); it != notificationQueue.end(); ++it)
+	{
+		auto & request = *it;
+		uint32_t num = std::min<uint32_t>(realTime - request->status.queuedTime, request->trigger.timeInterval);
+		if (num == request->trigger.timeInterval)
+		{
+			std::unique_ptr<WZ_Queued_Notification> retVal(std::move(request));
+			notificationQueue.erase(it);
+			return retVal;
+		}
+	}
+	return nullptr;
+}
+
+#include "lib/framework/input.h"
+
+/** Notification initialisation structure */
+struct W_NOTIFYINIT : public W_FORMINIT
+{
+	W_NOTIFYINIT();
+
+	WZ_Queued_Notification* request = nullptr;
+};
+
+W_NOTIFYINIT::W_NOTIFYINIT()
+: W_FORMINIT()
+{ }
+
+class W_NOTIFICATION : public W_FORM
+{
+public:
+	W_NOTIFICATION(W_NOTIFYINIT const *init);
+	// TODO: Should be able to handle drag and move notification up and down?
+	void run(W_CONTEXT *psContext) override;
+	void clicked(W_CONTEXT *psContext, WIDGET_KEY key) override;
+	void released(W_CONTEXT *psContext, WIDGET_KEY key) override;
+//	void highlight(W_CONTEXT *psContext) override;
+//	void highlightLost() override;
+//	void display(int xOffset, int yOffset) override;
+public:
+	bool globalHitTest(int x, int y) { return hitTest(x, y); }
+	Vector2i getDragOffset() const { return dragOffset; }
+	bool isActivelyBeingDragged() const { return isInDragMode; }
+	uint32_t getLastDragStartTime() const { return dragStartedTime; }
+	uint32_t getLastDragEndTime() const { return dragEndedTime; }
+	uint32_t getLastDragDuration() const { return dragEndedTime - dragStartedTime; }
+private:
+	WZ_Queued_Notification* request;
+	bool DragEnabled = true;
+	bool isInDragMode = false;
+	Vector2i dragOffset = {0, 0};
+	Vector2i dragStartMousePos = {0, 0};
+	Vector2i dragOffsetEnded = {0, 0};
+	uint32_t dragStartedTime = 0;
+	uint32_t dragEndedTime = 0;
+};
+
+W_NOTIFICATION::W_NOTIFICATION(W_NOTIFYINIT const *init)
+: W_FORM(init)
+, request(init->request)
+{
+	// TODO:
+}
+
+static std::unique_ptr<WZ_Queued_Notification> currentNotification;
+static W_NOTIFICATION* currentInGameNotification = nullptr;
+static uint32_t lastNotificationClosed = 0;
+
+// Modeled after the damped sine wave y = sin(13pi/2*x)*pow(2, 10 * (x - 1))
+float ElasticEaseIn(float p)
+{
+	return sin(13 * M_PI_2 * p) * pow(2, 10 * (p - 1));
+}
+
+// Modeled after the damped sine wave y = sin(-13pi/2*(x + 1))*pow(2, -10x) + 1
+float ElasticEaseOut(float p)
+{
+	return sin(-13 * M_PI_2 * (p + 1)) * pow(2, -10 * p) + 1;
+}
+
+// Modeled after the quintic y = (x - 1)^5 + 1
+float QuinticEaseOut(float p)
+{
+	float f = (p - 1);
+	return f * f * f * f * f + 1;
+}
+
+// Modeled after the cubic y = x^3
+float CubicEaseIn(float p)
+{
+	return p * p * p;
+}
+
+float BezierBlend(float t)
+{
+    return t * t * (3.0f - 2.0f * t);
+}
+
+void dismissNotification(WZ_Queued_Notification* request)
+{
+	// if notification is the one being displayed, animate it away by setting its state to closing
+	switch (request->status.state)
+	{
+		case WZ_Notification_Status::NotificationState::submitted:
+			// should not happen
+			break;
+		case WZ_Notification_Status::NotificationState::opening:
+			request->status.state = WZ_Notification_Status::NotificationState::shown;
+			request->status.stateStartTime = realTime;
+			break;
+		case WZ_Notification_Status::NotificationState::shown:
+			request->status.state = WZ_Notification_Status::NotificationState::closing;
+			request->status.stateStartTime = realTime;
+			break;
+		default:
+			// do nothing
+			break;
+	}
+}
+
+/* Run a slider widget */
+void W_NOTIFICATION::run(W_CONTEXT *psContext)
+{
+//	UDWORD temp1, temp2;
+//	if (isInDragMode)
+//	{
+//		debug(LOG_3D, "In drag mode!");
+//	}
+	if (isInDragMode && mouseDown(MOUSE_LMB))//mouseDrag(MOUSE_LMB, &temp1, &temp2))
+	{
+//		int dragStartX = (int)temp1;
+		int dragStartY = dragStartMousePos.y; //(int)temp2;
+//		int currMouseX = mouseX();
+		int currMouseY = mouseY();
+
+		// calculate how much to respond to the drag by comparing the start to the current position
+		if (dragStartY > currMouseY)
+		{
+			// dragging up (to close) - respond 1 to 1
+			int distanceY = dragStartY - currMouseY;
+			dragOffset.y = (distanceY > 0) ? -(distanceY) : 0;
+		}
+		else if (currMouseY > dragStartY)
+		{
+			// dragging down
+			const int verticalLimit = 10;
+			int distanceY = currMouseY - dragStartY;
+			dragOffset.y = verticalLimit * (1 + log10(float(distanceY) / float(verticalLimit)));
+		}
+		else
+		{
+			dragOffset.y = 0;
+		}
+//		debug(LOG_3D, "dragOffset.y: %d", dragOffset.y);
+	}
+	else
+	{
+		if (isInDragMode && !mouseDown(MOUSE_LMB))
+		{
+//			debug(LOG_3D, "No longer in drag mode");
+			isInDragMode = false;
+			dragEndedTime = realTime;
+			dragOffsetEnded = dragOffset;
+		}
+		if (request->status.state != WZ_Notification_Status::NotificationState::closing)
+		{
+			// decay drag offset
+			const uint32_t dragDecayDuration = GAME_TICKS_PER_SEC * 1;
+			if (dragOffset.y != 0)
+			{
+				dragOffset.y = dragOffsetEnded.y - (int)(float(dragOffsetEnded.y) * ElasticEaseOut((float(realTime) - float(dragEndedTime)) / float(dragDecayDuration)));
+			}
+		}
+	}
+}
+
+void W_NOTIFICATION::clicked(W_CONTEXT *psContext, WIDGET_KEY key)
+{
+//	if (request)
+//	{
+//		dismissNotification(request);
+//	}
+	if (DragEnabled && geometry().contains(psContext->mx, psContext->my))
+	{
+//		dirty = true;
+		debug(LOG_3D, "Enabling drag mode");
+		isInDragMode = true;
+		dragStartMousePos.x = psContext->mx;
+		dragStartMousePos.y = psContext->my;
+		dragStartedTime = realTime;
+	}
+}
+
+void W_NOTIFICATION::released(W_CONTEXT *psContext, WIDGET_KEY key)
+{
+//	bool wasInDragMode = isInDragMode;
+	debug(LOG_3D, "released");
+//	isInDragMode = false;
+//	dragEndedTime = realTime;
+//	dragOffsetEnded = dragOffset;
+
+	if (request)
+	{
+//		if (!wasInDragMode || )
+//		{
+			dismissNotification(request);
+//		}
+	}
+}
+
+void addNotification(const WZ_Notification& notification, const WZ_Notification_Trigger& trigger)
+{
+	notificationQueue.push_back(std::unique_ptr<WZ_Queued_Notification>(new WZ_Queued_Notification(notification, WZ_Notification_Status(realTime), trigger)));
+}
+
+
+static void displayNotificationWidget(WIDGET *psWidget, UDWORD xOffset, UDWORD yOffset)
+{
+//	iV_DrawImage2(WzString::fromUtf8("image_fe_logo.png"), xOffset + psWidget->x(), yOffset + psWidget->y(), psWidget->width(), psWidget->height());
+
+//	iV_TransBoxFill();
+
+	// Need to do a little trick here - ensure the bounds are always positive, adjust the width and height
+//	if (psWidget->y() < 0)
+//	{
+//		yOffset += -psWidget->y();
+//	}
+	int x0 = psWidget->x() + xOffset;
+	int y0 = psWidget->y() + yOffset;
+	int x1 = x0 + psWidget->width();
+	int y1 = y0 + psWidget->height();
+	if (psWidget->y() < 0)
+	{
+		y0 += -psWidget->y();
+	}
+//	debug(LOG_3D, "Draw notification widget: (%d x %d), (width: %d, height: %d) => (%dx%d),(%dx%d)", psWidget->x(), psWidget->y(), psWidget->width(), psWidget->height(), x0, y0, x1, y1);
+//	int shadowPadding = 2;
+//	pie_UniTransBoxFill(x0 + shadowPadding, y0 + shadowPadding, x1 + shadowPadding, y1 + shadowPadding, pal_RGBA(0, 0, 0, 70));
+	pie_UniTransBoxFill(x0, y0, x1, y1, WZCOL_NOTIFICATION_BOX);
+	iV_Box2(x0, y0, x1, y1, WZCOL_FORM_DARK, WZCOL_FORM_DARK);
+
+//	RenderWindowFrame(FRAME_NORMAL, psWidget->x() + xOffset, psWidget->y() + yOffset, psWidget->width(), psWidget->height());
+
+//	// TODO: Display the title
+//	iV_DrawText("", float x, float y, iV_fonts fontID)
+//
+//	// TODO: Display the contents
+//
+	// TODO: Display the icon
+//	iV_DrawImage2("images/warzone2100.png", x1 - 20, y0 + 10);
+	int imageLeft = x1 - 15 - 32;
+	int imageTop = (psWidget->y() + yOffset) + 15;
+	iV_Box2(imageLeft, imageTop, imageLeft + 32, imageTop + 32, WZCOL_RED, WZCOL_RED);
+}
+
+void removeInGameNotificationForm(WZ_Queued_Notification* request)
+{
+	if (!request) return;
+
+	// right now we only support a single concurrent notification
+	currentInGameNotification->deleteLater();
+	currentInGameNotification = nullptr;
+}
+
+W_NOTIFICATION* getOrCreateInGameNotificationForm(WZ_Queued_Notification* request)
+{
+	if (!request) return nullptr;
+
+	// right now we only support a single concurrent notification
+	if (!currentInGameNotification)
+	{
+		W_NOTIFYINIT sFormInit;
+		sFormInit.formID = 0;
+		sFormInit.id = 1;
+		sFormInit.request = request;
+		// TODO: calculate height
+//		int imgW = iV_GetImageWidth(FrontImages, IMAGE_FE_LOGO);
+//		int imgH = iV_GetImageHeight(FrontImages, IMAGE_FE_LOGO);
+//		int dstW = topForm->width();
+//		int dstH = topForm->height();
+//		if (imgW * dstH < imgH * dstW) // Want to set aspect ratio dstW/dstH = imgW/imgH.
+//		{
+//			dstW = imgW * dstH / imgH; // Too wide.
+//		}
+//		else if (imgW * dstH > imgH * dstW)
+//		{
+//			dstH = imgH * dstW / imgW; // Too high.
+//		}
+		uint16_t calculatedWidth = 500;
+		uint16_t calculatedHeight = 100;
+		sFormInit.x = 0; // always base of 0
+		sFormInit.y = 0; // always base of 0
+		sFormInit.width  = calculatedWidth;
+		sFormInit.height = calculatedHeight;
+		sFormInit.pDisplay = displayNotificationWidget;
+		currentInGameNotification = new W_NOTIFICATION(&sFormInit);
+
+		// Add title
+		W_LABEL *label = new W_LABEL(currentInGameNotification);
+		label->setGeometry(15, 15, 12, 12);
+//		label->setFontColour(WZCOL_TEXT_BRIGHT);
+		label->setString(WzString::fromUtf8(request->notification.contentTitle));
+		label->setTextAlignment(WLAB_ALIGNBOTTOMLEFT);
+		label->setFont(font_regular_bold, WZCOL_TEXT_BRIGHT);
+
+		// Add contents
+		W_LABEL *label_contents = new W_LABEL(currentInGameNotification);
+		label_contents->setGeometry(15, 15 + 20, 12, 12);
+//		label->setFontColour(WZCOL_TEXT_BRIGHT);
+		label_contents->setString(WzString::fromUtf8(request->notification.contentText));
+		label_contents->setTextAlignment(WLAB_ALIGNTOPLEFT);
+		label_contents->setFont(font_regular, WZCOL_TEXT_BRIGHT);
+
+		// TODO: Add action labels
+		std::string actionLabel1 = "Dismiss";
+		std::string actionLabel2 = "";
+		if (request->notification.duration > 0)
+		{
+			actionLabel1 = request->notification.actionButtonTitle;
+		}
+		else
+		{
+			actionLabel2 = request->notification.actionButtonTitle;
+		}
+
+		W_BUTINIT sButInit;
+		W_BUTTON *psButton1 = nullptr;
+
+		if (!actionLabel1.empty())
+		{
+			sButInit.formID = 0;
+			sButInit.id = 2;
+			sButInit.width = iV_GetTextWidth(actionLabel1.c_str(), font_regular_bold) + 15;
+			sButInit.height = 20;
+			sButInit.x = (short)(sFormInit.width - 15 - sButInit.width);
+			sButInit.y = (short)(sFormInit.height - 15 - sButInit.height);
+			sButInit.style |= WBUT_TXTCENTRE;
+
+			sButInit.UserData = 0; // store disable state
+	//		sButInit.pUserData = new DisplayTextOptionCache();
+	//		sButInit.onDelete = [](WIDGET *psWidget) {
+	//			assert(psWidget->pUserData != nullptr);
+	//			delete static_cast<DisplayTextOptionCache *>(psWidget->pUserData);
+	//			psWidget->pUserData = nullptr;
+	//		};
+
+	//		sButInit.height = FRONTEND_BUTHEIGHT;
+	//		sButInit.pDisplay = displayTextOption;
+			sButInit.FontID = font_regular_bold;
+			sButInit.pText = actionLabel1.c_str();
+			psButton1 = new W_BUTTON(&sButInit);
+			currentInGameNotification->attach(psButton1);
+		}
+
+		if (!actionLabel2.empty())
+		{
+			// Button 2
+			sButInit.id = 3;
+			sButInit.width = iV_GetTextWidth(actionLabel2.c_str(), font_regular_bold) + 15;
+			sButInit.x = (short)(psButton1->x() - 15 - sButInit.width);
+			sButInit.pText = actionLabel2.c_str();
+			W_BUTTON *psButton2 = new W_BUTTON(&sButInit);
+			currentInGameNotification->attach(psButton2);
+		}
+	}
+	return currentInGameNotification;
+}
+
+#define WZ_NOTIFICATION_OPEN_DURATION (GAME_TICKS_PER_SEC*1) // Time duration for notification open/close animation
+#define WZ_NOTIFICATION_CLOSE_DURATION WZ_NOTIFICATION_OPEN_DURATION
+#define WZ_NOTIFICATION_TOP_PADDING 5
+#define WZ_NOTIFICATION_MIN_DELAY_BETWEEN (GAME_TICKS_PER_SEC*1)
+
+bool displayNotificationInGame(WZ_Queued_Notification* request)
+{
+	W_NOTIFICATION* psNotificationWidget = getOrCreateInGameNotificationForm(request);
+
+	// center horizontally in window
+	int x = std::max<int>((screenWidth - psNotificationWidget->width()) / 2, 0);
+	int y = 0; // set below
+//	const int startingOffscreenY = -psNotificationWidget->height();
+	const int endingYPosition = WZ_NOTIFICATION_TOP_PADDING;
+
+	// calculate positioning based on state and time
+	switch (request->status.state)
+	{
+		case WZ_Notification_Status::NotificationState::submitted:
+			// first chance to display
+			request->status.state = WZ_Notification_Status::NotificationState::opening;
+			request->status.stateStartTime = realTime;
+			// fall-through
+		case WZ_Notification_Status::NotificationState::opening:
+		{
+			// calculate how far we are on opening based on the stateStartTime
+			uint32_t startTime = request->status.stateStartTime;
+//			if (!psNotificationWidget->isActivelyBeingDragged() && psNotificationWidget->getLastDragStartTime() > startTime)
+//			{
+//				startTime += psNotificationWidget->getLastDragEnded();
+//			}
+			uint32_t endTime = startTime + WZ_NOTIFICATION_OPEN_DURATION;
+			if (realTime < endTime)
+			{
+//				y = startingOffscreenY;
+//				uint32_t
+//				y += ((float(realTime) / float(endTime)) * WZ_NOTIFICATION_OPEN_DURATION)
+//				y = easeChange(float(realTime) / float(endTime), startingOffscreenY, WZ_NOTIFICATION_TOP_PADDING, float(1.0));
+//				y = (-psNotificationWidget->height()) + (BezierBlend((float(realTime) - float(startTime)) / float(WZ_NOTIFICATION_OPEN_DURATION)) * (WZ_NOTIFICATION_TOP_PADDING + psNotificationWidget->height()));
+				y = (-psNotificationWidget->height()) + (QuinticEaseOut((float(realTime) - float(startTime)) / float(WZ_NOTIFICATION_OPEN_DURATION)) * (endingYPosition + psNotificationWidget->height()));
+				if (y + psNotificationWidget->getDragOffset().y >= endingYPosition)
+				{
+					// factoring in the drag, the notification is already at fully open (or past it)
+					// so immediately transition to "shown" state
+					request->status.state = WZ_Notification_Status::NotificationState::shown;
+					request->status.stateStartTime = realTime;
+				}
+				break;
+			}
+			request->status.state = WZ_Notification_Status::NotificationState::shown;
+			request->status.stateStartTime = realTime;
+			// fall-through
+		}
+		case WZ_Notification_Status::NotificationState::shown:
+		{
+//			debug(LOG_ERROR, "SHOWN!");
+			const auto& duration = request->notification.duration;
+			if (duration > 0 && !psNotificationWidget->isActivelyBeingDragged())
+			{
+				if (psNotificationWidget->getDragOffset().y > 0)
+				{
+					// when dragging a notification more *open* (/down),
+					// ensure that the notification remains displayed for at least one additional second
+					// beyond the bounce-back from the drag release
+					request->status.stateStartTime = std::max<uint32_t>(request->status.stateStartTime, realTime - duration + GAME_TICKS_PER_SEC);
+				}
+			}
+			if (duration == 0 || (realTime < (request->status.stateStartTime + duration)) || psNotificationWidget->isActivelyBeingDragged())
+			{
+				y = endingYPosition;
+				break;
+			}
+			request->status.state = WZ_Notification_Status::NotificationState::closing;
+			request->status.stateStartTime = realTime;
+			// fall-through
+		}
+		case WZ_Notification_Status::NotificationState::closing:
+		{
+			// calculate how far we are on closing based on the stateStartTime
+			// factor in the current dragOffset, if any
+//			if (psNotificationWidget->getDragOffset().y < 0)
+//			{
+//				// TODO: shorten duration based on how close to closed it is
+//				// or maybe just change the easing function?
+//			}
+			const uint32_t &startTime = request->status.stateStartTime;
+			uint32_t endTime = startTime + WZ_NOTIFICATION_CLOSE_DURATION;
+			if (realTime < endTime)
+			{
+//				y = easeOut(float(realTime) / float(endTime), WZ_NOTIFICATION_TOP_PADDING, startingOffscreenY, float(WZ_NOTIFICATION_CLOSE_DURATION / GAME_TICKS_PER_SEC));
+//				y = WZ_NOTIFICATION_TOP_PADDING - (ElasticEaseIn((float(realTime) - float(startTime)) / float(WZ_NOTIFICATION_OPEN_DURATION)) * (WZ_NOTIFICATION_TOP_PADDING + psNotificationWidget->height()));
+				float percentComplete = (float(realTime) - float(startTime)) / float(WZ_NOTIFICATION_CLOSE_DURATION);
+				if (psNotificationWidget->getDragOffset().y >= 0)
+				{
+					percentComplete = CubicEaseIn(percentComplete);
+				}
+				y = endingYPosition - (percentComplete/*CubicEaseIn((float(realTime) - float(startTime)) / float(WZ_NOTIFICATION_OPEN_DURATION))*/ * (endingYPosition + psNotificationWidget->height()));
+				break;
+			}
+			request->status.state = WZ_Notification_Status::NotificationState::closed;
+			request->status.stateStartTime = realTime;
+			// fall-through
+		}
+		case WZ_Notification_Status::NotificationState::closed:
+			// widget is now off-screen - destroy it
+			removeInGameNotificationForm(request);
+			return true; // processed notification
+	}
+
+	x += psNotificationWidget->getDragOffset().x;
+	y += psNotificationWidget->getDragOffset().y;
+
+	psNotificationWidget->move(x, y);
+
+	/* Process any user callback functions */
+	W_CONTEXT sContext;
+	sContext.xOffset = 0;
+	sContext.yOffset = 0;
+	sContext.mx = mouseX();
+	sContext.my = mouseY();
+	psNotificationWidget->processCallbacksRecursive(&sContext);
+
+	// Display the widgets.
+	psNotificationWidget->displayRecursive(0, 0);
+
+	return false;
+}
+
+void runNotificationsDisplay()
+{
+	// at the moment, we only support displaying a single notification at a time
+
+	if (!currentNotification)
+	{
+		if ((realTime - lastNotificationClosed) < WZ_NOTIFICATION_MIN_DELAY_BETWEEN)
+		{
+			// wait to fetch a new notification till a future cycle
+			return;
+		}
+		// check for a new notification to display
+		currentNotification = popNextQueuedNotification();
+	}
+	if (!currentNotification)
+	{
+		return;
+	}
+
+	if (displayNotificationInGame(currentNotification.get()))
+	{
+		// finished with this notification
+		currentNotification.reset();
+		lastNotificationClosed = realTime;
+	}
+}
+
+// New in-game notification system
+
+
 /* Initialise the widget module */
 bool widgInitialise()
 {
 	tipInitialise();
+
+	// TEMPORARY FOR TESTING PURPOSES:
+	WZ_Notification notification;
+	notification.duration = GAME_TICKS_PER_SEC * 8;
+	notification.contentTitle = "Test Notification 1";
+	notification.contentText = "This is a sample notification to test a very long string to see how it displays.";
+	addNotification(notification, WZ_Notification_Trigger(GAME_TICKS_PER_SEC * 30));
+
+	notification.duration = GAME_TICKS_PER_SEC * 3;
+	notification.contentTitle = "Test Notification 2";
+	notification.contentText = "This is sample notification text to see how it displays.";
+	addNotification(notification, WZ_Notification_Trigger::Immediate());
+	notification.duration = 0;
+	notification.contentTitle = "Update Available";
+	notification.contentText = "A new version of Warzone 2100 (3.3.1) is available!";
+	notification.actionButtonTitle = "Get Update Now";
+	addNotification(notification, WZ_Notification_Trigger::Immediate());
 
 	return true;
 }
@@ -763,8 +1370,10 @@ bool WIDGET::hitTest(int x, int y)
 	return hitTestResult;
 }
 
-void WIDGET::processClickRecursive(W_CONTEXT *psContext, WIDGET_KEY key, bool wasPressed)
+bool WIDGET::processClickRecursive(W_CONTEXT *psContext, WIDGET_KEY key, bool wasPressed)
 {
+	bool didProcessClick = false;
+
 	W_CONTEXT shiftedContext;
 	shiftedContext.mx = psContext->mx - x();
 	shiftedContext.my = psContext->my - y();
@@ -782,14 +1391,14 @@ void WIDGET::processClickRecursive(W_CONTEXT *psContext, WIDGET_KEY key, bool wa
 		}
 
 		// Process it (recursively).
-		psCurr->processClickRecursive(&shiftedContext, key, wasPressed);
+		didProcessClick = psCurr->processClickRecursive(&shiftedContext, key, wasPressed) || didProcessClick;
 	}
 
 	if (psMouseOverWidget == nullptr)
 	{
 		psMouseOverWidget = this;  // Mark that the mouse is over a widget (if we haven't already).
 	}
-	if (screenPointer->lastHighlight != this && psMouseOverWidget == this)
+	if (screenPointer && screenPointer->lastHighlight != this && psMouseOverWidget == this)
 	{
 		if (screenPointer->lastHighlight != nullptr)
 		{
@@ -801,17 +1410,23 @@ void WIDGET::processClickRecursive(W_CONTEXT *psContext, WIDGET_KEY key, bool wa
 
 	if (key == WKEY_NONE)
 	{
-		return;  // Just checking mouse position, not a click.
+		return false;  // Just checking mouse position, not a click.
 	}
 
-	if (wasPressed)
+	if (psMouseOverWidget == this)
 	{
-		clicked(psContext, key);
+		if (wasPressed)
+		{
+			clicked(psContext, key);
+		}
+		else
+		{
+			released(psContext, key);
+		}
+		didProcessClick = true;
 	}
-	else
-	{
-		released(psContext, key);
-	}
+
+	return didProcessClick;
 }
 
 
@@ -827,6 +1442,12 @@ WidgetTriggers const &widgRunScreen(W_SCREEN *psScreen)
 	sContext.xOffset = 0;
 	sContext.yOffset = 0;
 	psMouseOverWidget = nullptr;
+
+//	// Tell the current notification, if present, which screen is its (current) "parent"
+//	if (currentInGameNotification)
+//	{
+//		currentInGameNotification->screenPointer = psScreen;
+//	}
 
 	// Note which keys have been pressed
 	lastReleasedKey_DEPRECATED = WKEY_NONE;
@@ -851,6 +1472,11 @@ WidgetTriggers const &widgRunScreen(W_SCREEN *psScreen)
 			}
 			sContext.mx = c->pos.x;
 			sContext.my = c->pos.y;
+			if (currentInGameNotification && currentInGameNotification->globalHitTest(sContext.mx, sContext.my))
+			{
+				// Forward first to in-game notifications, which are above everything else
+				currentInGameNotification->processClickRecursive(&sContext, wkey, pressed);
+			}
 			psScreen->psForm->processClickRecursive(&sContext, wkey, pressed);
 
 			lastReleasedKey_DEPRECATED = wkey;
@@ -859,9 +1485,21 @@ WidgetTriggers const &widgRunScreen(W_SCREEN *psScreen)
 
 	sContext.mx = mouseX();
 	sContext.my = mouseY();
+	if (currentInGameNotification && currentInGameNotification->globalHitTest(sContext.mx, sContext.my))
+	{
+		// Forward first to in-game notifications, which are above everything else
+		currentInGameNotification->processClickRecursive(&sContext, WKEY_NONE, true);  // Update highlights and psMouseOverWidget.
+	}
 	psScreen->psForm->processClickRecursive(&sContext, WKEY_NONE, true);  // Update highlights and psMouseOverWidget.
 
 	/* Process the screen's widgets */
+	if (currentInGameNotification)
+	{
+		// Forward first to in-game notifications, which are above everything else
+		currentInGameNotification->runRecursive(&sContext);
+		/* Run the widget */
+		currentInGameNotification->run(&sContext);
+	}
 	psScreen->psForm->runRecursive(&sContext);
 
 	deleteOldWidgets();  // Delete any widgets that called deleteLater() while being run.
@@ -970,6 +1608,9 @@ void widgDisplayScreen(W_SCREEN *psScreen)
 		psScreen->psForm->displayRecursive(0, 0);
 		debugBoundingBoxesOnly = false;
 	}
+
+	// Always display notifications on-top (i.e. draw them last)
+	runNotificationsDisplay();
 }
 
 void W_SCREEN::setFocus(WIDGET *widget)
