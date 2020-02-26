@@ -235,10 +235,10 @@ void dismissNotification(WZ_Queued_Notification* request)
 		case WZ_Notification_Status::NotificationState::submitted:
 			// should not happen
 			break;
-		case WZ_Notification_Status::NotificationState::opening:
-			request->status.state = WZ_Notification_Status::NotificationState::shown;
-			request->status.stateStartTime = realTime;
-			break;
+//		case WZ_Notification_Status::NotificationState::opening:
+//			request->status.state = WZ_Notification_Status::NotificationState::shown;
+//			request->status.stateStartTime = realTime;
+//			break;
 		case WZ_Notification_Status::NotificationState::shown:
 			request->status.state = WZ_Notification_Status::NotificationState::closing;
 			request->status.stateStartTime = realTime;
@@ -282,6 +282,14 @@ void W_NOTIFICATION::run(W_CONTEXT *psContext)
 		{
 			dragOffset.y = 0;
 		}
+
+//		if ((dragOffset.y > 0) && (request->status.state == WZ_Notification_Status::NotificationState::closing))
+//		{
+//			// dragging down / open while closing
+//			// set state to open
+//			request->status.state = WZ_Notification_Status::NotificationState::shown;
+//			request->status.stateStartTime = realTime;
+//		}
 //		debug(LOG_3D, "dragOffset.y: %d", dragOffset.y);
 	}
 	else
@@ -311,6 +319,13 @@ void W_NOTIFICATION::clicked(W_CONTEXT *psContext, WIDGET_KEY key)
 //	{
 //		dismissNotification(request);
 //	}
+	if (request->status.state == WZ_Notification_Status::NotificationState::closing)
+	{
+		// if clicked while closing, set state to shown
+		request->status.state = WZ_Notification_Status::NotificationState::shown;
+		request->status.stateStartTime = realTime;
+	}
+
 	if (DragEnabled && geometry().contains(psContext->mx, psContext->my))
 	{
 //		dirty = true;
@@ -322,6 +337,8 @@ void W_NOTIFICATION::clicked(W_CONTEXT *psContext, WIDGET_KEY key)
 	}
 }
 
+#define WZ_NOTIFICATION_DOWN_DRAG_DISCARD_CLICK_THRESHOLD	5
+
 void W_NOTIFICATION::released(W_CONTEXT *psContext, WIDGET_KEY key)
 {
 //	bool wasInDragMode = isInDragMode;
@@ -332,10 +349,10 @@ void W_NOTIFICATION::released(W_CONTEXT *psContext, WIDGET_KEY key)
 
 	if (request)
 	{
-//		if (!wasInDragMode || )
-//		{
+		if (!isInDragMode || dragOffset.y < WZ_NOTIFICATION_DOWN_DRAG_DISCARD_CLICK_THRESHOLD)
+		{
 			dismissNotification(request);
-//		}
+		}
 	}
 }
 
@@ -344,6 +361,11 @@ void addNotification(const WZ_Notification& notification, const WZ_Notification_
 	notificationQueue.push_back(std::unique_ptr<WZ_Queued_Notification>(new WZ_Queued_Notification(notification, WZ_Notification_Status(realTime), trigger)));
 }
 
+
+#define WZ_NOTIFICATION_PADDING	15
+#define WZ_NOTIFICATION_IMAGE_SIZE	32
+#define WZ_NOTIFICATION_CONTENTS_LINE_SPACING	0
+#define WZ_NOTIFICATION_CONTENTS_TOP_PADDING	5
 
 static void displayNotificationWidget(WIDGET *psWidget, UDWORD xOffset, UDWORD yOffset)
 {
@@ -379,9 +401,9 @@ static void displayNotificationWidget(WIDGET *psWidget, UDWORD xOffset, UDWORD y
 //
 	// TODO: Display the icon
 //	iV_DrawImage2("images/warzone2100.png", x1 - 20, y0 + 10);
-	int imageLeft = x1 - 15 - 32;
-	int imageTop = (psWidget->y() + yOffset) + 15;
-	iV_Box2(imageLeft, imageTop, imageLeft + 32, imageTop + 32, WZCOL_RED, WZCOL_RED);
+	int imageLeft = x1 - WZ_NOTIFICATION_PADDING - WZ_NOTIFICATION_IMAGE_SIZE;
+	int imageTop = (psWidget->y() + yOffset) + WZ_NOTIFICATION_PADDING;
+	iV_Box2(imageLeft, imageTop, imageLeft + WZ_NOTIFICATION_IMAGE_SIZE, imageTop + WZ_NOTIFICATION_IMAGE_SIZE, WZCOL_RED, WZCOL_RED);
 }
 
 void removeInGameNotificationForm(WZ_Queued_Notification* request)
@@ -426,21 +448,32 @@ W_NOTIFICATION* getOrCreateInGameNotificationForm(WZ_Queued_Notification* reques
 		sFormInit.pDisplay = displayNotificationWidget;
 		currentInGameNotification = new W_NOTIFICATION(&sFormInit);
 
+		// Calculate dimensions for text area
+		int maxTextWidth = calculatedWidth - (WZ_NOTIFICATION_PADDING * 2) - WZ_NOTIFICATION_IMAGE_SIZE - WZ_NOTIFICATION_PADDING;
+
 		// Add title
-		W_LABEL *label = new W_LABEL(currentInGameNotification);
-		label->setGeometry(15, 15, 12, 12);
-//		label->setFontColour(WZCOL_TEXT_BRIGHT);
-		label->setString(WzString::fromUtf8(request->notification.contentTitle));
-		label->setTextAlignment(WLAB_ALIGNBOTTOMLEFT);
-		label->setFont(font_regular_bold, WZCOL_TEXT_BRIGHT);
+		W_LABEL *label_title = new W_LABEL(currentInGameNotification);
+		label_title->setGeometry(WZ_NOTIFICATION_PADDING, WZ_NOTIFICATION_PADDING, maxTextWidth, 12);
+		label_title->setFontColour(WZCOL_TEXT_BRIGHT);
+//		label->setString(WzString::fromUtf8(request->notification.contentTitle));
+		int heightOfTitleLabel = label_title->setFormattedString(WzString::fromUtf8(request->notification.contentTitle), maxTextWidth, font_regular_bold, WZ_NOTIFICATION_CONTENTS_LINE_SPACING);
+		label_title->setGeometry(label_title->x(), label_title->y(), maxTextWidth, heightOfTitleLabel);
+		label_title->setTextAlignment(WLAB_ALIGNTOPLEFT);
+//		label_title->setFont(font_regular_bold, WZCOL_TEXT_BRIGHT);
+		label_title->setCustomHitTest([](WIDGET *psWidget, int x, int y) -> bool { return false; });
 
 		// Add contents
 		W_LABEL *label_contents = new W_LABEL(currentInGameNotification);
-		label_contents->setGeometry(15, 15 + 20, 12, 12);
-//		label->setFontColour(WZCOL_TEXT_BRIGHT);
-		label_contents->setString(WzString::fromUtf8(request->notification.contentText));
+		debug(LOG_3D, "label_title.height=%d", label_title->height());
+		label_contents->setGeometry(WZ_NOTIFICATION_PADDING, WZ_NOTIFICATION_PADDING + label_title->height() + WZ_NOTIFICATION_CONTENTS_TOP_PADDING, maxTextWidth, 12);
+		label_contents->setFontColour(WZCOL_TEXT_BRIGHT);
+//		label_contents->setString(WzString::fromUtf8(request->notification.contentText));
+		int heightOfContentsLabel = label_contents->setFormattedString(WzString::fromUtf8(request->notification.contentText), maxTextWidth, font_regular, WZ_NOTIFICATION_CONTENTS_LINE_SPACING);
+		label_contents->setGeometry(label_contents->x(), label_contents->y(), maxTextWidth, heightOfContentsLabel);
 		label_contents->setTextAlignment(WLAB_ALIGNTOPLEFT);
-		label_contents->setFont(font_regular, WZCOL_TEXT_BRIGHT);
+//		label_contents->setFont(font_regular, WZCOL_TEXT_BRIGHT);
+		// set a custom high-testing function that ignores all mouse input / clicks
+		label_contents->setCustomHitTest([](WIDGET *psWidget, int x, int y) -> bool { return false; });
 
 		// TODO: Add action labels
 		std::string actionLabel1 = "Dismiss";
@@ -456,6 +489,9 @@ W_NOTIFICATION* getOrCreateInGameNotificationForm(WZ_Queued_Notification* reques
 
 		W_BUTINIT sButInit;
 		W_BUTTON *psButton1 = nullptr;
+		W_BUTTON *psButton2 = nullptr;
+
+		// TODO: Properly position the buttons below the text contents area
 
 		if (!actionLabel1.empty())
 		{
@@ -490,9 +526,20 @@ W_NOTIFICATION* getOrCreateInGameNotificationForm(WZ_Queued_Notification* reques
 			sButInit.width = iV_GetTextWidth(actionLabel2.c_str(), font_regular_bold) + 15;
 			sButInit.x = (short)(psButton1->x() - 15 - sButInit.width);
 			sButInit.pText = actionLabel2.c_str();
-			W_BUTTON *psButton2 = new W_BUTTON(&sButInit);
+			psButton2 = new W_BUTTON(&sButInit);
 			currentInGameNotification->attach(psButton2);
 		}
+
+		// calculate the required height for the notification
+		int bottom_labelContents = label_contents->y() + label_contents->height();
+		calculatedHeight = bottom_labelContents + WZ_NOTIFICATION_PADDING;
+		if (psButton1 || psButton2)
+		{
+			int maxButtonBottom = std::max<int>((psButton1->y() + psButton1->height()), (psButton2) ? (psButton2->y() + psButton2->height()) : 0);
+			calculatedHeight = std::max<int>(calculatedHeight, maxButtonBottom + WZ_NOTIFICATION_PADDING);
+		}
+		// TODO: Also factor in the image, if one is present
+		currentInGameNotification->setGeometry(currentInGameNotification->x(), currentInGameNotification->y(), currentInGameNotification->width(), calculatedHeight);
 	}
 	return currentInGameNotification;
 }
@@ -537,14 +584,15 @@ bool displayNotificationInGame(WZ_Queued_Notification* request)
 //				y = easeChange(float(realTime) / float(endTime), startingOffscreenY, WZ_NOTIFICATION_TOP_PADDING, float(1.0));
 //				y = (-psNotificationWidget->height()) + (BezierBlend((float(realTime) - float(startTime)) / float(WZ_NOTIFICATION_OPEN_DURATION)) * (WZ_NOTIFICATION_TOP_PADDING + psNotificationWidget->height()));
 				y = (-psNotificationWidget->height()) + (QuinticEaseOut((float(realTime) - float(startTime)) / float(WZ_NOTIFICATION_OPEN_DURATION)) * (endingYPosition + psNotificationWidget->height()));
-				if (y + psNotificationWidget->getDragOffset().y >= endingYPosition)
+				if (!(y + psNotificationWidget->getDragOffset().y >= endingYPosition))
+				{
+					break;
+				}
+				else
 				{
 					// factoring in the drag, the notification is already at fully open (or past it)
-					// so immediately transition to "shown" state
-					request->status.state = WZ_Notification_Status::NotificationState::shown;
-					request->status.stateStartTime = realTime;
+					// so dropw through to immediately transition to "shown" state
 				}
-				break;
 			}
 			request->status.state = WZ_Notification_Status::NotificationState::shown;
 			request->status.stateStartTime = realTime;
@@ -594,7 +642,15 @@ bool displayNotificationInGame(WZ_Queued_Notification* request)
 					percentComplete = CubicEaseIn(percentComplete);
 				}
 				y = endingYPosition - (percentComplete/*CubicEaseIn((float(realTime) - float(startTime)) / float(WZ_NOTIFICATION_OPEN_DURATION))*/ * (endingYPosition + psNotificationWidget->height()));
-				break;
+				if ((y + psNotificationWidget->getDragOffset().y) > -psNotificationWidget->height())
+				{
+					break;
+				}
+				else
+				{
+					// closed early (because of drag offset)
+					// drop through and signal "closed" state
+				}
 			}
 			request->status.state = WZ_Notification_Status::NotificationState::closed;
 			request->status.stateStartTime = realTime;
@@ -621,6 +677,13 @@ bool displayNotificationInGame(WZ_Queued_Notification* request)
 
 	// Display the widgets.
 	psNotificationWidget->displayRecursive(0, 0);
+
+#if 0
+	debugBoundingBoxesOnly = true;
+	pie_SetRendMode(REND_ALPHA);
+	psNotificationWidget->displayRecursive(0, 0);
+	debugBoundingBoxesOnly = false;
+#endif
 
 	return false;
 }
