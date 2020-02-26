@@ -491,7 +491,8 @@ W_NOTIFICATION* getOrCreateInGameNotificationForm(WZ_Queued_Notification* reques
 		W_BUTTON *psButton1 = nullptr;
 		W_BUTTON *psButton2 = nullptr;
 
-		// TODO: Properly position the buttons below the text contents area
+		// Position the buttons below the text contents area
+		int buttonsTop = label_contents->y() + label_contents->height() + WZ_NOTIFICATION_PADDING;
 
 		if (!actionLabel1.empty())
 		{
@@ -500,7 +501,7 @@ W_NOTIFICATION* getOrCreateInGameNotificationForm(WZ_Queued_Notification* reques
 			sButInit.width = iV_GetTextWidth(actionLabel1.c_str(), font_regular_bold) + 15;
 			sButInit.height = 20;
 			sButInit.x = (short)(sFormInit.width - 15 - sButInit.width);
-			sButInit.y = (short)(sFormInit.height - 15 - sButInit.height);
+			sButInit.y = buttonsTop;
 			sButInit.style |= WBUT_TXTCENTRE;
 
 			sButInit.UserData = 0; // store disable state
