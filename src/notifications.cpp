@@ -32,6 +32,8 @@
 #include "lib/ivis_opengl/pieblitfunc.h"
 #include "lib/ivis_opengl/screen.h"
 #include "lib/ivis_opengl/pietypes.h"
+#include "init.h"
+#include "frend.h"
 
 // New in-game notification system
 
@@ -115,15 +117,11 @@ class W_NOTIFICATION : public W_FORM
 {
 public:
 	W_NOTIFICATION(W_NOTIFYINIT const *init);
-	// TODO: Should be able to handle drag and move notification up and down?
 	void run(W_CONTEXT *psContext) override;
 	void clicked(W_CONTEXT *psContext, WIDGET_KEY key) override;
 	void released(W_CONTEXT *psContext, WIDGET_KEY key) override;
-//	void highlight(W_CONTEXT *psContext) override;
-//	void highlightLost() override;
-//	void display(int xOffset, int yOffset) override;
 public:
-	bool globalHitTest(int x, int y) { return hitTest(x, y); }
+//	bool globalHitTest(int x, int y) { return hitTest(x, y); }
 	Vector2i getDragOffset() const { return dragOffset; }
 	bool isActivelyBeingDragged() const { return isInDragMode; }
 	uint32_t getLastDragStartTime() const { return dragStartedTime; }
@@ -152,82 +150,198 @@ W_NOTIFICATION::W_NOTIFICATION(W_NOTIFYINIT const *init)
 
 struct WzCheckboxButton : public W_BUTTON
 {
-	WzCheckboxButton(WIDGET *parent) : W_BUTTON(parent) {}
+public:
+	WzCheckboxButton(WIDGET *parent) : W_BUTTON(parent)
+	{
+		addOnClickHandler([](W_BUTTON& button) {
+			WzCheckboxButton& self = static_cast<WzCheckboxButton&>(button);
+			self.isChecked = !self.isChecked;
+		});
+	}
 
 	void display(int xOffset, int yOffset);
 
-private:
 	Image imNormal;
 	Image imDown;
 	unsigned doHighlight;
+
+	Vector2i calculateDesiredDimensions();
+private:
+	int checkboxSize()
+	{
+		wzText.setText(pText.toUtf8(), FontID);
+		return wzText.lineSize() - 2; //std::min({width(), height(), wzText.lineSize()});
+	}
+private:
+	WzText wzText;
+	bool isChecked = false;
 };
-//
-//Image mpwidgetGetFrontHighlightImage(Image image)
+
+Image mpwidgetGetFrontHighlightImage_2(Image image) //TODO: Move the original somewhere accessible?
+{
+	if (image.isNull())
+	{
+		return Image();
+	}
+	switch (image.width())
+	{
+	case 30: return Image(FrontImages, IMAGE_HI34);
+	case 60: return Image(FrontImages, IMAGE_HI64);
+	case 19: return Image(FrontImages, IMAGE_HI23);
+	case 27: return Image(FrontImages, IMAGE_HI31);
+	case 35: return Image(FrontImages, IMAGE_HI39);
+	case 37: return Image(FrontImages, IMAGE_HI41);
+	case 56: return Image(FrontImages, IMAGE_HI56);
+	}
+	return Image();
+}
+
+//void WzCheckboxButton::display(int xOffset, int yOffset)
 //{
-//	if (image.isNull())
+//	int x0 = xOffset + x();
+//	int y0 = yOffset + y();
+//	Image hiToUse(nullptr, 0);
+//
+//	// evaluate auto-frame
+//	bool highlight = (getState() & WBUT_HIGHLIGHT) != 0;
+//
+//	// evaluate auto-frame
+//	if (doHighlight == 1 && highlight)
 //	{
-//		return Image();
+//		hiToUse = mpwidgetGetFrontHighlightImage_2(imNormal);
 //	}
-//	switch (image.width())
+//
+//	bool down = (getState() & (WBUT_DOWN | WBUT_LOCK | WBUT_CLICKLOCK)) != 0;
+//	bool grey = (getState() & WBUT_DISABLE) != 0;
+//
+//	Image toDraw[3];
+//	int numToDraw = 0;
+//
+//	// now display
+//	toDraw[numToDraw++] = imNormal;
+//
+//	// hilights etc..
+//	if (down)
 //	{
-//	case 30: return Image(FrontImages, IMAGE_HI34);
-//	case 60: return Image(FrontImages, IMAGE_HI64);
-//	case 19: return Image(FrontImages, IMAGE_HI23);
-//	case 27: return Image(FrontImages, IMAGE_HI31);
-//	case 35: return Image(FrontImages, IMAGE_HI39);
-//	case 37: return Image(FrontImages, IMAGE_HI41);
-//	case 56: return Image(FrontImages, IMAGE_HI56);
+//		toDraw[numToDraw++] = imDown;
 //	}
-//	return Image();
+//	if (highlight && !grey && hiToUse.images != nullptr)
+//	{
+//		toDraw[numToDraw++] = hiToUse;
+//	}
+//
+//	for (int n = 0; n < numToDraw; ++n)
+//	{
+//		Image tcImage(toDraw[n].images, toDraw[n].id + 1);
+//		iV_DrawImage(toDraw[n], x0, y0);
+//	}
+//
+//	if (grey)
+//	{
+//		// disabled, render something over it!
+//		iV_TransBoxFill(x0, y0, x0 + width(), y0 + height());
+//	}
+//
+//	// TODO: Display text to the right of the checkbox image
 //}
+
+Vector2i WzCheckboxButton::calculateDesiredDimensions()
+{
+	int cbSize = checkboxSize();
+	Vector2i checkboxPos{x(), y()};
+	int textLeftPos = checkboxPos.x + cbSize + 7;
+
+	// TODO: Incorporate padding?
+	return Vector2i(textLeftPos + wzText.width(), std::max(wzText.lineSize(), cbSize));
+}
 
 void WzCheckboxButton::display(int xOffset, int yOffset)
 {
+	wzText.setText(pText.toUtf8(), FontID);
+
 	int x0 = xOffset + x();
 	int y0 = yOffset + y();
 	Image hiToUse(nullptr, 0);
 
-	// evaluate auto-frame
-	bool highlight = (getState() & WBUT_HIGHLIGHT) != 0;
-
-	// evaluate auto-frame
-	if (doHighlight == 1 && highlight)
-	{
-//		hiToUse = mpwidgetGetFrontHighlightImage(imNormal);
-	}
+//	// evaluate auto-frame
+//	bool highlight = (getState() & WBUT_HIGHLIGHT) != 0;
+//
+//	// evaluate auto-frame
+//	if (doHighlight == 1 && highlight)
+//	{
+//		hiToUse = mpwidgetGetFrontHighlightImage_2(imNormal);
+//	}
 
 	bool down = (getState() & (WBUT_DOWN | WBUT_LOCK | WBUT_CLICKLOCK)) != 0;
-	bool grey = (getState() & WBUT_DISABLE) != 0;
+//	bool grey = (getState() & WBUT_DISABLE) != 0;
 
-	Image toDraw[3];
-	int numToDraw = 0;
+//	Image toDraw[3];
+//	int numToDraw = 0;
+//
+//	// now display
+//	toDraw[numToDraw++] = imNormal;
+//
+//	// hilights etc..
+//	if (down)
+//	{
+//		toDraw[numToDraw++] = imDown;
+//	}
+//	if (highlight && !grey && hiToUse.images != nullptr)
+//	{
+//		toDraw[numToDraw++] = hiToUse;
+//	}
+//
+//	for (int n = 0; n < numToDraw; ++n)
+//	{
+//		Image tcImage(toDraw[n].images, toDraw[n].id + 1);
+//		iV_DrawImage(toDraw[n], x0, y0);
+//	}
 
-	// now display
-	toDraw[numToDraw++] = imNormal;
+	// calculate checkbox dimensions
+	int cbSize = checkboxSize(); //std::min({width(), height(), wzText.lineSize()});
+	Vector2i checkboxOffset{0, (height() - cbSize) / 2}; // left-align, center vertically
+	Vector2i checkboxPos{x0 + checkboxOffset.x, y0 + checkboxOffset.y};
 
-	// hilights etc..
-	if (down)
+	// draw checkbox border
+	PIELIGHT notifyBoxAddColor = WZCOL_NOTIFICATION_BOX;
+	notifyBoxAddColor.byte.a = uint8_t(float(notifyBoxAddColor.byte.a) * 0.7f);
+	pie_UniTransBoxFill(checkboxPos.x, checkboxPos.y, checkboxPos.x + cbSize, checkboxPos.y + cbSize, notifyBoxAddColor);
+	iV_Box2(checkboxPos.x, checkboxPos.y, checkboxPos.x + cbSize, checkboxPos.y + cbSize, WZCOL_TEXT_MEDIUM, WZCOL_TEXT_MEDIUM);
+
+	if (down || isChecked)
 	{
-		toDraw[numToDraw++] = imDown;
-	}
-	if (highlight && !grey && hiToUse.images != nullptr)
-	{
-		toDraw[numToDraw++] = hiToUse;
-	}
-
-	for (int n = 0; n < numToDraw; ++n)
-	{
-		Image tcImage(toDraw[n].images, toDraw[n].id + 1);
-		iV_DrawImage(toDraw[n], x0, y0);
+		// draw checkbox "x" mark
+		#define CB_INNER_INSET 2
+		PIELIGHT checkBoxInsideColor = WZCOL_TEXT_MEDIUM;
+		checkBoxInsideColor.byte.a = 200;
+		pie_UniTransBoxFill(checkboxPos.x + CB_INNER_INSET, checkboxPos.y + CB_INNER_INSET, checkboxPos.x + cbSize - (CB_INNER_INSET), checkboxPos.y + cbSize - (CB_INNER_INSET), checkBoxInsideColor);
 	}
 
-	if (grey)
+//	if (grey)
+	if (false)
 	{
 		// disabled, render something over it!
 		iV_TransBoxFill(x0, y0, x0 + width(), y0 + height());
 	}
 
 	// TODO: Display text to the right of the checkbox image
+	int textLeftPos = checkboxPos.x + cbSize + 7;
+
+
+	int fx = textLeftPos;
+	int fw = wzText.width();
+	int fy = yOffset + y() + (height() - wzText.lineSize()) / 2 - wzText.aboveBase();
+
+	if (style & WBUT_TXTCENTRE)							//check for centering, calculate offset.
+	{
+		fx = /*xOffset + x()*/ textLeftPos + ((width() - fw) / 2);
+	}
+	else
+	{
+		fx = /*xOffset + x()*/ textLeftPos;
+	}
+
+	wzText.render(fx, fy, WZCOL_TEXT_MEDIUM);
 }
 
 static W_SCREEN* psNotificationOverlayScreen = nullptr;
@@ -260,6 +374,9 @@ bool notificationsInitialize()
 	notification.contentTitle = "Update Available";
 	notification.contentText = "A new version of Warzone 2100 (3.3.1) is available!";
 	notification.actionButtonTitle = "Get Update Now";
+	notification.onDoNotShowAgain = [](WZ_Notification& notification) {
+		debug(LOG_ERROR, "Do not show again");
+	};
 	addNotification(notification, WZ_Notification_Trigger::Immediate());
 
 	// TODO: Move this to the notifications initialization bit
@@ -604,6 +721,7 @@ void W_NOTIFICATION::released(W_CONTEXT *psContext, WIDGET_KEY key)
 #define WZ_NOTIFICATION_IMAGE_SIZE	32
 #define WZ_NOTIFICATION_CONTENTS_LINE_SPACING	0
 #define WZ_NOTIFICATION_CONTENTS_TOP_PADDING	5
+#define WZ_NOTIFICATION_BUTTON_HEIGHT 20
 
 static void displayNotificationWidget(WIDGET *psWidget, UDWORD xOffset, UDWORD yOffset)
 {
@@ -624,11 +742,16 @@ static void displayNotificationWidget(WIDGET *psWidget, UDWORD xOffset, UDWORD y
 	{
 		y0 += -psWidget->y();
 	}
+
+	pie_UniTransBoxFill(x0, y0, x1, y1, pal_RGBA(255, 255, 255, 50));
+	pie_UniTransBoxFill(x0, y0, x1, y1, pal_RGBA(0, 0, 0, 50));
+
 //	debug(LOG_3D, "Draw notification widget: (%d x %d), (width: %d, height: %d) => (%dx%d),(%dx%d)", psWidget->x(), psWidget->y(), psWidget->width(), psWidget->height(), x0, y0, x1, y1);
 //	int shadowPadding = 2;
 //	pie_UniTransBoxFill(x0 + shadowPadding, y0 + shadowPadding, x1 + shadowPadding, y1 + shadowPadding, pal_RGBA(0, 0, 0, 70));
 	pie_UniTransBoxFill(x0, y0, x1, y1, WZCOL_NOTIFICATION_BOX);
 	iV_Box2(x0, y0, x1, y1, WZCOL_FORM_DARK, WZCOL_FORM_DARK);
+	iV_Box2(x0 - 1, y0 - 1, x1 + 1, y1 + 1, pal_RGBA(255, 255, 255, 50), pal_RGBA(255, 255, 255, 50));
 
 //	RenderWindowFrame(FRAME_NORMAL, psWidget->x() + xOffset, psWidget->y() + yOffset, psWidget->width(), psWidget->height());
 
@@ -794,7 +917,7 @@ W_NOTIFICATION* getOrCreateInGameNotificationForm(WZ_Queued_Notification* reques
 		label_contents->setCustomHitTest([](WIDGET *psWidget, int x, int y) -> bool { return false; });
 
 		// TODO: Add action labels
-		std::string actionLabel1 = "Dismiss";
+		std::string actionLabel1 = _("Dismiss");
 		std::string actionLabel2 = "";
 		if (request->notification.duration > 0)
 		{
@@ -817,8 +940,8 @@ W_NOTIFICATION* getOrCreateInGameNotificationForm(WZ_Queued_Notification* reques
 			sButInit.formID = 0;
 			sButInit.id = 2;
 			sButInit.width = iV_GetTextWidth(actionLabel1.c_str(), font_regular_bold) + 15;
-			sButInit.height = 20;
-			sButInit.x = (short)(sFormInit.width - 15 - sButInit.width);
+			sButInit.height = WZ_NOTIFICATION_BUTTON_HEIGHT;
+			sButInit.x = (short)(sFormInit.width - WZ_NOTIFICATION_PADDING - sButInit.width);
 			sButInit.y = buttonsTop;
 			sButInit.style |= WBUT_TXTCENTRE;
 
@@ -853,6 +976,15 @@ W_NOTIFICATION* getOrCreateInGameNotificationForm(WZ_Queued_Notification* reques
 		if (request->notification.onDoNotShowAgain)
 		{
 			// TODO: display "do not show again" button with checkbox image
+			WzCheckboxButton *pDoNotShowAgainButton = new WzCheckboxButton(psNewNotificationForm);
+//			pDoNotShowAgainButton->imNormal = Image(FrontImages, IMAGE_CHECK_OFF);
+//			pDoNotShowAgainButton->imDown = Image(FrontImages, IMAGE_CHECK_ON);
+//			int maxImageWidth = std::max(pDoNotShowAgainButton->imNormal.width(), pDoNotShowAgainButton->imDown.width());
+//			int maxImageHeight = std::max(pDoNotShowAgainButton->imNormal.height(), pDoNotShowAgainButton->imDown.height());
+			pDoNotShowAgainButton->pText = _("Do not show again");
+			pDoNotShowAgainButton->FontID = font_small;
+			Vector2i minimumDimensions = pDoNotShowAgainButton->calculateDesiredDimensions();
+			pDoNotShowAgainButton->setGeometry(WZ_NOTIFICATION_PADDING, buttonsTop, minimumDimensions.x, std::max(minimumDimensions.y, WZ_NOTIFICATION_BUTTON_HEIGHT));
 		}
 
 		// calculate the required height for the notification
@@ -879,6 +1011,7 @@ void displayNotificationInGame(WZ_Queued_Notification* request)
 	// NOTE: Can ignore the result of the above, because it automatically attaches it to the root notification overlay screen
 }
 
+// run in-game notifications queue
 void runNotifications()
 {
 	// at the moment, we only support displaying a single notification at a time
@@ -910,22 +1043,6 @@ void runNotifications()
 //		currentNotification.reset();
 //		lastNotificationClosed = realTime;
 //	}
-}
-
-bool notifications_processClickRecursive(int32_t mx, int32_t my, WIDGET_KEY key, bool wasPressed)
-{
-	W_CONTEXT sContext;
-	sContext.xOffset = 0;
-	sContext.yOffset = 0;
-	sContext.mx = mx;
-	sContext.my = my;
-
-	if (currentInGameNotification && currentInGameNotification->globalHitTest(sContext.mx, sContext.my))
-	{
-		// Forward first to in-game notifications, which are above everything else
-		return currentInGameNotification->processClickRecursive(&sContext, key, wasPressed);
-	}
-	return false;
 }
 
 void finishedProcessingNotificationRequest(WZ_Queued_Notification* request)
