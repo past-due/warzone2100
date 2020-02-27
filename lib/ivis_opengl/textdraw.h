@@ -22,6 +22,7 @@
 #define _INCLUDED_TEXTDRAW_
 
 #include <string>
+#include <vector>
 
 #include "lib/framework/vector.h"
 #include "gfx_api.h"
