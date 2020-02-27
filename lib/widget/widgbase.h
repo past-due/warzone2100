@@ -241,6 +241,8 @@ private:
 
 public:
 	bool dirty; ///< Whether widget is changed and needs to be redrawn
+public:
+	friend bool isMouseOverScreenOverlayChild(int mx, int my);
 };
 
 
