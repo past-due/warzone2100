@@ -66,15 +66,11 @@ public:
 class WZ_Queued_Notification
 {
 public:
-	typedef std::function<void (WZ_Queued_Notification *)> ProcessedRequestCallback;
-public:
 	WZ_Queued_Notification(const WZ_Notification& notification, const WZ_Notification_Status& status, const WZ_Notification_Trigger& trigger)
 	: notification(notification)
 	, status(status)
 	, trigger(trigger)
 	{ }
-	void setProcessedNotificationRequestCallback(const ProcessedRequestCallback& func) { onProcessedNotificationRequestFunc = func; }
-	void processedRequest() { if(onProcessedNotificationRequestFunc) { onProcessedNotificationRequestFunc(this); } }
 
 public:
 	void setState(WZ_Notification_Status::NotificationState newState);
@@ -84,7 +80,6 @@ public:
 	WZ_Notification_Status status;
 	WZ_Notification_Trigger trigger;
 private:
-	ProcessedRequestCallback onProcessedNotificationRequestFunc;
 	bool bWasFullyShown = false;
 };
 
@@ -834,10 +829,8 @@ bool W_NOTIFICATION::calculateNotificationWidgetPos()//W_NOTIFICATION* psNotific
 	{
 		case WZ_Notification_Status::NotificationState::submitted:
 			// first chance to display
-//			request->status.state = WZ_Notification_Status::NotificationState::opening;
-//			request->status.stateStartTime = realTime;
 			request->setState(WZ_Notification_Status::NotificationState::opening);
-			// fall-through
+			// fallthrough
 		case WZ_Notification_Status::NotificationState::opening:
 		{
 			// calculate how far we are on opening based on the stateStartTime
@@ -863,14 +856,11 @@ bool W_NOTIFICATION::calculateNotificationWidgetPos()//W_NOTIFICATION* psNotific
 				else
 				{
 					// factoring in the drag, the notification is already at fully open (or past it)
-					// so dropw through to immediately transition to "shown" state
+					// so drop through to immediately transition to "shown" state
 				}
 			}
-//			request->status.state = WZ_Notification_Status::NotificationState::shown;
-//			request->status.stateStartTime = realTime;
 			request->setState(WZ_Notification_Status::NotificationState::shown);
-			// fall-through
-		}
+		} // fallthrough
 		case WZ_Notification_Status::NotificationState::shown:
 		{
 //			debug(LOG_ERROR, "SHOWN!");
@@ -890,11 +880,8 @@ bool W_NOTIFICATION::calculateNotificationWidgetPos()//W_NOTIFICATION* psNotific
 				y = endingYPosition;
 				break;
 			}
-//			request->status.state = WZ_Notification_Status::NotificationState::closing;
-//			request->status.stateStartTime = realTime;
 			request->setState(WZ_Notification_Status::NotificationState::closing);
-			// fall-through
-		}
+		} // fallthrough
 		case WZ_Notification_Status::NotificationState::closing:
 		{
 			// calculate how far we are on closing based on the stateStartTime
@@ -927,11 +914,9 @@ bool W_NOTIFICATION::calculateNotificationWidgetPos()//W_NOTIFICATION* psNotific
 					// drop through and signal "closed" state
 				}
 			}
-//			request->status.state = WZ_Notification_Status::NotificationState::closed;
-//			request->status.stateStartTime = realTime;
 			request->setState(WZ_Notification_Status::NotificationState::closed);
-			// fall-through
-		}
+
+		} // fallthrough
 		case WZ_Notification_Status::NotificationState::closed:
 			// widget is now off-screen - get checkbox state (if present)
 			bool bDoNotShowAgain = false;
@@ -950,24 +935,6 @@ bool W_NOTIFICATION::calculateNotificationWidgetPos()//W_NOTIFICATION* psNotific
 	y += psNotificationWidget->getDragOffset().y;
 
 	psNotificationWidget->move(x, y);
-
-//	/* Process any user callback functions */
-//	W_CONTEXT sContext;
-//	sContext.xOffset = 0;
-//	sContext.yOffset = 0;
-//	sContext.mx = mouseX();
-//	sContext.my = mouseY();
-//	psNotificationWidget->processCallbacksRecursive(&sContext);
-//
-//	// Display the widgets.
-//	psNotificationWidget->displayRecursive(0, 0);
-//
-//#if 0
-//	debugBoundingBoxesOnly = true;
-//	pie_SetRendMode(REND_ALPHA);
-//	psNotificationWidget->displayRecursive(0, 0);
-//	debugBoundingBoxesOnly = false;
-//#endif
 
 	return false;
 }
@@ -1534,9 +1501,6 @@ void finishedProcessingNotificationRequest(WZ_Queued_Notification* request, bool
 void addNotification(const WZ_Notification& notification, const WZ_Notification_Trigger& trigger)
 {
 	notificationQueue.push_back(std::unique_ptr<WZ_Queued_Notification>(new WZ_Queued_Notification(notification, WZ_Notification_Status(realTime), trigger)));
-//	notificationQueue.back().get()->setProcessedNotificationRequestCallback([](WZ_Queued_Notification *request) {
-//		finishedProcessingNotificationRequest(request);
-//	});
 }
 
 // New in-game notification system
