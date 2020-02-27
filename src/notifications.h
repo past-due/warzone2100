@@ -26,6 +26,7 @@
 
 #include <list>
 #include <memory>
+#include <functional>
 
 struct iV_Image;
 
