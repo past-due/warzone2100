@@ -193,7 +193,7 @@ jobs:
           Write-Host "Running Qt installer... (this may take a little while)"
           Write-Host "env:QT_DL_PATH=`"${env:QT_DL_PATH}`""
           Write-Host "------------------------------------------------------"
-          $proc = Start-Process "${env:QT_DL_PATH}" -ArgumentList "--verbose","--script",".ci/install_scripts/qt-install.qs","QTCI_OUTPUT=`"${QT_INSTALL_ROOT}`"","QTCI_PACKAGES=${env:QTCI_PACKAGES}" -PassThru -NoNewWindow
+          $proc = Start-Process "${env:QT_DL_PATH}" -ArgumentList "--verbose","--script","${env:WZ_REPO_PATH}\.ci\install_scripts\qt-install.qs","QTCI_OUTPUT=`"${QT_INSTALL_ROOT}`"","QTCI_PACKAGES=${env:QTCI_PACKAGES}" -PassThru -NoNewWindow
           # Wait up to 30 minutes (specified in seconds) for normal termination
           $timeouted = $null
           $proc | Wait-Process -Timeout 1800 -ErrorAction SilentlyContinue -ErrorVariable timeouted
