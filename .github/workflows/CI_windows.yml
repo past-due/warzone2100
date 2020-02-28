@@ -69,14 +69,38 @@ jobs:
         # ------------------------------
         # MSVC version / generator info
         
+        $WZ_VISUAL_STUDIO_INSTALL_PATH = ""
         if ($env:WZ_MSVC_VER -eq "msvc_2019") {
           $WZ_VC_GENERATOR = "Visual Studio 16 2019"
           #$env:WZ_VC_TOOLCHAIN = "v142"
+          # Get the installation path for a specific version of MSVC (2019)
+          $WZ_VISUAL_STUDIO_INSTALL_PATH = & vswhere.exe -latest -property installationPath -version [16.0,17.0)
+          if ($LastExitCode -ne 0)
+          {
+            echo "::warning ::Could not find MSVC 2019"
+            $WZ_VISUAL_STUDIO_INSTALL_PATH = ""
+          }
         }
-        elseif ($env:WZ_TARGET_ARCH -eq "x64") {
+        elseif ($env:WZ_MSVC_VER -eq "msvc_2017") {
           $WZ_VC_GENERATOR = "Visual Studio 15 2017"
           #$env:WZ_VC_TOOLCHAIN = "v141"
+          # Get the installation path for a specific version of MSVC (2017)
+          $WZ_VISUAL_STUDIO_INSTALL_PATH = & vswhere.exe -latest -property installationPath -version [15.0,16.0)
+          if ($LastExitCode -ne 0)
+          {
+            echo "::warning ::Could not find MSVC 2017"
+            $WZ_VISUAL_STUDIO_INSTALL_PATH = ""
+          }
         }
+        
+        if ([string]::IsNullOrWhitespace(${WZ_VISUAL_STUDIO_INSTALL_PATH}))
+        {
+          $WZ_VISUAL_STUDIO_INSTALL_PATH = & vswhere.exe -latest -property installationPath
+          echo "::warning ::Default to 'latest' MSVC: `"${WZ_VISUAL_STUDIO_INSTALL_PATH}`""
+        }
+        
+        $VCPKG_VISUAL_STUDIO_PATH = "${WZ_VISUAL_STUDIO_INSTALL_PATH}"
+        #$CMAKE_GENERATOR_INSTANCE = "${WZ_VISUAL_STUDIO_INSTALL_PATH}"
       
         # -------------
         # Distributor
@@ -99,6 +123,8 @@ jobs:
         echo "::set-env name=QT_DL_SHA512::${QT_DL_SHA512}"
         echo "::set-env name=WZ_VC_GENERATOR::${WZ_VC_GENERATOR}"
         #echo "::set-env name=WZ_VC_TOOLCHAIN::${WZ_VC_TOOLCHAIN}"
+        echo "::set-env name=WZ_VISUAL_STUDIO_INSTALL_PATH::${WZ_VISUAL_STUDIO_INSTALL_PATH}"
+        echo "::set-env name=VCPKG_VISUAL_STUDIO_PATH::${VCPKG_VISUAL_STUDIO_PATH}"
         echo "::set-env name=WZ_DISTRIBUTOR::${WZ_DISTRIBUTOR}"
     - name: Download Qt
       run: |
@@ -115,7 +141,7 @@ jobs:
         Write-Host "Redirected Url: `"$url`""
         $req = Req -Params @{ 'Method'='GET';'Uri'="$url";'OutFile'="$QT_DL_PATH" } -Retries 3 -SecondsDelay 10
         
-        if ([string]::IsNullOrWhitespace(${env:QT_DL_SHA512}))
+        if (![string]::IsNullOrWhitespace(${env:QT_DL_SHA512}))
         {
           $qt_exe_hash = Get-FileHash -Path "$QT_DL_PATH" -Algorithm SHA512
           If ($qt_exe_hash.Hash -eq ${env:QT_DL_SHA512}) {
@@ -197,17 +223,22 @@ jobs:
         # Add the QT5 \bin dir to PATH (for future steps)
         Write-Host "Adding Qt bin folder to PATH: `"${env:QT_INSTALL_ROOT}\${env:QT5DIR}\bin`""
         echo "::add-path::${env:QT_INSTALL_ROOT}\${env:QT5DIR}\bin"
-    - name: Run dependencies script
+    - name: Build vcpkg + dependencies
       run: |
+        Write-Host "env:VCPKG_DEFAULT_TRIPLET=`"${env:VCPKG_DEFAULT_TRIPLET}`""
+        Write-Host "env:VCPKG_VISUAL_STUDIO_PATH=`"${env:VCPKG_VISUAL_STUDIO_PATH}`""
+        
         .\get-dependencies_win.ps1 -VCPKG_BUILD_TYPE "release"
         
         # Remove the vcpkg\buildtrees folder. (Once all dependencies are installed, it isn't needed, and it takes up a lot of space in the cache.)
         if (Test-Path .\vcpkg\buildtrees) { Remove-Item .\vcpkg\buildtrees -Force -Recurse -ErrorAction SilentlyContinue; }
         
         # Clean the build remnants of vcpkg itself. (Since it's rebuilt fresh - even from a cached vcpkg directory - these aren't needed.)
+        . ".ci\powershell\importVCvars.ps1"
+        Import-VCVarsEnv "${env:WZ_VISUAL_STUDIO_INSTALL_PATH}" "-arch=${{WZ_TARGET_ARCH}} -host_arch=x64"
         msbuild .\vcpkg\toolsrc\vcpkg.sln /t:Clean /p:Configuration=Release /p:Platform=x86
     - name: CMake Configure (portable build)
       run: |
         # Use CMake to configure with the appropriate Visual Studio (MSBUILD) generator, toolchain, and target platform (portable build)
-        cmake -H. -Bbuild  -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake" -DWZ_PORTABLE:BOOL=ON -DCPACK_PACKAGE_FILE_NAME:STRING="warzone2100_portable" -DWZ_DISTRIBUTOR:STRING="${env:WZ_DISTRIBUTOR}" -G "${env:WZ_VC_GENERATOR}" -A "${env:WZ_VC_TARGET_PLATFORMNAME}"
+        cmake -H. -Bbuild  -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake" -DWZ_PORTABLE:BOOL=ON -DCPACK_PACKAGE_FILE_NAME:STRING="warzone2100_portable" -DWZ_DISTRIBUTOR:STRING="${env:WZ_DISTRIBUTOR}" -DCMAKE_GENERATOR_INSTANCE="${env:WZ_VISUAL_STUDIO_INSTALL_PATH}" -G "${env:WZ_VC_GENERATOR}" -A "${env:WZ_VC_TARGET_PLATFORMNAME}"
 
