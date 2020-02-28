@@ -36,7 +36,7 @@ jobs:
             set-content env:\"$name" $value
           }
         }
-        $signtool_result = signtool.exe /help
+        $signtool_result = signtool.exe /help 2>&1
         Write-Host "Result: $signtool_result"
     - name: Install Qt
       run: |
