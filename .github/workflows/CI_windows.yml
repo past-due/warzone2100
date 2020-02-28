@@ -36,7 +36,8 @@ jobs:
             set-content env:\"$name" $value
           }
         }
-        & "signtool.exe" verify /pa /v "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"  | Tee-Object -Variable signtool_result
+        # & "signtool.exe" verify /pa /v "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" | Tee-Object -Variable signtool_result
+        $signtool_result = & "signtool.exe" verify /pa /v "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
         Write-Host "signtool_result: $signtool_result"
     - name: Install Qt
       run: |
