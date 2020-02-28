@@ -48,7 +48,7 @@ jobs:
         
         $QT_DL_URL = "https://download.qt.io/official_releases/online_installers/qt-unified-windows-x86-online.exe"
         $url = Get-RedirectedUrl "$QT_DL_URL"
-        Write-Host "Redirected Url: \"$url\""
+        Write-Host "Redirected Url: `"$url`""
         $req = Req -Params @{ 'Method'='GET';'Uri'="$url";'OutFile'='qt-unified-windows-x86-online.exe' } -Retries 3 -SecondsDelay 10
         
         $signature = Get-AuthenticodeSignature -LiteralPath "qt-unified-windows-x86-online.exe"
@@ -68,7 +68,7 @@ jobs:
         if ($signer_common_name -ne "The Qt Company Oy")
         {
           # Unexpected signing common name
-          throw "The file's signature has an unexpected common name: \"$signer_common_name\""
+          throw "The file's signature has an unexpected common name: `"$signer_common_name`""
         }
         Write-Host "SignerCertificate.Subject is as expected"
         
