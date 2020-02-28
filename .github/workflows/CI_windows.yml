@@ -55,7 +55,11 @@ jobs:
         
         #$QT_DL_URL = "https://download.qt.io/archive/qt/5.9/5.9.9/qt-opensource-windows-x86-5.9.9.exe"
         $QT_DL_URL = "https://download.qt.io/official_releases/online_installers/qt-unified-windows-x86-online.exe"
-        $QT_DL_PATH = "${env:RUNNER_WORKSPACE}\dl\qt-windows-installer.exe"
+        
+        $QT_DL_BASEDIR = "${env:RUNNER_WORKSPACE}\dl"
+        $QT_DL_PATH = "${QT_DL_BASEDIR}\qt-windows-installer.exe"
+        New-Item -ItemType Directory -Force -Path "$QT_DL_BASEDIR"
+        
         $url = Get-RedirectedUrl "$QT_DL_URL"
         Write-Host "Redirected Url: `"$url`""
         $req = Req -Params @{ 'Method'='GET';'Uri'="$url";'OutFile'="$QT_DL_PATH" } -Retries 3 -SecondsDelay 10
