@@ -60,7 +60,7 @@ jobs:
         
         ## For the offline installer (must correspond to the versioned QTCI_PACKAGES above)
         $QT_DL_URL = "https://download.qt.io/archive/qt/5.9/5.9.9/qt-opensource-windows-x86-5.9.9.exe"
-        $QT_DL_SHA512 = "92ce6080dc2aebfb0a63dba705b8d50a04cfafa1710acbb3b4fa413b388ff2cd"
+        $QT_DL_SHA512 = "F858F0892DF87CF7BF9CFC1EAE114CAC83C245EC363684D4ECE2337CC1A103EAD35BFCF9A3338DFD9C078C4D8D1B7A85FBE2924EB4E6754D10E660B22C635696"
         
         # ## For the online installer
         # $QT_DL_URL = "https://download.qt.io/official_releases/online_installers/qt-unified-windows-x86-online.exe"
@@ -147,7 +147,7 @@ jobs:
           If ($qt_exe_hash.Hash -eq ${env:QT_DL_SHA512}) {
             Write-Output "Verified downloaded Qt installer SHA512"
           } Else {
-            Write-Error "The downloaded Qt installer hash \n\t'$($qt_exe_hash.Hash)'\ndoes not match the expected hash: \n\t'${env:QT_DL_SHA512}'"
+            Write-Error "The downloaded Qt installer hash `n`t'$($qt_exe_hash.Hash)'`ndoes not match the expected hash: `n`t'${env:QT_DL_SHA512}'"
           }
         }
         
