@@ -27,6 +27,9 @@ jobs:
     # - name: Run vswhere.exe
     #   run: |
     #     call "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -requires Microsoft.Component.MSBuild -version [16.0,17.0) -latest
+    - name: Output Environment
+      run: |
+        gci env:* | sort-object name
     - name: Download & Install Qt
       env: # Or as an environment variable
         QT_CI_LOGIN: ${{ secrets.QT_CI_LOGIN }}
@@ -79,6 +82,7 @@ jobs:
         try {
           Write-Host "------------------------------------------------------"
           Write-Host "Running Qt installer... (this may take a little while)"
+          Write-Host "env:HOME=`"${env:HOME}`""
           Write-Host "------------------------------------------------------"
           $proc = Start-Process ".\qt-windows-installer.exe" -ArgumentList "--verbose","--script",".ci/install_scripts/qt-install.qs","QTCI_OUTPUT=`"${env:HOME}/Qt`"","QTCI_PACKAGES=qt.qt5.599.win32_msvc2015,qt.qt5.599.qtscript" -PassThru -NoNewWindow
           # Wait up to 30 minutes (specified in seconds) for normal termination
