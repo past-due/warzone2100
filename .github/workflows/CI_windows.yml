@@ -41,6 +41,7 @@ jobs:
         #$signtool_result = & "signtool.exe" verify /pa /v "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
         #Write-Host "signtool_result: $signtool_result"
         
+        # See: https://stackoverflow.com/a/49859001
         Start-Sleep -Milliseconds 1
         
         . ".ci\powershell\request.ps1"
@@ -56,13 +57,14 @@ jobs:
           # Failed to valid file signature
           throw "The file's signature is invalid"
         }
+        Write-Host "Valid Authenticode Signature..."
         $dnDict = ($signature.SignerCertificate.Subject -split ', ') |
                  foreach `
                      { $dnDict = @{} } `
                      { $item = $_.Split('='); $dnDict[$item[0]] = $item[1] } `
                      { $dnDict }
-        $signer_common_name = dnDict['CN'] #$signature.SignerCertificate.subject.split(',')[0].split('=')[1]
-        Write-Host "Leaf Name: $signer_common_name"
+        #$signer_common_name = dnDict['CN'] #$signature.SignerCertificate.subject.split(',')[0].split('=')[1]
+        Write-Host "Leaf Details: $($dnDict | Out-String)"
     - name: Install Qt
       run: |
         echo "Gotta install Qt..."
