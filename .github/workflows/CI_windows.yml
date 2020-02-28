@@ -36,7 +36,7 @@ jobs:
             set-content env:\"$name" $value
           }
         }
-        signtool.exe /help | Tee-Object -Variable signtool_result
+        & "signtool.exe" verify /pa /v "vswhere.exe"  | Tee-Object -Variable signtool_result
         Write-Host "signtool_result: $signtool_result"
     - name: Install Qt
       run: |
