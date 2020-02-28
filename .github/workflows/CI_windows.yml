@@ -41,6 +41,8 @@ jobs:
         #$signtool_result = & "signtool.exe" verify /pa /v "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
         #Write-Host "signtool_result: $signtool_result"
         
+        Start-Sleep -Milliseconds 1
+        
         . ".ci\powershell\request.ps1"
         
         $QT_DL_URL = "https://download.qt.io/official_releases/online_installers/qt-unified-windows-x86-online.exe"
