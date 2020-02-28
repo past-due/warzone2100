@@ -17,52 +17,113 @@ jobs:
     - uses: actions/checkout@v2
       with:
         fetch-depth: 0
-    # - name: Prepare Git Repo for autorevision
-    #   run: cmake -P .ci/githubactions/prepare_git_repo.cmake
-    # - name: Init Git Submodules
-    #   run: git submodule update --init --recursive
-    # - name: Install Prereqs
-    #   run: |
-    #     gem install asciidoctor -v 2.0.10 --no-document
-    # - name: Run vswhere.exe
-    #   run: |
-    #     call "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -requires Microsoft.Component.MSBuild -version [16.0,17.0) -latest
+    - name: Prepare Git Repo for autorevision
+      run: cmake -P .ci/githubactions/prepare_git_repo.cmake
+    - name: Init Git Submodules
+      run: git submodule update --init --recursive
     - name: Output Runner Environment Information
       run: |
         Write-Host "------------------------------------------------------"
         Write-Host "Environment Variables"
         Write-Host "------------------------------------------------------"
         & gci env:* | sort-object name
+    - name: Install Asciidoctor
+      run: |
+        gem install asciidoctor -v 2.0.10 --no-document
+    # - name: Run vswhere.exe
+    #   run: |
+    #     call "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -requires Microsoft.Component.MSBuild -version [16.0,17.0) -latest
+    - name: Generate Settings for Run [${{ matrix.compiler }}:${{ matrix.architecture }}]
+      run: |
+        # Basic variable setup
+        # --------------------
+      
+        $WZ_VC_TARGET_PLATFORMNAME = "$env:WZ_TARGET_ARCH"
+        $WZ_OUTPUT_PLATFORMNAME = "$env:WZ_TARGET_ARCH"
+      
+        if ($env:WZ_TARGET_ARCH -eq "x86") {
+          $VCPKG_DEFAULT_TRIPLET = "x86-windows"
+          $WZ_VC_TARGET_PLATFORMNAME = "Win32" # special case, map "x86" -> "Win32"
+          # Qt packages and install location
+          $QT5DIR = "5.9.9\msvc2015"
+          $QTCI_PACKAGES = "qt.qt5.599.win32_msvc2015,qt.qt5.599.qtscript"
+        }
+        elseif ($env:WZ_TARGET_ARCH -eq "x64") {
+          $VCPKG_DEFAULT_TRIPLET = "x64-windows"
+          # Qt packages and install location
+          $QT5DIR = "5.9.9\msvc2017_64"
+          $QTCI_PACKAGES = "qt.qt5.599.win64_msvc2017_64,qt.qt5.599.qtscript"
+        }
         
+        # -------------
+        # Qt DL Info
+        
+        ## For the offline installer (must correspond to the versioned QTCI_PACKAGES above)
+        $QT_DL_URL = "https://download.qt.io/archive/qt/5.9/5.9.9/qt-opensource-windows-x86-5.9.9.exe"
+        $QT_DL_SHA512 = "92ce6080dc2aebfb0a63dba705b8d50a04cfafa1710acbb3b4fa413b388ff2cd"
+        
+        # ## For the online installer
+        # $QT_DL_URL = "https://download.qt.io/official_releases/online_installers/qt-unified-windows-x86-online.exe"
+        # $QT_DL_SHA512 = "" # Will cause the code signature to be verified
+        
+        # ------------------------------
+        # MSVC version / generator info
+        
+        if ($env:WZ_MSVC_VER -eq "msvc_2019") {
+          $WZ_VC_GENERATOR = "Visual Studio 16 2019"
+          #$env:WZ_VC_TOOLCHAIN = "v142"
+        }
+        elseif ($env:WZ_TARGET_ARCH -eq "x64") {
+          $WZ_VC_GENERATOR = "Visual Studio 15 2017"
+          #$env:WZ_VC_TOOLCHAIN = "v141"
+        }
+      
+        # -------------
+        # Distributor
+        
+        $WZ_DISTRIBUTOR = "UNKNOWN"
+        if (${env:GITHUB_REPOSITORY} -eq "Warzone2100/warzone2100") {
+          $WZ_DISTRIBUTOR = "wz2100.net"
+        }
+        
+        # ----------------
+        # Export Variables
+        
+        # Export everything important to environment variables (for future steps)
+        echo "::set-env name=VCPKG_DEFAULT_TRIPLET::${VCPKG_DEFAULT_TRIPLET}"
+        echo "::set-env name=WZ_VC_TARGET_PLATFORMNAME::${WZ_VC_TARGET_PLATFORMNAME}"
+        echo "::set-env name=WZ_OUTPUT_PLATFORMNAME::${WZ_OUTPUT_PLATFORMNAME}"
+        echo "::set-env name=QT5DIR::${QT5DIR}"
+        echo "::set-env name=QTCI_PACKAGES::${QTCI_PACKAGES}"
+        echo "::set-env name=QT_DL_URL::${QT_DL_URL}"
+        echo "::set-env name=QT_DL_SHA512::${QT_DL_SHA512}"
+        echo "::set-env name=WZ_VC_GENERATOR::${WZ_VC_GENERATOR}"
+        #echo "::set-env name=WZ_VC_TOOLCHAIN::${WZ_VC_TOOLCHAIN}"
+        echo "::set-env name=WZ_DISTRIBUTOR::${WZ_DISTRIBUTOR}"
     - name: Download Qt
       run: |
-        # # Get the installation path to VS, and import the VC environment
-        # $installationPath = vswhere.exe -prerelease -latest -property installationPath
-        # if ($installationPath -and (test-path "$installationPath\Common7\Tools\vsdevcmd.bat")) {
-        #   & "${env:COMSPEC}" /s /c "`"$installationPath\Common7\Tools\vsdevcmd.bat`" -no_logo && set" | foreach-object {
-        #     $name, $value = $_ -split '=', 2
-        #     set-content env:\"$name" $value
-        #   }
-        # }
-        # & "signtool.exe" verify /pa /v "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" | Tee-Object -Variable signtool_result
-        #$signtool_result = & "signtool.exe" verify /pa /v "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-        #Write-Host "signtool_result: $signtool_result"
-        
         # See: https://stackoverflow.com/a/49859001
         Start-Sleep -Milliseconds 1
         
         . ".ci\powershell\request.ps1"
         
-        #$QT_DL_URL = "https://download.qt.io/archive/qt/5.9/5.9.9/qt-opensource-windows-x86-5.9.9.exe"
-        $QT_DL_URL = "https://download.qt.io/official_releases/online_installers/qt-unified-windows-x86-online.exe"
-        
         $QT_DL_BASEDIR = "${env:RUNNER_WORKSPACE}\dl"
         $QT_DL_PATH = "${QT_DL_BASEDIR}\qt-windows-installer.exe"
         New-Item -ItemType Directory -Force -Path "$QT_DL_BASEDIR"
         
-        $url = Get-RedirectedUrl "$QT_DL_URL"
+        $url = Get-RedirectedUrl "${env:QT_DL_URL}"
         Write-Host "Redirected Url: `"$url`""
         $req = Req -Params @{ 'Method'='GET';'Uri'="$url";'OutFile'="$QT_DL_PATH" } -Retries 3 -SecondsDelay 10
+        
+        if ([string]::IsNullOrWhitespace(${env:QT_DL_SHA512}))
+        {
+          $qt_exe_hash = Get-FileHash -Path "$QT_DL_PATH" -Algorithm SHA512
+          If ($qt_exe_hash.Hash -eq ${env:QT_DL_SHA512}) {
+            Write-Output "Verified downloaded Qt installer SHA512"
+          } Else {
+            Write-Error "The downloaded Qt installer hash \n\t'$($qt_exe_hash.Hash)'\ndoes not match the expected hash: \n\t'${env:QT_DL_SHA512}'"
+          }
+        }
         
         $signature = Get-AuthenticodeSignature -LiteralPath "$QT_DL_PATH"
         if ($signature.Status -ne "Valid")
@@ -93,13 +154,12 @@ jobs:
       run: |
         # Try to run the Qt installer, passing the unattended installation script
         try {
-          $QT_INSTALL_PATH = "C:\Qt" #"${env:RUNNER_WORKSPACE}\Qt"
-          $QTCI_PACKAGES = "qt.qt5.599.win32_msvc2015,qt.qt5.599.qtscript"
+          $QT_INSTALL_ROOT = "C:\Qt" #"${env:RUNNER_WORKSPACE}\Qt"
           Write-Host "------------------------------------------------------"
           Write-Host "Running Qt installer... (this may take a little while)"
           Write-Host "env:QT_DL_PATH=`"${env:QT_DL_PATH}`""
           Write-Host "------------------------------------------------------"
-          $proc = Start-Process "${env:QT_DL_PATH}" -ArgumentList "--verbose","--script",".ci/install_scripts/qt-install.qs","QTCI_OUTPUT=`"${QT_INSTALL_PATH}`"","QTCI_PACKAGES=${QTCI_PACKAGES}" -PassThru -NoNewWindow
+          $proc = Start-Process "${env:QT_DL_PATH}" -ArgumentList "--verbose","--script",".ci/install_scripts/qt-install.qs","QTCI_OUTPUT=`"${QT_INSTALL_ROOT}`"","QTCI_PACKAGES=${env:QTCI_PACKAGES}" -PassThru -NoNewWindow
           # Wait up to 30 minutes (specified in seconds) for normal termination
           $timeouted = $null
           $proc | Wait-Process -Timeout 1800 -ErrorAction SilentlyContinue -ErrorVariable timeouted
@@ -112,7 +172,7 @@ jobs:
           }
           if ($proc.ExitCode -ne 0)
           {
-            Throw "Qt installer exited with error code: $($proc.ExitCode)"
+            Throw "$($proc.ExitCode)"
           }
         } catch {
             # Catch will pick up any non zero error code returned
@@ -128,12 +188,26 @@ jobs:
         # Clean-up the installer exe
         Remove-Item "${env:QT_DL_PATH}"
         # Output install path for following steps
-        echo "::set-env name=QT_INSTALL_PATH::${QT_INSTALL_PATH}"
+        echo "::set-env name=QT_INSTALL_ROOT::${QT_INSTALL_ROOT}"
     - name: Verify Qt version
       run: |
         Write-Host "Qt version:"
-        & "${env:QT_INSTALL_PATH}\5.9.9\msvc2015\bin\qmake" -version
-    - name: More Steps
+        & "${env:QT_INSTALL_ROOT}\${env:QT5DIR}\bin\qmake" -version
+        
+        # Add the QT5 \bin dir to PATH (for future steps)
+        Write-Host "Adding Qt bin folder to PATH: `"${env:QT_INSTALL_ROOT}\${env:QT5DIR}\bin`""
+        echo "::add-path::${env:QT_INSTALL_ROOT}\${env:QT5DIR}\bin"
+    - name: Run dependencies script
       run: |
-        echo "More to do..."
+        .\get-dependencies_win.ps1 -VCPKG_BUILD_TYPE "release"
+        
+        # Remove the vcpkg\buildtrees folder. (Once all dependencies are installed, it isn't needed, and it takes up a lot of space in the cache.)
+        if (Test-Path .\vcpkg\buildtrees) { Remove-Item .\vcpkg\buildtrees -Force -Recurse -ErrorAction SilentlyContinue; }
+        
+        # Clean the build remnants of vcpkg itself. (Since it's rebuilt fresh - even from a cached vcpkg directory - these aren't needed.)
+        msbuild .\vcpkg\toolsrc\vcpkg.sln /t:Clean /p:Configuration=Release /p:Platform=x86
+    - name: CMake Configure (portable build)
+      run: |
+        # Use CMake to configure with the appropriate Visual Studio (MSBUILD) generator, toolchain, and target platform (portable build)
+        cmake -H. -Bbuild  -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake" -DWZ_PORTABLE:BOOL=ON -DCPACK_PACKAGE_FILE_NAME:STRING="warzone2100_portable" -DWZ_DISTRIBUTOR:STRING="${env:WZ_DISTRIBUTOR}" -G "${env:WZ_VC_GENERATOR}" -A "${env:WZ_VC_TARGET_PLATFORMNAME}"
 
