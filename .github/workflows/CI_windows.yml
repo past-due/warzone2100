@@ -73,9 +73,9 @@ jobs:
         Write-Host "SignerCertificate.Subject is as expected"
         
         # Try to run the Qt installer, passing the unattended installation script
-        & "qt-unified-windows-x86-online.exe" --verbose --script .ci/install_scripts/qt-install.qs QTCI_OUTPUT="${env:HOME}/Qt" QTCI_PACKAGES=qt.qt5.599.win32_msvc2015,qt.qt5.599.qtscript
+        & ".\qt-unified-windows-x86-online.exe" --verbose --script .ci/install_scripts/qt-install.qs QTCI_OUTPUT="${env:HOME}/Qt" QTCI_PACKAGES=qt.qt5.599.win32_msvc2015,qt.qt5.599.qtscript
         Write-Host "Qt installer seems to have completed..."
-        & "${env:HOME}/Qt/5.9.9/msvc2015/bin/qmake" -version
+        & "${env:HOME}\Qt\5.9.9\msvc2015\bin\qmake" -version
     - name: Install Qt
       run: |
         echo "Gotta install Qt..."
