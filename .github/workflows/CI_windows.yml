@@ -96,7 +96,7 @@ jobs:
             # This will just write the error
             Write-Error "qt-unified-windows-x86-online.exe returned the following error: $_"
             # If you want to pass the error upwards as a system error and abort your powershell script or function
-            Throw "Aborted qt-unified-windows-x86-online.exe" returned: $_"
+            Throw "Aborted qt-unified-windows-x86-online.exe returned: $_"
         }
         Write-Host "Qt installer seems to have completed..."
         & "${env:HOME}\Qt\5.9.9\msvc2015\bin\qmake" -version
