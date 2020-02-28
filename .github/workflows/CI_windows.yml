@@ -44,7 +44,9 @@ jobs:
         . ".ci\powershell\request.ps1"
         
         $QT_DL_URL = "https://download.qt.io/official_releases/online_installers/qt-unified-windows-x86-online.exe"
-        $req = Req -Params @{ 'Method'='GET';'Uri'="$QT_DL_URL";'OutFile'='qt-unified-windows-x86-online.exe' } -Retries 3 -SecondsDelay 10
+        $url = Get-RedirectedUrl "$QT_DL_URL"
+        Write-Host "Redirected Url: \"$url\""
+        $req = Req -Params @{ 'Method'='GET';'Uri'="$url";'OutFile'='qt-unified-windows-x86-online.exe' } -Retries 3 -SecondsDelay 10
         
         $signature = Get-AuthenticodeSignature -LiteralPath "qt-unified-windows-x86-online.exe"
         if ($signature.Status -ne "Valid")
