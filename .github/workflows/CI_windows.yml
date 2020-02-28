@@ -43,7 +43,7 @@ jobs:
         if ($signature.Status -ne "Valid")
         {
           # Failed to valid file signature
-          throw 'The file's signature is invalid'
+          throw "The file's signature is invalid"
         }
         $signer_common_name = $signature.SignerCertificate.subject.split(',')[0].split('=')[1]
         Write-Host "Leaf Name: $signer_common_name"
