@@ -24,6 +24,19 @@ jobs:
     - name: Install Prereqs
       run: |
         gem install asciidoctor -v 2.0.10 --no-document
+    - name: Run vswhere.exe
+      run: |
+        call "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -requires Microsoft.Component.MSBuild -version [16.0,17.0) -latest
+    - name: Run vswhere.exe PowerShell
+      run: |
+        $installationPath = vswhere.exe -prerelease -latest -property installationPath
+        if ($installationPath -and (test-path "$installationPath\Common7\Tools\vsdevcmd.bat")) {
+          & "${env:COMSPEC}" /s /c "`"$installationPath\Common7\Tools\vsdevcmd.bat`" -no_logo && set" | foreach-object {
+            $name, $value = $_ -split '=', 2
+            set-content env:\"$name" $value
+          }
+        }
+        call signtool.exe /help
     - name: Install Qt
       run: |
         echo "Gotta install Qt..."
