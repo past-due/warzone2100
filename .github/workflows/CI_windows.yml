@@ -1,0 +1,30 @@
+name: Windows
+
+on: [push, pull_request]
+
+jobs:
+  windows-latest-x86:
+    strategy:
+      matrix:
+        compiler: ["msvc_2019"]
+        architecture: ["x86", "x64"]
+      env:
+        WZ_MSVC_VER: ${{ matrix.compiler }}
+        WZ_TARGET_ARCH: ${{ matrix.architecture }}
+    name: :${{ matrix.compiler }} (CMake) [${{ matrix.architecture }}]
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - name: Prepare Git Repo for autorevision
+      run: cmake -P .ci/githubactions/prepare_git_repo.cmake
+    - name: Init Git Submodules
+      run: git submodule update --init --recursive
+    - name: Install Prereqs
+      run: |
+        gem install asciidoctor -v 2.0.10 --no-document
+    - name: Install Qt
+      run: |
+        echo "Gotta install Qt..."
+
