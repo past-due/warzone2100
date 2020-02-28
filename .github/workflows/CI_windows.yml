@@ -30,9 +30,10 @@ jobs:
     - name: Output Runner Environment Information
       run: |
         Write-Host "------------------------------------------------------"
-        Write-Host "Environment Variables
+        Write-Host "Environment Variables"
         Write-Host "------------------------------------------------------"
         & gci env:* | sort-object name
+        
     - name: Download Qt
       run: |
         # # Get the installation path to VS, and import the VC environment
