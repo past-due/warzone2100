@@ -8,9 +8,9 @@ jobs:
       matrix:
         compiler: ["msvc_2019"]
         architecture: ["x86", "x64"]
-      env:
-        WZ_MSVC_VER: ${{ matrix.compiler }}
-        WZ_TARGET_ARCH: ${{ matrix.architecture }}
+    env:
+      WZ_MSVC_VER: ${{ matrix.compiler }}
+      WZ_TARGET_ARCH: ${{ matrix.architecture }}
     name: :${{ matrix.compiler }} (CMake) [${{ matrix.architecture }}]
     runs-on: windows-latest
     steps:
