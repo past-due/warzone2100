@@ -37,8 +37,16 @@ jobs:
           }
         }
         # & "signtool.exe" verify /pa /v "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" | Tee-Object -Variable signtool_result
-        $signtool_result = & "signtool.exe" verify /pa /v "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-        Write-Host "signtool_result: $signtool_result"
+        #$signtool_result = & "signtool.exe" verify /pa /v "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        #Write-Host "signtool_result: $signtool_result"
+        $signature = Get-AuthenticodeSignature -LiteralPath "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        if ($signature.Status -ne "Valid")
+        {
+          # Failed to valid file signature
+          throw 'The file's signature is invalid'
+        }
+        $signer_common_name = $signature.SignerCertificate.subject.split(',')[0].split('=')[1]
+        Write-Host "Leaf Name: $signer_common_name"
     - name: Install Qt
       run: |
         echo "Gotta install Qt..."
