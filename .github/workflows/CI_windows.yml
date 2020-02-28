@@ -74,10 +74,11 @@ jobs:
         
         # Try to run the Qt installer, passing the unattended installation script
         try {
-          $proc = Start-Process ".\qt-unified-windows-x86-online.exe" -ArgumentList "--verbose","--script",".ci/install_scripts/qt-install.qs","QTCI_OUTPUT=`"${env:HOME}/Qt`"","QTCI_PACKAGES=qt.qt5.599.win32_msvc2015,qt.qt5.599.qtscript" -PassThru
-          # Wait up to 1 minutes (specified in seconds) for normal termination
+          Write-Host "Running Qt installer... (this may take a little while)"
+          $proc = Start-Process ".\qt-unified-windows-x86-online.exe" -ArgumentList "--verbose","--script",".ci/install_scripts/qt-install.qs","QTCI_OUTPUT=`"${env:HOME}/Qt`"","QTCI_PACKAGES=qt.qt5.599.win32_msvc2015,qt.qt5.599.qtscript" -PassThru -NoNewWindow
+          # Wait up to 2 minutes (specified in seconds) for normal termination
           $timeouted = $null
-          $proc | Wait-Process -Timeout 60 -ErrorAction SilentlyContinue -ErrorVariable timeouted
+          $proc | Wait-Process -Timeout 120 -ErrorAction SilentlyContinue -ErrorVariable timeouted
           if ($timeouted)
           {
               # terminate the process
