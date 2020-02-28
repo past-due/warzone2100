@@ -14,9 +14,9 @@ jobs:
     name: :${{ matrix.compiler }} (CMake) [${{ matrix.architecture }}]
     runs-on: windows-latest
     steps:
-    # - uses: actions/checkout@v2
-    #   with:
-    #     fetch-depth: 0
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
     # - name: Prepare Git Repo for autorevision
     #   run: cmake -P .ci/githubactions/prepare_git_repo.cmake
     # - name: Init Git Submodules
@@ -27,25 +27,37 @@ jobs:
     # - name: Run vswhere.exe
     #   run: |
     #     call "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -requires Microsoft.Component.MSBuild -version [16.0,17.0) -latest
-    - name: Run vswhere.exe PowerShell
+    - name: Test PowerShell Step
       run: |
-        $installationPath = vswhere.exe -prerelease -latest -property installationPath
-        if ($installationPath -and (test-path "$installationPath\Common7\Tools\vsdevcmd.bat")) {
-          & "${env:COMSPEC}" /s /c "`"$installationPath\Common7\Tools\vsdevcmd.bat`" -no_logo && set" | foreach-object {
-            $name, $value = $_ -split '=', 2
-            set-content env:\"$name" $value
-          }
-        }
+        # # Get the installation path to VS, and import the VC environment
+        # $installationPath = vswhere.exe -prerelease -latest -property installationPath
+        # if ($installationPath -and (test-path "$installationPath\Common7\Tools\vsdevcmd.bat")) {
+        #   & "${env:COMSPEC}" /s /c "`"$installationPath\Common7\Tools\vsdevcmd.bat`" -no_logo && set" | foreach-object {
+        #     $name, $value = $_ -split '=', 2
+        #     set-content env:\"$name" $value
+        #   }
+        # }
         # & "signtool.exe" verify /pa /v "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" | Tee-Object -Variable signtool_result
         #$signtool_result = & "signtool.exe" verify /pa /v "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
         #Write-Host "signtool_result: $signtool_result"
-        $signature = Get-AuthenticodeSignature -LiteralPath "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        
+        . ".ci\powershell\request.ps1"
+        
+        $QT_DL_URL = "https://download.qt.io/official_releases/online_installers/qt-unified-windows-x86-online.exe"
+        $req = Req -Params @{ 'Method'='GET';'Uri'="$QT_DL_URL";'OutFile'='qt-unified-windows-x86-online.exe } -Retries 3 -SecondsDelay 10
+        
+        $signature = Get-AuthenticodeSignature -LiteralPath "qt-unified-windows-x86-online.exe"
         if ($signature.Status -ne "Valid")
         {
           # Failed to valid file signature
           throw "The file's signature is invalid"
         }
-        $signer_common_name = $signature.SignerCertificate.subject.split(',')[0].split('=')[1]
+        $dnDict = ($signature.SignerCertificate.Subject -split ', ') |
+                 foreach `
+                     { $dnDict = @{} } `
+                     { $item = $_.Split('='); $dnDict[$item[0]] = $item[1] } `
+                     { $dnDict }
+        $signer_common_name = dnDict['CN'] #$signature.SignerCertificate.subject.split(',')[0].split('=')[1]
         Write-Host "Leaf Name: $signer_common_name"
     - name: Install Qt
       run: |
