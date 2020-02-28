@@ -93,7 +93,7 @@ jobs:
       run: |
         # Try to run the Qt installer, passing the unattended installation script
         try {
-          $QT_INSTALL_PATH = "${env:RUNNER_WORKSPACE}\Qt"
+          $QT_INSTALL_PATH = "C:\Qt" #"${env:RUNNER_WORKSPACE}\Qt"
           $QTCI_PACKAGES = "qt.qt5.599.win32_msvc2015,qt.qt5.599.qtscript"
           Write-Host "------------------------------------------------------"
           Write-Host "Running Qt installer... (this may take a little while)"

@@ -253,4 +253,6 @@ Controller.prototype.ObligationsPageCallback = function()
     page.obligationsAgreement.setChecked(true);
     page.completeChanged();
     gui.clickButton(buttons.NextButton);
+    // There appears to be a second page we need to click "Next" on...
+    gui.clickButton(buttons.NextButton, 500);
 }
