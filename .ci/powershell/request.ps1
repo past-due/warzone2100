@@ -18,9 +18,9 @@ Function Req {
    while (-not $completed) {
        try {
            $response = Invoke-Command $cmd -ArgumentList $Params
-           if ($response.StatusCode -ne 200) {
-               throw "Expecting reponse code 200, was: $($response.StatusCode)"
-           }
+           # if ($response.StatusCode -ne 200) {
+           #     throw "Expecting reponse code 200, was: $($response.StatusCode)"
+           # }
            $completed = $true
        } catch {
            Write-Host $_.Exception.GetType().FullName
