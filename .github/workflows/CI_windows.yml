@@ -17,9 +17,12 @@ jobs:
     - uses: actions/checkout@v2
       with:
         fetch-depth: 0
+        path: 'src'
     - name: Prepare Git Repo for autorevision
+      working-directory: '${{ github.workspace }}\src'
       run: cmake -P .ci/githubactions/prepare_git_repo.cmake
     - name: Init Git Submodules
+      working-directory: '${{ github.workspace }}\src'
       run: git submodule update --init --recursive
     - name: Output Runner Environment Information
       run: |
@@ -28,8 +31,9 @@ jobs:
         Write-Host "------------------------------------------------------"
         & gci env:* | sort-object name
     - name: Install Asciidoctor
-      run: |
-        gem install asciidoctor -v 2.0.10 --no-document
+      run: gem install asciidoctor -v 2.0.10 --no-document
+    - name: Install NSIS
+      run: choco install nsis -y
     # - name: Run vswhere.exe
     #   run: |
     #     call "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -requires Microsoft.Component.MSBuild -version [16.0,17.0) -latest
@@ -39,7 +43,7 @@ jobs:
         # --------------------
       
         $WZ_VC_TARGET_PLATFORMNAME = "$env:WZ_TARGET_ARCH"
-        $WZ_OUTPUT_PLATFORMNAME = "$env:WZ_TARGET_ARCH"
+        $WZ_BUILD_DESC = "win_${env:WZ_TARGET_ARCH}"
       
         if ($env:WZ_TARGET_ARCH -eq "x86") {
           $VCPKG_DEFAULT_TRIPLET = "x86-windows"
@@ -114,9 +118,10 @@ jobs:
         # Export Variables
         
         # Export everything important to environment variables (for future steps)
+        echo "::set-env name=WZ_REPO_PATH::${{ github.workspace }}\src"
         echo "::set-env name=VCPKG_DEFAULT_TRIPLET::${VCPKG_DEFAULT_TRIPLET}"
         echo "::set-env name=WZ_VC_TARGET_PLATFORMNAME::${WZ_VC_TARGET_PLATFORMNAME}"
-        echo "::set-env name=WZ_OUTPUT_PLATFORMNAME::${WZ_OUTPUT_PLATFORMNAME}"
+        echo "::set-env name=WZ_BUILD_DESC::${WZ_BUILD_DESC}"
         echo "::set-env name=QT5DIR::${QT5DIR}"
         echo "::set-env name=QTCI_PACKAGES::${QTCI_PACKAGES}"
         echo "::set-env name=QT_DL_URL::${QT_DL_URL}"
@@ -128,12 +133,11 @@ jobs:
         echo "::set-env name=WZ_DISTRIBUTOR::${WZ_DISTRIBUTOR}"
     - name: Download Qt
       run: |
-        # See: https://stackoverflow.com/a/49859001
-        Start-Sleep -Milliseconds 1
+        Start-Sleep -Milliseconds 1 # See: https://stackoverflow.com/a/49859001
         
-        . ".ci\powershell\request.ps1"
+        . "${env:WZ_REPO_PATH}\.ci\powershell\request.ps1"
         
-        $QT_DL_BASEDIR = "${env:RUNNER_WORKSPACE}\dl"
+        $QT_DL_BASEDIR = "${{ github.workspace }}\dl"
         $QT_DL_PATH = "${QT_DL_BASEDIR}\qt-windows-installer.exe"
         New-Item -ItemType Directory -Force -Path "$QT_DL_BASEDIR"
         
@@ -150,27 +154,31 @@ jobs:
             Write-Error "The downloaded Qt installer hash `n`t'$($qt_exe_hash.Hash)'`ndoes not match the expected hash: `n`t'${env:QT_DL_SHA512}'"
           }
         }
+        else
+        {
+          # If no hash was specified (for example, when using the "latest" online installer), check the Authenticode signature
+          $signature = Get-AuthenticodeSignature -LiteralPath "$QT_DL_PATH"
+          if ($signature.Status -ne "Valid")
+          {
+            # Failed to valid file signature
+            Throw "The file's signature is invalid"
+          }
+          Write-Host "Authenticode Signature: Valid"
+          $dnDict = ($signature.SignerCertificate.Subject -split ', ') |
+                   foreach `
+                       { $dnDict = @{} } `
+                       { $item = $_.Split('='); $dnDict[$item[0]] = $item[1] } `
+                       { $dnDict }
+          $signer_common_name = $dnDict['CN'] #$signature.SignerCertificate.subject.split(',')[0].split('=')[1]
+          Write-Host "Authenticode Signature SignerCertificate.Subject: $($dnDict | Out-String)"
+          if ($signer_common_name -ne "The Qt Company Oy")
+          {
+            # Unexpected signing common name
+            throw "The file's signature has an unexpected common name: `"$signer_common_name`""
+          }
+          Write-Host "SignerCertificate.Subject is as expected"
+        }
         
-        $signature = Get-AuthenticodeSignature -LiteralPath "$QT_DL_PATH"
-        if ($signature.Status -ne "Valid")
-        {
-          # Failed to valid file signature
-          Throw "The file's signature is invalid"
-        }
-        Write-Host "Authenticode Signature: Valid"
-        $dnDict = ($signature.SignerCertificate.Subject -split ', ') |
-                 foreach `
-                     { $dnDict = @{} } `
-                     { $item = $_.Split('='); $dnDict[$item[0]] = $item[1] } `
-                     { $dnDict }
-        $signer_common_name = $dnDict['CN'] #$signature.SignerCertificate.subject.split(',')[0].split('=')[1]
-        Write-Host "Authenticode Signature SignerCertificate.Subject: $($dnDict | Out-String)"
-        if ($signer_common_name -ne "The Qt Company Oy")
-        {
-          # Unexpected signing common name
-          throw "The file's signature has an unexpected common name: `"$signer_common_name`""
-        }
-        Write-Host "SignerCertificate.Subject is as expected"
         # Output Qt download path for next step
         echo "::set-env name=QT_DL_PATH::${QT_DL_PATH}"
     - name: Install Qt
@@ -180,7 +188,7 @@ jobs:
       run: |
         # Try to run the Qt installer, passing the unattended installation script
         try {
-          $QT_INSTALL_ROOT = "C:\Qt" #"${env:RUNNER_WORKSPACE}\Qt"
+          $QT_INSTALL_ROOT = "C:\Qt" #"${{ github.workspace }}\Qt"
           Write-Host "------------------------------------------------------"
           Write-Host "Running Qt installer... (this may take a little while)"
           Write-Host "env:QT_DL_PATH=`"${env:QT_DL_PATH}`""
@@ -224,22 +232,41 @@ jobs:
         Write-Host "Adding Qt bin folder to PATH: `"${env:QT_INSTALL_ROOT}\${env:QT5DIR}\bin`""
         echo "::add-path::${env:QT_INSTALL_ROOT}\${env:QT5DIR}\bin"
     - name: Build vcpkg + dependencies
+      working-directory: '${{ github.workspace }}\build'
       run: |
         Write-Host "env:VCPKG_DEFAULT_TRIPLET=`"${env:VCPKG_DEFAULT_TRIPLET}`""
         Write-Host "env:VCPKG_VISUAL_STUDIO_PATH=`"${env:VCPKG_VISUAL_STUDIO_PATH}`""
         
-        .\get-dependencies_win.ps1 -VCPKG_BUILD_TYPE "release"
+        & ${env:WZ_REPO_PATH}\get-dependencies_win.ps1 -VCPKG_BUILD_TYPE "release"
         
         # Remove the vcpkg\buildtrees folder. (Once all dependencies are installed, it isn't needed, and it takes up a lot of space in the cache.)
         if (Test-Path .\vcpkg\buildtrees) { Remove-Item .\vcpkg\buildtrees -Force -Recurse -ErrorAction SilentlyContinue; }
         
         # Clean the build remnants of vcpkg itself. (Since it's rebuilt fresh - even from a cached vcpkg directory - these aren't needed.)
-        . ".ci\powershell\importVCvars.ps1"
+        . "${env:WZ_REPO_PATH}\.ci\powershell\importVCvars.ps1"
         Import-VCVarsEnv "${env:WZ_VISUAL_STUDIO_INSTALL_PATH}" "-arch=${env:WZ_TARGET_ARCH} -host_arch=x64"
         msbuild .\vcpkg\toolsrc\vcpkg.sln /t:Clean /p:Configuration=Release /p:Platform=x86
-    - name: CMake Configure (portable build)
+    - name: CMake Configure (Portable Build)
+      working-directory: '${{ github.workspace }}\build'
       run: |
         # Use CMake to configure with the appropriate Visual Studio (MSBUILD) generator, toolchain, and target platform (portable build)
-        cmake --build build -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake" -DWZ_PORTABLE:BOOL=ON -DCPACK_PACKAGE_FILE_NAME:STRING="warzone2100_portable" -DWZ_DISTRIBUTOR:STRING="${env:WZ_DISTRIBUTOR}" -DCMAKE_GENERATOR_INSTANCE="${env:WZ_VISUAL_STUDIO_INSTALL_PATH}" -G "${env:WZ_VC_GENERATOR}" -A "${env:WZ_VC_TARGET_PLATFORMNAME}" .
-    - name: Build (Portable Build)
-      run: cmake --build build --config Release --target package
+        cmake -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}\build\vcpkg\scripts\buildsystems\vcpkg.cmake" -DWZ_PORTABLE:BOOL=ON -DCPACK_PACKAGE_FILE_NAME:STRING="warzone2100_portable" -DWZ_DISTRIBUTOR:STRING="${env:WZ_DISTRIBUTOR}" -DCMAKE_GENERATOR_INSTANCE="${env:WZ_VISUAL_STUDIO_INSTALL_PATH}" -G "${env:WZ_VC_GENERATOR}" -A "${env:WZ_VC_TARGET_PLATFORMNAME}" "${env:WZ_REPO_PATH}"
+    - name: CMake Build (Portable Build)
+      run: |
+        & cmake --build build --config Release --target package
+        # Rename the portable installer
+        Move-Item -LiteralPath ".\build\warzone2100_portable.exe" -Destination "warzone2100_$($env:WZ_BUILD_DESC)_portable.exe"
+        # Package the portable .pdb and .sym files into a "DEBUGSYMBOLS" .7z archive (do not include metadata / timestamps)
+        cmd /c 7z a -t7z -m0=lzma -mx=9 -mtc=off -mtm=off -mta=off "warzone2100_$($env:WZ_BUILD_DESC)_portable.DEBUGSYMBOLS.7z" "$($pwd)\build\src\*.pdb" "$($pwd)\build\src\*.sym"
+    - name: CMake Configure (Regular Installer)
+      working-directory: '${{ github.workspace }}\build'
+      run: |
+        # Re-run CMake configure for non-portable (regular) installer
+        cmake -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}\build\vcpkg\scripts\buildsystems\vcpkg.cmake" -DWZ_PORTABLE:BOOL=OFF -DCPACK_PACKAGE_FILE_NAME:STRING="warzone2100_installer" -DWZ_DISTRIBUTOR:STRING="${env:WZ_DISTRIBUTOR}" -DCMAKE_GENERATOR_INSTANCE="${env:WZ_VISUAL_STUDIO_INSTALL_PATH}" -G "${env:WZ_VC_GENERATOR}" -A "${env:WZ_VC_TARGET_PLATFORMNAME}" "${env:WZ_REPO_PATH}"
+    - name: CMake Build (Regular Installer)
+      run: |
+        & cmake --build build --config Release --target package
+        # Rename the regular installer
+        Move-Item -LiteralPath ".\build\warzone2100_installer.exe" -Destination "warzone2100_$($env:WZ_BUILD_DESC)_installer.exe"
+        # Package the portable .pdb and .sym files into a "DEBUGSYMBOLS" .7z archive (do not include metadata / timestamps)
+        cmd /c 7z a -t7z -m0=lzma -mx=9 -mtc=off -mtm=off -mta=off "warzone2100_$($env:WZ_BUILD_DESC)_installer.DEBUGSYMBOLS.7z" "$($pwd)\build\src\*.pdb" "$($pwd)\build\src\*.sym"
