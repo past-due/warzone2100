@@ -82,9 +82,9 @@ jobs:
         try {
           Write-Host "------------------------------------------------------"
           Write-Host "Running Qt installer... (this may take a little while)"
-          Write-Host "env:HOME=`"${env:HOME}`""
+          Write-Host "env:RUNNER_WORKSPACE=`"${env:RUNNER_WORKSPACE}`""
           Write-Host "------------------------------------------------------"
-          $proc = Start-Process ".\qt-windows-installer.exe" -ArgumentList "--verbose","--script",".ci/install_scripts/qt-install.qs","QTCI_OUTPUT=`"${env:HOME}/Qt`"","QTCI_PACKAGES=qt.qt5.599.win32_msvc2015,qt.qt5.599.qtscript" -PassThru -NoNewWindow
+          $proc = Start-Process ".\qt-windows-installer.exe" -ArgumentList "--verbose","--script",".ci/install_scripts/qt-install.qs","QTCI_OUTPUT=`"${env:RUNNER_WORKSPACE}/Qt`"","QTCI_PACKAGES=qt.qt5.599.win32_msvc2015,qt.qt5.599.qtscript" -PassThru -NoNewWindow
           # Wait up to 30 minutes (specified in seconds) for normal termination
           $timeouted = $null
           $proc | Wait-Process -Timeout 1800 -ErrorAction SilentlyContinue -ErrorVariable timeouted
@@ -115,7 +115,7 @@ jobs:
     - name: Verify Qt version
       run: |
         Write-Host "Qt version:"
-        & "${env:HOME}\Qt\5.9.9\msvc2015\bin\qmake" -version
+        & "${env:RUNNER_WORKSPACE}\Qt\5.9.9\msvc2015\bin\qmake" -version
     - name: Install Qt
       run: |
         echo "Gotta install Qt..."
