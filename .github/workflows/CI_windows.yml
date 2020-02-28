@@ -36,8 +36,8 @@ jobs:
             set-content env:\"$name" $value
           }
         }
-        $signtool_result = signtool.exe /help 2>&1
-        Write-Host "Result: $signtool_result"
+        signtool.exe /help | Tee-Object -Variable signtool_result
+        Write-Host "signtool_result: $signtool_result"
     - name: Install Qt
       run: |
         echo "Gotta install Qt..."
