@@ -683,6 +683,17 @@ static W_SCREEN* psNotificationOverlayScreen = nullptr;
 static std::unique_ptr<WZ_Queued_Notification> currentNotification;
 static W_NOTIFICATION* currentInGameNotification = nullptr;
 static uint32_t lastNotificationClosed = 0;
+static Vector2i lastDragOnNotificationStartPos(-1,-1);
+
+void notificationsDidStartDragOnNotification(const Vector2i& dragStartPos)
+{
+	lastDragOnNotificationStartPos = dragStartPos;
+}
+
+void notificationDidStopDragOnNotification()
+{
+	lastDragOnNotificationStartPos = Vector2i(-1, -1);
+}
 
 bool notificationsInitialize()
 {
@@ -878,7 +889,10 @@ bool W_NOTIFICATION::calculateNotificationWidgetPos()//W_NOTIFICATION* psNotific
 			if (duration == 0 || (realTime < (request->status.stateStartTime + duration)) || psNotificationWidget->isActivelyBeingDragged())
 			{
 				y = endingYPosition;
-				break;
+				if ((y + psNotificationWidget->getDragOffset().y) > ((-psNotificationWidget->height() / 3) * 2))
+				{
+					break;
+				}
 			}
 			request->setState(WZ_Notification_Status::NotificationState::closing);
 		} // fallthrough
@@ -992,6 +1006,7 @@ void W_NOTIFICATION::run(W_CONTEXT *psContext)
 			isInDragMode = false;
 			dragEndedTime = realTime;
 			dragOffsetEnded = dragOffset;
+			notificationDidStopDragOnNotification();
 		}
 		if (request->status.state != WZ_Notification_Status::NotificationState::closing)
 		{
@@ -1030,6 +1045,7 @@ void W_NOTIFICATION::clicked(W_CONTEXT *psContext, WIDGET_KEY key)
 		dragStartMousePos.y = psContext->my;
 		debug(LOG_3D, "dragStartMousePos: (%d x %d)", dragStartMousePos.x, dragStartMousePos.y);
 		dragStartedTime = realTime;
+		notificationsDidStartDragOnNotification(dragStartMousePos);
 	}
 }
 
@@ -1219,8 +1235,29 @@ bool isDraggingInGameNotification()
 	// right now we only support a single concurrent notification
 	if (currentInGameNotification)
 	{
-		return currentInGameNotification->isActivelyBeingDragged();
+		if (currentInGameNotification->isActivelyBeingDragged())
+		{
+			return true;
+		}
 	}
+
+	// also handle the case where a drag starts, the notification dismisses itself, but the user has not released the mouse button
+	// in this case, we want to consider it an in-game notification drag *until* the mouse button is released
+
+	if (lastDragOnNotificationStartPos.x >= 0 && lastDragOnNotificationStartPos.y >= 0)
+	{
+		UDWORD currDragStartX, currDragStartY;
+		if (mouseDrag(MOUSE_LMB, &currDragStartX, &currDragStartY))
+		{
+			return currDragStartX == lastDragOnNotificationStartPos.x && currDragStartY == lastDragOnNotificationStartPos.y;
+		}
+		else
+		{
+			notificationDidStopDragOnNotification(); // ensure last notification drag position is cleared
+			return true; // return true this time to consume the mouse release event too
+		}
+	}
+
 	return false;
 }
 
