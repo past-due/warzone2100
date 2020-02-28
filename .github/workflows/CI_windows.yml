@@ -28,6 +28,9 @@ jobs:
     #   run: |
     #     call "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -requires Microsoft.Component.MSBuild -version [16.0,17.0) -latest
     - name: Download & Install Qt
+      env: # Or as an environment variable
+        QT_CI_LOGIN: ${{ secrets.QT_CI_LOGIN }}
+        QT_CI_PASSWORD: ${{ secrets.QT_CI_PASSWORD }}
       run: |
         # # Get the installation path to VS, and import the VC environment
         # $installationPath = vswhere.exe -prerelease -latest -property installationPath
@@ -74,11 +77,13 @@ jobs:
         
         # Try to run the Qt installer, passing the unattended installation script
         try {
+          Write-Host "------------------------------------------------------"
           Write-Host "Running Qt installer... (this may take a little while)"
-          $proc = Start-Process ".\qt-unified-windows-x86-online.exe" -ArgumentList "--verbose","--script",".ci/install_scripts/qt-install.qs","QTCI_OUTPUT=`"${env:HOME}/Qt`"","QTCI_PACKAGES=qt.qt5.599.win32_msvc2015,qt.qt5.599.qtscript" -PassThru -NoNewWindow
-          # Wait up to 2 minutes (specified in seconds) for normal termination
+          Write-Host "------------------------------------------------------"
+          $proc = Start-Process ".\qt-unified-windows-x86-online.exe" -ArgumentList "--verbose","--script",".ci/install_scripts/qt-install.qs","QTCI_OUTPUT=`"${env:HOME}\Qt`"","QTCI_PACKAGES=qt.qt5.599.win32_msvc2015,qt.qt5.599.qtscript" -PassThru -NoNewWindow
+          # Wait up to 30 minutes (specified in seconds) for normal termination
           $timeouted = $null
-          $proc | Wait-Process -Timeout 120 -ErrorAction SilentlyContinue -ErrorVariable timeouted
+          $proc | Wait-Process -Timeout 1800 -ErrorAction SilentlyContinue -ErrorVariable timeouted
           if ($timeouted)
           {
               # terminate the process
@@ -99,7 +104,11 @@ jobs:
             # If you want to pass the error upwards as a system error and abort your powershell script or function
             Throw "Aborted qt-unified-windows-x86-online.exe returned: $_"
         }
+        Write-Host "------------------------------------------------------"
         Write-Host "Qt installer seems to have completed..."
+    - name: Verify Qt version
+      run: |
+        Write-Host "Qt version:"
         & "${env:HOME}\Qt\5.9.9\msvc2015\bin\qmake" -version
     - name: Install Qt
       run: |
