@@ -233,8 +233,10 @@ jobs:
         # Add the QT5 \bin dir to PATH (for future steps)
         Write-Host "Adding Qt bin folder to PATH: `"${env:QT_INSTALL_ROOT}\${env:QT5DIR}\bin`""
         echo "::add-path::${env:QT_INSTALL_ROOT}\${env:QT5DIR}\bin"
-    - name: Create build directory
-      run: New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\build"
+    - name: Create directories
+      run: |
+        New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\build"
+        New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\output"
     - name: Build vcpkg + dependencies
       working-directory: '${{ github.workspace }}\build'
       run: |
@@ -259,9 +261,9 @@ jobs:
       run: |
         & cmake --build build --config Release --target package
         # Rename the portable installer
-        Move-Item -LiteralPath ".\build\warzone2100_portable.exe" -Destination "warzone2100_$($env:WZ_BUILD_DESC)_portable.exe"
+        Move-Item -LiteralPath ".\build\warzone2100_portable.exe" -Destination ".\output\warzone2100_$($env:WZ_BUILD_DESC)_portable.exe"
         # Package the portable .pdb and .sym files into a "DEBUGSYMBOLS" .7z archive (do not include metadata / timestamps)
-        cmd /c 7z a -t7z -m0=lzma -mx=9 -mtc=off -mtm=off -mta=off "warzone2100_$($env:WZ_BUILD_DESC)_portable.DEBUGSYMBOLS.7z" "$($pwd)\build\src\*.pdb" "$($pwd)\build\src\*.sym"
+        cmd /c 7z a -t7z -m0=lzma -mx=9 -mtc=off -mtm=off -mta=off ".\output\warzone2100_$($env:WZ_BUILD_DESC)_portable.DEBUGSYMBOLS.7z" "$($pwd)\build\src\*.pdb" "$($pwd)\build\src\*.sym"
     - name: CMake Configure (Regular Installer)
       working-directory: '${{ github.workspace }}\build'
       run: |
@@ -271,6 +273,32 @@ jobs:
       run: |
         & cmake --build build --config Release --target package
         # Rename the regular installer
-        Move-Item -LiteralPath ".\build\warzone2100_installer.exe" -Destination "warzone2100_$($env:WZ_BUILD_DESC)_installer.exe"
+        Move-Item -LiteralPath ".\build\warzone2100_installer.exe" -Destination ".\output\warzone2100_$($env:WZ_BUILD_DESC)_installer.exe"
         # Package the portable .pdb and .sym files into a "DEBUGSYMBOLS" .7z archive (do not include metadata / timestamps)
-        cmd /c 7z a -t7z -m0=lzma -mx=9 -mtc=off -mtm=off -mta=off "warzone2100_$($env:WZ_BUILD_DESC)_installer.DEBUGSYMBOLS.7z" "$($pwd)\build\src\*.pdb" "$($pwd)\build\src\*.sym"
+        cmd /c 7z a -t7z -m0=lzma -mx=9 -mtc=off -mtm=off -mta=off ".\output\warzone2100_$($env:WZ_BUILD_DESC)_installer.DEBUGSYMBOLS.7z" "$($pwd)\build\src\*.pdb" "$($pwd)\build\src\*.sym"
+    - name: Compare Build Outputs
+      working-directory: '${{ github.workspace }}\output'
+      run: |
+        # Compare the two DEBUGSYMBOLS.7z files
+        # If they are equal (as they should be if only the installer was rebuilt), keep only one and remove the "PORTABLE/INSTALLER" suffix
+        # If they are not equal, we have to keep both (but output a notice, as the CMake build should probably be tweaked to avoid this)
+        if ((Get-FileHash -LiteralPath "warzone2100_$($env:WZ_BUILD_DESC)_portable.DEBUGSYMBOLS.7z" -Algorithm SHA512).Hash -eq (Get-FileHash -LiteralPath "warzone2100_$($env:WZ_BUILD_DESC)_installer.DEBUGSYMBOLS.7z" -Algorithm SHA512).Hash) {
+          # The two archives' hashes match - delete one, and rename the other
+          Write-Host "DEBUGSYMBOLS.7z files match"
+          Remove-Item -LiteralPath "warzone2100_$($env:WZ_BUILD_DESC)_installer.DEBUGSYMBOLS.7z" -Force -ErrorAction SilentlyContinue
+          Rename-Item -LiteralPath "warzone2100_$($env:WZ_BUILD_DESC)_portable.DEBUGSYMBOLS.7z" -NewName "warzone2100_$($env:WZ_BUILD_DESC).DEBUGSYMBOLS.7z"
+        }
+        else {
+          Write-Warning "The DEBUGSYMBOLS.7z files for the portable + regular builds do not match. This may mean that the executable was rebuilt when switching portable / non-portable mode. (Check the CMake scripts to fix.)"
+        }
+        
+        # Log hashes of the setup EXEs
+        Write-Host "SHA512 Hashes:"
+        Write-Host "`nwarzone2100-$($env:WZ_BUILD_DESC)_portable.exe`n`t-> SHA512: $((Get-FileHash -LiteralPath "warzone2100_$($env:WZ_BUILD_DESC)_portable.exe" -Algorithm SHA512).Hash)`n`t`-> Size (bytes): $((Get-Item -LiteralPath "warzone2100_$($env:WZ_BUILD_DESC)_portable.exe").Length)"
+        Write-Host "`nwarzone2100-$($env:WZ_BUILD_DESC)_installer.exe`n`t-> SHA512: $((Get-FileHash -LiteralPath "warzone2100_$($env:WZ_BUILD_DESC)_installer.exe" -Algorithm SHA512).Hash)`n`t`-> Size (bytes): $((Get-Item -LiteralPath "warzone2100_$($env:WZ_BUILD_DESC)_installer.exe").Length)"
+        Write-Host ""
+    - uses: actions/upload-artifact@v1
+      if: success()
+      with:
+        name: warzone2100_win_${{ matrix.architecture }}
+        path: '${{ github.workspace }}\output'
