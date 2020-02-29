@@ -231,6 +231,8 @@ jobs:
         # Add the QT5 \bin dir to PATH (for future steps)
         Write-Host "Adding Qt bin folder to PATH: `"${env:QT_INSTALL_ROOT}\${env:QT5DIR}\bin`""
         echo "::add-path::${env:QT_INSTALL_ROOT}\${env:QT5DIR}\bin"
+    - name: Create build directory
+      run: New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\build"
     - name: Build vcpkg + dependencies
       working-directory: '${{ github.workspace }}\build'
       run: |
