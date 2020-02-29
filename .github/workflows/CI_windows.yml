@@ -8,6 +8,8 @@ jobs:
       matrix:
         compiler: ["msvc_2019"]
         architecture: ["x86"]
+        ## NOTE: Unfortunately, 64-bit Windows builds are currently broken because of QScript (see: http://developer.wz2100.net/ticket/4763)
+        ## Whenever that ticket is resolved, the following will build 64-bit as well:
         #architecture: ["x86", "x64"]
       fail-fast: false
     env:
@@ -26,19 +28,16 @@ jobs:
     - name: Init Git Submodules
       working-directory: '${{ github.workspace }}\src'
       run: git submodule update --init --recursive
-    - name: Output Runner Environment Information
-      run: |
-        Write-Host "------------------------------------------------------"
-        Write-Host "Environment Variables"
-        Write-Host "------------------------------------------------------"
-        & gci env:* | sort-object name
+    # - name: Output Runner Environment Information
+    #   run: |
+    #     Write-Host "------------------------------------------------------"
+    #     Write-Host "Environment Variables"
+    #     Write-Host "------------------------------------------------------"
+    #     & gci env:* | sort-object name
     - name: Install Asciidoctor
       run: gem install asciidoctor -v 2.0.10 --no-document
     - name: Install NSIS
       run: choco install nsis -y
-    # - name: Run vswhere.exe
-    #   run: |
-    #     call "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -requires Microsoft.Component.MSBuild -version [16.0,17.0) -latest
     - name: Generate Settings for Run [${{ matrix.compiler }}:${{ matrix.architecture }}]
       run: |
         # Basic variable setup
@@ -64,13 +63,13 @@ jobs:
         # -------------
         # Qt DL Info
         
-        ## For the offline installer (must correspond to the versioned QTCI_PACKAGES above)
+        ## For the offline installer (must correspond to the versioned QT5DIR / QTCI_PACKAGES above)
         $QT_DL_URL = "https://download.qt.io/archive/qt/5.9/5.9.9/qt-opensource-windows-x86-5.9.9.exe"
         $QT_DL_SHA512 = "F858F0892DF87CF7BF9CFC1EAE114CAC83C245EC363684D4ECE2337CC1A103EAD35BFCF9A3338DFD9C078C4D8D1B7A85FBE2924EB4E6754D10E660B22C635696"
         
         # ## For the online installer
         # $QT_DL_URL = "https://download.qt.io/official_releases/online_installers/qt-unified-windows-x86-online.exe"
-        # $QT_DL_SHA512 = "" # Will cause the code signature to be verified
+        # $QT_DL_SHA512 = "" # Will cause the code signature to be checked
         
         # ------------------------------
         # MSVC version / generator info
@@ -143,6 +142,7 @@ jobs:
         $QT_DL_PATH = "${QT_DL_BASEDIR}\qt-windows-installer.exe"
         New-Item -ItemType Directory -Force -Path "$QT_DL_BASEDIR"
         
+        Write-Host "Original Url: `"${env:QT_DL_URL}`""
         $url = Get-RedirectedUrl "${env:QT_DL_URL}"
         Write-Host "Redirected Url: `"$url`""
         $req = Req -Params @{ 'Method'='GET';'Uri'="$url";'OutFile'="$QT_DL_PATH" } -Retries 3 -SecondsDelay 10
@@ -211,12 +211,8 @@ jobs:
             Throw "$($proc.ExitCode)"
           }
         } catch {
-            # Catch will pick up any non zero error code returned
-            # You can do anything you like in this block to deal with the error, examples below:
             # $_ returns the error details
-            # This will just write the error
             Write-Error "qt-windows-installer.exe returned the following error: $_"
-            # If you want to pass the error upwards as a system error and abort your powershell script or function
             Throw "Aborted qt-windows-installer.exe returned: $_"
         }
         Write-Host "------------------------------------------------------"
@@ -298,7 +294,7 @@ jobs:
         Write-Host "`nwarzone2100-$($env:WZ_BUILD_DESC)_installer.exe`n`t-> SHA512: $((Get-FileHash -LiteralPath "warzone2100_$($env:WZ_BUILD_DESC)_installer.exe" -Algorithm SHA512).Hash)`n`t`-> Size (bytes): $((Get-Item -LiteralPath "warzone2100_$($env:WZ_BUILD_DESC)_installer.exe").Length)"
         Write-Host ""
     - uses: actions/upload-artifact@v1
-      if: success()
+      if: success() && ('${{ github.repository }}' == 'Warzone2100/warzone2100')
       with:
         name: warzone2100_win_${{ matrix.architecture }}
         path: '${{ github.workspace }}\output'
