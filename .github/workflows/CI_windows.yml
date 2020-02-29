@@ -7,7 +7,9 @@ jobs:
     strategy:
       matrix:
         compiler: ["msvc_2019"]
-        architecture: ["x86", "x64"]
+        architecture: ["x86"]
+        #architecture: ["x86", "x64"]
+      fail-fast: false
     env:
       WZ_MSVC_VER: ${{ matrix.compiler }}
       WZ_TARGET_ARCH: ${{ matrix.architecture }}
