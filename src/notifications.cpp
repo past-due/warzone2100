@@ -859,7 +859,7 @@ bool W_NOTIFICATION::calculateNotificationWidgetPos()//W_NOTIFICATION* psNotific
 //				y += ((float(realTime) / float(endTime)) * WZ_NOTIFICATION_OPEN_DURATION)
 //				y = easeChange(float(realTime) / float(endTime), startingOffscreenY, WZ_NOTIFICATION_TOP_PADDING, float(1.0));
 //				y = (-psNotificationWidget->height()) + (BezierBlend((float(realTime) - float(startTime)) / float(WZ_NOTIFICATION_OPEN_DURATION)) * (WZ_NOTIFICATION_TOP_PADDING + psNotificationWidget->height()));
-				y = (-psNotificationWidget->height()) + (QuinticEaseOut((float(realTime) - float(startTime)) / float(openAnimationDuration)) * (endingYPosition + psNotificationWidget->height()));
+				y = (-psNotificationWidget->height()) + (QuinticEaseOut((float(realTime) - float(startTime)) / float(openAnimationDuration)) * (endingYPosition + psNotificationWidget->height())) + 1;
 				if (!(y + psNotificationWidget->getDragOffset().y >= endingYPosition))
 				{
 					break;
