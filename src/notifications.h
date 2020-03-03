@@ -173,14 +173,13 @@ public:
 	uint32_t timeInterval = 0;
 };
 
-
-
-bool notificationsInitialize();
-void notificationsShutDown();
-
-void runNotifications();
+// Add a notification
 void addNotification(const WZ_Notification& notification, const WZ_Notification_Trigger& trigger);
 
+// In-Game Notifications System
+bool notificationsInitialize();
+void notificationsShutDown();
+void runNotifications();
 bool isDraggingInGameNotification();
 bool isMouseOverInGameNotification();
 
