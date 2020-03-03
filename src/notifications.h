@@ -73,23 +73,6 @@ public:
 		options._numTimesSeenBeforeDoNotShowAgainOption = numTimesSeenBeforeDoNotShowAgainOption;
 		return options;
 	}
-
-//private:
-//
-//	// Specify a uniqueIgnoreKey that uniquely identifies this notification, and is used to
-//	// match against future notifications.
-//	//
-//	// This will cause a "Do Not Show Again" checkbox / option to be displayed after this
-//	// uniquely identified notification is displayed `numTimesSeenBeforeDoNotShowAgainOption`
-//	// times. (Prior instances of this notification will offer a "Dismiss" or "Not Now" option.)
-//	//
-//	// If the user selects / checks the "Do Not Show Again" option, future calls to
-//	// `addNotification` with a matching "uniqueIgnoreKey" will be ignored.
-//	// The display count / ignore state is persisted across application runs.
-//	WZ_Notification_Ignore_Options(const std::string& uniqueIgnoreKey, uint8_t numTimesSeenBeforeDoNotShowAgainOption = 0)
-//	: uniqueIgnoreKey(uniqueIgnoreKey)
-//	, numTimesSeenBeforeDoNotShowAgainOption(numTimesSeenBeforeDoNotShowAgainOption)
-//	{ }
 public:
 	const std::string& uniqueNotificationIdentifier() const { return _uniqueNotificationIdentifier; }
 	uint8_t numTimesSeenBeforeDoNotShowAgainOption() const { return _numTimesSeenBeforeDoNotShowAgainOption; }
@@ -137,7 +120,7 @@ public:
 	// Set to 0 for "until dismissed by user".
 	//
 	// Do not set this interval too short or users may not be able to
-	// read the text before it disappears!
+	// read the text before the notification disappears!
 	uint32_t duration = 0;
 
 	// [Optional properties]:
@@ -147,12 +130,10 @@ public:
 	std::string largeIconPath;
 	// Displays an Action button on the notification which calls the handler when clicked.
 	WZ_Notification_Action action;
-	// Called when the notification is dismissed.
-	std::function<void (WZ_Notification&)> onDismissed;
 	// See: WZ_Notification_Display_Options
 	WZ_Notification_Display_Options displayOptions;
 public:
-	bool isIgnoreable() const { return !displayOptions.uniqueNotificationIdentifier().empty(); }
+	bool isIgnorable() const { return !displayOptions.uniqueNotificationIdentifier().empty(); }
 };
 
 class WZ_Notification_Trigger

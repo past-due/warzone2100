@@ -263,7 +263,7 @@ void WZ_Queued_Notification::setState(WZ_Notification_Status::NotificationState 
 
 	if (newState == WZ_Notification_Status::NotificationState::closed)
 	{
-		if (notification.isIgnoreable() && !bWasFullyShown)
+		if (notification.isIgnorable() && !bWasFullyShown)
 		{
 			notificationPrefs->incrementNotificationRuns(notification.displayOptions.uniqueNotificationIdentifier());
 		}
@@ -427,8 +427,6 @@ std::unique_ptr<WZ_Queued_Notification> popNextQueuedNotification()
 	}
 	return nullptr;
 }
-
-
 
 // MARK: - WzCheckboxButton
 
@@ -720,7 +718,7 @@ W_NOTIFICATION::W_NOTIFICATION(WZ_Queued_Notification* request, W_FORMINIT init 
 		psNewNotificationForm->attach(psDismissButton);
 	}
 
-	if (request->notification.isIgnoreable() && !request->notification.displayOptions.isOneTimeNotification())
+	if (request->notification.isIgnorable() && !request->notification.displayOptions.isOneTimeNotification())
 	{
 		ASSERT(notificationPrefs, "Notification preferences not loaded!");
 		auto numTimesShown = notificationPrefs->getNotificationRuns(request->notification.displayOptions.uniqueNotificationIdentifier());
@@ -1181,6 +1179,14 @@ void displayNotificationInGame(WZ_Queued_Notification* request)
 	// NOTE: Can ignore the result of the above, because it automatically attaches it to the root notification overlay screen
 }
 
+void displayNotification(WZ_Queued_Notification* request)
+{
+	ASSERT(request, "request is null");
+
+	// By default, display the notification using the in-game notification system
+	displayNotificationInGame(request);
+}
+
 // run in-game notifications queue
 void runNotifications()
 {
@@ -1197,7 +1203,8 @@ void runNotifications()
 		currentNotification = popNextQueuedNotification();
 		if (currentNotification)
 		{
-			displayNotificationInGame(currentNotification.get());
+			// display the new notification
+			displayNotification(currentNotification.get());
 		}
 	}
 }
@@ -1231,6 +1238,6 @@ void finishedProcessingNotificationRequest(WZ_Queued_Notification* request, bool
 
 void addNotification(const WZ_Notification& notification, const WZ_Notification_Trigger& trigger)
 {
-	// Add the notification to the in-game notification system's queue
+	// Add the notification to the notification system's queue
 	notificationQueue.push_back(std::unique_ptr<WZ_Queued_Notification>(new WZ_Queued_Notification(notification, WZ_Notification_Status(realTime), trigger)));
 }
