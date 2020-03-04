@@ -373,7 +373,6 @@ public:
 	WzCheckboxButton *pOnDoNotShowAgainCheckbox = nullptr;
 private:
 	WZ_Queued_Notification* request;
-	bool DragEnabled = true;
 	bool isInDragMode = false;
 	Vector2i dragOffset = {0, 0};
 	Vector2i dragStartMousePos = {0, 0};
@@ -942,7 +941,7 @@ void W_NOTIFICATION::run(W_CONTEXT *psContext)
 			// dragging up (to close) - respond 1 to 1
 			int distanceY = dragStartY - currMouseY;
 			dragOffset.y = (distanceY > 0) ? -(distanceY) : 0;
-			debug(LOG_3D, "dragging up, dragOffset.y: (%d)", dragOffset.y);
+//			debug(LOG_GUI, "dragging up, dragOffset.y: (%d)", dragOffset.y);
 		}
 		else if (currMouseY > dragStartY)
 		{
@@ -950,7 +949,7 @@ void W_NOTIFICATION::run(W_CONTEXT *psContext)
 			const int verticalLimit = 10;
 			int distanceY = currMouseY - dragStartY;
 			dragOffset.y = verticalLimit * (1 + log10(float(distanceY) / float(verticalLimit)));
-			debug(LOG_3D, "dragging down, dragOffset.y: (%d)", dragOffset.y);
+//			debug(LOG_GUI, "dragging down, dragOffset.y: (%d)", dragOffset.y);
 		}
 		else
 		{
@@ -961,7 +960,7 @@ void W_NOTIFICATION::run(W_CONTEXT *psContext)
 	{
 		if (isInDragMode && !mouseDown(MOUSE_LMB))
 		{
-			debug(LOG_3D, "No longer in drag mode");
+//			debug(LOG_GUI, "No longer in drag mode");
 			isInDragMode = false;
 			dragEndedTime = realTime;
 			dragOffsetEnded = dragOffset;
@@ -986,18 +985,18 @@ void W_NOTIFICATION::clicked(W_CONTEXT *psContext, WIDGET_KEY key)
 	if (request->status.state == WZ_Notification_Status::NotificationState::closing)
 	{
 		// if clicked while closing, set state to shown
-		debug(LOG_3D, "Click while closing - set to shown");
+//		debug(LOG_GUI, "Click while closing - set to shown");
 		request->status.state = WZ_Notification_Status::NotificationState::shown;
 		request->status.stateStartTime = realTime;
 	}
 
-	if (DragEnabled && geometry().contains(psContext->mx, psContext->my))
+	if (geometry().contains(psContext->mx, psContext->my))
 	{
-		debug(LOG_3D, "Enabling drag mode");
+//		debug(LOG_GUI, "Enabling drag mode");
 		isInDragMode = true;
 		dragStartMousePos.x = psContext->mx;
 		dragStartMousePos.y = psContext->my;
-		debug(LOG_3D, "dragStartMousePos: (%d x %d)", dragStartMousePos.x, dragStartMousePos.y);
+//		debug(LOG_GUI, "dragStartMousePos: (%d x %d)", dragStartMousePos.x, dragStartMousePos.y);
 		dragStartedTime = realTime;
 		notificationsDidStartDragOnNotification(dragStartMousePos);
 	}
@@ -1007,16 +1006,11 @@ void W_NOTIFICATION::clicked(W_CONTEXT *psContext, WIDGET_KEY key)
 
 void W_NOTIFICATION::released(W_CONTEXT *psContext, WIDGET_KEY key)
 {
-//	bool wasInDragMode = isInDragMode;
-	debug(LOG_3D, "released");
-//	isInDragMode = false;
-//	dragEndedTime = realTime;
-//	dragOffsetEnded = dragOffset;
+//	debug(LOG_GUI, "released");
 
 	if (request)
 	{
-		debug(LOG_3D, "dragOffset.y: %d", dragOffset.y);
-		if (!isInDragMode || dragOffset.y < WZ_NOTIFICATION_DOWN_DRAG_DISCARD_CLICK_THRESHOLD)
+		if (isInDragMode && dragOffset.y < WZ_NOTIFICATION_DOWN_DRAG_DISCARD_CLICK_THRESHOLD)
 		{
 			dismissNotification();
 		}
@@ -1103,9 +1097,6 @@ bool notificationsInitialize()
 		// Example: open a URL
 		debug(LOG_ERROR, "Get Update Now action clicked");
 	});
-//	notification.onDoNotShowAgain = [](WZ_Notification& notification) {
-//		debug(LOG_ERROR, "Do not show again");
-//	};
 	notification.displayOptions = WZ_Notification_Display_Options::makeIgnorable("wz_new_version_3_3_1_b", 3);
 	addNotification(notification, WZ_Notification_Trigger::Immediate());
 
@@ -1225,7 +1216,7 @@ void finishedProcessingNotificationRequest(WZ_Queued_Notification* request, bool
 	if (doNotShowAgain)
 	{
 		ASSERT(!request->notification.displayOptions.uniqueNotificationIdentifier().empty(), "Do Not Show Again was selected, but notification has no ignore key");
-		debug(LOG_ERROR, "Do Not Show Notification Again: %s", request->notification.displayOptions.uniqueNotificationIdentifier().c_str());
+		debug(LOG_GUI, "Do Not Show Notification Again: %s", request->notification.displayOptions.uniqueNotificationIdentifier().c_str());
 		notificationPrefs->doNotShowNotificationAgain(request->notification.displayOptions.uniqueNotificationIdentifier());
 	}
 
