@@ -761,16 +761,17 @@ W_NOTIFICATION::~W_NOTIFICATION()
 
 #include "lib/ivis_opengl/piestate.h"
 
-gfx_api::texture* makeTexture(int width, int height, GLenum filter, const gfx_api::pixel_format& format, const GLvoid *image)
+gfx_api::texture* makeTexture(int width, int height, const gfx_api::pixel_format& format, const GLvoid *image)
 {
 	pie_SetTexturePage(TEXPAGE_EXTERN);
 	gfx_api::texture* mTexture = gfx_api::context::get().create_texture(width, height, format);
 	if (image != nullptr)
-		mTexture->upload(0u, 0u, 0u, width, height, format, image);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+		mTexture->upload(0u, 0u, 0u, width, height, format, image, true);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
 //	mWidth = width;
 //	mHeight = height;
 //	mFormat = format;
@@ -789,7 +790,7 @@ gfx_api::texture* W_NOTIFICATION::loadImage(const std::string &filename)
 	}
 	if (iV_loadImage_PNG(filename.c_str(), &image))
 	{
-		pTexture = makeTexture(image.width, image.height, GL_LINEAR, iV_getPixelFormat(&image), image.bmp);
+		pTexture = makeTexture(image.width, image.height, iV_getPixelFormat(&image), image.bmp);
 		iV_unloadImage(&image);
 	}
 	return pTexture;
