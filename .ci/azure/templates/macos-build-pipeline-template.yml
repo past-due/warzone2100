@@ -14,8 +14,6 @@ parameters:
   default: ''
 - name: xcodeDeveloperDir
   default: 'default'
-- name: xcodeDeveloperDirForVcpkgBuild
-  default: 'default'
 - name: publishArtifact
   type: boolean
   default: false
@@ -37,7 +35,6 @@ jobs:
   variables:
     MACOSX_DEPLOYMENT_TARGET: 10.10
     DESIRED_XCODE_DEV_DIR: ${{ parameters.xcodeDeveloperDir }}
-    DESIRED_XCODE_DEV_DIR_FOR_VCPKG_BUILD: ${{ parameters.xcodeDeveloperDirForVcpkgBuild }}
 
   steps:
   - template: prepare-repo-steps.yml
@@ -59,18 +56,6 @@ jobs:
         # NOTE: Specify an explicit Asciidoctor version to help ensure reproducible builds
         gem install asciidoctor -v 2.0.10 --no-document
         cmake --version
-  - task: CmdLine@2
-    displayName: Set Xcode toolchain / version
-    condition: or(ne('${{ parameters.xcodeDeveloperDir }}', 'default'), ne('${{ parameters.xcodeDeveloperDirForVcpkgBuild }}', 'default'))
-    inputs:
-      script: |
-        # Set default Xcode for all following commands (configure script, build, etc)
-        FIRST_XCODE_DEV_DIR="${DESIRED_XCODE_DEV_DIR_FOR_VCPKG_BUILD}"
-        if [ "${DESIRED_XCODE_DEV_DIR_FOR_VCPKG_BUILD}" == "default" ]; then
-          FIRST_XCODE_DEV_DIR="${DESIRED_XCODE_DEV_DIR}"
-        fi
-        echo "Selecting Xcode: ${FIRST_XCODE_DEV_DIR}"
-        sudo xcode-select -switch "${FIRST_XCODE_DEV_DIR}"
   - task: CmdLine@2
     displayName: configure_mac.cmake
     inputs:
@@ -97,9 +82,10 @@ jobs:
 
         echo "Current directory: $(pwd)"
         ADDITIONAL_CONFIGURE_ARGS=""
-        if [ "${DESIRED_XCODE_DEV_DIR_FOR_VCPKG_BUILD}" != "default" ] && [ "${DESIRED_XCODE_DEV_DIR}" != "default" ]; then
+        if [ "${DESIRED_XCODE_DEV_DIR}" != "default" ]; then
           # Need to run configure_mac script twice
 
+          echo "Run configure_mac to just build vcpkg (with system default Xcode)"
           ADDITIONAL_CONFIGURE_ARGS="-DONLY_BUILD_VCPKG=true"
           echo "cmake ${ADDITIONAL_CONFIGURE_ARGS} -DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING=\"${WZ_DISTRIBUTOR}\" -DADDITIONAL_CMAKE_ARGUMENTS=\"-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY=;-DCODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO\" -P ../configure_mac.cmake"
           cmake ${ADDITIONAL_CONFIGURE_ARGS} -DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING="${WZ_DISTRIBUTOR}" -DADDITIONAL_CMAKE_ARGUMENTS="-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY=;-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO" -P ../src/configure_mac.cmake
