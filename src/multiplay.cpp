@@ -1266,7 +1266,9 @@ bool sendTextMessage(const char *pStr, bool all, uint32_t from)
 			}
 			else
 			{
-				sstrcat(display, _("[invalid]"));
+				sstrcat(display, "[");
+				sstrcat(display, _("invalid"));
+				sstrcat(display, "]");
 			}
 			normal = false;
 		}

@@ -666,7 +666,7 @@ void kf_ShowNumObjects()
 	}
 
 	objCount(&droids, &structures, &features);
-	sasprintf(&cmsg, _("(Player %u) is using a cheat :Num Droids: %d  Num Structures: %d  Num Features: %d"),
+	sasprintf(&cmsg, _("(Player %u) is using a cheat: Num Droids: %d  Num Structures: %d  Num Features: %d"),
 	          selectedPlayer, droids, structures, features);
 	sendTextMessage(cmsg, true);
 }
