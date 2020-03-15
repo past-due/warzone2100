@@ -83,7 +83,7 @@
 #include "map.h"
 #include "keybind.h"
 #include "random.h"
-#include "webrequester.h"
+#include "urlrequest.h"
 #include <time.h>
 
 #if !defined(WZ_OS_WIN)

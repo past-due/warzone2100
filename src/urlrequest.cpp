@@ -45,7 +45,7 @@
 	used in advertising or otherwise to promote the sale, use or other dealings in
 	this Software without prior written authorization of the copyright holder.
 */
-#include "webrequester.h"
+#include "urlrequest.h"
 #include "lib/framework/wzapp.h"
 #include <atomic>
 #include <list>
