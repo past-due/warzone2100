@@ -113,7 +113,7 @@ static void kill_locks(void)
 
 	lockarray.clear();
 }
-#elif defined(USE_GNUTLS)
+#elif defined(USE_OLD_GNUTLS_LOCK_INIT)
 #include <gcrypt.h>
 #include <errno.h>
 
@@ -770,7 +770,7 @@ void urlRequestInit()
 	// Did not compile with support for thread-safety / locks for OpenSSL, so ignore it
 	ignoredBackends.push_back(CURLSSLBACKEND_OPENSSL);
 #endif
-#if !defined(USE_GNUTLS)
+#if !defined(USE_OLD_GNUTLS_LOCK_INIT)
 	// Did not compile with support for thread-safety / locks for GnuTLS, so ignore it
 	ignoredBackends.push_back(CURLSSLBACKEND_GNUTLS);
 #endif
