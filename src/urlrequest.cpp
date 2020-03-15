@@ -54,6 +54,7 @@
 #include <algorithm>
 #include <stdio.h>
 #include <vector>
+#include <regex>
 
 #undef max
 #undef min
@@ -66,12 +67,15 @@ static WZ_SEMAPHORE     *urlRequestSemaphore = nullptr;
 
 // MARK: - Handle thread-safety for cURL
 
-#if defined(USE_OPENSSL)
+#if defined(USE_OPENSSL_LOCKS_INIT)
+# include <openssl/crypto.h>
+
+// lock callbacks are only needed for OpenSSL < 1.1.0
+# if OPENSSL_VERSION_NUMBER < 0x10100000L
 
 /* we have this global to let the callback get easy access to it */
 static std::vector<WZ_MUTEX *> lockarray;
 
-#include <openssl/crypto.h>
 static void lock_callback(int mode, int type, char *file, int line)
 {
 	(void)file;
@@ -84,6 +88,14 @@ static void lock_callback(int mode, int type, char *file, int line)
 	}
 }
 
+#  if OPENSSL_VERSION_NUMBER >= 0x10000000
+// for CRYPTO_THREADID_set_callback API
+static void thread_id(CRYPTO_THREADID *id)
+{
+	CRYPTO_THREADID_set_numeric(id, (unsigned long)wzThreadID(nullptr));
+}
+#  else
+// for old CRYPTO_set_id_callback API
 static unsigned long thread_id(void)
 {
   unsigned long ret;
@@ -91,6 +103,7 @@ static unsigned long thread_id(void)
   ret = (unsigned long)wzThreadID(nullptr);
   return ret;
 }
+#  endif
 
 static void init_locks(void)
 {
@@ -99,9 +112,12 @@ static void init_locks(void)
 	for(size_t i = 0; i < lockarray.size(); i++) {
 		lockarray[i] = wzMutexCreate();
 	}
-
-	CRYPTO_set_id_callback((unsigned long (*)())thread_id);
-	CRYPTO_set_locking_callback((void (*)())lock_callback);
+#  if OPENSSL_VERSION_NUMBER >= 0x10000000
+	CRYPTO_THREADID_set_callback(thread_id);
+#  else
+	CRYPTO_set_id_callback(thread_id);
+#  endif
+	CRYPTO_set_locking_callback(lock_callback);
 }
 
 static void kill_locks(void)
@@ -113,9 +129,13 @@ static void kill_locks(void)
 
 	lockarray.clear();
 }
-#elif defined(USE_OLD_GNUTLS_LOCK_INIT)
-#include <gcrypt.h>
-#include <errno.h>
+# else // no OpenSSL lock callbacks needed
+# define init_locks()
+# define kill_locks()
+# endif
+#elif defined(USE_OLD_GNUTLS_LOCKS_INIT)
+# include <gcrypt.h>
+# include <errno.h>
 
 GCRY_THREAD_OPTION_PTHREAD_IMPL;
 
@@ -124,11 +144,158 @@ void init_locks(void)
   gcry_control(GCRYCTL_SET_THREAD_CBS);
 }
 
-#define kill_locks()
+# define kill_locks()
 #else
-#define init_locks()
-#define kill_locks()
+# define init_locks()
+# define kill_locks()
 #endif
+
+struct SemVer
+{
+	unsigned long major;
+	unsigned long minor;
+	unsigned long patch;
+
+	SemVer()
+	: major(0)
+	, minor(0)
+	, patch(0)
+	{ }
+
+	SemVer(unsigned long major, unsigned long minor, unsigned long patch)
+	: major(major)
+	, minor(minor)
+	, patch(patch)
+	{ }
+
+	bool operator <(const SemVer& b) {
+		return (major < b.major) ||
+				((major == b.major) && (
+					(minor < b.minor) ||
+					((minor == b.minor) && (patch < b.patch))
+				));
+//		if(major < b.major) {
+//			return true;
+//		}
+//		if(major == b.major) {
+//			if(minor < b.minor) {
+//				return true;
+//			}
+//			if(minor == b.minor) {
+//				return patch < b.patch;
+//			}
+//			return false;
+//		}
+//		return false;
+	}
+	bool operator <=(const SemVer& b) {
+		return (major < b.major) ||
+				((major == b.major) && (
+					(minor < b.minor) ||
+					((minor == b.minor) && (patch <= b.patch))
+				));
+//		if(major < b.major) {
+//			return true;
+//		}
+//		if(major == b.major) {
+//			if(minor < b.minor) {
+//				return true;
+//			}
+//			if(minor == b.minor) {
+//				return patch <= b.patch;
+//			}
+//			return false;
+//		}
+//		return false;
+	}
+	bool operator >(const SemVer& b) {
+		return !(*this <= b);
+	}
+	bool operator >=(const SemVer& b) {
+		return !(*this < b);
+	}
+};
+
+bool verify_curl_ssl_thread_safe_setup()
+{
+	// verify SSL backend version (if possible explicit thread-safety locks setup is required)
+	const curl_version_info_data * info = curl_version_info(CURLVERSION_NOW);
+	std::cmatch cm;
+
+	const char* ssl_version_str = info->ssl_version;
+
+	// GnuTLS
+	std::regex gnutls_regex("^GnuTLS\\/([\\d]+)\\.([\\d]+)\\.([\\d]+).*");
+	std::regex_match(ssl_version_str, cm, gnutls_regex);
+	if(!cm.empty())
+	{
+		SemVer version;
+		try {
+			version.major = std::stoul(cm[1]);
+			version.minor = std::stoul(cm[2]);
+		}
+		catch (const std::exception &e) {
+			debug(LOG_WARNING, "Failed to convert string to unsigned long because of error: %s", e.what());
+		}
+
+		// explicit gcry_control() is required when GnuTLS < 2.11.0
+		SemVer min_safe_version = {2, 11, 0};
+		if (version >= min_safe_version)
+		{
+			return true;
+		}
+
+		// explicit gcry_control() is required when GnuTLS < 2.11.0
+#if defined(USE_OPENSSL_LOCKS_INIT) || !defined(USE_OLD_GNUTLS_LOCKS_INIT)
+		// but we didn't initialize it
+		return false;
+#else
+		// and we *did* initialize it
+		return true;
+#endif
+	}
+
+	// OpenSSL, libressl, BoringSSL
+	std::regex e("^(OpenSSL|libressl|BoringSSL)\\/([\\d]+)\\.([\\d]+)\\.([\\d]+).*");
+	std::regex_match(ssl_version_str, cm, e);
+	if(!cm.empty())
+	{
+		ASSERT(cm.size() == 5, "Unexpected # of match results: %zu", cm.size());
+		std::string variant = cm[1];
+		SemVer version;
+		try {
+			version.major = std::stoul(cm[2]);
+			version.minor = std::stoul(cm[3]);
+		}
+		catch (const std::exception &e) {
+			debug(LOG_WARNING, "Failed to convert string to unsigned long because of error: %s", e.what());
+		}
+		if (variant == "OpenSSL")
+		{
+			// for OpenSSL < 1.1.0, callbacks must be set
+			SemVer min_safe_version = {1, 1, 0};
+			if (version >= min_safe_version)
+			{
+				return true;
+			}
+			// for OpenSSL < 1.1.0, callbacks must be set
+#if !defined(USE_OPENSSL_LOCKS_INIT)
+			// but we didn't set them
+			return false;
+#else
+			// and we *did* set them
+			return true;
+#endif
+		}
+		else
+		{
+			// TODO: Handle libressl, BoringSSL
+		}
+	}
+
+	// otherwise, ssl backend should be thread-safe automatically
+	return true;
+}
 
 // MARK: - Handle progress callbacks
 
@@ -766,11 +933,11 @@ void urlRequestInit()
 	// Note: Use CURLSSLBACKEND_DARWINSSL instead of CURLSSLBACKEND_SECURETRANSPORT to support older cURL versions
 	const std::vector<curl_sslbackend> backendPreferencesOrder = {CURLSSLBACKEND_SCHANNEL, CURLSSLBACKEND_DARWINSSL, CURLSSLBACKEND_GNUTLS, CURLSSLBACKEND_NSS};
 	std::vector<curl_sslbackend> ignoredBackends;
-#if !defined(USE_OPENSSL)
+#if !defined(USE_OPENSSL_LOCKS_INIT) && !defined(CURL_OPENSSL_DOES_NOT_REQUIRE_LOCKS_INIT)
 	// Did not compile with support for thread-safety / locks for OpenSSL, so ignore it
 	ignoredBackends.push_back(CURLSSLBACKEND_OPENSSL);
 #endif
-#if !defined(USE_OLD_GNUTLS_LOCK_INIT)
+#if !defined(USE_OLD_GNUTLS_LOCKS_INIT) && !defined(CURL_GNUTLS_DOES_NOT_REQUIRE_LOCKS_INIT)
 	// Did not compile with support for thread-safety / locks for GnuTLS, so ignore it
 	ignoredBackends.push_back(CURLSSLBACKEND_GNUTLS);
 #endif
@@ -829,6 +996,11 @@ void urlRequestInit()
 	}
 
 	init_locks();
+
+	if (!verify_curl_ssl_thread_safe_setup())
+	{
+		debug(LOG_ERROR, "curl initialized, but ssl backend could not be configured to be thread-safe");
+	}
 
 	// start background thread for processing HTTP requests
 	urlRequestQuit = false;
