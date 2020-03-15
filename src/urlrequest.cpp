@@ -53,6 +53,7 @@
 #include <list>
 #include <algorithm>
 #include <stdio.h>
+#include <vector>
 
 #undef max
 #undef min
@@ -760,6 +761,64 @@ void urlRequestOutputDebugInfo()
 
 void urlRequestInit()
 {
+#if LIBCURL_VERSION_NUM >= 0x073800 // cURL 7.56.0+
+	auto availableSSLBackends = listSSLBackends();
+	const std::vector<curl_sslbackend> backendPreferencesOrder = {CURLSSLBACKEND_SCHANNEL, CURLSSLBACKEND_SECURETRANSPORT, CURLSSLBACKEND_GNUTLS, CURLSSLBACKEND_NSS};
+	std::vector<curl_sslbackend> ignoredBackends;
+#if !defined(USE_OPENSSL)
+	// Did not compile with support for thread-safety / locks for OpenSSL, so ignore it
+	ignoredBackends.push_back(CURLSSLBACKEND_OPENSSL);
+#endif
+#if !defined(USE_GNUTLS)
+	// Did not compile with support for thread-safety / locks for GnuTLS, so ignore it
+	ignoredBackends.push_back(CURLSSLBACKEND_GNUTLS);
+#endif
+	if (!ignoredBackends.empty())
+	{
+		availableSSLBackends.erase(std::remove_if(availableSSLBackends.begin(),
+					   availableSSLBackends.end(),
+					   [ignoredBackends](const std::pair<std::string, curl_sslbackend>& backend)
+		{
+			return std::find(ignoredBackends.begin(), ignoredBackends.end(), backend.second) != ignoredBackends.end();
+		}),
+		availableSSLBackends.end());
+	}
+	if (!availableSSLBackends.empty())
+	{
+		curl_sslbackend sslBackendChoice = availableSSLBackends.front().second;
+		for (const auto& preferredBackend : backendPreferencesOrder)
+		{
+			auto it = std::find_if(availableSSLBackends.begin(), availableSSLBackends.end(), [preferredBackend](const std::pair<std::string, curl_sslbackend>& backend) {
+				return backend.second == preferredBackend;
+			});
+			if (it != availableSSLBackends.end())
+			{
+				sslBackendChoice = it->second;
+				break;
+			}
+		}
+		if (sslBackendChoice != CURLSSLBACKEND_NONE)
+		{
+			CURLsslset result = curl_global_sslset(sslBackendChoice, nullptr, nullptr);
+			if (result == CURLSSLSET_OK)
+			{
+				debug(LOG_WZ, "cURL: selected SSL backend: %d", sslBackendChoice);
+			}
+			else
+			{
+				debug(LOG_WZ, "cURL: failed to select SSL backend (%d) with error: %d", sslBackendChoice, result);
+			}
+		}
+	}
+	else
+	{
+		debug(LOG_ERROR, "cURL has no available thread-safe SSL backends to configure");
+		for (const auto& ignoredBackend : ignoredBackends)
+		{
+			debug(LOG_ERROR, "(Ignored backend: %d (build did not permit thread-safe configuration)", ignoredBackend);
+		}
+	}
+#endif
 
 	/* Must initialize libcurl before any threads are started */
 	CURLcode result = curl_global_init(CURL_GLOBAL_ALL);
