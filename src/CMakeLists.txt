@@ -172,17 +172,20 @@ if(CURL_CONFIG_EXECUTABLE)
 						OUTPUT_STRIP_TRAILING_WHITESPACE)
 		message(STATUS "@CURL_CONFIG_CONFIGURE_STRING=\"${CURL_CONFIG_CONFIGURE_STRING}\"")
 		set(CURL_SUPPORTED_SSL_BACKENDS)
-		if (str MATCHES "--with-ssl")
+		if ((CURL_CONFIG_CONFIGURE_STRING MATCHES "--with-ssl") OR (NOT CURL_CONFIG_CONFIGURE_STRING MATCHES "--without-ssl"))
 			# Linked to OpenSSL (or similar)
 			list(APPEND CURL_SUPPORTED_SSL_BACKENDS "OpenSSL")
 		endif()
-		if (str MATCHES "--with-gnutls")
+		if (CURL_CONFIG_CONFIGURE_STRING MATCHES "--with-gnutls")
 			# Linked to GnuTLS
 			list(APPEND CURL_SUPPORTED_SSL_BACKENDS "GnuTLS")
 		endif()
-		if (str MATCHES "--with-default-ssl-backend=")
+		if (CURL_CONFIG_CONFIGURE_STRING MATCHES "--with-default-ssl-backend=")
 			# TODO: A default ssl backend was specified - need to parse and check if it's OpenSSL or GnuTLS
 			# Filter the CURL_SUPPORTED_SSL_BACKENDS list
+			# --with-default-ssl-backend=gnutls
+			# --with-default-ssl-backend=openssl
+			# anything else? remove both
 		else()
 			# TODO: Handle "implicit default" case?
 		endif()
