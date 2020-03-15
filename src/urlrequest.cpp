@@ -152,57 +152,57 @@ void init_locks(void)
 
 struct SemVer
 {
-	unsigned long major;
-	unsigned long minor;
-	unsigned long patch;
+	unsigned long maj;
+	unsigned long min;
+	unsigned long rev;
 
 	SemVer()
-	: major(0)
-	, minor(0)
-	, patch(0)
+	: maj(0)
+	, min(0)
+	, rev(0)
 	{ }
 
-	SemVer(unsigned long major, unsigned long minor, unsigned long patch)
-	: major(major)
-	, minor(minor)
-	, patch(patch)
+	SemVer(unsigned long maj, unsigned long min, unsigned long rev)
+	: maj(maj)
+	, min(min)
+	, rev(rev)
 	{ }
 
 	bool operator <(const SemVer& b) {
-		return (major < b.major) ||
-				((major == b.major) && (
-					(minor < b.minor) ||
-					((minor == b.minor) && (patch < b.patch))
+		return (maj < b.maj) ||
+				((maj == b.maj) && (
+					(min < b.min) ||
+					((min == b.min) && (rev < b.rev))
 				));
-//		if(major < b.major) {
+//		if(maj < b.maj) {
 //			return true;
 //		}
-//		if(major == b.major) {
-//			if(minor < b.minor) {
+//		if(maj == b.maj) {
+//			if(min < b.min) {
 //				return true;
 //			}
-//			if(minor == b.minor) {
-//				return patch < b.patch;
+//			if(min == b.min) {
+//				return rev < b.rev;
 //			}
 //			return false;
 //		}
 //		return false;
 	}
 	bool operator <=(const SemVer& b) {
-		return (major < b.major) ||
-				((major == b.major) && (
-					(minor < b.minor) ||
-					((minor == b.minor) && (patch <= b.patch))
+		return (maj < b.maj) ||
+				((maj == b.maj) && (
+					(min < b.min) ||
+					((min == b.min) && (rev <= b.rev))
 				));
-//		if(major < b.major) {
+//		if(maj < b.maj) {
 //			return true;
 //		}
-//		if(major == b.major) {
-//			if(minor < b.minor) {
+//		if(maj == b.maj) {
+//			if(min < b.min) {
 //				return true;
 //			}
-//			if(minor == b.minor) {
-//				return patch <= b.patch;
+//			if(min == b.min) {
+//				return rev <= b.rev;
 //			}
 //			return false;
 //		}
@@ -231,8 +231,8 @@ bool verify_curl_ssl_thread_safe_setup()
 	{
 		SemVer version;
 		try {
-			version.major = std::stoul(cm[1]);
-			version.minor = std::stoul(cm[2]);
+			version.maj = std::stoul(cm[1]);
+			version.min = std::stoul(cm[2]);
 		}
 		catch (const std::exception &e) {
 			debug(LOG_WARNING, "Failed to convert string to unsigned long because of error: %s", e.what());
@@ -264,8 +264,8 @@ bool verify_curl_ssl_thread_safe_setup()
 		std::string variant = cm[1];
 		SemVer version;
 		try {
-			version.major = std::stoul(cm[2]);
-			version.minor = std::stoul(cm[3]);
+			version.maj = std::stoul(cm[2]);
+			version.min = std::stoul(cm[3]);
 		}
 		catch (const std::exception &e) {
 			debug(LOG_WARNING, "Failed to convert string to unsigned long because of error: %s", e.what());
