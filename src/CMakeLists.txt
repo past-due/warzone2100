@@ -125,7 +125,23 @@ if(ENABLE_NLS)
 	target_link_libraries(warzone2100 "${Intl_LIBRARIES}")
 endif()
 
-find_package(CURL CONFIG REQUIRED)
+find_package(CURL CONFIG QUIET) # Deliberately quiet, so we can handle the result
+if(NOT CURL_FOUND)
+	# CONFIG mode failed - fallback to MODULE mode
+	# In CMake 3.5 this does not define a target, but it will in 3.12
+	# (see https://cmake.org/cmake/help/git-stage/module/FindCURL.html for details).
+	# Until then, define the target ourselves if it is missing.
+	find_package(CURL MODULE REQUIRED) # Use REQUIRED the second time to fail out
+	if (NOT TARGET CURL::libcurl)
+		add_library(CURL::libcurl UNKNOWN IMPORTED)
+		set_property(TARGET CURL::libcurl
+			APPEND PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${CURL_INCLUDE_DIR}"
+		)
+		set_property(TARGET CURL::libcurl
+			APPEND PROPERTY IMPORTED_LOCATION "${CURL_LIBRARY}"
+		)
+	endif()
+endif()
 target_link_libraries(warzone2100 CURL::libcurl)
 
 if(CMAKE_SYSTEM_NAME MATCHES "Windows")
