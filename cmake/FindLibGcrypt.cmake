@@ -5,6 +5,7 @@
 #  LIBGCRYPT_FOUND - set if the system has the gcrypt library
 #  LIBGCRYPT_CFLAGS - the required gcrypt compilation flags
 #  LIBGCRYPT_LIBRARIES - the linker libraries needed to use the gcrypt library
+#  LIBGCRYPT_INCLUDE_DIR
 #
 # libgcrypt is moving to pkg-config, but earlier version don't have it
 # 
@@ -79,14 +80,6 @@ if (LIBGCRYPT_FOUND)
    if (NOT LibGcrypt_FIND_QUIETLY)
       message(STATUS "Found libgcrypt: ${LIBGCRYPT_LIBRARIES}")
    endif (NOT LibGcrypt_FIND_QUIETLY)
-   
-   add_library(LibGcrypt::LibGcrypt UNKNOWN IMPORTED)
-   set_target_properties(LibGcrypt::LibGcrypt PROPERTIES
-      INTERFACE_INCLUDE_DIRECTORIES "${LIBGCRYPT_INCLUDE_DIR}"
-      INTERFACE_COMPILE_OPTIONS "${LIBGCRYPT_CFLAGS}"
-      IMPORTED_LINK_INTERFACE_LANGUAGES "C"
-      IMPORTED_LOCATION "${LIBGCRYPT_LIBRARIES}")
-   
 else (LIBGCRYPT_FOUND)
    if (LibGcrypt_FIND_REQUIRED)
       message(WARNING "Could not find libgcrypt libraries")
