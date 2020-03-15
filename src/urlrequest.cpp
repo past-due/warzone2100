@@ -763,7 +763,8 @@ void urlRequestInit()
 {
 #if LIBCURL_VERSION_NUM >= 0x073800 // cURL 7.56.0+
 	auto availableSSLBackends = listSSLBackends();
-	const std::vector<curl_sslbackend> backendPreferencesOrder = {CURLSSLBACKEND_SCHANNEL, CURLSSLBACKEND_SECURETRANSPORT, CURLSSLBACKEND_GNUTLS, CURLSSLBACKEND_NSS};
+	// Note: Use CURLSSLBACKEND_DARWINSSL instead of CURLSSLBACKEND_SECURETRANSPORT to support older cURL versions
+	const std::vector<curl_sslbackend> backendPreferencesOrder = {CURLSSLBACKEND_SCHANNEL, CURLSSLBACKEND_DARWINSSL, CURLSSLBACKEND_GNUTLS, CURLSSLBACKEND_NSS};
 	std::vector<curl_sslbackend> ignoredBackends;
 #if !defined(USE_OPENSSL)
 	// Did not compile with support for thread-safety / locks for OpenSSL, so ignore it
