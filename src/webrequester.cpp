@@ -229,6 +229,10 @@ public:
 		}
 	#endif
 
+	#if LIBCURL_VERSION_NUM >= 0x070A00	// cURL 7.10.0+
+		curl_easy_setopt(handle, CURLOPT_NOSIGNAL, 1L);
+	#endif
+
 		/* abort if slower than 30 bytes/sec during 60 seconds */
 		curl_easy_setopt(handle, CURLOPT_LOW_SPEED_TIME, 60L);
 		curl_easy_setopt(handle, CURLOPT_LOW_SPEED_LIMIT, 30L);
