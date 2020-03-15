@@ -113,7 +113,7 @@ static void kill_locks(void)
 
 	lockarray.clear();
 }
-#elseif defined(USE_GNUTLS)
+#elif defined(USE_GNUTLS)
 #include <gcrypt.h>
 #include <errno.h>
 
