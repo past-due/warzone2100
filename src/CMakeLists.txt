@@ -125,6 +125,9 @@ if(ENABLE_NLS)
 	target_link_libraries(warzone2100 "${Intl_LIBRARIES}")
 endif()
 
+find_package(CURL CONFIG REQUIRED)
+target_link_libraries(warzone2100 CURL::libcurl)
+
 if(CMAKE_SYSTEM_NAME MATCHES "Windows")
     target_link_libraries(warzone2100 ws2_32 iphlpapi)
 endif()

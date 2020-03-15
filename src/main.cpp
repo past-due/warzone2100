@@ -83,7 +83,12 @@
 #include "map.h"
 #include "keybind.h"
 #include "random.h"
+#include "webrequester.h"
 #include <time.h>
+
+#if !defined(WZ_OS_WIN)
+#include <signal.h>
+#endif
 
 #if defined(WZ_OS_MAC)
 // NOTE: Moving these defines is likely to (and has in the past) break the mac builds
@@ -1108,6 +1113,14 @@ extern const char *BACKEND;
 
 int realmain(int argc, char *argv[])
 {
+#if !defined(WZ_OS_WIN)
+	// Before anything else is run, and before creating any threads, ignore SIGPIPE
+	struct sigaction sa;
+	sa.sa_handler = SIG_IGN;
+	sa.sa_flags = 0;
+	bool ignoredSIGPIPE = sigaction(SIGPIPE, &sa, 0) == 0;
+#endif
+
 	int utfargc = argc;
 	char **utfargv = (char **)argv;
 	wzMain(argc, argv);		// init Qt integration first
@@ -1127,6 +1140,9 @@ int realmain(int argc, char *argv[])
 	}
 
 	setupExceptionHandler(utfargc, utfargv, version_getFormattedVersionString(), version_getVersionedAppDirFolderName(), isPortableMode());
+
+	/*** Initialize URL Request library ***/
+	urlRequestInit();
 
 	/*** Initialize PhysicsFS ***/
 	initialize_PhysicsFS(utfargv[0]);
@@ -1215,6 +1231,10 @@ int realmain(int argc, char *argv[])
 	debug(LOG_MEMORY, "sizeof: SIMPLE_OBJECT=%ld, BASE_OBJECT=%ld, DROID=%ld, STRUCTURE=%ld, FEATURE=%ld, PROJECTILE=%ld",
 	      (long)sizeof(SIMPLE_OBJECT), (long)sizeof(BASE_OBJECT), (long)sizeof(DROID), (long)sizeof(STRUCTURE), (long)sizeof(FEATURE), (long)sizeof(PROJECTILE));
 
+#if !defined(WZ_OS_WIN)
+	debug(LOG_WZ, "Ignoring SIGPIPE: %s", (ignoredSIGPIPE) ? "true" : "false");
+#endif
+	urlRequestOutputDebugInfo();
 
 	/* Put in the writedir root */
 	sstrcpy(KeyMapPath, "keymap.json");
@@ -1406,6 +1426,7 @@ int realmain(int argc, char *argv[])
 	}
 	free(utfargv);
 #endif
+	urlRequestShutdown();
 	wzShutdown();
 	debug(LOG_MAIN, "Completed shutting down Warzone 2100");
 	return EXIT_SUCCESS;
