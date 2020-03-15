@@ -45,12 +45,17 @@
 	used in advertising or otherwise to promote the sale, use or other dealings in
 	this Software without prior written authorization of the copyright holder.
 */
+
+#define NOMINMAX
 #include "urlrequest.h"
 #include "lib/framework/wzapp.h"
 #include <atomic>
 #include <list>
 #include <algorithm>
 #include <stdio.h>
+
+#undef max
+#undef min
 
 static volatile bool urlRequestQuit = false;
 
@@ -436,13 +441,15 @@ public:
 		if (wstr_len <= 0)
 		{
 			fprintf(stderr, "Could not not convert string from UTF-8; MultiByteToWideChar failed with error %d: %s\n", GetLastError(), request.outFilePath.c_str());
-			return false;
+			// TODO: throw exception?
+			return;
 		}
 		std::vector<wchar_t> wstr_filename(wstr_len, 0);
 		if (MultiByteToWideChar(CP_UTF8, 0, request.outFilePath.c_str(), -1, &wstr_filename[0], wstr_len) == 0)
 		{
 			fprintf(stderr, "Could not not convert string from UTF-8; MultiByteToWideChar[2] failed with error %d: %s\n", GetLastError(), request.outFilePath.c_str());
-			return false;
+			// TODO: throw exception?
+			return;
 		}
 		outFile = _wfopen(&wstr_filename[0], L"wb");
 #else
@@ -685,6 +692,7 @@ void urlDownloadFile(const URLFileDownloadRequest& request)
 	}
 }
 
+#if LIBCURL_VERSION_NUM >= 0x073800 // cURL 7.56.0+
 std::vector<std::pair<std::string, curl_sslbackend>> listSSLBackends()
 {
 	// List available cURL SSL backends
@@ -703,6 +711,7 @@ std::vector<std::pair<std::string, curl_sslbackend>> listSSLBackends()
 	}
 	return output;
 }
+#endif
 
 void urlRequestOutputDebugInfo()
 {
