@@ -141,8 +141,48 @@ if(NOT CURL_FOUND)
 			APPEND PROPERTY IMPORTED_LOCATION "${CURL_LIBRARY}"
 		)
 	endif()
+else()
+	# Determine cURL version found
+	message(STATUS "CURL_VERSION_STRING=\"${CURL_VERSION_STRING}\"")
+	set(CURL_VERSION_STRING "${CURL_VERSION}")
 endif()
 target_link_libraries(warzone2100 CURL::libcurl)
+
+# Attempt to determine which SSL backend(s) cURL is linked to
+message(STATUS "CURL_VERSION_STRING=\"${CURL_VERSION_STRING}\"")
+find_program(CURL_CONFIG_EXECUTABLE NAMES curl-config)
+if(CURL_CONFIG_EXECUTABLE)
+	execute_process(COMMAND ${CURL_CONFIG_EXECUTABLE} --ssl-backends
+					OUTPUT_VARIABLE CURL_CONFIG_SSL_BACKENDS_STRING
+					ERROR_QUIET
+					OUTPUT_STRIP_TRAILING_WHITESPACE)
+	string(REPLACE "," ";" CURL_SUPPORTED_SSL_BACKENDS "${CURL_CONFIG_SSL_BACKENDS_STRING}")
+	message(STATUS "@CURL_SUPPORTED_SSL_BACKENDS=\"${CURL_SUPPORTED_SSL_BACKENDS}\"")
+	list(FIND CURL_SUPPORTED_SSL_BACKENDS "gnutls" _found)
+    if(_found)
+		# GnuTLS found
+		find_package(GnuTLS)
+		if (GnuTLS_FOUND)
+			target_link_libraries(warzone2100 GnuTLS::GnuTLS)
+			target_compile_definitions(warzone2100 PRIVATE "USE_GNUTLS")
+			message(STATUS "Enabling thread-safety measures for cURL GnuTLS backend")
+		else()
+			message(WARNING "cURL is linked to GnuTLS, but GnuTLS was not found - not enabling thread-safety measures for GnuTLS backend")
+		endif()
+    endif()
+    list(FIND CURL_SUPPORTED_SSL_BACKENDS "ssl" _found)
+    if(_found)
+		# OpenSSL found
+		find_package(OpenSSL)
+		if (OpenSSL_FOUND)
+			target_link_libraries(warzone2100 OpenSSL::Crypto)
+			target_compile_definitions(warzone2100 PRIVATE "USE_OPENSSL")
+			message(STATUS "Enabling thread-safety measures for cURL OpenSSL backend")
+		else()
+			message(WARNING "cURL is linked to OpenSSL, but OpenSSL was not found - not enabling thread-safety measures for OpenSSL backend")
+		endif()
+    endif()
+endif()
 
 if(CMAKE_SYSTEM_NAME MATCHES "Windows")
     target_link_libraries(warzone2100 ws2_32 iphlpapi)
