@@ -187,8 +187,10 @@ public:
 			curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, WriteMemoryCallback_URLTransferRequest);
 			curl_easy_setopt(handle, CURLOPT_WRITEDATA, (void *)this);
 		}
+	#if LIBCURL_VERSION_NUM >= 0x071304	// cURL 7.19.4+
 		/* only allow HTTP and HTTPS */
 		curl_easy_setopt(handle, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+	#endif
 		/* tell libcurl to follow redirection */
 		curl_easy_setopt(handle, CURLOPT_FOLLOWLOCATION, 1L);
 		/* set max redirects */
@@ -218,12 +220,14 @@ public:
 
 		curl_easy_setopt(handle, CURLOPT_NOPROGRESS, 0L);
 
+	#if LIBCURL_VERSION_NUM >= 0x070B00	// cURL 7.11.0+
 		/* refuse to download if larger than limit */
 		curl_off_t downloadSizeLimit = maxDownloadSize();
 		if (downloadSizeLimit > 0)
 		{
 			curl_easy_setopt(handle, CURLOPT_MAXFILESIZE_LARGE, downloadSizeLimit);
 		}
+	#endif
 
 		/* abort if slower than 30 bytes/sec during 60 seconds */
 		curl_easy_setopt(handle, CURLOPT_LOW_SPEED_TIME, 60L);
@@ -577,7 +581,11 @@ static int urlRequestThreadFunc(void *)
 		if (multiCode == CURLM_OK )
 		{
 			/* wait for activity, timeout or "nothing" */
+		#if LIBCURL_VERSION_NUM >= 0x071C00	// cURL 7.28.0+ required for curl_multi_wait
 			multiCode = curl_multi_wait ( multi_handle, NULL, 0, 1000, NULL);
+		#else
+			#error "Needs a fallback for lack of curl_multi_wait (or, even better, update libcurl!)"
+		#endif
 		}
 		if (multiCode != CURLM_OK)
 		{
@@ -700,7 +708,7 @@ void urlRequestOutputDebugInfo()
 		debug(LOG_WZ, "cURL: %s", info->version);
 		debug(LOG_WZ, "- SSL: %s", info->ssl_version);
 
-		#if CURL_AT_LEAST_VERSION(7,56,0)
+		#if LIBCURL_VERSION_NUM >= 0x073800 // cURL 7.56.0+
 		if (!!(info->features & CURL_VERSION_MULTI_SSL))
 		{
 			auto availableSSLBackends = listSSLBackends();
@@ -716,7 +724,7 @@ void urlRequestOutputDebugInfo()
 			debug(LOG_WZ, "- Available SSL backends: %s", sslBackendStr.c_str());
 		}
 		#endif
-		#if CURL_AT_LEAST_VERSION(7,10,7)
+		#if LIBCURL_VERSION_NUM >= 0x070A07 // cURL 7.10.7+
 		debug(LOG_WZ, "- AsynchDNS: %d", !!(info->features & CURL_VERSION_ASYNCHDNS));
 		#endif
 	}
