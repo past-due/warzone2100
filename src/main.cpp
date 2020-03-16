@@ -87,8 +87,8 @@
 #include <time.h>
 #include <LaunchInfo.h>
 
-#if !defined(WZ_OS_WIN)
-#include <signal.h>
+#if defined(HAVE_SIGACTION)
+# include <signal.h>
 #endif
 
 #if defined(WZ_OS_MAC)
@@ -1232,12 +1232,17 @@ extern const char *BACKEND;
 
 int realmain(int argc, char *argv[])
 {
-#if !defined(WZ_OS_WIN)
+#if defined(WZ_OS_UNIX)
 	// Before anything else is run, and before creating any threads, ignore SIGPIPE
+	// see: https://curl.haxx.se/libcurl/c/CURLOPT_NOSIGNAL.html
+	bool ignoredSIGPIPE = false;
+# if defined(HAVE_SIGACTION)
 	struct sigaction sa;
+	sigemptyset(&sa.sa_mask);
 	sa.sa_handler = SIG_IGN;
 	sa.sa_flags = 0;
-	bool ignoredSIGPIPE = sigaction(SIGPIPE, &sa, 0) == 0;
+	ignoredSIGPIPE = sigaction(SIGPIPE, &sa, 0) == 0;
+# endif
 #endif
 
 	int utfargc = argc;
@@ -1354,7 +1359,7 @@ int realmain(int argc, char *argv[])
 	debug(LOG_MEMORY, "sizeof: SIMPLE_OBJECT=%ld, BASE_OBJECT=%ld, DROID=%ld, STRUCTURE=%ld, FEATURE=%ld, PROJECTILE=%ld",
 	      (long)sizeof(SIMPLE_OBJECT), (long)sizeof(BASE_OBJECT), (long)sizeof(DROID), (long)sizeof(STRUCTURE), (long)sizeof(FEATURE), (long)sizeof(PROJECTILE));
 
-#if !defined(WZ_OS_WIN)
+#if defined(WZ_OS_UNIX)
 	debug(LOG_WZ, "Ignoring SIGPIPE: %s", (ignoredSIGPIPE) ? "true" : "false");
 #endif
 	urlRequestOutputDebugInfo();
