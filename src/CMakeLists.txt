@@ -125,7 +125,7 @@ if(ENABLE_NLS)
 	target_link_libraries(warzone2100 "${Intl_LIBRARIES}")
 endif()
 
-include(IncludeFindCurl.cmake)
+include(IncludeFindCurl)
 target_link_libraries(warzone2100 CURL::libcurl)
 
 set(_curl_gnutls_thread_safe_fix FALSE)

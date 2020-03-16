@@ -62,9 +62,7 @@ if(CURL_CONFIG_EXECUTABLE)
 						OUTPUT_VARIABLE CURL_CONFIG_SSL_BACKENDS_STRING
 						ERROR_QUIET
 						OUTPUT_STRIP_TRAILING_WHITESPACE)
-		message(STATUS "@CURL_SUPPORTED_SSL_BACKENDS=\"${CURL_SUPPORTED_SSL_BACKENDS}\"")
 		string(REPLACE "," ";" CURL_SUPPORTED_SSL_BACKENDS "${CURL_CONFIG_SSL_BACKENDS_STRING}")
-		message(STATUS "@CURL_SUPPORTED_SSL_BACKENDS=\"${CURL_SUPPORTED_SSL_BACKENDS}\"")
 
 	else()
 
@@ -101,8 +99,9 @@ if(CURL_CONFIG_EXECUTABLE)
 		else()
 			# TODO: Handle "implicit default" case?
 		endif()
-		message(STATUS "@CURL_SUPPORTED_SSL_BACKENDS=\"${CURL_SUPPORTED_SSL_BACKENDS}\"")
 	endif()
+
+	message(STATUS "CURL_SUPPORTED_SSL_BACKENDS=\"${CURL_SUPPORTED_SSL_BACKENDS}\"")
 
 	if ("GnuTLS" IN_LIST CURL_SUPPORTED_SSL_BACKENDS)
 		# GnuTLS found
@@ -111,10 +110,10 @@ if(CURL_CONFIG_EXECUTABLE)
 			# Detect GnuTLS version #
 			if(NOT DEFINED GNUTLS_VERSION_STRING OR GNUTLS_VERSION_STRING STREQUAL "")
 				foreach(_gnutls_include_dir ${GNUTLS_INCLUDE_DIRS})
-					message(STATUS "_gnutls_include_dir: \"${_gnutls_include_dir}\"")
+					# message(STATUS "_gnutls_include_dir: \"${_gnutls_include_dir}\"")
 					set(_expected_gnutls_include_file "${_gnutls_include_dir}/gnutls/gnutls.h")
 					if(EXISTS "${_expected_gnutls_include_file}")
-						message(STATUS "Searching in file: ${_expected_gnutls_include_file}")
+						# message(STATUS "Searching in file: ${_expected_gnutls_include_file}")
 						file(STRINGS "${_expected_gnutls_include_file}" GNUTLS_VERSION_STRING_LINE REGEX "^#define[ \t]+GNUTLS_VERSION[ \t]+\"[.0-9]+\"$")
 						if(NOT DEFINED GNUTLS_VERSION_STRING_LINE OR GNUTLS_VERSION_STRING_LINE STREQUAL "")
 							# Fall-back to LIBGNUTLS_VERSION, for earlier versions
@@ -128,14 +127,14 @@ if(CURL_CONFIG_EXECUTABLE)
 			endif()
 			message(STATUS "GNUTLS_VERSION_STRING=\"${GNUTLS_VERSION_STRING}\"")
 			if (GNUTLS_VERSION_STRING VERSION_LESS "2.11.0")
-				# explicit gcry_control() is required when GnuTLS < 2.11.0
+				# Explicit gcry_control() is required when GnuTLS < 2.11.0
 				set(CURL_GNUTLS_REQUIRES_CALLBACKS "YES")
 			else()
-				# no explicit lock setup is required
+				# No explicit callback setup is required
 				set(CURL_GNUTLS_REQUIRES_CALLBACKS "NO")
 			endif()
 		else()
-			message(WARNING "cURL is linked to GnuTLS, but GnuTLS was not found - not enabling thread-safety measures for GnuTLS backend")
+			# cURL is linked to GnuTLS, but GnuTLS was not found
 			set(CURL_GNUTLS_REQUIRES_CALLBACKS "UNKNOWN")
 		endif()
 	endif()
@@ -146,15 +145,14 @@ if(CURL_CONFIG_EXECUTABLE)
 			string(REGEX REPLACE "^([0-9]+.[0-9]+.[0-9]+)$" "\\1" OPENSSL_VERSION_NUMBERS "${OPENSSL_VERSION}")
 			message(STATUS "OPENSSL_VERSION_NUMBERS=${OPENSSL_VERSION_NUMBERS}")
 			if (OPENSSL_VERSION_NUMBERS VERSION_LESS "1.1.0")
-				# OpenSSL requires thread id and locking callbacks to be initialized
+				# OpenSSL < 1.1.0 requires thread id and locking callbacks to be initialized
 				set(CURL_OPENSSL_REQUIRES_CALLBACKS "YES")
 			else()
-				# No callbacks are required for OpenSSL > 1.1.0
-				message(STATUS "cURL OpenSSL backend (OpenSSL ${OPENSSL_VERSION}) is > 1.1.0; no callbacks required")
+				# No callbacks are required for OpenSSL >= 1.1.0
 				set(CURL_OPENSSL_REQUIRES_CALLBACKS "NO")
 			endif()
 		else()
-			message(WARNING "cURL is linked to OpenSSL, but OpenSSL was not found - not enabling thread-safety measures for OpenSSL backend")
+			# cURL is linked to OpenSSL, but OpenSSL was not found
 			set(CURL_OPENSSL_REQUIRES_CALLBACKS "UNKNOWN")
 		endif()
 	endif()
