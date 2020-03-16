@@ -55,6 +55,7 @@
 #include <stdio.h>
 #include <vector>
 #include <regex>
+#include <stdlib.h>
 
 #undef max
 #undef min
@@ -64,6 +65,21 @@ static volatile bool urlRequestQuit = false;
 static WZ_THREAD        *urlRequestThread = nullptr;
 static WZ_MUTEX         *urlRequestMutex = nullptr;
 static WZ_SEMAPHORE     *urlRequestSemaphore = nullptr;
+
+MemoryStruct::MemoryStruct()
+{
+	memory = (char *) malloc(1);
+	size = 0;
+}
+
+MemoryStruct::~MemoryStruct()
+{
+	if (memory != nullptr)
+	{
+		free(memory);
+		memory = nullptr;
+	}
+}
 
 // MARK: - Handle thread-safety for cURL
 

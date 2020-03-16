@@ -28,20 +28,8 @@ struct MemoryStruct {
 	char *memory = nullptr;
 	size_t size = 0;
 
-	MemoryStruct()
-	{
-		memory = (char *) malloc(1);
-		size = 0;
-	}
-
-	~MemoryStruct()
-	{
-		if (memory != nullptr)
-		{
-			free(memory);
-			memory = nullptr;
-		}
-	}
+	MemoryStruct();
+	~MemoryStruct();
 };
 
 typedef std::function<void (const std::string& url, const std::shared_ptr<MemoryStruct>& data)> UrlRequestSuccess;
