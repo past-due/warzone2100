@@ -146,7 +146,7 @@ if (DEFINED CURL_GNUTLS_REQUIRES_CALLBACKS)
 		endif()
 	elseif (CURL_GNUTLS_REQUIRES_CALLBACKS STREQUAL "NO")
 		# no explicit lock setup is required
-		message(STATUS "cURL GnuTLS backend is GnuTLS > 2.11.0; thread-safe by default")
+		message(STATUS "cURL GnuTLS backend is GnuTLS > 2.11.0; no callbacks required")
 		target_compile_definitions(warzone2100 PRIVATE "CURL_GNUTLS_DOES_NOT_REQUIRE_LOCKS_INIT")
 		set(_curl_gnutls_thread_safe_fix TRUE)
 	else()
