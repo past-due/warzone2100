@@ -76,7 +76,7 @@ static WZ_SEMAPHORE     *urlRequestSemaphore = nullptr;
 /* we have this global to let the callback get easy access to it */
 static std::vector<WZ_MUTEX *> lockarray;
 
-static void lock_callback(int mode, int type, char *file, int line)
+static void lock_callback(int mode, int type, const char * file, int line)
 {
 	(void)file;
 	(void)line;
