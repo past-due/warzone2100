@@ -142,7 +142,7 @@ if(CURL_CONFIG_EXECUTABLE)
 		# OpenSSL found
 		find_package(OpenSSL QUIET)
 		if(OPENSSL_FOUND)
-			string(REGEX REPLACE "^([0-9]+.[0-9]+.[0-9]+)$" "\\1" OPENSSL_VERSION_NUMBERS "${OPENSSL_VERSION}")
+			string(REGEX REPLACE "^([0-9]+[.][0-9]+[.][0-9]+).*$" "\\1" OPENSSL_VERSION_NUMBERS "${OPENSSL_VERSION}")
 			message(STATUS "OPENSSL_VERSION_NUMBERS=${OPENSSL_VERSION_NUMBERS}")
 			if (OPENSSL_VERSION_NUMBERS VERSION_LESS "1.1.0")
 				# OpenSSL < 1.1.0 requires thread id and locking callbacks to be initialized
