@@ -53,7 +53,11 @@ struct URLDataRequest
 	std::string url;
 	curl_off_t maxDownloadSizeLimit = 0;
 
-	// callbacks
+	// MARK: callbacks
+	// IMPORTANT:
+	// - callbacks will be called on a background thread
+	// - if you need to do something on the main thread, please wrap that logic
+	//   (inside your callback) in wzAsyncExecOnMainThread
 	UrlProgressCallback progressCallback;
 	UrlRequestSuccess onSuccess;
 	UrlRequestFailure onFailure;
@@ -66,13 +70,27 @@ struct URLFileDownloadRequest
 	std::string url;
 	std::string outFilePath;
 
-	// callbacks
+	// MARK: callbacks
+	// IMPORTANT:
+	// - callbacks will be called on a background thread
+	// - if you need to do something on the main thread, please wrap that logic
+	//   (inside your callback) in wzAsyncExecOnMainThread
 	UrlProgressCallback progressCallback;
 	UrlDownloadFileSuccess onSuccess;
 	UrlRequestFailure onFailure;
 };
 
+// Request data from a URL (stores the response in memory)
+// Generally, you should define both onSuccess and onFailure callbacks
+// If you want to actually process the response, you *must* define an onSuccess callback
+//
+// IMPORTANT: Callbacks will be called on a background thread
 void urlRequestData(const URLDataRequest& request);
+
+// Download a file (stores the response in the outFilePath)
+// Generally, you should define both onSuccess and onFailure callbacks
+//
+// IMPORTANT: Callbacks will be called on a background thread
 void urlDownloadFile(const URLFileDownloadRequest& request);
 
 void urlRequestInit();
