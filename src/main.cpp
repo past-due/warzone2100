@@ -87,8 +87,8 @@
 #include <time.h>
 #include <LaunchInfo.h>
 
-#if !defined(WZ_OS_WIN)
-#include <signal.h>
+#if defined(HAVE_SIGACTION)
+# include <signal.h>
 #endif
 
 #if defined(WZ_OS_MAC)
@@ -1233,10 +1233,13 @@ int realmain(int argc, char *argv[])
 {
 #if !defined(WZ_OS_WIN)
 	// Before anything else is run, and before creating any threads, ignore SIGPIPE
+	bool ignoredSIGPIPE = false;
+# if defined(HAVE_SIGACTION)
 	struct sigaction sa;
 	sa.sa_handler = SIG_IGN;
 	sa.sa_flags = 0;
-	bool ignoredSIGPIPE = sigaction(SIGPIPE, &sa, 0) == 0;
+	ignoredSIGPIPE = sigaction(SIGPIPE, &sa, 0) == 0;
+# endif
 #endif
 
 	int utfargc = argc;

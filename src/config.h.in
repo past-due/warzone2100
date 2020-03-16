@@ -32,6 +32,9 @@
 /* Define to 1 if you have the `setenv' function. */
 #cmakedefine HAVE_SETENV @HAVE_SETENV@
 
+/* Define to 1 if you have the `sigaction' function. */
+#cmakedefine HAVE_SIGACTION @HAVE_SIGACTION@
+
 /* Define to 1 if you have the <stdint.h> header file. */
 #cmakedefine HAVE_STDINT_H @HAVE_STDINT_H@
 
