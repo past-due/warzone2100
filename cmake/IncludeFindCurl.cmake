@@ -82,19 +82,22 @@ if(CURL_CONFIG_EXECUTABLE)
 			# Linked to GnuTLS
 			list(APPEND CURL_SUPPORTED_SSL_BACKENDS "GnuTLS")
 		endif()
-		if (CURL_CONFIG_CONFIGURE_STRING MATCHES "--with-default-ssl-backend=")
+		if (CURL_CONFIG_CONFIGURE_STRING MATCHES "--with-default-ssl-backend=([^'\" \t\n\r]+)")
+			set(_default_ssl_backend "${CMAKE_MATCH_1}")
+			message(STATUS "default-ssl-backend=\"${_default_ssl_backend}\"")
 			# A default ssl backend was specified - need to parse and check if it's OpenSSL or GnuTLS
 			# Filter the CURL_SUPPORTED_SSL_BACKENDS list
-			if (CURL_CONFIG_CONFIGURE_STRING MATCHES "--with-default-ssl-backend=gnutls")
+			if (_default_ssl_backend MATCHES "gnutls")
 				# If GnuTLS is the default, remove OpenSSL from the list of backends processed
 				list(REMOVE_ITEM CURL_SUPPORTED_SSL_BACKENDS "OpenSSL")
-			elseif (CURL_CONFIG_CONFIGURE_STRING MATCHES "--with-default-ssl-backend=openssl")
+			elseif (_default_ssl_backend MATCHES "openssl")
 				# If OpenSSL is the default, remove GnuTLS from the list of backends processed
 				list(REMOVE_ITEM CURL_SUPPORTED_SSL_BACKENDS "GnuTLS")
 			else()
-				# Anything else the default? Remove both
+				# Anything else the default? Remove both, and ensure the default backend is in the list
 				list(REMOVE_ITEM CURL_SUPPORTED_SSL_BACKENDS "GnuTLS")
 				list(REMOVE_ITEM CURL_SUPPORTED_SSL_BACKENDS "OpenSSL")
+				list(APPEND CURL_SUPPORTED_SSL_BACKENDS "${_default_ssl_backend}")
 			endif()
 		else()
 			# TODO: Handle "implicit default" case?
