@@ -125,160 +125,63 @@ if(ENABLE_NLS)
 	target_link_libraries(warzone2100 "${Intl_LIBRARIES}")
 endif()
 
-find_package(CURL CONFIG QUIET) # Deliberately quiet, so we can handle the result
-if(NOT CURL_FOUND)
-	# CONFIG mode failed - fallback to MODULE mode
-	# In CMake 3.5 this does not define a target, but it will in 3.12
-	# (see https://cmake.org/cmake/help/git-stage/module/FindCURL.html for details).
-	# Until then, define the target ourselves if it is missing.
-	find_package(CURL MODULE REQUIRED) # Use REQUIRED the second time to fail out
-	if (NOT TARGET CURL::libcurl)
-		add_library(CURL::libcurl UNKNOWN IMPORTED)
-		set_property(TARGET CURL::libcurl
-			APPEND PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${CURL_INCLUDE_DIR}"
-		)
-		set_property(TARGET CURL::libcurl
-			APPEND PROPERTY IMPORTED_LOCATION "${CURL_LIBRARY}"
-		)
-	endif()
-else()
-	# Determine cURL version found
-	message(STATUS "CURL_VERSION_STRING=\"${CURL_VERSION_STRING}\"")
-	set(CURL_VERSION_STRING "${CURL_VERSION}")
-endif()
+include(IncludeFindCurl.cmake)
 target_link_libraries(warzone2100 CURL::libcurl)
 
-# Attempt to determine which SSL backend(s) cURL is linked to
-STRING(REGEX MATCH "[0-9]+\\.[0-9]+\\.[0-9]+" CURL_VERSION_STRING "${CURL_VERSION_STRING}")
-message(STATUS "CURL_VERSION_STRING=\"${CURL_VERSION_STRING}\"")
-find_program(CURL_CONFIG_EXECUTABLE NAMES curl-config)
-if(CURL_CONFIG_EXECUTABLE)
-	set(_min_curl_version_for_ssl_backends "7.58.0")
-	if ((CURL_VERSION_STRING VERSION_EQUAL "${_min_curl_version_for_ssl_backends}") OR (CURL_VERSION_STRING VERSION_GREATER "${_min_curl_version_for_ssl_backends}"))
-
-		execute_process(COMMAND ${CURL_CONFIG_EXECUTABLE} --ssl-backends
-						OUTPUT_VARIABLE CURL_CONFIG_SSL_BACKENDS_STRING
-						ERROR_QUIET
-						OUTPUT_STRIP_TRAILING_WHITESPACE)
-		message(STATUS "@CURL_SUPPORTED_SSL_BACKENDS=\"${CURL_SUPPORTED_SSL_BACKENDS}\"")
-		string(REPLACE "," ";" CURL_SUPPORTED_SSL_BACKENDS "${CURL_CONFIG_SSL_BACKENDS_STRING}")
-		message(STATUS "@CURL_SUPPORTED_SSL_BACKENDS=\"${CURL_SUPPORTED_SSL_BACKENDS}\"")
+set(_curl_gnutls_thread_safe_fix FALSE)
+if (DEFINED CURL_GNUTLS_REQUIRES_CALLBACKS)
+	if (CURL_GNUTLS_REQUIRES_CALLBACKS STREQUAL "YES")
+		# explicit gcry_control() is required when GnuTLS < 2.11.0
+		find_package(LibGcrypt)
+		if (LIBGCRYPT_FOUND)
+			message(STATUS "LIBGCRYPT_LIBRARIES=\"${LIBGCRYPT_LIBRARIES}\"")
+			message(STATUS "LIBGCRYPT_INCLUDE_DIR=\"${LIBGCRYPT_INCLUDE_DIR}\"")
+			target_link_libraries(warzone2100 "${LIBGCRYPT_LIBRARIES}")
+			target_include_directories(warzone2100 PRIVATE "${LIBGCRYPT_INCLUDE_DIR}")
+			target_compile_definitions(warzone2100 PRIVATE "USE_OLD_GNUTLS_LOCKS_INIT")
+			message(STATUS "Enabling thread-safety measures for cURL GnuTLS backend")
+			set(_curl_gnutls_thread_safe_fix TRUE)
+		else()
+			message(WARNING "Unable to enable thread-safety measures for cURL GnuTLS backend; please either upgrade GnuTLS > 2.11.0 or ensure libgcrypt-dev is installed.")
+		endif()
+	elseif (CURL_GNUTLS_REQUIRES_CALLBACKS STREQUAL "NO")
+		# no explicit lock setup is required
+		message(STATUS "cURL GnuTLS backend is GnuTLS > 2.11.0; thread-safe by default")
+		target_compile_definitions(warzone2100 PRIVATE "CURL_GNUTLS_DOES_NOT_REQUIRE_LOCKS_INIT")
+		set(_curl_gnutls_thread_safe_fix TRUE)
 	else()
-		# cURL < 7.58.0 does not support curl-config --ssl-backends
-		# Try to parse ssl backend (options) from curl-config --configure
-		execute_process(COMMAND ${CURL_CONFIG_EXECUTABLE} --configure
-						OUTPUT_VARIABLE CURL_CONFIG_CONFIGURE_STRING
-						ERROR_QUIET
-						OUTPUT_STRIP_TRAILING_WHITESPACE)
-		message(STATUS "@CURL_CONFIG_CONFIGURE_STRING=\"${CURL_CONFIG_CONFIGURE_STRING}\"")
-		set(CURL_SUPPORTED_SSL_BACKENDS)
-		if ((CURL_CONFIG_CONFIGURE_STRING MATCHES "--with-ssl") OR (NOT CURL_CONFIG_CONFIGURE_STRING MATCHES "--without-ssl"))
-			# Linked to OpenSSL (or similar)
-			list(APPEND CURL_SUPPORTED_SSL_BACKENDS "OpenSSL")
-		endif()
-		if (CURL_CONFIG_CONFIGURE_STRING MATCHES "--with-gnutls")
-			# Linked to GnuTLS
-			list(APPEND CURL_SUPPORTED_SSL_BACKENDS "GnuTLS")
-		endif()
-		if (CURL_CONFIG_CONFIGURE_STRING MATCHES "--with-default-ssl-backend=")
-			# TODO: A default ssl backend was specified - need to parse and check if it's OpenSSL or GnuTLS
-			# Filter the CURL_SUPPORTED_SSL_BACKENDS list
-			# --with-default-ssl-backend=gnutls
-			# --with-default-ssl-backend=openssl
-			# anything else? remove both
-		else()
-			# TODO: Handle "implicit default" case?
-		endif()
-		message(STATUS "@CURL_SUPPORTED_SSL_BACKENDS=\"${CURL_SUPPORTED_SSL_BACKENDS}\"")
+		message(WARNING "cURL is linked to GnuTLS, but could not find GnuTLS or determine GnuTLS version - not enabling thread-safety measures for GnuTLS backend")
 	endif()
-	set(_curl_gnutls_thread_safe_fix FALSE)
-	if ("GnuTLS" IN_LIST CURL_SUPPORTED_SSL_BACKENDS)
-		# GnuTLS found
-		find_package(GnuTLS)
-		if(GNUTLS_FOUND)
-			# Detect GnuTLS version #
-			if(NOT DEFINED GNUTLS_VERSION_STRING OR GNUTLS_VERSION_STRING STREQUAL "")
-				foreach(_gnutls_include_dir ${GNUTLS_INCLUDE_DIRS})
-					message(STATUS "_gnutls_include_dir: \"${_gnutls_include_dir}\"")
-					set(_expected_gnutls_include_file "${_gnutls_include_dir}/gnutls/gnutls.h")
-					if(EXISTS "${_expected_gnutls_include_file}")
-						message(STATUS "Searching in file: ${_expected_gnutls_include_file}")
-						file(STRINGS "${_expected_gnutls_include_file}" GNUTLS_VERSION_STRING_LINE REGEX "^#define[ \t]+GNUTLS_VERSION[ \t]+\"[.0-9]+\"$")
-						if(DEFINED GNUTLS_VERSION_STRING_LINE AND GNUTLS_VERSION_STRING_LINE STREQUAL "")
-							# Fall-back to LIBGNUTLS_VERSION, for earlier versions
-							file(STRINGS "${_expected_gnutls_include_file}" GNUTLS_VERSION_STRING_LINE REGEX "^#define[ \t]+LIBGNUTLS_VERSION[ \t]+\"[.0-9]+\"$")
-						endif()
-						string(REGEX REPLACE "^#define[ \t]+[^ \t]*GNUTLS_VERSION[ \t]+\"([.0-9]+)\"$" "\\1" GNUTLS_VERSION_STRING "${GNUTLS_VERSION_STRING_LINE}")
-						unset(GNUTLS_VERSION_STRING_LINE)
-						break()
-					endif()
-				endforeach()
-			endif()
-			message(STATUS "GNUTLS_VERSION_STRING=\"${GNUTLS_VERSION_STRING}\"")
-			if (GNUTLS_VERSION_STRING VERSION_LESS "2.11.0")
-				# explicit gcry_control() is required when GnuTLS < 2.11.0
-				find_package(LibGcrypt)
-				if (LIBGCRYPT_FOUND)
-					message(STATUS "LIBGCRYPT_LIBRARIES=\"${LIBGCRYPT_LIBRARIES}\"")
-					message(STATUS "LIBGCRYPT_INCLUDE_DIR=\"${LIBGCRYPT_INCLUDE_DIR}\"")
-					target_link_libraries(warzone2100 "${LIBGCRYPT_LIBRARIES}")
-					target_include_directories(warzone2100 PRIVATE "${LIBGCRYPT_INCLUDE_DIR}")
-					target_compile_definitions(warzone2100 PRIVATE "USE_OLD_GNUTLS_LOCKS_INIT")
-					message(STATUS "Enabling thread-safety measures for cURL GnuTLS backend")
-					set(_curl_gnutls_thread_safe_fix TRUE)
-				else()
-					message(WARNING "Unable to enable thread-safety measures for cURL GnuTLS backend; please either upgrade GnuTLS > 2.11.0 or ensure libgcrypt-dev is installed.")
-				endif()
-			else()
-				# no explicit lock setup is required
-				message(STATUS "cURL GnuTLS backend is GnuTLS > 2.11.0; thread-safe by default")
-				target_compile_definitions(warzone2100 PRIVATE "CURL_GNUTLS_DOES_NOT_REQUIRE_LOCKS_INIT")
-				set(_curl_gnutls_thread_safe_fix TRUE)
-			endif()
-		else()
-			message(WARNING "cURL is linked to GnuTLS, but GnuTLS was not found - not enabling thread-safety measures for GnuTLS backend")
-		endif()
-	endif()
-	if ("OpenSSL" IN_LIST CURL_SUPPORTED_SSL_BACKENDS)
-		# OpenSSL found
-		# Check for any other thread-safe SSL backends
-		set(_curl_has_thread_safe_backend FALSE)
-		foreach(_backend ${CURL_SUPPORTED_SSL_BACKENDS})
-			# determine if there are any non-OpenSSL, thread-safe backends enabled
-			if (NOT _backend STREQUAL "OpenSSL")
-				if (_backend STREQUAL "GnuTLS" AND _curl_gnutls_thread_safe_fix)
-					set(_curl_has_thread_safe_backend TRUE)
-				else()
-					# All non-OpenSSL / non-GnuTLS backends supposedly do not require explicit lock configuration
-					set(_curl_has_thread_safe_backend TRUE)
-				endif()
-			endif()
-		endforeach()
-		if (NOT _curl_has_thread_safe_backend)
-			# Must configure OpenSSL locks
-			find_package(OpenSSL)
-			if(OPENSSL_FOUND)
-				string(REGEX REPLACE "^([0-9]+.[0-9]+.[0-9]+)$" "\\1" OPENSSL_VERSION_NUMBERS "${OPENSSL_VERSION}")
-				message(STATUS "OPENSSL_VERSION_NUMBERS=${OPENSSL_VERSION_NUMBERS}")
-				if (OPENSSL_VERSION_NUMBERS VERSION_LESS "1.1.0")
-					target_link_libraries(warzone2100 OpenSSL::Crypto)
-					target_compile_definitions(warzone2100 PRIVATE "USE_OPENSSL_LOCKS_INIT")
-					message(STATUS "Enabling thread-safety measures for cURL OpenSSL backend")
-				else()
-					message(STATUS "cURL OpenSSL backend (OpenSSL ${OPENSSL_VERSION}) is > 1.1.0; no callbacks required")
-					target_compile_definitions(warzone2100 PRIVATE "CURL_OPENSSL_DOES_NOT_REQUIRE_LOCKS_INIT")
-				endif()
-			else()
-				message(WARNING "cURL is linked to OpenSSL, but OpenSSL was not found - not enabling thread-safety measures for OpenSSL backend")
-			endif()
-		else()
-			message(STATUS "Ignoring cURL OpenSSL backend, as other thread-safe backend(s) exist")
-		endif()
-	endif()
-else()
-	message(WARNING "curl-config was not found; if curl is built with an ssl backend besides OpenSSL or GnuTLS, this isn't an issue")
 endif()
-
+if (DEFINED CURL_OPENSSL_REQUIRES_CALLBACKS)
+	# Check for any other thread-safe SSL backends
+	set(_curl_has_thread_safe_backend FALSE)
+	foreach(_backend ${CURL_SUPPORTED_SSL_BACKENDS})
+		# determine if there are any non-OpenSSL, thread-safe backends enabled
+		if (NOT _backend STREQUAL "OpenSSL")
+			if (_backend STREQUAL "GnuTLS" AND _curl_gnutls_thread_safe_fix)
+				set(_curl_has_thread_safe_backend TRUE)
+			else()
+				# All non-OpenSSL / non-GnuTLS backends supposedly do not require explicit lock configuration
+				set(_curl_has_thread_safe_backend TRUE)
+			endif()
+		endif()
+	endforeach()
+	if (NOT _curl_has_thread_safe_backend)
+		if (CURL_OPENSSL_REQUIRES_CALLBACKS STREQUAL "YES")
+			target_link_libraries(warzone2100 OpenSSL::Crypto)
+			target_compile_definitions(warzone2100 PRIVATE "USE_OPENSSL_LOCKS_INIT")
+			message(STATUS "Enabling thread-safety measures for cURL OpenSSL backend")
+		elseif (CURL_OPENSSL_REQUIRES_CALLBACKS STREQUAL "NO")
+			message(STATUS "cURL OpenSSL backend (OpenSSL ${OPENSSL_VERSION}) is > 1.1.0; no callbacks required")
+			target_compile_definitions(warzone2100 PRIVATE "CURL_OPENSSL_DOES_NOT_REQUIRE_LOCKS_INIT")
+		else()
+			message(WARNING "cURL is linked to OpenSSL, but could not find OpenSSL or determine OpenSSL version - not enabling thread-safety measures for OpenSSL backend")
+		endif()
+	else()
+		message(STATUS "Ignoring cURL OpenSSL backend, as other thread-safe backend(s) exist")
+	endif()
+endif()
 
 if(CMAKE_SYSTEM_NAME MATCHES "Windows")
     target_link_libraries(warzone2100 ws2_32 iphlpapi)
