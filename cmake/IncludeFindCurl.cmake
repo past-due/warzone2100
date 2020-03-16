@@ -7,6 +7,7 @@ cmake_minimum_required(VERSION 3.5)
 #
 # And then attempts to determine if its linked SSL backend(s)
 # require specific thread-safety / lock callback initialization
+# (see: https://curl.haxx.se/libcurl/c/threaded-ssl.html)
 #
 # - CURL_GNUTLS_REQUIRES_CALLBACKS
 # - CURL_OPENSSL_REQUIRES_CALLBACKS
@@ -48,6 +49,7 @@ endif()
 STRING(REGEX MATCH "[0-9]+\\.[0-9]+\\.[0-9]+" CURL_VERSION_STRING "${CURL_VERSION_STRING}")
 message(STATUS "CURL_VERSION_STRING=\"${CURL_VERSION_STRING}\"")
 
+unset(CURL_SUPPORTED_SSL_BACKENDS)
 unset(CURL_GNUTLS_REQUIRES_CALLBACKS)
 unset(CURL_OPENSSL_REQUIRES_CALLBACKS)
 
@@ -157,5 +159,6 @@ if(CURL_CONFIG_EXECUTABLE)
 		endif()
 	endif()
 else()
-	message(WARNING "curl-config was not found; if curl is built with ssl backend(s) OpenSSL or GnuTLS, this may result in thread-safety issues")
+	# curl-config was not found; if curl is built with ssl backend(s) OpenSSL or GnuTLS, this may result in thread-safety issues
+	unset(CURL_SUPPORTED_SSL_BACKENDS)
 endif()
