@@ -129,6 +129,7 @@ noinst_HEADERS = \
 	power.h \
 	projectiledef.h \
 	projectile.h \
+	propertymatcher.h \
 	qtscript.h \
 	qtscriptfuncs.h \
 	radar.h \
@@ -158,6 +159,7 @@ noinst_HEADERS = \
 	wavecast.h \
 	weapondef.h \
 	wrappers.h \
+	wzpropertyproviders.h \
 	$(MOCHEADER)
 
 nodist_COMMONSOURCES = \
@@ -239,6 +241,7 @@ COMMONSOURCES = \
 	pointtree.cpp \
 	power.cpp \
 	projectile.cpp \
+	propertymatcher.cpp \
 	qtscript.cpp \
 	qtscriptdebug.cpp \
 	qtscriptfuncs.cpp \
@@ -268,7 +271,8 @@ COMMONSOURCES = \
 	warcam.cpp \
 	warzoneconfig.cpp \
 	wavecast.cpp \
-	wrappers.cpp
+	wrappers.cpp \
+	wzpropertyproviders.cpp
 
 
 
