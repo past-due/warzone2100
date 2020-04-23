@@ -52,11 +52,13 @@
 #include <atomic>
 #include <list>
 #include <algorithm>
-#include <stdio.h>
+#include <cstdio>
 #include <vector>
 #include <regex>
 #include <stdlib.h>
 #include <chrono>
+#include <sstream>
+#include <stdexcept>
 
 #undef max
 #undef min
@@ -193,19 +195,6 @@ struct SemVer
 					(min < b.min) ||
 					((min == b.min) && (rev < b.rev))
 				));
-//		if(maj < b.maj) {
-//			return true;
-//		}
-//		if(maj == b.maj) {
-//			if(min < b.min) {
-//				return true;
-//			}
-//			if(min == b.min) {
-//				return rev < b.rev;
-//			}
-//			return false;
-//		}
-//		return false;
 	}
 	bool operator <=(const SemVer& b) {
 		return (maj < b.maj) ||
@@ -213,19 +202,6 @@ struct SemVer
 					(min < b.min) ||
 					((min == b.min) && (rev <= b.rev))
 				));
-//		if(maj < b.maj) {
-//			return true;
-//		}
-//		if(maj == b.maj) {
-//			if(min < b.min) {
-//				return true;
-//			}
-//			if(min == b.min) {
-//				return rev <= b.rev;
-//			}
-//			return false;
-//		}
-//		return false;
 	}
 	bool operator >(const SemVer& b) {
 		return !(*this <= b);
@@ -335,6 +311,7 @@ bool verify_curl_ssl_thread_safe_setup()
 
 #define STOP_DOWNLOAD_AFTER_THIS_MANY_BYTES         6000
 #define MAXIMUM_DOWNLOAD_SIZE                       2147483647L
+#define MAXIMUM_IN_MEMORY_DOWNLOAD_SIZE				1 << 29		// 512 MB, default max download limit
 
 class URLTransferRequest;
 
@@ -440,6 +417,7 @@ public:
 	virtual bool waitOnShutdown() const { return false; }
 
 	virtual void handleRequestDone(CURLcode result) { }
+	virtual void requestFailedToFinish(URLRequestFailureType type) { }
 };
 
 static size_t
@@ -482,13 +460,6 @@ static int xferinfo(void *p,
 		retValue = myp->request->onProgressUpdate(dltotal, dlnow, ultotal, ulnow);
 	}
 
-//	fprintf(stderr, "UP: %" CURL_FORMAT_CURL_OFF_T " of %" CURL_FORMAT_CURL_OFF_T
-//		  "  DOWN: %" CURL_FORMAT_CURL_OFF_T " of %" CURL_FORMAT_CURL_OFF_T
-//		  "\r\n",
-//		  ulnow, ultotal, dlnow, dltotal);
-
-//	if(dlnow > STOP_DOWNLOAD_AFTER_THIS_MANY_BYTES)
-//		return 1;
 	// prevent infinite download denial-of-service
 	if(dlnow > myp->request->maxDownloadSize())
 		return 1;
@@ -509,13 +480,101 @@ static int older_progress(void *p,
 }
 #endif
 
-class RunningURLDataRequest : public URLTransferRequest
+class RunningURLTransferRequestBase : public URLTransferRequest
+{
+public:
+	virtual const URLRequestBase& getBaseRequest() const = 0;
+public:
+	RunningURLTransferRequestBase()
+	{ }
+
+	virtual const std::string& url() const override
+	{
+		return getBaseRequest().url;
+	}
+
+	virtual bool onProgressUpdate(int64_t dltotal, int64_t dlnow, int64_t ultotal, int64_t ulnow) override
+	{
+		fprintf(stderr, "UP: %" PRId64 " of %" PRId64 "  DOWN: %" PRId64 " of %" PRId64 "\r\n",
+				ulnow, ultotal, dlnow, dltotal);
+		auto request = getBaseRequest();
+		if (request.progressCallback)
+		{
+			request.progressCallback(request.url, dltotal, dlnow);
+		}
+		return false;
+	}
+
+	virtual void handleRequestDone(CURLcode result) override
+	{
+		long code;
+		if (curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &code) != CURLE_OK)
+		{
+			code = 0;
+		}
+
+		if (result == CURLE_OK)
+		{
+			onSuccess();
+		}
+		else
+		{
+			onFailure(URLRequestFailureType::TRANSFER_FAILED, URLTransferFailedDetails{result, code});
+		}
+	}
+
+	virtual void requestFailedToFinish(URLRequestFailureType type) override
+	{
+		ASSERT_OR_RETURN(, type != URLRequestFailureType::TRANSFER_FAILED, "TRANSFER_FAILED should be handled by handleRequestDone");
+		onFailure(type, nullopt);
+	}
+
+private:
+	virtual void onSuccess() = 0;
+
+	void onFailure(URLRequestFailureType type, optional<URLTransferFailedDetails> transferFailureDetails)
+	{
+		auto request = getBaseRequest();
+
+		const std::string& url = request.url;
+		switch (type)
+		{
+			case URLRequestFailureType::INITIALIZE_REQUEST_ERROR:
+				wzAsyncExecOnMainThread([url]{
+					debug(LOG_NET, "cURL: Failed to initialize request for (%s)", url.c_str());
+				});
+				break;
+			case URLRequestFailureType::TRANSFER_FAILED:
+				wzAsyncExecOnMainThread([url, transferFailureDetails]{
+					if (!transferFailureDetails.has_value())
+					{
+						debug(LOG_ERROR, "cURL: Request for (%s) failed - but no transfer failure details provided!", url.c_str());
+						return;
+					}
+					debug(LOG_NET, "cURL: Request for (%s) failed with error %d, and HTTP response code: %ld", url.c_str(), transferFailureDetails.value().result, transferFailureDetails.value().httpResponseCode);
+				});
+				break;
+			case URLRequestFailureType::CANCELLED_BY_SHUTDOWN:
+				wzAsyncExecOnMainThread([url]{
+					debug(LOG_NET, "cURL: Request for (%s) was cancelled by application shutdown", url.c_str());
+				});
+				break;
+		}
+
+		if (request.onFailure)
+		{
+			request.onFailure(request.url, type, transferFailureDetails);
+		}
+	}
+};
+
+class RunningURLDataRequest : public RunningURLTransferRequestBase
 {
 public:
 	URLDataRequest request;
 	std::shared_ptr<MemoryStruct> chunk;
 private:
-	curl_off_t _maxDownloadSize = 1 << 29; // 512 MB, default max download limit
+	curl_off_t _maxDownloadSize = MAXIMUM_IN_MEMORY_DOWNLOAD_SIZE; // 512 MB, default max download limit
 
 public:
 	RunningURLDataRequest(const URLDataRequest& request)
@@ -524,13 +583,13 @@ public:
 		chunk = std::make_shared<MemoryStruct>();
 		if (request.maxDownloadSizeLimit > 0)
 		{
-			_maxDownloadSize = std::min(request.maxDownloadSizeLimit, _maxDownloadSize);
+			_maxDownloadSize = std::min(request.maxDownloadSizeLimit, static_cast<curl_off_t>(MAXIMUM_IN_MEMORY_DOWNLOAD_SIZE));
 		}
 	}
 
-	virtual const std::string& url() const override
+	virtual const URLRequestBase& getBaseRequest() const override
 	{
-		return request.url;
+		return request;
 	}
 
 	virtual curl_off_t maxDownloadSize() const override
@@ -560,58 +619,17 @@ public:
 		return realsize;
 	}
 
-	virtual bool onProgressUpdate(int64_t dltotal, int64_t dlnow, int64_t ultotal, int64_t ulnow) override
-	{
-		fprintf(stderr, "UP: %" PRId64 " of %" PRId64 "  DOWN: %" PRId64 " of %" PRId64 "\r\n",
-				ulnow, ultotal, dlnow, dltotal);
-		if (request.progressCallback)
-		{
-			request.progressCallback(request.url, dltotal, dlnow);
-		}
-		return false;
-	}
-
-	virtual void handleRequestDone(CURLcode result) override
-	{
-		long code;
-		curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &code);
-
-		if (result == CURLE_OK)
-		{
-			onSuccess();
-		}
-		else
-		{
-			onFailure(result, code);
-		}
-	}
-
 private:
-	void onSuccess()
+	void onSuccess() override
 	{
 		if (request.onSuccess)
 		{
 			request.onSuccess(request.url, chunk);
 		}
 	}
-
-	void onFailure(CURLcode result, long httpResponseCode)
-	{
-		if (request.onFailure)
-		{
-			request.onFailure(request.url, result, httpResponseCode);
-		}
-		else
-		{
-			const std::string& url = request.url;
-			wzAsyncExecOnMainThread([url, result, httpResponseCode]{
-				debug(LOG_ERROR, "Request for (%s) failed with error %d, and HTTP response code: %ld", url.c_str(), result, httpResponseCode);
-			});
-		}
-	}
 };
 
-class RunningURLFileDownloadRequest : public URLTransferRequest
+class RunningURLFileDownloadRequest : public RunningURLTransferRequestBase
 {
 public:
 	URLFileDownloadRequest request;
@@ -627,15 +645,19 @@ public:
 		int wstr_len = MultiByteToWideChar(CP_UTF8, 0, request.outFilePath.c_str(), -1, NULL, 0);
 		if (wstr_len <= 0)
 		{
-			fprintf(stderr, "Could not not convert string from UTF-8; MultiByteToWideChar failed with error %d: %s\n", GetLastError(), request.outFilePath.c_str());
-			// TODO: throw exception?
+			DWORD dwError = GetLastError();
+			std::ostringstream errMsg;
+			errMsg << "Could not not convert string from UTF-8; MultiByteToWideChar failed with error " << dwError << ": " << request.outFilePath;
+			throw std::runtime_error(errMsg.str());
 			return;
 		}
 		std::vector<wchar_t> wstr_filename(wstr_len, 0);
 		if (MultiByteToWideChar(CP_UTF8, 0, request.outFilePath.c_str(), -1, &wstr_filename[0], wstr_len) == 0)
 		{
-			fprintf(stderr, "Could not not convert string from UTF-8; MultiByteToWideChar[2] failed with error %d: %s\n", GetLastError(), request.outFilePath.c_str());
-			// TODO: throw exception?
+			DWORD dwError = GetLastError();
+			std::ostringstream errMsg;
+			errMsg << "Could not not convert string from UTF-8; MultiByteToWideChar[2] failed with error " << dwError << ": " << request.outFilePath;
+			throw std::runtime_error(errMsg.str());
 			return;
 		}
 		outFile = _wfopen(&wstr_filename[0], L"wb");
@@ -644,14 +666,15 @@ public:
 #endif
 		if (!outFile)
 		{
-			fprintf(stderr, "Could not open %s for output!\n", request.outFilePath.c_str());
-			// TODO: throw exception?
+			std::ostringstream errMsg;
+			errMsg << "Could not not open file for output: " << request.outFilePath;
+			throw std::runtime_error(errMsg.str());
 		}
 	}
 
-	virtual const std::string& url() const override
+	virtual const URLRequestBase& getBaseRequest() const override
 	{
-		return request.url;
+		return request;
 	}
 
 	virtual bool hasWriteMemoryCallback() override { return true; }
@@ -662,17 +685,6 @@ public:
 		return written;
 	}
 
-	virtual bool onProgressUpdate(int64_t dltotal, int64_t dlnow, int64_t ultotal, int64_t ulnow) override
-	{
-		fprintf(stderr, "UP: %" PRId64 " of %" PRId64 "  DOWN: %" PRId64 " of %" PRId64 "\r\n",
-				ulnow, ultotal, dlnow, dltotal);
-		if (request.progressCallback)
-		{
-			request.progressCallback(request.url, dltotal, dlnow);
-		}
-		return false;
-	}
-
 	virtual void handleRequestDone(CURLcode result) override
 	{
 		if (outFile)
@@ -680,40 +692,15 @@ public:
 			fclose(outFile);
 		}
 
-		long code;
-		curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &code);
-
-		if (result == CURLE_OK)
-		{
-			onSuccess();
-		}
-		else
-		{
-			onFailure(result, code);
-		}
+		RunningURLTransferRequestBase::handleRequestDone(result);
 	}
 
 private:
-	void onSuccess()
+	void onSuccess() override
 	{
 		if (request.onSuccess)
 		{
 			request.onSuccess(request.url, request.outFilePath);
-		}
-	}
-
-	void onFailure(CURLcode result, long httpResponseCode)
-	{
-		if (request.onFailure)
-		{
-			request.onFailure(request.url, result, httpResponseCode);
-		}
-		else
-		{
-			const std::string& url = request.url;
-			wzAsyncExecOnMainThread([url, result, httpResponseCode]{
-				debug(LOG_ERROR, "Request for (%s) failed with error %d, and HTTP response code: %ld", url.c_str(), result, httpResponseCode);
-			});
 		}
 	}
 };
@@ -806,7 +793,7 @@ static int urlRequestThreadFunc(void *)
 			if (!newRequest->createCURLHandle())
 			{
 				// something went wrong creating the handle
-				// TODO: log
+				newRequest->requestFailedToFinish(URLRequestFailureType::INITIALIZE_REQUEST_ERROR);
 				delete newRequest;
 				continue; // skip to next request
 			}
@@ -819,7 +806,7 @@ static int urlRequestThreadFunc(void *)
 				wzAsyncExecOnMainThread([multiCode]{
 					debug(LOG_ERROR, "curl_multi_add_handle failed: %d", multiCode);
 				});
-				// TODO: call failure handler
+				newRequest->requestFailedToFinish(URLRequestFailureType::INITIALIZE_REQUEST_ERROR);
 				curl_easy_cleanup(newRequest->handle);
 				delete newRequest;
 				continue; // skip to next request
@@ -843,6 +830,7 @@ static int urlRequestThreadFunc(void *)
 		if (!runningTransfer->waitOnShutdown())
 		{
 			curl_multi_remove_handle(multi_handle, runningTransfer->handle);
+			runningTransfer->requestFailedToFinish(URLRequestFailureType::CANCELLED_BY_SHUTDOWN);
 			curl_easy_cleanup(runningTransfer->handle);
 			delete runningTransfer;
 			it = runningTransfers.erase(it);
@@ -869,6 +857,7 @@ static int urlRequestThreadFunc(void *)
 	for (auto runningTransfer : runningTransfers)
 	{
 		curl_multi_remove_handle(multi_handle, runningTransfer->handle);
+		runningTransfer->requestFailedToFinish(URLRequestFailureType::CANCELLED_BY_SHUTDOWN);
 		curl_easy_cleanup(runningTransfer->handle);
 		delete runningTransfer;
 	}
@@ -880,9 +869,12 @@ static int urlRequestThreadFunc(void *)
 
 void urlRequestData(const URLDataRequest& request)
 {
+	ASSERT_OR_RETURN(, !request.url.empty(), "A valid request must specify a URL");
+	ASSERT_OR_RETURN(, request.maxDownloadSizeLimit <= (curl_off_t)MAXIMUM_IN_MEMORY_DOWNLOAD_SIZE, "Requested maxDownloadSizeLimit exceeds maximum in-memory download size limit %zu", (size_t)MAXIMUM_IN_MEMORY_DOWNLOAD_SIZE);
+	RunningURLDataRequest *pNewRequest = new RunningURLDataRequest(request);
 	wzMutexLock(urlRequestMutex);
 	bool isFirstJob = newUrlRequests.empty();
-	newUrlRequests.push_back(new RunningURLDataRequest(request));
+	newUrlRequests.push_back(pNewRequest);
 	wzMutexUnlock(urlRequestMutex);
 
 	if (isFirstJob)
@@ -893,9 +885,24 @@ void urlRequestData(const URLDataRequest& request)
 
 void urlDownloadFile(const URLFileDownloadRequest& request)
 {
+	ASSERT_OR_RETURN(, !request.url.empty(), "A valid request must specify a URL");
+	ASSERT_OR_RETURN(, !request.outFilePath.empty(), "A valid request must specify an output filepath");
+	RunningURLFileDownloadRequest *pNewRequest = nullptr;
+	try {
+		pNewRequest = new RunningURLFileDownloadRequest(request);
+	}
+	catch (const std::exception &e)
+	{
+		debug(LOG_ERROR, "Failed to create new file download request with error: %s", e.what());
+		if (request.onFailure)
+		{
+			request.onFailure(request.url, URLRequestFailureType::INITIALIZE_REQUEST_ERROR, nullopt);
+		}
+		return;
+	}
 	wzMutexLock(urlRequestMutex);
 	bool isFirstJob = newUrlRequests.empty();
-	newUrlRequests.push_back(new RunningURLFileDownloadRequest(request));
+	newUrlRequests.push_back(pNewRequest);
 	wzMutexUnlock(urlRequestMutex);
 
 	if (isFirstJob)

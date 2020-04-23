@@ -23,6 +23,9 @@
 #include <curl/curl.h>
 #include <string>
 #include <memory>
+#include <optional-lite/optional.hpp>
+using nonstd::optional;
+using nonstd::nullopt;
 
 struct MemoryStruct {
 	char *memory = nullptr;
@@ -32,13 +35,37 @@ struct MemoryStruct {
 	~MemoryStruct();
 };
 
-typedef std::function<void (const std::string& url, const std::shared_ptr<MemoryStruct>& data)> UrlRequestSuccess;
-typedef std::function<void (const std::string& url, CURLcode result, long httpResponseCode)> UrlRequestFailure;
+enum URLRequestFailureType {
+	INITIALIZE_REQUEST_ERROR,
+	TRANSFER_FAILED,
+	CANCELLED_BY_SHUTDOWN
+};
+
+struct URLTransferFailedDetails {
+	CURLcode result;
+	long httpResponseCode;
+};
+
+typedef std::function<void (const std::string& url, URLRequestFailureType type, optional<URLTransferFailedDetails> transferFailureDetails)> UrlRequestFailure;
 typedef std::function<void (const std::string& url, int64_t dltotal, int64_t dlnow)> UrlProgressCallback;
 
-struct URLDataRequest
+struct URLRequestBase
 {
 	std::string url;
+
+	// MARK: callbacks
+	// IMPORTANT:
+	// - callbacks will be called on a background thread
+	// - if you need to do something on the main thread, please wrap that logic
+	//   (inside your callback) in wzAsyncExecOnMainThread
+	UrlProgressCallback progressCallback;
+	UrlRequestFailure onFailure;
+};
+
+typedef std::function<void (const std::string& url, const std::shared_ptr<MemoryStruct>& data)> UrlRequestSuccess;
+
+struct URLDataRequest : public URLRequestBase
+{
 	curl_off_t maxDownloadSizeLimit = 0;
 
 	// MARK: callbacks
@@ -46,16 +73,13 @@ struct URLDataRequest
 	// - callbacks will be called on a background thread
 	// - if you need to do something on the main thread, please wrap that logic
 	//   (inside your callback) in wzAsyncExecOnMainThread
-	UrlProgressCallback progressCallback;
 	UrlRequestSuccess onSuccess;
-	UrlRequestFailure onFailure;
 };
 
 typedef std::function<void (const std::string& url, const std::string& outFilePath)> UrlDownloadFileSuccess;
 
-struct URLFileDownloadRequest
+struct URLFileDownloadRequest : public URLRequestBase
 {
-	std::string url;
 	std::string outFilePath;
 
 	// MARK: callbacks
@@ -63,9 +87,7 @@ struct URLFileDownloadRequest
 	// - callbacks will be called on a background thread
 	// - if you need to do something on the main thread, please wrap that logic
 	//   (inside your callback) in wzAsyncExecOnMainThread
-	UrlProgressCallback progressCallback;
 	UrlDownloadFileSuccess onSuccess;
-	UrlRequestFailure onFailure;
 };
 
 // Request data from a URL (stores the response in memory)
