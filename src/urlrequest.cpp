@@ -56,9 +56,12 @@
 #include <vector>
 #include <regex>
 #include <stdlib.h>
+#include <chrono>
 
 #undef max
 #undef min
+
+#define MAX_WAIT_ON_SHUTDOWN_SECONDS 60
 
 static volatile bool urlRequestQuit = false;
 
@@ -723,11 +726,66 @@ static int urlRequestThreadFunc(void *)
 	// initialize cURL
 	CURLM *multi_handle = curl_multi_init();
 
-	wzMutexLock(urlRequestMutex);
-
 	std::list<URLTransferRequest*> runningTransfers;
 	int transfers_running = 0;
 	CURLMcode multiCode = CURLM_OK;
+
+	auto performTransfers = [&]() -> bool {
+		multiCode = curl_multi_perform ( multi_handle, &transfers_running );
+		if (multiCode == CURLM_OK )
+		{
+			/* wait for activity, timeout or "nothing" */
+		#if LIBCURL_VERSION_NUM >= 0x071C00	// cURL 7.28.0+ required for curl_multi_wait
+			multiCode = curl_multi_wait ( multi_handle, NULL, 0, 1000, NULL);
+		#else
+			#error "Needs a fallback for lack of curl_multi_wait (or, even better, update libcurl!)"
+		#endif
+		}
+		if (multiCode != CURLM_OK)
+		{
+			fprintf(stderr, "curl_multi failed, code %d.\n", multiCode);
+			return false;
+		}
+
+		// Handle finished transfers
+		CURLMsg *msg; /* for picking up messages with the transfer status */
+		int msgs_left; /* how many messages are left */
+		while((msg = curl_multi_info_read(multi_handle, &msgs_left))) {
+			if(msg->msg == CURLMSG_DONE) {
+				CURL *e = msg->easy_handle;
+				CURLcode result = msg->data.result;
+
+				printf("HTTP transfer completed with status %d\n", msg->data.result);
+
+				/* Find out which handle this message is about */
+				auto it = std::find_if(runningTransfers.begin(), runningTransfers.end(), [e](const URLTransferRequest* req) {
+					return req->handle == e;
+				});
+
+				if (it != runningTransfers.end())
+				{
+					URLTransferRequest* urlTransfer = *it;
+					urlTransfer->handleRequestDone(result);
+					delete urlTransfer;
+					runningTransfers.erase(it);
+				}
+				else
+				{
+					// log failure to find request in running transfers list
+					wzAsyncExecOnMainThread([]{
+						debug(LOG_ERROR, "Failed to find request in running transfers list");
+					});
+				}
+
+				curl_multi_remove_handle(multi_handle, e);
+				curl_easy_cleanup(e);
+			}
+		}
+
+		return true;
+	};
+
+	wzMutexLock(urlRequestMutex);
 	while (!urlRequestQuit)
 	{
 		if (newUrlRequests.empty() && transfers_running == 0)
@@ -772,56 +830,7 @@ static int urlRequestThreadFunc(void *)
 
 		wzMutexUnlock(urlRequestMutex); // when performing / waiting on curl requests, unlock the mutex
 
-		multiCode = curl_multi_perform ( multi_handle, &transfers_running );
-		if (multiCode == CURLM_OK )
-		{
-			/* wait for activity, timeout or "nothing" */
-		#if LIBCURL_VERSION_NUM >= 0x071C00	// cURL 7.28.0+ required for curl_multi_wait
-			multiCode = curl_multi_wait ( multi_handle, NULL, 0, 1000, NULL);
-		#else
-			#error "Needs a fallback for lack of curl_multi_wait (or, even better, update libcurl!)"
-		#endif
-		}
-		if (multiCode != CURLM_OK)
-		{
-			fprintf(stderr, "curl_multi failed, code %d.\n", multiCode);
-			break;
-		}
-
-		// Handle finished transfers
-		CURLMsg *msg; /* for picking up messages with the transfer status */
-		int msgs_left; /* how many messages are left */
-		while((msg = curl_multi_info_read(multi_handle, &msgs_left))) {
-			if(msg->msg == CURLMSG_DONE) {
-				CURL *e = msg->easy_handle;
-				CURLcode result = msg->data.result;
-
-				printf("HTTP transfer completed with status %d\n", msg->data.result);
-
-				/* Find out which handle this message is about */
-				auto it = std::find_if(runningTransfers.begin(), runningTransfers.end(), [e](const URLTransferRequest* req) {
-					return req->handle == e;
-				});
-
-				if (it != runningTransfers.end())
-				{
-					URLTransferRequest* urlTransfer = *it;
-					urlTransfer->handleRequestDone(result);
-					delete urlTransfer;
-					runningTransfers.erase(it);
-				}
-				else
-				{
-					// log failure to find request in running transfers list
-					wzAsyncExecOnMainThread([]{
-						debug(LOG_ERROR, "Failed to find request in running transfers list");
-					});
-				}
-
-				curl_multi_remove_handle(multi_handle, e);
-				curl_easy_cleanup(e);
-			}
-		}
+		performTransfers();
 
 		wzMutexLock(urlRequestMutex);
 	}
@@ -844,7 +853,26 @@ static int urlRequestThreadFunc(void *)
 		}
 	}
 
-	// TODO: Wait for all remaining ("waitOnShutdown") transfers to complete
+	// Wait for all remaining ("waitOnShutdown") transfers to complete
+	auto waitForTransfersStart = std::chrono::high_resolution_clock::now();
+	while (!runningTransfers.empty())
+	{
+		performTransfers();
+		auto currentWaitDuration = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - waitForTransfersStart);
+		if (currentWaitDuration.count() > MAX_WAIT_ON_SHUTDOWN_SECONDS)
+		{
+			printf("Failed to finish all \"waitOnShutdown\" transfers before timeout: %d\n", MAX_WAIT_ON_SHUTDOWN_SECONDS);
+			break;
+		}
+	}
+
+	for (auto runningTransfer : runningTransfers)
+	{
+		curl_multi_remove_handle(multi_handle, runningTransfer->handle);
+		curl_easy_cleanup(runningTransfer->handle);
+		delete runningTransfer;
+	}
+	runningTransfers.clear();
 
 	curl_multi_cleanup(multi_handle);
 	return 0;
@@ -1035,7 +1063,9 @@ void urlRequestShutdown()
 	if (urlRequestThread)
 	{
 		// Signal the path finding thread to quit
+		wzMutexLock(urlRequestMutex);
 		urlRequestQuit = true;
+		wzMutexUnlock(urlRequestMutex);
 		wzSemaphorePost(urlRequestSemaphore);  // Wake up thread.
 
 		wzThreadJoin(urlRequestThread);
