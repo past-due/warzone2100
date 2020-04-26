@@ -60,6 +60,20 @@
 #include <sstream>
 #include <stdexcept>
 
+#if defined(WZ_OS_UNIX)
+# include <fcntl.h>
+# ifndef _POSIX_C_SOURCE
+#  define _POSIX_C_SOURCE 1
+# endif
+# ifndef _XOPEN_SOURCE
+#  define _XOPEN_SOURCE
+# endif
+# ifndef _POSIX_SOURCE
+#  define _POSIX_SOURCE
+# endif
+# include <stdio.h>
+#endif
+
 #undef max
 #undef min
 
@@ -670,6 +684,14 @@ public:
 			errMsg << "Could not not open file for output: " << request.outFilePath;
 			throw std::runtime_error(errMsg.str());
 		}
+
+#if defined(WZ_OS_UNIX)
+		int fd = fileno(outFile);
+		if (fd != -1)
+		{
+			fcntl(fd, F_SETFD, FD_CLOEXEC);
+		}
+#endif
 	}
 
 	virtual const URLRequestBase& getBaseRequest() const override
