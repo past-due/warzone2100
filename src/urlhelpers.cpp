@@ -22,6 +22,8 @@
 
 #if defined(WZ_OS_WIN)
 # include <shellapi.h> /* For ShellExecuteEx  */
+# include <shlwapi.h> /* For UrlCanonicalize */
+# include <objbase.h> /* For CoInitializeEx */
 # include <ntverp.h> /* Windows SDK - include for access to VER_PRODUCTBUILD */
 # if VER_PRODUCTBUILD >= 9600
 	// 9600 is the Windows SDK 8.1
@@ -44,7 +46,9 @@
 #endif // WZ_OS_MAC
 
 #if defined(HAVE_POSIX_SPAWN) || defined(HAVE_POSIX_SPAWNP)
-# include "spawn.h"
+# include <spawn.h>
+# include <sys/types.h>
+# include <sys/wait.h>
 #endif
 
 #include <vector>
@@ -90,13 +94,13 @@ bool openURLInBrowser(char const *url)
 	}
 
 	#define _INTERNET_MAX_URL_LENGTH 2083
-	if (wUrl.length() > _INTERNET_MAX_URL_LENGTH)
+	if (wUrl.size() > _INTERNET_MAX_URL_LENGTH)
 	{
-		debug(LOG_ERROR, "URL length (%zu) exceeds maximum supported length: %s\n", wUrl.length(), url);
+		debug(LOG_ERROR, "URL length (%zu) exceeds maximum supported length: %s\n", wUrl.size(), url);
 		return false;
 	}
 	std::vector<wchar_t> wUrlCanonicalized(_INTERNET_MAX_URL_LENGTH + 1, L'\0');
-	DWORD canonicalizedLength = wUrlCanonicalized.length();
+	DWORD canonicalizedLength = wUrlCanonicalized.size();
 	DWORD dwFlags = URL_UNESCAPE | URL_ESCAPE_UNSAFE;
 	if (IsWindows7OrGreater())
 	{
@@ -138,7 +142,7 @@ bool openURLInBrowser(char const *url)
 	char *urlCopy = strdup(url);
 	char *argv[3] = { progName, urlCopy, nullptr };
 	pid_t pid = 0;
-	int spawnResult = posix_spawnp(&pid, path, nullptr, nullptr, argv, environ);
+	int spawnResult = posix_spawnp(&pid, progName, nullptr, nullptr, argv, environ);
 	if (spawnResult == 0)
 	{
 		waitpid(pid, nullptr, 0);
