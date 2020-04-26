@@ -363,19 +363,19 @@ jobs:
     #####################################################
     - name: 'Upload Artifact - (Portable Build)'
       uses: actions/upload-artifact@v1
-      if: success() && (github.repository == 'Warzone2100/warzone2100')
+      if: success() #&& (github.repository == 'Warzone2100/warzone2100')
       with:
         name: warzone2100_win_${{ matrix.architecture }}_portable
         path: '${{ github.workspace }}\output\portable'
     - name: 'Upload Artifact - (Regular Installer)'
       uses: actions/upload-artifact@v1
-      if: success() && (github.repository == 'Warzone2100/warzone2100')
+      if: success() #&& (github.repository == 'Warzone2100/warzone2100')
       with:
         name: warzone2100_win_${{ matrix.architecture }}_installer
         path: '${{ github.workspace }}\output\installer'
     - name: 'Upload Artifact - (Debug Symbols)'
       uses: actions/upload-artifact@v1
-      if: success() && (github.repository == 'Warzone2100/warzone2100')
+      if: success() #&& (github.repository == 'Warzone2100/warzone2100')
       with:
         name: warzone2100_win_${{ matrix.architecture }}_DEBUGSYMBOLS
         path: '${{ github.workspace }}\output\debugsymbols'
