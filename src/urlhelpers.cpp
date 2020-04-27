@@ -50,6 +50,9 @@
 # include <sys/types.h>
 # include <sys/wait.h>
 # include <unistd.h>
+# if !defined(HAVE_ENVIRON_DECL)
+  extern char **environ;
+# endif
 #endif
 
 #include <vector>

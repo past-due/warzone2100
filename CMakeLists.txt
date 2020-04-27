@@ -649,6 +649,7 @@ CHECK_CXX_SYMBOL_EXISTS(setenv "stdlib.h" HAVE_SETENV)
 CHECK_CXX_SYMBOL_EXISTS(sigaction "signal.h" HAVE_SIGACTION)
 CHECK_CXX_SYMBOL_EXISTS(posix_spawn "spawn.h" HAVE_POSIX_SPAWN)
 CHECK_CXX_SYMBOL_EXISTS(posix_spawnp "spawn.h" HAVE_POSIX_SPAWNP)
+CHECK_CXX_SYMBOL_EXISTS(environ "unistd.h" HAVE_ENVIRON_DECL)
 cmake_reset_check_state()
 
 set(WZ_BINDIR "${CMAKE_INSTALL_BINDIR}")
