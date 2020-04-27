@@ -49,6 +49,7 @@
 # include <spawn.h>
 # include <sys/types.h>
 # include <sys/wait.h>
+# include <unistd.h>
 #endif
 
 #include <vector>
@@ -102,11 +103,14 @@ bool openURLInBrowser(char const *url)
 	std::vector<wchar_t> wUrlCanonicalized(_INTERNET_MAX_URL_LENGTH + 1, L'\0');
 	DWORD canonicalizedLength = wUrlCanonicalized.size();
 	DWORD dwFlags = URL_UNESCAPE | URL_ESCAPE_UNSAFE;
+	#ifndef URL_ESCAPE_AS_UTF8
+	# define URL_ESCAPE_AS_UTF8 0x00040000
+	#endif
 	if (IsWindows7OrGreater())
 	{
 		dwFlags |= URL_ESCAPE_AS_UTF8;
 	}
-	HRESULT hr = ::UrlCanonicalizeW(wUrl.data(), wUrlCanonicalized.data(), canonicalizedLength, dwFlags);
+	HRESULT hr = ::UrlCanonicalizeW(wUrl.data(), wUrlCanonicalized.data(), &canonicalizedLength, dwFlags);
 	if (!SUCCEEDED(hr))
 	{
 		// Failed to canonicalize URL
