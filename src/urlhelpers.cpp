@@ -59,10 +59,8 @@
 
 static const std::vector<std::string> validLinkPrefixes = { "http://", "https://" };
 
-bool openURLInBrowser(char const *url)
+bool urlHasHTTPorHTTPSPrefix(char const *url)
 {
-	if (!url || !*url) return false;
-
 	// Verify URL starts with http:// or https://
 	bool bValidLinkPrefix = false;
 	for (const auto& validLinkPrefix : validLinkPrefixes)
@@ -73,7 +71,15 @@ bool openURLInBrowser(char const *url)
 			break;
 		}
 	}
-	if (!bValidLinkPrefix)
+	return bValidLinkPrefix;
+}
+
+bool openURLInBrowser(char const *url)
+{
+	if (!url || !*url) return false;
+
+	// Verify URL starts with http:// or https://
+	if (!urlHasHTTPorHTTPSPrefix(url))
 	{
 		debug(LOG_ERROR, "Rejecting attempt to open link with URL: %s", url);
 		return false;

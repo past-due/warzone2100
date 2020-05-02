@@ -24,5 +24,6 @@
 
 bool openURLInBrowser(char const *url);
 std::string urlEncode(const char* urlFragment);
+bool urlHasHTTPorHTTPSPrefix(char const *url);
 
 #endif // __INCLUDED_SRC_URL_HELPERS_H__
