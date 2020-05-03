@@ -45,7 +45,7 @@ private:
 };
 
 const std::string WZ_UPDATES_VERIFY_KEY = "5d9P+Z1SirsWSsYICZAr7QFlPB01s6tzXkhPZ+X/FQ4=";
-const std::string WZ_DEFAULT_UPDATE_LINK = "https://github.com/Warzone2100/warzone2100";
+const std::string WZ_DEFAULT_UPDATE_LINK = "https://warzone2100.github.io/update-data/redirect/updatelink.html";
 
 // May be called from a background thread
 void WzUpdateManager::processUpdateJSONFile(const json& updateData, bool validSignature)
