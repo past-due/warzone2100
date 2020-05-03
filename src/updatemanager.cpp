@@ -20,6 +20,7 @@
 #include "updatemanager.h"
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "lib/framework/wzglobal.h" // required for config.h
 #include "lib/framework/frame.h"
@@ -33,6 +34,7 @@
 #include "wzpropertyproviders.h"
 
 #include <sodium.h>
+#include <re2/re2.h>
 
 #include <3rdparty/json/json.hpp>
 using json = nlohmann::json;
@@ -42,10 +44,55 @@ public:
 	static void initUpdateCheck();
 private:
 	static void processUpdateJSONFile(const json& updateData, bool validSignature);
+	static std::string configureUpdateLinkURL(const std::string& url, BuildPropertyProvider& propProvider);
 };
 
 const std::string WZ_UPDATES_VERIFY_KEY = "5d9P+Z1SirsWSsYICZAr7QFlPB01s6tzXkhPZ+X/FQ4=";
 const std::string WZ_DEFAULT_UPDATE_LINK = "https://warzone2100.github.io/update-data/redirect/updatelink.html";
+
+// Replaces specific build property keys with their values in a URL string
+// Build property keys are surrounded by "{{}}" - i.e. "{{PLATFORM}}" is replaced with the value of the PLATFORM build property
+// May be called from a background thread
+std::string WzUpdateManager::configureUpdateLinkURL(const std::string& url, BuildPropertyProvider& propProvider)
+{
+	const std::unordered_set<std::string> permittedBuildPropertySubstitutions = { "PLATFORM", "VERSION_STRING", "GIT_BRANCH" };
+
+	std::vector<std::string> tokens;
+	re2::StringPiece input(url);
+	std::string token;
+
+	RE2 re("({{[\\S]+}})");
+	while (RE2::FindAndConsume(&input, re, &token))
+	{
+		tokens.push_back(token);
+	}
+
+	std::string resultUrl = url;
+	for (const auto& token : tokens)
+	{
+		std::string::size_type pos = url.find(token, 0);
+		if (pos != std::string::npos)
+		{
+			std::string propValue;
+			std::string buildProperty = token.substr(2, token.length() - 4);
+			if (permittedBuildPropertySubstitutions.count(buildProperty) > 0)
+			{
+				propProvider.getPropertyValue(buildProperty, propValue);
+			}
+			else
+			{
+				propValue = "prop_not_supported";
+			}
+			if (!propValue.empty())
+			{
+				propValue = urlEncode(propValue.c_str());
+			}
+			resultUrl.replace(pos, token.length(), propValue);
+		}
+	}
+
+	return resultUrl;
+}
 
 // May be called from a background thread
 void WzUpdateManager::processUpdateJSONFile(const json& updateData, bool validSignature)
@@ -111,6 +158,7 @@ void WzUpdateManager::processUpdateJSONFile(const json& updateData, bool validSi
 				// use default update link
 				updateLink = WZ_DEFAULT_UPDATE_LINK;
 			}
+			updateLink = configureUpdateLinkURL(updateLink, buildPropProvider);
 			std::string releaseVersionStr = releaseVersion.get<std::string>();
 			// submit notification (on main thread)
 			wzAsyncExecOnMainThread([validSignature, channelNameStr, releaseVersionStr, notificationInfo, updateLink]{
