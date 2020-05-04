@@ -23,6 +23,7 @@
 #include <curl/curl.h>
 #include <string>
 #include <memory>
+#include <unordered_map>
 #include <optional-lite/optional.hpp>
 using nonstd::optional;
 using nonstd::nullopt;
@@ -41,16 +42,24 @@ enum URLRequestFailureType {
 	CANCELLED_BY_SHUTDOWN
 };
 
-struct URLTransferFailedDetails {
-	CURLcode result;
-	long httpResponseCode;
+class HTTPResponseDetails {
+public:
+	virtual ~HTTPResponseDetails();
+
+	virtual CURLcode curlResult() const = 0;
+	virtual long httpStatusCode() const = 0;
+
+	// Permits retrieving HTTP response headers in a case-insensitive manner
+	virtual bool hasHeader(const std::string& name) const = 0;
+	virtual bool getHeader(const std::string& name, std::string& output_value) const = 0;
 };
 
-typedef std::function<void (const std::string& url, URLRequestFailureType type, optional<URLTransferFailedDetails> transferFailureDetails)> UrlRequestFailure;
+typedef std::function<void (const std::string& url, URLRequestFailureType type, const HTTPResponseDetails* transferDetails)> UrlRequestFailure;
 typedef std::function<void (const std::string& url, int64_t dltotal, int64_t dlnow)> UrlProgressCallback;
 
 struct URLRequestBase
 {
+public:
 	std::string url;
 
 	// MARK: callbacks
@@ -59,10 +68,23 @@ struct URLRequestBase
 	// - if you need to do something on the main thread, please wrap that logic
 	//   (inside your callback) in wzAsyncExecOnMainThread
 	UrlProgressCallback progressCallback;
+	// IMPORTANT:
+	// - `transferDetails` may be null
+	// - `transferDetails` is only valid until this onFailure handler returns
+	// - Do *not* pass `transferDetails` to any asynchronous dispatch, like `wzAsyncExecOnMainThread`. Instead, copy the necessary information.
 	UrlRequestFailure onFailure;
+
+public:
+	// Adding request headers
+	bool setRequestHeader(const std::string& name, const std::string& value);
+
+	// Get request headers
+	const std::unordered_map<std::string, std::string>& getRequestHeaders() const { return requestHeaders; }
+private:
+	std::unordered_map<std::string, std::string> requestHeaders;
 };
 
-typedef std::function<void (const std::string& url, const std::shared_ptr<MemoryStruct>& data)> UrlRequestSuccess;
+typedef std::function<void (const std::string& url, const HTTPResponseDetails& response, const std::shared_ptr<MemoryStruct>& data)> UrlRequestSuccess;
 
 struct URLDataRequest : public URLRequestBase
 {
@@ -76,7 +98,7 @@ struct URLDataRequest : public URLRequestBase
 	UrlRequestSuccess onSuccess;
 };
 
-typedef std::function<void (const std::string& url, const std::string& outFilePath)> UrlDownloadFileSuccess;
+typedef std::function<void (const std::string& url, const HTTPResponseDetails& response, const std::string& outFilePath)> UrlDownloadFileSuccess;
 
 struct URLFileDownloadRequest : public URLRequestBase
 {

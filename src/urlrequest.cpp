@@ -59,6 +59,7 @@
 #include <chrono>
 #include <sstream>
 #include <stdexcept>
+#include <unordered_map>
 
 #if defined(WZ_OS_UNIX)
 # include <fcntl.h>
@@ -98,6 +99,16 @@ MemoryStruct::~MemoryStruct()
 		free(memory);
 		memory = nullptr;
 	}
+}
+
+HTTPResponseDetails::~HTTPResponseDetails() { }
+
+bool URLRequestBase::setRequestHeader(const std::string& name, const std::string& value)
+{
+	ASSERT_OR_RETURN(false, !name.empty(), "Header name must not be empty");
+	ASSERT_OR_RETURN(false, name.find_first_of(":") == std::string::npos, "Header name must not contain ':'");
+	requestHeaders[name] = value;
+	return true;
 }
 
 // MARK: - Handle thread-safety for cURL
@@ -342,6 +353,63 @@ static int xferinfo(void *p, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ul
 /* for libcurl older than 7.32.0 (CURLOPT_PROGRESSFUNCTION) */
 static int older_progress(void *p, double dltotal, double dlnow, double ultotal, double ulnow);
 #endif
+static size_t header_callback(char *buffer, size_t size, size_t nitems, void *userdata);
+
+class CaseInsensitiveHash
+{
+public:
+	size_t operator() (std::string key) const
+	{
+		std::transform(key.begin(), key.end(), key.begin(), [](char c) { return std::tolower(c); });
+		return std::hash<std::string>{}(key);
+	}
+};
+class CaseInsensitiveEqualFunc
+{
+public:
+	bool operator() (std::string lhs, std::string rhs) const
+	{
+		std::transform(lhs.begin(), lhs.end(), lhs.begin(), [](char c) { return std::tolower(c); });
+		std::transform(rhs.begin(), rhs.end(), rhs.begin(), [](char c) { return std::tolower(c); });
+		return lhs == rhs;
+	}
+};
+
+typedef std::unordered_map<std::string, std::string, CaseInsensitiveHash, CaseInsensitiveEqualFunc> ResponseHeaderContainer;
+
+class HTTPResponseDetailsImpl: public HTTPResponseDetails {
+public:
+	HTTPResponseDetailsImpl(CURLcode result, long statusCode, const ResponseHeaderContainer& responseHeaders)
+	: result(result)
+	, statusCode(statusCode)
+	, responseHeaders(responseHeaders)
+	{ }
+public:
+	virtual CURLcode curlResult() const override
+	{
+		return result;
+	}
+	virtual long httpStatusCode() const override
+	{
+		return statusCode;
+	}
+
+	virtual bool hasHeader(const std::string& name) const override
+	{
+		return responseHeaders.count(name) > 0;
+	}
+	virtual bool getHeader(const std::string& name, std::string& output_value) const override
+	{
+		const auto it = responseHeaders.find(name);
+		if (it == responseHeaders.end()) { return false; }
+		output_value = it->second;
+		return true;
+	}
+public:
+	CURLcode result;
+	long statusCode;
+	const ResponseHeaderContainer& responseHeaders;
+};
 
 class URLTransferRequest
 {
@@ -350,9 +418,15 @@ public:
 	struct myprogress progress;
 
 public:
-	virtual ~URLTransferRequest() {}
+	virtual ~URLTransferRequest() {
+		if (request_header_list != nullptr)
+		{
+			curl_slist_free_all(request_header_list);
+		}
+	}
 
 	virtual const std::string& url() const = 0;
+	virtual const std::unordered_map<std::string, std::string>& requestHeaders() const = 0;
 	virtual curl_off_t maxDownloadSize() const { return MAXIMUM_DOWNLOAD_SIZE; }
 
 	virtual CURL* createCURLHandle()
@@ -365,11 +439,27 @@ public:
 			return nullptr;
 		}
 		curl_easy_setopt(handle, CURLOPT_URL, url().c_str());
+
+		const auto& _requestHeaders = requestHeaders();
+		for (auto it : _requestHeaders)
+		{
+			const auto& header_key = it.first;
+			const auto& header_value = it.second;
+			std::string header_line = header_key + ": " + header_value;
+			request_header_list = curl_slist_append(request_header_list, header_line.c_str());
+		}
+		if (request_header_list != nullptr)
+		{
+			curl_easy_setopt(handle, CURLOPT_HTTPHEADER, request_header_list);
+		}
+
 		if (hasWriteMemoryCallback())
 		{
 			curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, WriteMemoryCallback_URLTransferRequest);
 			curl_easy_setopt(handle, CURLOPT_WRITEDATA, (void *)this);
 		}
+		curl_easy_setopt(handle, CURLOPT_HEADERFUNCTION, header_callback);
+		curl_easy_setopt(handle, CURLOPT_HEADERDATA, (void *)this);
 	#if LIBCURL_VERSION_NUM >= 0x071304	// cURL 7.19.4+
 		/* only allow HTTP and HTTPS */
 		curl_easy_setopt(handle, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
@@ -432,6 +522,12 @@ public:
 
 	virtual void handleRequestDone(CURLcode result) { }
 	virtual void requestFailedToFinish(URLRequestFailureType type) { }
+
+protected:
+	friend size_t header_callback(char *buffer, size_t size, size_t nitems, void *userdata);
+	ResponseHeaderContainer responseHeaders;
+private:
+	struct curl_slist *request_header_list = nullptr;
 };
 
 static size_t
@@ -494,6 +590,38 @@ static int older_progress(void *p,
 }
 #endif
 
+static void trim_str(std::string& str)
+{
+	str.erase(str.begin(), std::find_if(str.begin(), str.end(), [](int c) {
+		return !std::isspace(c);
+	}));
+	str.erase(std::find_if(str.rbegin(), str.rend(), [](int c) {
+		return !std::isspace(c);
+	}).base(), str.end());
+}
+
+static size_t header_callback(char *buffer, size_t size,
+							  size_t nitems, void *userdata)
+{
+	/* received header is nitems * size long in 'buffer' NOT ZERO TERMINATED */
+	/* 'userdata' is set with CURLOPT_HEADERDATA */
+	if (userdata != nullptr)
+	{
+		URLTransferRequest* pRequest = static_cast<URLTransferRequest*>(userdata);
+		std::string header_line = std::string(buffer, size * nitems);
+		const size_t header_separator = header_line.find_first_of(":");
+		if (header_separator != std::string::npos)
+		{
+			std::string header_key = header_line.substr(0, header_separator);
+			std::string header_value = header_line.substr(header_separator + 1);
+			trim_str(header_key);
+			trim_str(header_value);
+			pRequest->responseHeaders[header_key] = header_value;
+		}
+	}
+	return nitems * size;
+}
+
 class RunningURLTransferRequestBase : public URLTransferRequest
 {
 public:
@@ -505,6 +633,11 @@ public:
 	virtual const std::string& url() const override
 	{
 		return getBaseRequest().url;
+	}
+
+	virtual const std::unordered_map<std::string, std::string>& requestHeaders() const override
+	{
+		return getBaseRequest().getRequestHeaders();
 	}
 
 	virtual bool onProgressUpdate(int64_t dltotal, int64_t dlnow, int64_t ultotal, int64_t ulnow) override
@@ -527,26 +660,27 @@ public:
 			code = 0;
 		}
 
+		HTTPResponseDetailsImpl responseDetails(result, code, responseHeaders);
 		if (result == CURLE_OK)
 		{
-			onSuccess();
+			onSuccess(responseDetails);
 		}
 		else
 		{
-			onFailure(URLRequestFailureType::TRANSFER_FAILED, URLTransferFailedDetails{result, code});
+			onFailure(URLRequestFailureType::TRANSFER_FAILED, &responseDetails);
 		}
 	}
 
 	virtual void requestFailedToFinish(URLRequestFailureType type) override
 	{
 		ASSERT_OR_RETURN(, type != URLRequestFailureType::TRANSFER_FAILED, "TRANSFER_FAILED should be handled by handleRequestDone");
-		onFailure(type, nullopt);
+		onFailure(type, nullptr);
 	}
 
 private:
-	virtual void onSuccess() = 0;
+	virtual void onSuccess(const HTTPResponseDetails& responseDetails) = 0;
 
-	void onFailure(URLRequestFailureType type, optional<URLTransferFailedDetails> transferFailureDetails)
+	void onFailure(URLRequestFailureType type, const HTTPResponseDetails* transferDetails)
 	{
 		auto request = getBaseRequest();
 
@@ -559,14 +693,20 @@ private:
 				});
 				break;
 			case URLRequestFailureType::TRANSFER_FAILED:
-				wzAsyncExecOnMainThread([url, transferFailureDetails]{
-					if (!transferFailureDetails.has_value())
-					{
+				if (!transferDetails)
+				{
+					wzAsyncExecOnMainThread([url]{
 						debug(LOG_ERROR, "cURL: Request for (%s) failed - but no transfer failure details provided!", url.c_str());
-						return;
-					}
-					debug(LOG_NET, "cURL: Request for (%s) failed with error %d, and HTTP response code: %ld", url.c_str(), transferFailureDetails.value().result, transferFailureDetails.value().httpResponseCode);
-				});
+					});
+				}
+				else
+				{
+					CURLcode result = transferDetails->curlResult();
+					long httpStatusCode = transferDetails->httpStatusCode();
+					wzAsyncExecOnMainThread([url, result, httpStatusCode]{
+						debug(LOG_NET, "cURL: Request for (%s) failed with error %d, and HTTP response code: %ld", url.c_str(), result, httpStatusCode);
+					});
+				}
 				break;
 			case URLRequestFailureType::CANCELLED_BY_SHUTDOWN:
 				wzAsyncExecOnMainThread([url]{
@@ -577,7 +717,7 @@ private:
 
 		if (request.onFailure)
 		{
-			request.onFailure(request.url, type, transferFailureDetails);
+			request.onFailure(request.url, type, transferDetails);
 		}
 	}
 };
@@ -634,11 +774,11 @@ public:
 	}
 
 private:
-	void onSuccess() override
+	void onSuccess(const HTTPResponseDetails& responseDetails) override
 	{
 		if (request.onSuccess)
 		{
-			request.onSuccess(request.url, chunk);
+			request.onSuccess(request.url, responseDetails, chunk);
 		}
 	}
 };
@@ -718,11 +858,11 @@ public:
 	}
 
 private:
-	void onSuccess() override
+	void onSuccess(const HTTPResponseDetails& responseDetails) override
 	{
 		if (request.onSuccess)
 		{
-			request.onSuccess(request.url, request.outFilePath);
+			request.onSuccess(request.url, responseDetails, request.outFilePath);
 		}
 	}
 };
@@ -918,7 +1058,7 @@ void urlDownloadFile(const URLFileDownloadRequest& request)
 		debug(LOG_ERROR, "Failed to create new file download request with error: %s", e.what());
 		if (request.onFailure)
 		{
-			request.onFailure(request.url, URLRequestFailureType::INITIALIZE_REQUEST_ERROR, nullopt);
+			request.onFailure(request.url, URLRequestFailureType::INITIALIZE_REQUEST_ERROR, nullptr);
 		}
 		return;
 	}
