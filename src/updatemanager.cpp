@@ -43,7 +43,13 @@ class WzUpdateManager {
 public:
 	static void initUpdateCheck();
 private:
-	static void processUpdateJSONFile(const json& updateData, bool validSignature);
+	enum class ProcessResult {
+		INVALID_JSON,
+		NO_MATCHING_CHANNEL,
+		MATCHED_CHANNEL_NO_UPDATE,
+		UPDATE_FOUND
+	};
+	static ProcessResult processUpdateJSONFile(const json& updateData, bool validSignature);
 	static std::string configureUpdateLinkURL(const std::string& url, BuildPropertyProvider& propProvider);
 };
 
@@ -95,21 +101,20 @@ std::string WzUpdateManager::configureUpdateLinkURL(const std::string& url, Buil
 }
 
 // May be called from a background thread
-void WzUpdateManager::processUpdateJSONFile(const json& updateData, bool validSignature)
+WzUpdateManager::ProcessResult WzUpdateManager::processUpdateJSONFile(const json& updateData, bool validSignature)
 {
 	if (!updateData.is_object())
 	{
 		wzAsyncExecOnMainThread([]{ debug(LOG_ERROR, "Update data is not an object"); });
-		return;
+		return ProcessResult::INVALID_JSON;
 	}
 	const auto& channels = updateData["channels"];
 	if (!channels.is_array())
 	{
 		wzAsyncExecOnMainThread([]{ debug(LOG_ERROR, "Channels should be an array"); });
-		return;
+		return ProcessResult::INVALID_JSON;
 	}
 	BuildPropertyProvider buildPropProvider;
-	bool foundMatch = false;
 	for (const auto& channel : channels)
 	{
 		if (!channel.is_object()) continue;
@@ -201,18 +206,27 @@ void WzUpdateManager::processUpdateJSONFile(const json& updateData, bool validSi
 				}
 				addNotification(notification, WZ_Notification_Trigger::Immediate());
 			});
-			foundMatch = true;
-			break;
+			return ProcessResult::UPDATE_FOUND;
 		}
-		if (foundMatch) break;
+		return ProcessResult::MATCHED_CHANNEL_NO_UPDATE;
 	}
+	return ProcessResult::NO_MATCHING_CHANNEL;
 }
 
 void WzUpdateManager::initUpdateCheck()
 {
 	URLDataRequest request;
 	request.url = "https://warzone2100.github.io/update-data/wz2100.json";
-	request.onSuccess = [](const std::string& url, const std::shared_ptr<MemoryStruct>& data) {
+	request.onSuccess = [](const std::string& url, const HTTPResponseDetails& responseDetails, const std::shared_ptr<MemoryStruct>& data) {
+
+		long httpStatusCode = responseDetails.httpStatusCode();
+		if (httpStatusCode != 200)
+		{
+			wzAsyncExecOnMainThread([httpStatusCode]{
+				debug(LOG_ERROR, "Update check returned HTTP status code: %ld", httpStatusCode);
+			});
+			return;
+		}
 
 		// Extract the digital signature, and verify it
 		std::string updateJsonStr;
@@ -224,36 +238,46 @@ void WzUpdateManager::initUpdateCheck()
 			updateData = json::parse(updateJsonStr);
 		}
 		catch (const std::exception &e) {
-			wzAsyncExecOnMainThread([&e, &url]{
-				debug(LOG_NET, "JSON document from %s is invalid: %s", url.c_str(), e.what());
+			std::string errorStr = e.what();
+			wzAsyncExecOnMainThread([url, errorStr]{
+				debug(LOG_NET, "JSON document from %s is invalid: %s", url.c_str(), errorStr.c_str());
 			});
 			return;
 		}
 		catch (...) {
-			wzAsyncExecOnMainThread([&url]{
+			wzAsyncExecOnMainThread([url]{
 				debug(LOG_NET, "Unexpected exception parsing JSON %s", url.c_str());
 			});
 			return;
 		}
 		if (updateData.is_null())
 		{
-			wzAsyncExecOnMainThread([&url]{
+			wzAsyncExecOnMainThread([url]{
 				debug(LOG_NET, "JSON document from %s is null", url.c_str());
 			});
 			return ;
 		}
 		if (!updateData.is_object())
 		{
-			wzAsyncExecOnMainThread([&url, &data]{
+			wzAsyncExecOnMainThread([url, data]{
 				debug(LOG_NET, "JSON document from %s is not an object. Read: \n%s", url.c_str(), data->memory);
 			});
 			return;
 		}
 
 		// Process the updates JSON, notify if new version is available
-		WzUpdateManager::processUpdateJSONFile(updateData, validSignature);
+		const auto processResult = WzUpdateManager::processUpdateJSONFile(updateData, validSignature);
+		if (processResult == WzUpdateManager::ProcessResult::UPDATE_FOUND)
+		{
+			// TODO: Clear any etag cache entry
+		}
+		else if (processResult != WzUpdateManager::ProcessResult::INVALID_JSON)
+		{
+			// TODO: Store the ETag value from this response, to throttle requests
+
+		}
 	};
-	request.onFailure = [](const std::string& url, URLRequestFailureType type, optional<URLTransferFailedDetails> transferFailureDetails) {
+	request.onFailure = [](const std::string& url, URLRequestFailureType type, const HTTPResponseDetails* transferDetails) {
 		switch (type)
 		{
 			case URLRequestFailureType::INITIALIZE_REQUEST_ERROR:
@@ -262,14 +286,20 @@ void WzUpdateManager::initUpdateCheck()
 				});
 				break;
 			case URLRequestFailureType::TRANSFER_FAILED:
-				wzAsyncExecOnMainThread([transferFailureDetails]{
-					if (!transferFailureDetails.has_value())
-					{
+				if (!transferDetails)
+				{
+					wzAsyncExecOnMainThread([]{
 						debug(LOG_ERROR, "Update check request failed - but no transfer failure details provided!");
-						return;
-					}
-					debug(LOG_ERROR, "Update check request failed with error %d, and HTTP response code: %ld", transferFailureDetails.value().result, transferFailureDetails.value().httpResponseCode);
-				});
+					});
+				}
+				else
+				{
+					CURLcode result = transferDetails->curlResult();
+					long httpStatusCode = transferDetails->httpStatusCode();
+					wzAsyncExecOnMainThread([result, httpStatusCode]{
+						debug(LOG_ERROR, "Update check request failed with error %d, and HTTP response code: %ld", result, httpStatusCode);
+					});
+				}
 				break;
 			case URLRequestFailureType::CANCELLED_BY_SHUTDOWN:
 				wzAsyncExecOnMainThread([url]{
