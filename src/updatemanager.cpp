@@ -377,7 +377,7 @@ void WzUpdateManager::initUpdateCheck()
 		}
 	}
 
-	// Fall-back to URL request for latest data
+	// Fall-back to URL request for the latest data
 
 	URLDataRequest* pRequest = new URLDataRequest();
 	pRequest->url = "https://warzone2100.github.io/update-data/wz2100.json";
@@ -443,7 +443,7 @@ void WzUpdateManager::initUpdateCheck()
 			}
 		}
 	};
-	pRequest->onFailure = [](const std::string& url, URLRequestFailureType type, const HTTPResponseDetails* transferDetails) {
+	pRequest->onFailure = [](const std::string& url, URLRequestFailureType type, optional<HTTPResponseDetails> transferDetails) {
 		switch (type)
 		{
 			case URLRequestFailureType::INITIALIZE_REQUEST_ERROR:
@@ -452,7 +452,7 @@ void WzUpdateManager::initUpdateCheck()
 				});
 				break;
 			case URLRequestFailureType::TRANSFER_FAILED:
-				if (!transferDetails)
+				if (!transferDetails.has_value())
 				{
 					wzAsyncExecOnMainThread([]{
 						debug(LOG_ERROR, "Update check request failed - but no transfer failure details provided!");
