@@ -42,19 +42,37 @@ enum URLRequestFailureType {
 	CANCELLED_BY_SHUTDOWN
 };
 
-class HTTPResponseDetails {
+class HTTPResponseHeaders {
 public:
-	virtual ~HTTPResponseDetails();
-
-	virtual CURLcode curlResult() const = 0;
-	virtual long httpStatusCode() const = 0;
+	virtual ~HTTPResponseHeaders();
 
 	// Permits retrieving HTTP response headers in a case-insensitive manner
 	virtual bool hasHeader(const std::string& name) const = 0;
 	virtual bool getHeader(const std::string& name, std::string& output_value) const = 0;
 };
 
-typedef std::function<void (const std::string& url, URLRequestFailureType type, const HTTPResponseDetails* transferDetails)> UrlRequestFailure;
+class HTTPResponseDetails {
+public:
+	HTTPResponseDetails(CURLcode curlResult, long httpStatusCode, std::shared_ptr<HTTPResponseHeaders> responseHeaders)
+	: _curlResult(curlResult)
+	, _httpStatusCode(httpStatusCode)
+	, _responseHeaders(responseHeaders)
+	{ }
+	virtual ~HTTPResponseDetails();
+
+	CURLcode curlResult() const { return _curlResult; }
+	long httpStatusCode() const { return _httpStatusCode; }
+
+	// Permits retrieving HTTP response headers in a case-insensitive manner
+	bool hasHeader(const std::string& name) const { return _responseHeaders->hasHeader(name); }
+	bool getHeader(const std::string& name, std::string& output_value) const { return _responseHeaders->getHeader(name, output_value); }
+private:
+	CURLcode _curlResult;
+	long _httpStatusCode;
+	std::shared_ptr<HTTPResponseHeaders> _responseHeaders;
+};
+
+typedef std::function<void (const std::string& url, URLRequestFailureType type, optional<HTTPResponseDetails> transferDetails)> UrlRequestFailure;
 typedef std::function<void (const std::string& url, int64_t dltotal, int64_t dlnow)> UrlProgressCallback;
 
 struct URLRequestBase

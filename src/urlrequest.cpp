@@ -101,6 +101,7 @@ MemoryStruct::~MemoryStruct()
 	}
 }
 
+HTTPResponseHeaders::~HTTPResponseHeaders() { }
 HTTPResponseDetails::~HTTPResponseDetails() { }
 
 bool URLRequestBase::setRequestHeader(const std::string& name, const std::string& value)
@@ -377,23 +378,8 @@ public:
 
 typedef std::unordered_map<std::string, std::string, CaseInsensitiveHash, CaseInsensitiveEqualFunc> ResponseHeaderContainer;
 
-class HTTPResponseDetailsImpl: public HTTPResponseDetails {
+class HTTPResponseHeadersContainer: public HTTPResponseHeaders {
 public:
-	HTTPResponseDetailsImpl(CURLcode result, long statusCode, const ResponseHeaderContainer& responseHeaders)
-	: result(result)
-	, statusCode(statusCode)
-	, responseHeaders(responseHeaders)
-	{ }
-public:
-	virtual CURLcode curlResult() const override
-	{
-		return result;
-	}
-	virtual long httpStatusCode() const override
-	{
-		return statusCode;
-	}
-
 	virtual bool hasHeader(const std::string& name) const override
 	{
 		return responseHeaders.count(name) > 0;
@@ -406,9 +392,7 @@ public:
 		return true;
 	}
 public:
-	CURLcode result;
-	long statusCode;
-	const ResponseHeaderContainer& responseHeaders;
+	ResponseHeaderContainer responseHeaders;
 };
 
 class URLTransferRequest
@@ -525,7 +509,7 @@ public:
 
 protected:
 	friend size_t header_callback(char *buffer, size_t size, size_t nitems, void *userdata);
-	ResponseHeaderContainer responseHeaders;
+	std::shared_ptr<HTTPResponseHeadersContainer> responseHeaders = std::make_shared<HTTPResponseHeadersContainer>();
 private:
 	struct curl_slist *request_header_list = nullptr;
 };
@@ -560,12 +544,12 @@ static int xferinfo(void *p,
 	 be used */
 	if((curtime - myp->lastruntime) >= MINIMAL_PROGRESS_FUNCTIONALITY_INTERVAL) {
 		myp->lastruntime = curtime;
-		#ifdef TIME_IN_US
-		fprintf(stderr, "TOTAL TIME: %" CURL_FORMAT_CURL_OFF_T ".%06ld\r\n",
-				(curtime / 1000000), (long)(curtime % 1000000));
-		#else
-		fprintf(stderr, "TOTAL TIME: %f \r\n", curtime);
-		#endif
+//		#ifdef TIME_IN_US
+//		fprintf(stderr, "TOTAL TIME: %" CURL_FORMAT_CURL_OFF_T ".%06ld\r\n",
+//				(curtime / 1000000), (long)(curtime % 1000000));
+//		#else
+//		fprintf(stderr, "TOTAL TIME: %f \r\n", curtime);
+//		#endif
 
 		retValue = myp->request->onProgressUpdate(dltotal, dlnow, ultotal, ulnow);
 	}
@@ -616,7 +600,7 @@ static size_t header_callback(char *buffer, size_t size,
 			std::string header_value = header_line.substr(header_separator + 1);
 			trim_str(header_key);
 			trim_str(header_value);
-			pRequest->responseHeaders[header_key] = header_value;
+			pRequest->responseHeaders->responseHeaders[header_key] = header_value;
 		}
 	}
 	return nitems * size;
@@ -642,8 +626,6 @@ public:
 
 	virtual bool onProgressUpdate(int64_t dltotal, int64_t dlnow, int64_t ultotal, int64_t ulnow) override
 	{
-		fprintf(stderr, "UP: %" PRId64 " of %" PRId64 "  DOWN: %" PRId64 " of %" PRId64 "\r\n",
-				ulnow, ultotal, dlnow, dltotal);
 		auto request = getBaseRequest();
 		if (request.progressCallback)
 		{
@@ -660,27 +642,26 @@ public:
 			code = 0;
 		}
 
-		HTTPResponseDetailsImpl responseDetails(result, code, responseHeaders);
 		if (result == CURLE_OK)
 		{
-			onSuccess(responseDetails);
+			onSuccess(HTTPResponseDetails(result, code, responseHeaders));
 		}
 		else
 		{
-			onFailure(URLRequestFailureType::TRANSFER_FAILED, &responseDetails);
+			onFailure(URLRequestFailureType::TRANSFER_FAILED, HTTPResponseDetails(result, code, responseHeaders));
 		}
 	}
 
 	virtual void requestFailedToFinish(URLRequestFailureType type) override
 	{
 		ASSERT_OR_RETURN(, type != URLRequestFailureType::TRANSFER_FAILED, "TRANSFER_FAILED should be handled by handleRequestDone");
-		onFailure(type, nullptr);
+		onFailure(type, nullopt);
 	}
 
 private:
 	virtual void onSuccess(const HTTPResponseDetails& responseDetails) = 0;
 
-	void onFailure(URLRequestFailureType type, const HTTPResponseDetails* transferDetails)
+	void onFailure(URLRequestFailureType type, optional<HTTPResponseDetails> transferDetails)
 	{
 		auto request = getBaseRequest();
 
@@ -693,7 +674,7 @@ private:
 				});
 				break;
 			case URLRequestFailureType::TRANSFER_FAILED:
-				if (!transferDetails)
+				if (!transferDetails.has_value())
 				{
 					wzAsyncExecOnMainThread([url]{
 						debug(LOG_ERROR, "cURL: Request for (%s) failed - but no transfer failure details provided!", url.c_str());
@@ -761,7 +742,6 @@ public:
 		char *ptr = (char*) realloc(mem->memory, mem->size + realsize + 1);
 		if(ptr == NULL) {
 			/* out of memory! */
-			printf("not enough memory (realloc returned NULL)\n");
 			return 0;
 		}
 
@@ -904,7 +884,7 @@ static int urlRequestThreadFunc(void *)
 				CURL *e = msg->easy_handle;
 				CURLcode result = msg->data.result;
 
-				printf("HTTP transfer completed with status %d\n", msg->data.result);
+				// printf("HTTP transfer completed with status %d\n", msg->data.result);
 
 				/* Find out which handle this message is about */
 				auto it = std::find_if(runningTransfers.begin(), runningTransfers.end(), [e](const URLTransferRequest* req) {
@@ -1058,7 +1038,7 @@ void urlDownloadFile(const URLFileDownloadRequest& request)
 		debug(LOG_ERROR, "Failed to create new file download request with error: %s", e.what());
 		if (request.onFailure)
 		{
-			request.onFailure(request.url, URLRequestFailureType::INITIALIZE_REQUEST_ERROR, nullptr);
+			request.onFailure(request.url, URLRequestFailureType::INITIALIZE_REQUEST_ERROR, nullopt);
 		}
 		return;
 	}
