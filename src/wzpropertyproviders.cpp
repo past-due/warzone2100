@@ -44,6 +44,7 @@ enum class BuildProperty {
 	GIT_WC_MODIFIED,
 	GIT_MOST_RECENT_COMMIT_DATE,
 	WZ_PACKAGE_DISTRIBUTOR,
+	BUILD_TYPE,
 	COMPILE_DATE,
 	VERSION_STRING,
 	PLATFORM,
@@ -72,6 +73,12 @@ static std::string GetCurrentBuildPropertyValue(const BuildProperty& property)
 			return VCS_MOST_RECENT_COMMIT_DATE;
 		case BP::WZ_PACKAGE_DISTRIBUTOR:
 			return PACKAGE_DISTRIBUTOR;
+		case BP::BUILD_TYPE:
+#ifdef DEBUG
+			return "DEBUG";
+#else
+			return "RELEASE";
+#endif
 		case BP::COMPILE_DATE:
 			return getCompileDate();
 		case BP::VERSION_STRING:
@@ -106,6 +113,7 @@ static const std::unordered_map<std::string, BuildProperty> strToBuildPropertyMa
 	{"GIT_WC_MODIFIED", BuildProperty::GIT_WC_MODIFIED},
 	{"GIT_MOST_RECENT_COMMIT_DATE", BuildProperty::GIT_MOST_RECENT_COMMIT_DATE},
 	{"WZ_PACKAGE_DISTRIBUTOR", BuildProperty::WZ_PACKAGE_DISTRIBUTOR},
+	{"BUILD_TYPE", BuildProperty::BUILD_TYPE},
 	{"COMPILE_DATE", BuildProperty::COMPILE_DATE},
 	{"VERSION_STRING", BuildProperty::VERSION_STRING},
 	{"PLATFORM", BuildProperty::PLATFORM},
