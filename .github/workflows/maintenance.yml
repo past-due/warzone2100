@@ -26,7 +26,7 @@ jobs:
       shell: bash
       run: |
         echo "Generate POTFILES.in"
-        bash "${GITHUB_WORKSPACE}/master/po/update-po.sh"
+        . "${GITHUB_WORKSPACE}/master/po/update-po.sh"
         echo "Done"
     - name: Generate warzone2100.pot
       working-directory: '${{ github.workspace }}/master'
