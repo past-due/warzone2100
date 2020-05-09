@@ -3,6 +3,7 @@
 # We need to be in the working copy's root directory
 cd "`dirname "$0"`/.."
 
+echo "LC_ALL=${LC_ALL}"
 export LC_ALL=C
 export LC_COLLATE=C
 
