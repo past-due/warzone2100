@@ -3,6 +3,12 @@
 # We need to be in the working copy's root directory
 cd "`dirname "$0"`/.."
 
+echo "LANG=${LANG}"
+echo "LC_ALL=${LC_ALL}"
+echo "LC_COLLATE=${LC_COLLATE}"
+export LC_ALL=C
+export LC_COLLATE=C
+
 find data -name '*.json' -type f '-!' -path 'data/mp/multiplay/maps/*' -exec \
 	python3 po/parseJson.py '{}' ';' |
 	python3 po/aggregateParsedJson.py > po/custom/fromJson.txt
