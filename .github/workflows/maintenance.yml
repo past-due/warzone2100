@@ -2,8 +2,8 @@ name: Maintenance
 
 on:
   push:
-    branches:
-      - master
+    #branches:
+    #  - master
 
 jobs:
   update-base-translations:
@@ -36,7 +36,7 @@ jobs:
         mkdir -p "${temp_dir}"
         cmake "-DPOTFILES_IN=${potfiles_in_path}" "-DOUTPUT_FILE=${potFile_inRepo}" "-DTEMP_DIR=${temp_dir}" -P "${GITHUB_WORKSPACE}/master/po/WZ_build_po_template.cmake"
     - name: Create Pull Request to update base files (if needed)
-      if: (github.repository == 'Warzone2100/warzone2100')
+      #if: (github.repository == 'Warzone2100/warzone2100')
       id: cpr
       uses: past-due/create-pull-request@v2
       with:
