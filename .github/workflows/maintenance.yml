@@ -25,7 +25,11 @@ jobs:
       working-directory: '${{ github.workspace }}/master/po'
       run: |
         echo "Generate POTFILES.in"
-        ./update-po.sh
+        echo "LANG=${LANG}"
+        echo "LC_ALL=${LC_ALL}"
+        echo "LC_COLLATE=${LC_COLLATE}"
+        "${GITHUB_WORKSPACE}/master/po/update-po.sh"
+        echo "Finished"
     - name: Generate warzone2100.pot
       working-directory: '${{ github.workspace }}/master'
       run: |
