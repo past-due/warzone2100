@@ -23,7 +23,8 @@ noinst_HEADERS = \
 	pietypes.h \
 	png_util.h \
 	tex.h \
-	textdraw.h
+	textdraw.h \
+	3rdparty/stb_image_resize.h
 
 libivis_opengl_a_SOURCES = \
 	pieblitfunc.cpp \
@@ -42,4 +43,5 @@ libivis_opengl_a_SOURCES = \
 	imdload.cpp \
 	jpeg_encoder.cpp \
 	pieclip.cpp \
-	png_util.cpp
+	png_util.cpp \
+	3rdparty/stb_image_resize.cpp
