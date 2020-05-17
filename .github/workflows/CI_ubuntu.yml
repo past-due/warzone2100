@@ -74,7 +74,6 @@ jobs:
     - name: CMake Build
       run: docker run --rm -e "CI=true" -e GITHUB_WORKFLOW -e GITHUB_ACTIONS -e GITHUB_REPOSITORY -e "GITHUB_WORKSPACE=/code" -e GITHUB_SHA -e GITHUB_REF -e GITHUB_HEAD_REF -e GITHUB_BASE_REF -e MAKEFLAGS -v $(pwd):/code ubuntu cmake --build build
     - name: Package .DEB
-      working-directory: './build'
       run: |
         WZ_PACKAGE_VAR_OVERRIDES=""
         WZ_SHORT_SHA=$(echo "${GITHUB_SHA}" | head -c 7)
@@ -84,12 +83,13 @@ jobs:
           echo "DEB_SAFE_DESC_PREFIX=${DEB_SAFE_DESC_PREFIX}"
           WZ_PACKAGE_VAR_OVERRIDES="-D CPACK_DEBIAN_PACKAGE_VERSION=1.${DEB_SAFE_DESC_PREFIX}.${WZ_SHORT_SHA} -D WZ_DEVELOPMENT_BUILD=ON"
         fi
-        docker run --rm -e "CI=true" -e GITHUB_WORKFLOW -e GITHUB_ACTIONS -e GITHUB_REPOSITORY -e "GITHUB_WORKSPACE=/code" -e GITHUB_SHA -e GITHUB_REF -e GITHUB_HEAD_REF -e GITHUB_BASE_REF -e MAKEFLAGS -v $(pwd):/code ubuntu cpack -G DEB -D CPACK_DEBIAN_PACKAGE_MAINTAINER="${WZ_DISTRIBUTOR}" -D CPACK_DEB_PACKAGE_COMPONENT=OFF -D CPACK_MONOLITHIC_INSTALL=1 -D CPACK_DEBIAN_PACKAGE_NAME="warzone2100${WZ_OUTPUT_NAME_SUFFIX}" ${WZ_PACKAGE_VAR_OVERRIDES}
+        docker run --rm -e "CI=true" -e GITHUB_WORKFLOW -e GITHUB_ACTIONS -e GITHUB_REPOSITORY -e "GITHUB_WORKSPACE=/code" -e GITHUB_SHA -e GITHUB_REF -e GITHUB_HEAD_REF -e GITHUB_BASE_REF -e MAKEFLAGS -v $(pwd):/code ubuntu cpack --config "build/CPackConfig.cmake" -G DEB -D CPACK_DEBIAN_PACKAGE_MAINTAINER="${WZ_DISTRIBUTOR}" -D CPACK_DEB_PACKAGE_COMPONENT=OFF -D CPACK_MONOLITHIC_INSTALL=1 -D CPACK_DEBIAN_PACKAGE_NAME="warzone2100${WZ_OUTPUT_NAME_SUFFIX}" ${WZ_PACKAGE_VAR_OVERRIDES}
         OUTPUT_DIR="${HOME}/output"
         echo "OUTPUT_DIR=${OUTPUT_DIR}"
         echo "::set-env name=OUTPUT_DIR::${OUTPUT_DIR}"
         mkdir -p "${OUTPUT_DIR}"
-        cp "warzone2100${WZ_OUTPUT_NAME_SUFFIX}.deb" "${OUTPUT_DIR}/warzone2100${WZ_OUTPUT_NAME_SUFFIX}.deb"
+        ls -al
+        cp "build/warzone2100${WZ_OUTPUT_NAME_SUFFIX}.deb" "${OUTPUT_DIR}/warzone2100${WZ_OUTPUT_NAME_SUFFIX}.deb"
         echo "Generated .deb: \"warzone2100${WZ_OUTPUT_NAME_SUFFIX}.deb\""
         echo "  -> SHA512: $(sha512sum "${OUTPUT_DIR}/warzone2100${WZ_OUTPUT_NAME_SUFFIX}.deb")"
         echo "  -> Size (bytes): $(stat -c %s "${OUTPUT_DIR}/warzone2100${WZ_OUTPUT_NAME_SUFFIX}.deb")"
