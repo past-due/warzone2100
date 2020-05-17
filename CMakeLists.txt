@@ -728,7 +728,7 @@ endif()
 foreach(rfile ${wz2100_ROOT_FILES})
 	install(FILES ${rfile}
 			COMPONENT Info
-			DESTINATION "${CMAKE_INSTALL_DOCDIR}"
+			DESTINATION "${CMAKE_INSTALL_DOCDIR}${WZ_OUTPUT_NAME_SUFFIX}"
 	)
 endforeach()
 
