@@ -8,7 +8,6 @@ install(FILES
   "${CMAKE_CURRENT_SOURCE_DIR}/debian/copyright"
   DESTINATION "${CMAKE_INSTALL_DOCDIR}${WZ_OUTPUT_NAME_SUFFIX}"
   COMPONENT DebianInfo
-  EXCLUDE_FROM_ALL
 )
 
 #########################
