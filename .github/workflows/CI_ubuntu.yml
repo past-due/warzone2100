@@ -84,7 +84,7 @@ jobs:
         fi
         WZ_DEB_ARCH="amd64"
         WZ_DEB_PACKAGE_NAME=$(echo "warzone2100${WZ_OUTPUT_NAME_SUFFIX}" | sed 's/[^a-zA-Z0-9\.\+\-]/-/g')
-        docker run --rm -e "CI=true" -e GITHUB_WORKFLOW -e GITHUB_ACTIONS -e GITHUB_REPOSITORY -e "GITHUB_WORKSPACE=/code" -e GITHUB_SHA -e GITHUB_REF -e GITHUB_HEAD_REF -e GITHUB_BASE_REF -e MAKEFLAGS -v $(pwd):/code ubuntu cpack --config "build/CPackConfig.cmake" -G DEB -D CPACK_DEBIAN_PACKAGE_MAINTAINER="${WZ_DISTRIBUTOR}" -D CPACK_DEB_PACKAGE_COMPONENT=OFF -D CPACK_MONOLITHIC_INSTALL=1 -D CPACK_DEBIAN_PACKAGE_NAME="${WZ_DEB_PACKAGE_NAME}" -D CPACK_DEBIAN_FILE_NAME="warzone2100_linux_${WZ_DEB_ARCH}.deb" ${WZ_PACKAGE_VAR_OVERRIDES}
+        docker run --rm -e "CI=true" -e GITHUB_WORKFLOW -e GITHUB_ACTIONS -e GITHUB_REPOSITORY -e "GITHUB_WORKSPACE=/code" -e GITHUB_SHA -e GITHUB_REF -e GITHUB_HEAD_REF -e GITHUB_BASE_REF -e MAKEFLAGS -v $(pwd):/code ubuntu cpack --config "build/CPackConfig.cmake" -G DEB -D CPACK_DEBIAN_PACKAGE_MAINTAINER="${WZ_DISTRIBUTOR}" -D CPACK_DEB_COMPONENT_INSTALL=OFF -D CPACK_MONOLITHIC_INSTALL=1 -D CPACK_DEBIAN_PACKAGE_NAME="${WZ_DEB_PACKAGE_NAME}" -D CPACK_DEBIAN_FILE_NAME="warzone2100_linux_${WZ_DEB_ARCH}.deb" ${WZ_PACKAGE_VAR_OVERRIDES}
         OUTPUT_DIR="${HOME}/output"
         echo "OUTPUT_DIR=${OUTPUT_DIR}"
         echo "::set-env name=OUTPUT_DIR::${OUTPUT_DIR}"
@@ -97,7 +97,7 @@ jobs:
     - uses: actions/upload-artifact@v1
       if: success()
       with:
-        name: "warzone2100_linux_amd64"
+        name: "warzone2100_linux_amd64_deb"
         path: ${{ env.OUTPUT_DIR }}
 
   package-source:
