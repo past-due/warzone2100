@@ -180,7 +180,7 @@ void setZoom(float speed, float target)
 		zoom_reference = getViewDistance();
 		zoom_current = getViewDistance();
 		zoom_target = getViewDistance();
-		zoom_time = graphicsTime;
+		zoom_time = realTime;
 		is_zooming = true;
 	}
 	else if((target < zoom_current && zoom_target > zoom_current) || (target > zoom_current && zoom_target < zoom_current)) // switched directions "mid-air"
@@ -198,21 +198,32 @@ void zoom()
 		return;
 	}
 
+	static const uint32_t minZoomTickInterval = GAME_TICKS_PER_SEC / 60;
+	static uint32_t lastZoomAdjustmentRealTime = 0;
+
+	uint32_t deltaZoomRealTime = realTime - lastZoomAdjustmentRealTime;
+	if (deltaZoomRealTime < minZoomTickInterval)
+	{
+		// avoid processing this too rapidly, such as when vsync is disabled
+		return;
+	}
+	lastZoomAdjustmentRealTime = realTime;
+
 	int direction = zoom_target > zoom_reference ? 1 : -1;
 	float delta = zoom_target - zoom_reference;
 	float current = zoom_current - zoom_reference;
 
-	float acceleration = std::fmin((graphicsTime - zoom_time) / zoom_full_acceleration_time_millis, 1);
+	float acceleration = std::fmin(static_cast<float>(static_cast<uint32_t>(realTime - zoom_time)) / zoom_full_acceleration_time_millis, 1.f);
 	acceleration = acceleration * acceleration; // quadratic ease in
 
-	float zoom_full_deceleration_distance = zoom_velocity_units_per_sec / 1000 * zoom_full_deceleration_time_millis;
+	float zoom_full_deceleration_distance = zoom_velocity_units_per_sec / 1000.f * zoom_full_deceleration_time_millis;
 
-	float deceleration = std::fmin(fabs(delta - current) / zoom_full_deceleration_distance, 1);
+	float deceleration = std::fmin(fabs(delta - current) / zoom_full_deceleration_distance, 1.f);
 	deceleration = deceleration * (2 - deceleration); // quadratic ease out
 
 	float speed = std::fmin(acceleration, deceleration);
 
-	zoom_current += speed * graphicsTimeAdjustedIncrement(zoom_velocity_units_per_sec) * direction;
+	zoom_current += speed * (zoom_velocity_units_per_sec * ((float) deltaZoomRealTime / (float) GAME_TICKS_PER_SEC)) * static_cast<float>(direction);
 
 	if((direction == 1 && zoom_current > zoom_target - 1) || (direction == -1 && zoom_current < zoom_target + 1))
 	{
