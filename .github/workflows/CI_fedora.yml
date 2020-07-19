@@ -16,6 +16,11 @@ jobs:
     runs-on: ubuntu-latest
     if: "!contains(github.event.head_commit.message, '[ci skip]')"
     steps:
+    - name: Free disk space
+      # https://github.com/actions/virtual-environments/issues/709
+      run: |
+       sudo apt-get clean
+       df -h
     - uses: actions/checkout@v2
       with:
         fetch-depth: 0
