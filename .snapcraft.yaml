@@ -5,6 +5,16 @@ confinement: strict
 grade: stable
 base: core18
 
+layout:
+  /usr/share/vulkan:
+    symlink: $SNAP/usr/share/vulkan
+  /usr/lib/$SNAPCRAFT_ARCH_TRIPLET/libvulkan_intel.so:
+    symlink: $SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/libvulkan_intel.so
+  /usr/lib/$SNAPCRAFT_ARCH_TRIPLET/libvulkan_radeon.so:
+    symlink: $SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/libvulkan_radeon.so
+  /usr/lib/$SNAPCRAFT_ARCH_TRIPLET/libGLX_nvidia.so.0:
+    symlink: $SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/libGLX_nvidia.so.0
+
 plugs:
   wz2100-sequences:
     interface: content
@@ -67,7 +77,16 @@ parts:
       - locales-all
       - libgtk2.0-0
 
+  vulkan-sdk:
+    plugin: nil
+    override-stage: |
+      wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
+      sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.2.148-bionic.list https://packages.lunarg.com/vulkan/1.2.148/lunarg-vulkan-1.2.148-bionic.list
+      sudo apt update
+      sudo apt install --yes libvulkan-dev
+
   sdl:
+    after: [vulkan-sdk]
     source: https://www.libsdl.org/release/SDL2-2.0.12.tar.gz
     plugin: autotools
     configflags:
@@ -191,8 +210,10 @@ parts:
       - libvorbis0a
       - libvorbisenc2
       - libvorbisfile3
+      - libvulkan1
       - libcurl3-gnutls
       - libsodium23
       - libglu1-mesa
+      - mesa-vulkan-drivers
       - unzip
       - zip
