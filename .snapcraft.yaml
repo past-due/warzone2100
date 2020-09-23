@@ -45,8 +45,8 @@ apps:
     plugs: [network]
 
 package-repositories:
-  - type: apt-deb
-    deb-types: [deb, deb-src]
+  - type: apt
+    formats: [deb, deb-src]
     components: [main]
     suites: [$SNAPCRAFT_APT_RELEASE]
     key-id: 03F5D621A3710FA95A93D89BAA8452080E383F7E
