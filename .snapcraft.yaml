@@ -189,6 +189,7 @@ parts:
       - libsodium-dev
       - ninja-build
       - unzip
+      - wget
       - zip
     stage-packages:
       - libfontconfig1
