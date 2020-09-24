@@ -44,14 +44,6 @@ apps:
     command: bin/download-videos
     plugs: [network]
 
-package-repositories:
-  - type: apt
-    formats: [deb, deb-src]
-    components: [main]
-    suites: [$SNAPCRAFT_APT_RELEASE]
-    key-id: 03F5D621A3710FA95A93D89BAA8452080E383F7E
-    url: https://packages.lunarg.com/vulkan/1.2.148
-
 parts:
   scripts:
     plugin: dump
@@ -148,7 +140,7 @@ parts:
     - libxxf86vm1
 
   warzone2100:
-    after: [vulkan-sdk, desktop-qt5, sdl]
+    after: [desktop-qt5, sdl]
     plugin: cmake
     source: .
     parse-info:
@@ -160,6 +152,12 @@ parts:
       snapcraftctl set-version "$(git describe --always)"
       git submodule update --init
     override-build: |
+      # Install Vulkan SDK
+      wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | apt-key add -
+      wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.2.148-bionic.list https://packages.lunarg.com/vulkan/1.2.148/lunarg-vulkan-1.2.148-bionic.list
+      apt update
+      apt install --yes vulkan-sdk
+
       if [ -f ".snapenv" ]; then set -a; source .snapenv; set +a; fi
       if [ -z "$WZ_DISTRIBUTOR" ]; then export WZ_DISTRIBUTOR="UNKNOWN"; fi
       cmake -S "$SNAPCRAFT_PART_SRC" -B. -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWZ_ENABLE_WARNINGS:BOOL=ON -DWZ_DISTRIBUTOR:STRING="${WZ_DISTRIBUTOR}" -DWZ_OUTPUT_NAME_SUFFIX="${WZ_OUTPUT_NAME_SUFFIX}" -DWZ_NAME_SUFFIX="${WZ_NAME_SUFFIX}" -G"Ninja"
@@ -190,7 +188,6 @@ parts:
       - libgnutls28-dev
       - libsodium-dev
       - ninja-build
-      - vulkan-sdk
       - unzip
       - zip
     stage-packages:
