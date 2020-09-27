@@ -277,6 +277,7 @@ void screen_SetRandomBackdrop(const char *dirname, const char *basename)
 void screen_SetBackDropFromFile(const char *filename)
 {
 	int maxTextureSize = gfx_api::context::get().get_context_value(gfx_api::context::context_value::MAX_TEXTURE_SIZE);
+	fprintf(stderr, "MAX_TEXTURE_SIZE: %d", maxTextureSize);
 	backdropGfx->loadTexture(filename, maxTextureSize, maxTextureSize);
 	screen_Upload(nullptr);
 }
