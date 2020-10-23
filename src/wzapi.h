@@ -27,6 +27,7 @@
 #include "featuredef.h"
 #include "lib/framework/wzconfig.h"
 #include "hci.h"
+#include "gateway.h"
 
 using nonstd::optional;
 using nonstd::nullopt;
@@ -528,6 +529,11 @@ namespace wzapi
 		virtual bool debugEvaluateCommand(const std::string &text) = 0;
 
 	public:
+		// output to debug log file
+		void dumpScriptLog(const std::string &info);
+		void dumpScriptLog(const std::string &info, int me);
+
+	public:
 		virtual void updateGameTime(uint32_t gameTime) = 0;
 		virtual void updateGroupSizes(int group, int size) = 0;
 
@@ -545,6 +551,8 @@ namespace wzapi
 		//          that the script(s) themselves cannot modify (but may be updated by WZ via future calls to this function)
 		//        - GlobalVariableFlags::DoNotSave - indicates that the global variable(s) should not be saved by saveScriptGlobals()
 		virtual void setSpecifiedGlobalVariables(const nlohmann::json& variables, GlobalVariableFlags flags = GlobalVariableFlags::ReadOnly | GlobalVariableFlags::DoNotSave) = 0;
+
+		virtual void setSpecifiedGlobalVariable(const std::string& name, const nlohmann::json& value, GlobalVariableFlags flags = GlobalVariableFlags::ReadOnly | GlobalVariableFlags::DoNotSave) = 0;
 
 	private:
 		int m_player;
@@ -723,12 +731,12 @@ namespace wzapi
 	{
 	public:
 		typedef std::map<std::string, int> NameToTypeMap;
-		GameEntityRules(int player, int index, const NameToTypeMap& nameToTypeMap)
+		GameEntityRules(int player, unsigned index, const NameToTypeMap& nameToTypeMap)
 		: player(player)
 		, index(index)
 		, propertyNameToTypeMap(nameToTypeMap)
 		{ }
-		GameEntityRules() { }
+		//GameEntityRules() { }
 	public:
 		using value_type = nlohmann::json;
 		value_type getPropertyValue(const wzapi::execution_context& context, const std::string& name) const;
@@ -747,7 +755,7 @@ namespace wzapi
 	private:
 		// context
 		int player = -1;
-		int index = -1;
+		unsigned index = 0;
 		NameToTypeMap propertyNameToTypeMap;
 	};
 
@@ -765,7 +773,7 @@ namespace wzapi
 	public:
 		inline GameEntityRules& operator[](const GameEntityName& statsName)
 		{
-			return rules[statsName];
+			return rules.at(statsName);
 		}
 		inline std::unordered_map<GameEntityName, GameEntityRules>::const_iterator begin() const
 		{
@@ -839,7 +847,8 @@ namespace wzapi
 	bool restoreLimboMissionData(WZAPI_NO_PARAMS);
 	uint32_t getMultiTechLevel(WZAPI_NO_PARAMS);
 	bool setCampaignNumber(WZAPI_PARAMS(int num));
-
+	int32_t getMissionType(WZAPI_NO_PARAMS);
+	bool getRevealStatus(WZAPI_NO_PARAMS);
 	bool setRevealStatus(WZAPI_PARAMS(bool status));
 	bool autoSave(WZAPI_NO_PARAMS);
 
@@ -858,6 +867,8 @@ namespace wzapi
 	no_return_value hackMarkTiles(WZAPI_PARAMS(optional<label_or_position_values> _tilePosOrArea));
 
 	// General functions -- geared for use in AI scripts
+	no_return_value dump(WZAPI_PARAMS(va_list_treat_as_strings strings));
+	no_return_value debugOutputStrings(WZAPI_PARAMS(va_list_treat_as_strings strings));
 	bool console(WZAPI_PARAMS(va_list_treat_as_strings strings));
 	bool clearConsole(WZAPI_NO_PARAMS);
 	bool structureIdle(WZAPI_PARAMS(const STRUCTURE *psStruct));
@@ -867,6 +878,7 @@ namespace wzapi
 	std::vector<const FEATURE *> enumFeature(WZAPI_PARAMS(int looking, optional<std::string> _statsName));
 	std::vector<scr_position> enumBlips(WZAPI_PARAMS(int player));
 	std::vector<const BASE_OBJECT *> enumSelected(WZAPI_NO_PARAMS_NO_CONTEXT);
+	GATEWAY_LIST enumGateways(WZAPI_NO_PARAMS);
 	researchResult getResearch(WZAPI_PARAMS(std::string resName, optional<int> _player));
 	researchResults enumResearch(WZAPI_NO_PARAMS);
 	std::vector<const BASE_OBJECT *> enumRange(WZAPI_PARAMS(int x, int y, int range, optional<int> _filter, optional<bool> _seen));
@@ -901,6 +913,8 @@ namespace wzapi
 	bool setExperienceModifier(WZAPI_PARAMS(int player, int percent));
 	std::vector<const DROID *> enumCargo(WZAPI_PARAMS(const DROID *psDroid));
 
+	nlohmann::json getWeaponInfo(WZAPI_PARAMS(std::string weaponID)) WZAPI_DEPRECATED;
+
 	// MARK: - Functions that operate on the current player only
 	bool centreView(WZAPI_PARAMS(int x, int y));
 	bool playSound(WZAPI_PARAMS(std::string sound, optional<int> _x, optional<int> _y, optional<int> _z));
@@ -933,9 +947,10 @@ namespace wzapi
 	no_return_value enableComponent(WZAPI_PARAMS(std::string componentName, int player));
 	no_return_value makeComponentAvailable(WZAPI_PARAMS(std::string componentName, int player));
 	bool allianceExistsBetween(WZAPI_PARAMS(int player1, int player2));
-	bool removeStruct(WZAPI_PARAMS(STRUCTURE *psStruct)); WZAPI_DEPRECATED
+	bool removeStruct(WZAPI_PARAMS(STRUCTURE *psStruct)) WZAPI_DEPRECATED;
 	bool removeObject(WZAPI_PARAMS(BASE_OBJECT *psObj, optional<bool> _sfx));
 	no_return_value setScrollLimits(WZAPI_PARAMS(int x1, int y1, int x2, int y2));
+	scr_area getScrollLimits(WZAPI_NO_PARAMS);
 	const STRUCTURE * addStructure(WZAPI_PARAMS(std::string structureName, int player, int x, int y));
 	unsigned int getStructureLimit(WZAPI_PARAMS(std::string structureName, optional<int> _player));
 	int countStruct(WZAPI_PARAMS(std::string structureName, optional<int> _player));

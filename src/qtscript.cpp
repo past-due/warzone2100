@@ -327,9 +327,8 @@ bool scripting_engine::shutdownScripts()
 	{
 		MONITOR *monitor = monitors.at(instance);
 		WzString scriptName = WzString::fromUtf8(instance->scriptName());
-		int me = instance->player();
-		dumpScriptLog(scriptName, me, "=== PERFORMANCE DATA ===\n");
-		dumpScriptLog(scriptName, me, "    calls | avg (usec) | worst (usec) | worst call at | >=limit | >=limit/2 | function\n");
+		instance->dumpScriptLog("=== PERFORMANCE DATA ===\n");
+		instance->dumpScriptLog("    calls | avg (usec) | worst (usec) | worst call at | >=limit | >=limit/2 | function\n");
 		for (MONITOR::const_iterator iter = monitor->begin(); iter != monitor->end(); ++iter)
 		{
 			const std::string &function = iter->first;
@@ -342,7 +341,7 @@ bool scripting_engine::shutdownScripts()
 			info << std::right << std::setw(7) << m.overMaxTimeCalls << " | ";
 			info << std::right << std::setw(9) << m.overHalfMaxTimeCalls << " | ";
 			info << function << "\n";
-			dumpScriptLog(scriptName, me, info.str());
+			instance->dumpScriptLog(info.str());
 		}
 		monitor->clear();
 		delete monitor;
