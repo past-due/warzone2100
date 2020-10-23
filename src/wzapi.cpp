@@ -1274,11 +1274,6 @@ wzapi::researchResults wzapi::findResearch(WZAPI_PARAMS(std::string resName, opt
 	researchResults result;
 	result.player = player;
 
-	if (resName == "R-Vehicle-Metals03")
-	{
-		debug(LOG_ERROR, "Found it!");
-	}
-
 	RESEARCH *psTarget = ::getResearch(resName.c_str());
 	SCRIPT_ASSERT({}, context, psTarget, "No such research: %s", resName.c_str());
 	PLAYER_RESEARCH *plrRes = &asPlayerResList[player][psTarget->index];
