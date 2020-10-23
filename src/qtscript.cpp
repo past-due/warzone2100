@@ -849,6 +849,7 @@ void jsAutogame()
 void jsHandleDebugClosed()
 {
 	globalDialog = false;
+	models.clear();
 }
 
 void jsShowDebug()
