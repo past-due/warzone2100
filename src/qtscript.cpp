@@ -2229,7 +2229,10 @@ int generic_script_object::getGroupId() const // if type == SCRIPT_GROUP, return
 generic_script_object generic_script_object::fromObject(const BASE_OBJECT *psObj)
 {
 	generic_script_object result;
-	ASSERT_OR_RETURN(generic_script_object::Null(), psObj, "Not a valid object");
+	if (psObj == nullptr)
+	{
+		return generic_script_object::Null();
+	}
 	result.type = psObj->type;
 	result.id = psObj->id;
 	result.player = psObj->player;
