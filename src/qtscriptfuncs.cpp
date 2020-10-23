@@ -155,6 +155,19 @@ public:
 
 	void setSpecifiedGlobalVariables(const nlohmann::json& variables, wzapi::GlobalVariableFlags flags = wzapi::GlobalVariableFlags::ReadOnly | wzapi::GlobalVariableFlags::DoNotSave) override;
 
+	void setSpecifiedGlobalVariable(const std::string& name, const nlohmann::json& value, wzapi::GlobalVariableFlags flags = wzapi::GlobalVariableFlags::ReadOnly | wzapi::GlobalVariableFlags::DoNotSave) override;
+
+private:
+	inline QScriptValue::PropertyFlags toQScriptPropertyFlags(wzapi::GlobalVariableFlags flags)
+	{
+		QScriptValue::PropertyFlags propertyFlags = QScriptValue::Undeletable;
+		if ((flags & wzapi::GlobalVariableFlags::ReadOnly) == wzapi::GlobalVariableFlags::ReadOnly)
+		{
+			propertyFlags |= QScriptValue::ReadOnly;
+		}
+		return propertyFlags;
+	}
+
 public:
 	QScriptEngine * getQScriptEngine() { return engine; }
 
@@ -1750,6 +1763,16 @@ static QScriptValue callFunction(QScriptEngine *engine, const QString &function,
 			return QScriptValue();
 		}
 
+		QScriptValue box(GATEWAY* psGateway, QScriptEngine* engine)
+		{
+			QScriptValue v = engine->newObject();
+			v.setProperty("x1", psGateway->x1, QScriptValue::ReadOnly);
+			v.setProperty("y1", psGateway->y1, QScriptValue::ReadOnly);
+			v.setProperty("x2", psGateway->x2, QScriptValue::ReadOnly);
+			v.setProperty("y2", psGateway->y2, QScriptValue::ReadOnly);
+			return v;
+		}
+
 		template<typename VectorType>
 		QScriptValue box(const std::vector<VectorType>& value, QScriptEngine* engine)
 		{
@@ -1758,6 +1781,19 @@ static QScriptValue callFunction(QScriptEngine *engine, const QString &function,
 			{
 				VectorType item = value.at(i);
 				result.setProperty(i, box(item, engine));
+			}
+			return result;
+		}
+
+		template<typename ContainedType>
+		QScriptValue box(const std::list<ContainedType>& value, QScriptEngine* engine)
+		{
+			QScriptValue result = engine->newArray(value.size());
+			size_t i = 0;
+			for (auto item : value)
+			{
+				result.setProperty(i, box(item, engine));
+				i++;
 			}
 			return result;
 		}
@@ -1807,6 +1843,11 @@ static QScriptValue callFunction(QScriptEngine *engine, const QString &function,
 			{
 				return QScriptValue::NullValue;
 			}
+		}
+
+		QScriptValue box(nlohmann::json results, QScriptEngine* engine)
+		{
+			return mapJsonToQScriptValue(engine, results, QScriptValue::PropertyFlags());
 		}
 
 		#include <cstddef>
@@ -1878,6 +1919,14 @@ static QScriptValue callFunction(QScriptEngine *engine, const QString &function,
 			static QScriptValue JS_FUNC_IMPL_NAME(func_name)(QScriptContext *context, QScriptEngine *engine) \
 			{ \
 				return wrap_(wrapped_func, context, engine); \
+			}
+
+		#define IMPL_JS_FUNC_DEBUGMSGUPDATE(func_name, wrapped_func) \
+			static QScriptValue JS_FUNC_IMPL_NAME(func_name)(QScriptContext *context, QScriptEngine *engine) \
+			{ \
+				QScriptValue retVal = wrap_(wrapped_func, context, engine); \
+				jsDebugMessageUpdate(); \
+				return retVal; \
 			}
 
 		template <typename T>
@@ -2501,11 +2550,7 @@ void qtscript_scripting_instance::setSpecifiedGlobalVariables(const nlohmann::js
 		ASSERT(false, "setSpecifiedGlobalVariables expects a JSON object");
 		return;
 	}
-	QScriptValue::PropertyFlags propertyFlags = QScriptValue::Undeletable;
-	if ((flags & wzapi::GlobalVariableFlags::ReadOnly) == wzapi::GlobalVariableFlags::ReadOnly)
-	{
-		propertyFlags |= QScriptValue::ReadOnly;
-	}
+	QScriptValue::PropertyFlags propertyFlags = toQScriptPropertyFlags(flags);
 	bool markGlobalAsInternal = (flags & wzapi::GlobalVariableFlags::DoNotSave) == wzapi::GlobalVariableFlags::DoNotSave;
 	for (auto it : variables.items())
 	{
@@ -2519,6 +2564,22 @@ void qtscript_scripting_instance::setSpecifiedGlobalVariables(const nlohmann::js
 		{
 			internalNamespace.insert(it.key());
 		}
+	}
+}
+
+void qtscript_scripting_instance::setSpecifiedGlobalVariable(const std::string& name, const nlohmann::json& value, wzapi::GlobalVariableFlags flags /*= GlobalVariableFlags::ReadOnly | GlobalVariableFlags::DoNotSave*/)
+{
+	ASSERT(!name.empty(), "Empty key");
+	QScriptValue::PropertyFlags propertyFlags = toQScriptPropertyFlags(flags);
+	bool markGlobalAsInternal = (flags & wzapi::GlobalVariableFlags::DoNotSave) == wzapi::GlobalVariableFlags::DoNotSave;
+	engine->globalObject().setProperty(
+		QString::fromStdString(name),
+		mapJsonToQScriptValue(engine, value, propertyFlags),
+		propertyFlags
+	);
+	if (markGlobalAsInternal)
+	{
+		internalNamespace.insert(name);
 	}
 }
 
@@ -2610,21 +2671,7 @@ IMPL_EVENT_HANDLER(eventKeyPressed, int, int)
 //--
 //-- Return information about a particular weapon type. DEPRECATED - query the Stats object instead. (3.2+ only)
 //--
-static QScriptValue js_getWeaponInfo(QScriptContext *context, QScriptEngine *engine)
-{
-	QString id = context->argument(0).toString();
-	int idx = getCompFromName(COMP_WEAPON, QStringToWzString(id));
-	SCRIPT_ASSERT(context, idx >= 0, "No such weapon: %s", id.toUtf8().constData());
-	WEAPON_STATS *psStats = asWeaponStats + idx;
-	QScriptValue info = engine->newObject();
-	info.setProperty("id", id);
-	info.setProperty("name", WzStringToQScriptValue(engine, psStats->name));
-	info.setProperty("impactClass", psStats->weaponClass == WC_KINETIC ? "KINETIC" : "HEAT");
-	info.setProperty("damage", psStats->base.damage);
-	info.setProperty("firePause", psStats->base.firePause);
-	info.setProperty("fireOnMove", psStats->fireOnMove);
-	return QScriptValue(info);
-}
+IMPL_JS_FUNC(getWeaponInfo, wzapi::getWeaponInfo)
 
 //-- ## resetLabel(label[, filter])
 //--
@@ -2710,21 +2757,7 @@ IMPL_JS_FUNC(enumSelected, wzapi::enumSelected)
 //-- Return an array containing all the gateways on the current map. The array contains object with the properties
 //-- x1, y1, x2 and y2. (3.2+ only)
 //--
-static QScriptValue js_enumGateways(QScriptContext *, QScriptEngine *engine)
-{
-	QScriptValue result = engine->newArray(gwNumGateways());
-	int i = 0;
-	for (auto psGateway : gwGetGateways())
-	{
-		QScriptValue v = engine->newObject();
-		v.setProperty("x1", psGateway->x1, QScriptValue::ReadOnly);
-		v.setProperty("y1", psGateway->y1, QScriptValue::ReadOnly);
-		v.setProperty("x2", psGateway->x2, QScriptValue::ReadOnly);
-		v.setProperty("y2", psGateway->y2, QScriptValue::ReadOnly);
-		result.setProperty(i++, v);
-	}
-	return result;
-}
+IMPL_JS_FUNC(enumGateways, wzapi::enumGateways)
 
 //-- ## enumTemplates(player)
 //--
@@ -2889,69 +2922,17 @@ IMPL_JS_FUNC(enumCargo, wzapi::enumCargo)
 //--
 IMPL_JS_FUNC(enumDroid, wzapi::enumDroid)
 
-void dumpScriptLog(const WzString &scriptName, int me, const std::string &info)
-{
-	WzString path = PHYSFS_getWriteDir();
-	path += WzString("/logs/") + scriptName + "." + WzString::number(me) + ".log";
-	FILE *fp = fopen(path.toUtf8().c_str(), "a"); // TODO: This will fail for unicode paths on Windows. Should use PHYSFS to open / write files
-	if (fp)
-	{
-		fputs(info.c_str(), fp);
-		fclose(fp);
-	}
-}
-
 //-- ## dump(string...)
 //--
 //-- Output text to a debug file. (3.2+ only)
 //--
-static QScriptValue js_dump(QScriptContext *context, QScriptEngine *engine)
-{
-	std::string result;
-	for (int i = 0; i < context->argumentCount(); ++i)
-	{
-		if (i != 0)
-		{
-			result.append(" ");
-		}
-		QString qStr = context->argument(i).toString();
-		if (context->state() == QScriptContext::ExceptionState)
-		{
-			break;
-		}
-		result.append(qStr.toStdString());
-	}
-	result += "\n";
-
-	WzString scriptName = QStringToWzString(engine->globalObject().property("scriptName").toString());
-	int me = engine->globalObject().property("me").toInt32();
-	dumpScriptLog(scriptName, me, result);
-	return QScriptValue();
-}
+IMPL_JS_FUNC(dump, wzapi::dump)
 
 //-- ## debug(string...)
 //--
 //-- Output text to the command line.
 //--
-static QScriptValue js_debug(QScriptContext *context, QScriptEngine *engine)
-{
-	QString result;
-	for (int i = 0; i < context->argumentCount(); ++i)
-	{
-		if (i != 0)
-		{
-			result.append(QLatin1String(" "));
-		}
-		QString s = context->argument(i).toString();
-		if (context->state() == QScriptContext::ExceptionState)
-		{
-			break;
-		}
-		result.append(s);
-	}
-	qWarning("%s", result.toUtf8().constData());
-	return QScriptValue();
-}
+IMPL_JS_FUNC(debug, wzapi::debugOutputStrings)
 
 //-- ## pickStructLocation(droid, structure type, x, y)
 //--
@@ -3154,12 +3135,7 @@ IMPL_JS_FUNC(playSound, wzapi::playSound)
 //--
 //-- End game in victory or defeat.
 //--
-static QScriptValue js_gameOverMessage(QScriptContext *context, QScriptEngine *engine)
-{
-	QScriptValue retVal = wrap_(wzapi::gameOverMessage, context, engine);
-	jsDebugMessageUpdate();
-	return retVal;
-}
+IMPL_JS_FUNC_DEBUGMSGUPDATE(gameOverMessage, wzapi::gameOverMessage)
 
 //-- ## completeResearch(research[, player [, forceResearch]])
 //--
@@ -3455,16 +3431,7 @@ IMPL_JS_FUNC(setScrollLimits, wzapi::setScrollLimits)
 //--
 //-- Get the limits of the scrollable area of the map as an area object. (3.2+ only)
 //--
-static QScriptValue js_getScrollLimits(QScriptContext *context, QScriptEngine *engine)
-{
-	QScriptValue ret = engine->newObject();
-	ret.setProperty("x", scrollMinX, QScriptValue::ReadOnly);
-	ret.setProperty("y", scrollMinY, QScriptValue::ReadOnly);
-	ret.setProperty("x2", scrollMaxX, QScriptValue::ReadOnly);
-	ret.setProperty("y2", scrollMaxY, QScriptValue::ReadOnly);
-	ret.setProperty("type", SCRIPT_AREA, QScriptValue::ReadOnly);
-	return ret;
-}
+IMPL_JS_FUNC(getScrollLimits, wzapi::getScrollLimits)
 
 //-- ## loadLevel(level name)
 //--
@@ -3626,23 +3593,13 @@ static QScriptValue js_setConstructorLimit(QScriptContext *context, QScriptEngin
 //--
 //-- See wzscript docs for info, to the extent any exist. (3.2+ only)
 //--
-static QScriptValue js_hackAddMessage(QScriptContext *context, QScriptEngine *engine)
-{
-	QScriptValue retVal = wrap_(wzapi::hackAddMessage, context, engine);
-	jsDebugMessageUpdate();
-	return retVal;
-}
+IMPL_JS_FUNC_DEBUGMSGUPDATE(hackAddMessage, wzapi::hackAddMessage);
 
 //-- ## hackRemoveMessage(message, type, player)
 //--
 //-- See wzscript docs for info, to the extent any exist. (3.2+ only)
 //--
-static QScriptValue js_hackRemoveMessage(QScriptContext *context, QScriptEngine *engine)
-{
-	QScriptValue retVal = wrap_(wzapi::hackRemoveMessage, context, engine);
-	jsDebugMessageUpdate();
-	return retVal;
-}
+IMPL_JS_FUNC_DEBUGMSGUPDATE(hackRemoveMessage, wzapi::hackRemoveMessage);
 
 //-- ## setSunPosition(x, y, z)
 //--
@@ -3791,19 +3748,13 @@ IMPL_JS_FUNC(setCampaignNumber, wzapi::setCampaignNumber)
 //--
 //-- Return the current mission type. (3.3+ only)
 //--
-static QScriptValue js_getMissionType(QScriptContext *context, QScriptEngine *)
-{
-	return (int)mission.type;
-}
+IMPL_JS_FUNC(getMissionType, wzapi::getMissionType)
 
 //-- ## getRevealStatus()
 //--
 //-- Return the current fog reveal status. (3.3+ only)
 //--
-static QScriptValue js_getRevealStatus(QScriptContext *context, QScriptEngine *)
-{
-	return QScriptValue(getRevealStatus());
-}
+IMPL_JS_FUNC(getRevealStatus, wzapi::getRevealStatus)
 
 //-- ## setRevealStatus(bool)
 //--
@@ -3827,7 +3778,7 @@ QScriptValue js_stats(QScriptContext *context, QScriptEngine *engine)
 	return mapJsonToQScriptValue(engine, wzapi::getUpgradeStats(execution_context, player, name.toStdString(), type, index), QScriptValue::ReadOnly | QScriptValue::Undeletable);
 }
 
-static void setStatsFunc(QScriptValue &base, QScriptEngine *engine, const QString& name, int player, int type, int index)
+static void setStatsFunc(QScriptValue &base, QScriptEngine *engine, const QString& name, int player, int type, unsigned index)
 {
 	QScriptValue v = engine->newFunction(js_stats);
 	base.setProperty(name, v, QScriptValue::PropertyGetter | QScriptValue::PropertySetter);
@@ -3918,7 +3869,7 @@ bool qtscript_scripting_instance::registerFunctions(const QString& scriptName)
 
 	// Register 'Stats' object. It is a read-only representation of basic game component states.
 	nlohmann::json stats = wzapi::constructStatsObject();
-	engine->globalObject().setProperty("Stats", mapJsonToQScriptValue(engine, stats, QScriptValue::ReadOnly | QScriptValue::Undeletable), QScriptValue::ReadOnly | QScriptValue::Undeletable);
+	setSpecifiedGlobalVariable("Stats", stats);
 
 	//== * ```Upgrades``` A special array containing per-player rules information for game entity types,
 	//== which can be written to in order to implement upgrades and other dynamic rules changes. Each item in the
@@ -3937,7 +3888,7 @@ bool qtscript_scripting_instance::registerFunctions(const QString& scriptName)
 	JS_REGISTER_FUNC(removeLabel); // scripting_engine
 	JS_REGISTER_FUNC(getLabel); // scripting_engine
 	JS_REGISTER_FUNC(enumLabels); // scripting_engine
-	JS_REGISTER_FUNC(enumGateways);
+	JS_REGISTER_FUNC(enumGateways); // WZAPI
 	JS_REGISTER_FUNC(enumTemplates);
 	JS_REGISTER_FUNC(makeTemplate); // WZAPI
 	JS_REGISTER_FUNC(setAlliance); // WZAPI
@@ -3962,8 +3913,8 @@ bool qtscript_scripting_instance::registerFunctions(const QString& scriptName)
 	JS_REGISTER_FUNC(restoreLimboMissionData); // WZAPI
 	JS_REGISTER_FUNC(getMultiTechLevel); // WZAPI
 	JS_REGISTER_FUNC(setCampaignNumber); // WZAPI
-	JS_REGISTER_FUNC(getMissionType);
-	JS_REGISTER_FUNC(getRevealStatus);
+	JS_REGISTER_FUNC(getMissionType); // WZAPI
+	JS_REGISTER_FUNC(getRevealStatus); // WZAPI
 	JS_REGISTER_FUNC(setRevealStatus); // WZAPI
 	JS_REGISTER_FUNC(autoSave); // WZAPI
 
@@ -4035,7 +3986,7 @@ bool qtscript_scripting_instance::registerFunctions(const QString& scriptName)
 	JS_REGISTER_FUNC(setCommanderLimit); // deprecated!!
 	JS_REGISTER_FUNC(setConstructorLimit); // deprecated!!
 	JS_REGISTER_FUNC(setExperienceModifier); // WZAPI
-	JS_REGISTER_FUNC(getWeaponInfo); // deprecated!!
+	JS_REGISTER_FUNC(getWeaponInfo); // WZAPI // deprecated!!
 	JS_REGISTER_FUNC(enumCargo); // WZAPI
 
 	// Functions that operate on the current player only
@@ -4076,7 +4027,7 @@ bool qtscript_scripting_instance::registerFunctions(const QString& scriptName)
 	JS_REGISTER_FUNC(removeObject); // WZAPI
 	JS_REGISTER_FUNC_NAME(setScrollParams, JS_FUNC_IMPL_NAME(setScrollLimits)); // deprecated!!
 	JS_REGISTER_FUNC(setScrollLimits); // WZAPI
-	JS_REGISTER_FUNC(getScrollLimits);
+	JS_REGISTER_FUNC(getScrollLimits); // WZAPI
 	JS_REGISTER_FUNC(addStructure); // WZAPI
 	JS_REGISTER_FUNC(getStructureLimit); // WZAPI
 	JS_REGISTER_FUNC(countStruct); // WZAPI
@@ -4098,17 +4049,17 @@ bool qtscript_scripting_instance::registerFunctions(const QString& scriptName)
 	/// Place to store group sizes
 	//== * ```groupSizes``` A sparse array of group sizes. If a group has never been used, the entry in this array will
 	//== be undefined.
-	engine->globalObject().setProperty("groupSizes", engine->newObject());
+	setSpecifiedGlobalVariable("groupSizes", nlohmann::json::object());
 
 	// Static knowledge about players
 	nlohmann::json playerData = wzapi::constructStaticPlayerData();
-	engine->globalObject().setProperty("playerData", mapJsonToQScriptValue(engine, playerData, QScriptValue::ReadOnly | QScriptValue::Undeletable), QScriptValue::ReadOnly | QScriptValue::Undeletable);
+	setSpecifiedGlobalVariable("playerData", playerData);
 
 	// Static map knowledge about start positions
 	nlohmann::json startPositions = scripting_engine::instance().constructStartPositions();
 	nlohmann::json derrickPositions = scripting_engine::instance().constructDerrickPositions();
-	engine->globalObject().setProperty("derrickPositions", mapJsonToQScriptValue(engine, derrickPositions, QScriptValue::ReadOnly | QScriptValue::Undeletable), QScriptValue::ReadOnly | QScriptValue::Undeletable);
-	engine->globalObject().setProperty("startPositions", mapJsonToQScriptValue(engine, startPositions, QScriptValue::ReadOnly | QScriptValue::Undeletable), QScriptValue::ReadOnly | QScriptValue::Undeletable);
+	setSpecifiedGlobalVariable("derrickPositions", derrickPositions);
+	setSpecifiedGlobalVariable("startPositions", startPositions);
 
 	// Clear previous log file
 	PHYSFS_delete(QString("logs/" + scriptName + ".log").toUtf8().constData());
