@@ -547,11 +547,19 @@ bool wzapi::setCampaignNumber(WZAPI_PARAMS(int num))
 	return true;
 }
 
+//-- ## getMissionType()
+//--
+//-- Return the current mission type. (3.3+ only)
+//--
 int32_t wzapi::getMissionType(WZAPI_NO_PARAMS)
 {
 	return (int32_t)mission.type;
 }
 
+//-- ## getRevealStatus()
+//--
+//-- Return the current fog reveal status. (3.3+ only)
+//--
 bool wzapi::getRevealStatus(WZAPI_NO_PARAMS)
 {
 	return ::getRevealStatus();
@@ -560,6 +568,7 @@ bool wzapi::getRevealStatus(WZAPI_NO_PARAMS)
 //-- ## setRevealStatus(bool)
 //--
 //-- Set the fog reveal status. (3.3+ only)
+//--
 bool wzapi::setRevealStatus(WZAPI_PARAMS(bool status))
 {
 	::setRevealStatus(status);
@@ -2099,6 +2108,30 @@ bool wzapi::setDroidLimit(WZAPI_PARAMS(int player, int value, optional<int> _dro
 	return true;
 }
 
+//-- ## setCommanderLimit(player, value)
+//--
+//-- Set the maximum number of commanders that this player can produce.
+//-- THIS FUNCTION IS DEPRECATED AND WILL BE REMOVED! (3.2+ only)
+//--
+bool wzapi::setCommanderLimit(WZAPI_PARAMS(int player, int value))
+{
+	SCRIPT_ASSERT_PLAYER(false, context, player);
+	setMaxCommanders(player, value);
+	return true;
+}
+
+//-- ## setConstructorLimit(player, value)
+//--
+//-- Set the maximum number of constructors that this player can produce.
+//-- THIS FUNCTION IS DEPRECATED AND WILL BE REMOVED! (3.2+ only)
+//--
+bool wzapi::setConstructorLimit(WZAPI_PARAMS(int player, int value))
+{
+	SCRIPT_ASSERT_PLAYER(false, context, player);
+	setMaxConstructors(player, value);
+	return true;
+}
+
 //-- ## setExperienceModifier(player, percent)
 //--
 //-- Set the percentage of experience this player droids are going to gain. (3.2+ only)
@@ -2817,9 +2850,11 @@ scr_area wzapi::getScrollLimits(WZAPI_NO_PARAMS)
 	return limits;
 }
 
-//-- ## addStructure(structure type, player, x, y)
+//-- ## addStructure(structure id, player, x, y)
 //--
 //-- Create a structure on the given position. Returns the structure on success, null otherwise.
+//-- Position uses world coordinates, if you want use position based on Map Tiles, then
+//-- use as addStructure(structure id, players, x*128, y*128)
 //--
 const STRUCTURE * wzapi::addStructure(WZAPI_PARAMS(std::string structureName, int player, int x, int y))
 {

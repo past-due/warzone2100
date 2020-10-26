@@ -20,6 +20,35 @@
 #ifndef __INCLUDED_WZAPI_H__
 #define __INCLUDED_WZAPI_H__
 
+// Documentation stuff follows. The build system will parse the comment prefixes
+// and sort the comments into the appropriate Markdown documentation files.
+
+//== # Globals
+//==
+//== This section describes global variables (or 'globals' for short) that are
+//== available from all scripts. You typically cannot write to these variables,
+//== they are read-only.
+//==
+//__ # Events
+//__
+//__ This section describes event callbacks (or 'events' for short) that are
+//__ called from the game when something specific happens. Which scripts
+//__ receive them is usually filtered by player. Call ```receiveAllEvents(true)```
+//__ to start receiving all events unfiltered.
+//__
+//-- # Functions
+//--
+//-- This section describes functions that can be called from scripts to make
+//-- things happen in the game (usually called our script 'API').
+//--
+//;; # Game objects
+//;;
+//;; This section describes various **game objects** defined by the script interface,
+//;; and which are both accepted by functions and returned by them. Changing the
+//;; fields of a **game object** has no effect on the game before it is passed to a
+//;; function that does something with the **game object**.
+//;;
+
 #include "lib/framework/frame.h"
 #include "3rdparty/optional/optional.hpp"
 #include "basedef.h"
@@ -910,6 +939,8 @@ namespace wzapi
 	int getDroidLimit(WZAPI_PARAMS(optional<int> _player, optional<int> _unitType));
 	int getExperienceModifier(WZAPI_PARAMS(int player));
 	bool setDroidLimit(WZAPI_PARAMS(int player, int value, optional<int> _droidType));
+	bool setCommanderLimit(WZAPI_PARAMS(int player, int value));
+	bool setConstructorLimit(WZAPI_PARAMS(int player, int value));
 	bool setExperienceModifier(WZAPI_PARAMS(int player, int percent));
 	std::vector<const DROID *> enumCargo(WZAPI_PARAMS(const DROID *psDroid));
 
