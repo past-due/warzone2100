@@ -2970,10 +2970,6 @@ bool qtscript_scripting_instance::registerFunctions(const QString& scriptName)
 {
 	debug(LOG_WZ, "Loading functions for engine %p, script %s", static_cast<void *>(engine), scriptName.toUtf8().constData());
 
-	// Register 'Stats' object. It is a read-only representation of basic game component states.
-	nlohmann::json stats = wzapi::constructStatsObject();
-	setSpecifiedGlobalVariable("Stats", stats);
-
 	//== * ```Upgrades``` A special array containing per-player rules information for game entity types,
 	//== which can be written to in order to implement upgrades and other dynamic rules changes. Each item in the
 	//== array contains a subset of the sparse array of rules information in the ```Stats``` global.
@@ -3145,27 +3141,6 @@ bool qtscript_scripting_instance::registerFunctions(const QString& scriptName)
 	JS_REGISTER_FUNC(setObjectFlag); // WZAPI
 	JS_REGISTER_FUNC(fireWeaponAtLoc); // WZAPI
 	JS_REGISTER_FUNC(fireWeaponAtObj); // WZAPI
-
-	// Set some useful constants
-	setSpecifiedGlobalVariables(wzapi::getUsefulConstants());
-
-	/// Place to store group sizes
-	//== * ```groupSizes``` A sparse array of group sizes. If a group has never been used, the entry in this array will
-	//== be undefined.
-	setSpecifiedGlobalVariable("groupSizes", nlohmann::json::object());
-
-	// Static knowledge about players
-	nlohmann::json playerData = wzapi::constructStaticPlayerData();
-	setSpecifiedGlobalVariable("playerData", playerData);
-
-	// Static map knowledge about start positions
-	nlohmann::json startPositions = scripting_engine::instance().constructStartPositions();
-	nlohmann::json derrickPositions = scripting_engine::instance().constructDerrickPositions();
-	setSpecifiedGlobalVariable("derrickPositions", derrickPositions);
-	setSpecifiedGlobalVariable("startPositions", startPositions);
-
-	// Clear previous log file
-	PHYSFS_delete(QString("logs/" + scriptName + ".log").toUtf8().constData());
 
 	return true;
 }

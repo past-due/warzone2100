@@ -617,6 +617,24 @@ wzapi::scripting_instance* scripting_engine::loadPlayerScript(const WzString& pa
 
 	pNewInstance->setSpecifiedGlobalVariables(globalVars, wzapi::GlobalVariableFlags::ReadOnly | wzapi::GlobalVariableFlags::DoNotSave);
 
+	// Register 'Stats' object. It is a read-only representation of basic game component states.
+	pNewInstance->setSpecifiedGlobalVariable("Stats", wzapi::constructStatsObject());
+
+	// Set some useful constants
+	pNewInstance->setSpecifiedGlobalVariables(wzapi::getUsefulConstants(), wzapi::GlobalVariableFlags::ReadOnly | wzapi::GlobalVariableFlags::DoNotSave);
+
+	/// Place to store group sizes
+	//== * ```groupSizes``` A sparse array of group sizes. If a group has never been used, the entry in this array will
+	//== be undefined.
+	pNewInstance->setSpecifiedGlobalVariable("groupSizes", nlohmann::json::object(), wzapi::GlobalVariableFlags::ReadOnly | wzapi::GlobalVariableFlags::DoNotSave);
+
+	// Static knowledge about players
+	pNewInstance->setSpecifiedGlobalVariable("playerData", wzapi::constructStaticPlayerData(), wzapi::GlobalVariableFlags::ReadOnly | wzapi::GlobalVariableFlags::DoNotSave);
+
+	// Static map knowledge about start positions
+	pNewInstance->setSpecifiedGlobalVariable("derrickPositions", constructDerrickPositions(), wzapi::GlobalVariableFlags::ReadOnly | wzapi::GlobalVariableFlags::DoNotSave);
+	pNewInstance->setSpecifiedGlobalVariable("startPositions", constructStartPositions(), wzapi::GlobalVariableFlags::ReadOnly | wzapi::GlobalVariableFlags::DoNotSave);
+
 	QFileInfo basename(QString::fromUtf8(path.toUtf8().c_str()));
 	json globalVarsToSave = json::object();
 	// We need to always save the 'me' special variable.
@@ -631,10 +649,18 @@ wzapi::scripting_instance* scripting_engine::loadPlayerScript(const WzString& pa
 	//== * ```scriptPath``` Base path of the script that is running.
 	globalVarsToSave["scriptPath"] = basename.path().toStdString();
 
-	pNewInstance->setSpecifiedGlobalVariables(globalVarsToSave, wzapi::GlobalVariableFlags::ReadOnly);
+	pNewInstance->setSpecifiedGlobalVariables(globalVarsToSave, wzapi::GlobalVariableFlags::ReadOnly); // ensure these are saved
 
-	bool ready = pNewInstance->readyInstanceForExecution();
-	ASSERT_OR_RETURN(nullptr, ready, "Unable to ready instance for execution: %s", path.toUtf8().c_str());
+	// Clear previous log file
+	PHYSFS_delete((std::string("logs/") + pNewInstance->scriptName() + ".log").c_str());
+
+	// Attempt to ready instance for execution
+	if (!pNewInstance->readyInstanceForExecution())
+	{
+		delete pNewInstance;
+		debug(LOG_ERROR, "Unable to ready instance for execution: %s", path.toUtf8().c_str());
+		return nullptr;
+	}
 
 	// Register script
 	scripts.push_back(pNewInstance);
