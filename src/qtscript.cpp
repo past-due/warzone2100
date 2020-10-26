@@ -38,18 +38,6 @@
 //__ receive them is usually filtered by player. Call ```receiveAllEvents(true)```
 //__ to start receiving all events unfiltered.
 //__
-//-- # Functions
-//--
-//-- This section describes functions that can be called from scripts to make
-//-- things happen in the game (usually called our script 'API').
-//--
-//;; # Game objects
-//;;
-//;; This section describes various **game objects** defined by the script interface,
-//;; and which are both accepted by functions and returned by them. Changing the
-//;; fields of a **game object** has no effect on the game before it is passed to a
-//;; function that does something with the **game object**.
-//;;
 
 #if defined(__GNUC__) && !defined(__INTEL_COMPILER) && !defined(__clang__) && (9 <= __GNUC__)
 # pragma GCC diagnostic push
@@ -263,6 +251,76 @@ static QStandardItemModel *triggerModel;
 static bool globalDialog = false;
 
 bool bInTutorial = false;
+
+// ----------------------------------------------------------
+
+Vector2i positions[MAX_PLAYERS];
+std::vector<Vector2i> derricks;
+
+void scriptSetStartPos(int position, int x, int y)
+{
+	positions[position].x = x;
+	positions[position].y = y;
+	debug(LOG_SCRIPT, "Setting start position %d to (%d, %d)", position, x, y);
+}
+
+void scriptSetDerrickPos(int x, int y)
+{
+	Vector2i pos(x, y);
+	derricks.push_back(pos);
+}
+
+bool scriptInit()
+{
+	int i;
+
+	for (i = 0; i < MAX_PLAYERS; i++)
+	{
+		scriptSetStartPos(i, 0, 0);
+	}
+	derricks.clear();
+	derricks.reserve(8 * MAX_PLAYERS);
+	return true;
+}
+
+Vector2i getPlayerStartPosition(int player)
+{
+	return positions[player];
+}
+
+nlohmann::json scripting_engine::constructDerrickPositions()
+{
+	// Static map knowledge about start positions
+	//== * ```derrickPositions``` An array of derrick starting positions on the current map. Each item in the array is an
+	//== object containing the x and y variables for a derrick.
+	nlohmann::json derrickPositions = nlohmann::json::array(); //engine->newArray(derricks.size());
+	for (int i = 0; i < derricks.size(); i++)
+	{
+		nlohmann::json vector = nlohmann::json::object();
+		vector["x"] = map_coord(derricks[i].x);
+		vector["y"] = map_coord(derricks[i].y);
+		vector["type"] = SCRIPT_POSITION;
+		derrickPositions.push_back(vector);
+	}
+	return derrickPositions;
+}
+
+nlohmann::json scripting_engine::constructStartPositions()
+{
+	// Static map knowledge about start positions
+	//== * ```startPositions``` An array of player start positions on the current map. Each item in the array is an
+	//== object containing the x and y variables for a player start position.
+	nlohmann::json startPositions = nlohmann::json::array(); //engine->newArray(game.maxPlayers);
+	for (int i = 0; i < game.maxPlayers; i++)
+	{
+		nlohmann::json vector = nlohmann::json::object();
+		vector["x"] = map_coord(positions[i].x);
+		vector["y"] = map_coord(positions[i].y);
+		vector["type"] = SCRIPT_POSITION;
+		startPositions.push_back(vector);
+	}
+	return startPositions;
+}
 
 // ----------------------------------------------------------
 
