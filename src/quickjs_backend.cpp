@@ -90,6 +90,8 @@
 #include <unordered_map>
 
 #include "quickjs.h"
+#include "quickjs-debugger.h"
+#include "quickjs-limitedcontext.h"
 #include "3rdparty/gsl_finally.h"
 
 struct JSContextValue {
@@ -97,6 +99,8 @@ struct JSContextValue {
 	JSValue value;
 };
 void to_json(nlohmann::json& j, const JSContextValue& value); // forward-declare
+
+bool QuickJS_EnumerateObjectProperties(JSContext *ctx, JSValue obj, const std::function<void (const char *key, JSAtom& atom)>& func, bool enumerableOnly = true); // forward-declare
 
 class quickjs_scripting_instance;
 static std::map<JSContext*, quickjs_scripting_instance *> engineToInstanceMap;
@@ -130,13 +134,6 @@ private:
 	bool registerFunctions(const std::string& scriptName);
 
 public:
-	virtual bool isReceivingAllEvents() const override
-	{
-		return false; // TODO: IMPLEMENT
-		//return (engine->globalObject().property("isReceivingAllEvents")).toBool();
-	}
-
-public:
 	// save / restore state
 	virtual bool saveScriptGlobals(nlohmann::json &result) override;
 	virtual bool loadScriptGlobals(const nlohmann::json &result) override;
@@ -158,6 +155,22 @@ public:
 	void updateGroupSizes(int group, int size) override;
 
 	void setSpecifiedGlobalVariables(const nlohmann::json& variables, wzapi::GlobalVariableFlags flags = wzapi::GlobalVariableFlags::ReadOnly | wzapi::GlobalVariableFlags::DoNotSave) override;
+
+	void setSpecifiedGlobalVariable(const std::string& name, const nlohmann::json& value, wzapi::GlobalVariableFlags flags = wzapi::GlobalVariableFlags::ReadOnly | wzapi::GlobalVariableFlags::DoNotSave) override;
+
+private:
+	inline int toQuickJSPropertyFlags(wzapi::GlobalVariableFlags flags)
+	{
+		int propertyFlags = 0;
+		if (((flags & wzapi::GlobalVariableFlags::ReadOnly) != wzapi::GlobalVariableFlags::ReadOnly)
+			|| ((flags & wzapi::GlobalVariableFlags::ReadOnlyUpdatedFromApp) == wzapi::GlobalVariableFlags::ReadOnlyUpdatedFromApp))
+		{
+			// NOTE: QuickJS prevents even the app - not just scripts - from updating unwritable / read-only variables
+			// So if ReadOnlyUpdatedFromApp is set, we must set the variable to writable to support updates from WZ
+			propertyFlags |= JS_PROP_WRITABLE;
+		}
+		return propertyFlags;
+	}
 
 public:
 
@@ -554,45 +567,7 @@ public:
 	virtual bool handle_eventKeyPressed(int meta, int key) override;
 };
 
-//#define ALL_PLAYERS -1
-//#define ALLIES -2
-//#define ENEMIES -3
-
-//Vector2i positions[MAX_PLAYERS];
-//std::vector<Vector2i> derricks;
-//
-//void scriptSetStartPos(int position, int x, int y)
-//{
-//	positions[position].x = x;
-//	positions[position].y = y;
-//	debug(LOG_SCRIPT, "Setting start position %d to (%d, %d)", position, x, y);
-//}
-//
-//void scriptSetDerrickPos(int x, int y)
-//{
-//	Vector2i pos(x, y);
-//	derricks.push_back(pos);
-//}
-//
-//bool scriptInit()
-//{
-//	int i;
-//
-//	for (i = 0; i < MAX_PLAYERS; i++)
-//	{
-//		scriptSetStartPos(i, 0, 0);
-//	}
-//	derricks.clear();
-//	derricks.reserve(8 * MAX_PLAYERS);
-//	return true;
-//}
-//
-//Vector2i getPlayerStartPosition(int player)
-//{
-//	return positions[player];
-//}
-
-// private qtscript bureaucracy
+// private QuickJS bureaucracy
 
 /// Assert for scripts that give useful backtraces and other info.
 #define SCRIPT_ASSERT(context, expr, ...) \
@@ -601,11 +576,15 @@ public:
 			JS_ThrowReferenceError(context, "%s failed in %s at line %d", #expr, __FUNCTION__, __LINE__); \
 			return JS_NULL; } } while (0)
 
+#define SCRIPT_ASSERT_AND_RETURNERROR(context, expr, ...) \
+	do { bool _wzeval = (expr); \
+		if (!_wzeval) { debug(LOG_ERROR, __VA_ARGS__); \
+			return JS_ThrowReferenceError(context, "%s failed in %s at line %d", #expr, __FUNCTION__, __LINE__); \
+			} } while (0)
+
 #define SCRIPT_ASSERT_PLAYER(_context, _player) \
 	SCRIPT_ASSERT(_context, _player >= 0 && _player < MAX_PLAYERS, "Invalid player index %d", _player);
 
-#define WzStringToQScriptValue(_engine, _wzstring) \
-	QScriptValue(_engine, QString::fromUtf8(_wzstring.toUtf8().c_str()))
 
 // ----------------------------------------------------------------------------------------
 // Utility functions -- not called directly from scripts
@@ -615,16 +594,16 @@ JSValue mapJsonToQuickJSValue(JSContext *ctx, const nlohmann::json &instance, ui
 static JSValue mapJsonObjectToQuickJSValue(JSContext *ctx, const nlohmann::json &obj, uint8_t prop_flags)
 {
 	JSValue value = JS_NewObject(ctx);
-    JSAtom prop_name;
+//    JSAtom prop_name;
     int ret;
 	for (auto it = obj.begin(); it != obj.end(); ++it)
 	{
 		JSValue prop_val = mapJsonToQuickJSValue(ctx, it.value(), prop_flags);
 //		JS_SetPropertyStr(ctx, value, it.key().c_str(), childVal);
-		//value.setProperty(QString::fromUtf8(it.key().c_str()), mapJsonToQScriptValue(engine, it.value(), flags), flags);
-		prop_name = JS_NewAtom(ctx, it.key().c_str());
-		ret = JS_DefinePropertyValue(ctx, value, prop_name, prop_val, prop_flags);
-		JS_FreeAtom(ctx, prop_name);
+//		prop_name = JS_NewAtom(ctx, it.key().c_str());
+//		ret = JS_DefinePropertyValue(ctx, value, prop_name, prop_val, prop_flags);
+		ret = JS_DefinePropertyValueStr(ctx, value, it.key().c_str(), prop_val, prop_flags);
+//		JS_FreeAtom(ctx, prop_name);
 	}
 	return value;
 }
@@ -634,9 +613,7 @@ static JSValue mapJsonArrayToQuickJSValue(JSContext *ctx, const nlohmann::json &
 	JSValue value = JS_NewArray(ctx);
 	for (int i = 0; i < array.size(); i++)
 	{
-		JSValue prop_val = mapJsonToQuickJSValue(ctx, array.at(i), prop_flags);
-		JS_DefinePropertyValueUint32(ctx, value, i, prop_val, prop_flags);
-//		value.setProperty(i, mapJsonToQScriptValue(engine, array.at(i), flags), flags);
+		JS_DefinePropertyValueUint32(ctx, value, i, mapJsonToQuickJSValue(ctx, array.at(i), prop_flags), prop_flags);
 	}
 	return value;
 }
@@ -651,11 +628,11 @@ JSValue mapJsonToQuickJSValue(JSContext *ctx, const nlohmann::json &instance, ui
 		//			  If they are set to QScriptValue::NullValue, it causes issues for libcampaign.js. (As the values become "defined".)
 		//
 		case json::value_t::null : return JS_UNDEFINED;
-		case json::value_t::boolean : return JS_NewBool(ctx, instance.get<bool>()); //engine->toScriptValue(instance.get<bool>());
-		case json::value_t::number_integer: return JS_NewInt32(ctx, instance.get<int32_t>()); //engine->toScriptValue(instance.get<int>());
-		case json::value_t::number_unsigned: return JS_NewUint32(ctx, instance.get<uint32_t>()); //engine->toScriptValue(instance.get<unsigned>());
-		case json::value_t::number_float: return JS_NewFloat64(ctx, instance.get<double>()); //engine->toScriptValue(instance.get<double>());
-		case json::value_t::string	: return JS_NewString(ctx, instance.get<WzString>().toUtf8().c_str()); //engine->toScriptValue(QString::fromUtf8(instance.get<WzString>().toUtf8().c_str()));
+		case json::value_t::boolean : return JS_NewBool(ctx, instance.get<bool>());
+		case json::value_t::number_integer: return JS_NewInt32(ctx, instance.get<int32_t>());
+		case json::value_t::number_unsigned: return JS_NewUint32(ctx, instance.get<uint32_t>());
+		case json::value_t::number_float: return JS_NewFloat64(ctx, instance.get<double>());
+		case json::value_t::string	: return JS_NewString(ctx, instance.get<WzString>().toUtf8().c_str());
 		case json::value_t::array : return mapJsonArrayToQuickJSValue(ctx, instance, prop_flags);
 		case json::value_t::object : return mapJsonObjectToQuickJSValue(ctx, instance, prop_flags);
 		case json::value_t::binary :
@@ -664,6 +641,15 @@ JSValue mapJsonToQuickJSValue(JSContext *ctx, const nlohmann::json &instance, ui
 		case json::value_t::discarded : return JS_UNDEFINED;
 	}
 	return JS_UNDEFINED; // should never be reached
+}
+
+int JS_DeletePropertyStr(JSContext *ctx, JSValueConst this_obj,
+                          const char *prop)
+{
+    JSAtom atom = JS_NewAtom(ctx, prop);
+    int ret = JS_DeleteProperty(ctx, this_obj, atom, 0);
+    JS_FreeAtom(ctx, atom);
+    return ret;
 }
 
 // Forward-declare
@@ -800,7 +786,7 @@ JSValue convStructure(const STRUCTURE *psStruct, JSContext *ctx)
 	{
 		QuickJS_DefinePropertyValue(ctx, value, "modules", JS_NULL, 0);
 	}
-	JSValue weaponlist = JS_NewArray(ctx); //engine->newArray(psStruct->numWeaps);
+	JSValue weaponlist = JS_NewArray(ctx);
 	for (int j = 0; j < psStruct->numWeaps; j++)
 	{
 		JSValue weapon = JS_NewObject(ctx);
@@ -962,7 +948,7 @@ JSValue convDroid(const DROID *psDroid, JSContext *ctx)
 	QuickJS_DefinePropertyValue(ctx, value, "propulsion", JS_NewString(ctx, asPropulsionStats[psDroid->asBits[COMP_PROPULSION]].id.toUtf8().c_str()), 0);
 	QuickJS_DefinePropertyValue(ctx, value, "armed", JS_NewFloat64(ctx, 0.0), 0); // deprecated!
 
-	JSValue weaponlist = JS_NewArray(ctx); //engine->newArray(psDroid->numWeaps);
+	JSValue weaponlist = JS_NewArray(ctx);
 	for (int j = 0; j < psDroid->numWeaps; j++)
 	{
 		int armed = droidReloadBar(psDroid, &psDroid->asWeaps[j], j);
@@ -1062,7 +1048,7 @@ JSValue convTemplate(const DROID_TEMPLATE *psTempl, JSContext *ctx)
 	QuickJS_DefinePropertyValue(ctx, value, "ecm", JS_NewString(ctx, (asECMStats + psTempl->asParts[COMP_ECM])->id.toUtf8().c_str()), 0);
 	QuickJS_DefinePropertyValue(ctx, value, "sensor", JS_NewString(ctx, (asSensorStats + psTempl->asParts[COMP_SENSOR])->id.toUtf8().c_str()), 0);
 	QuickJS_DefinePropertyValue(ctx, value, "construct", JS_NewString(ctx, (asConstructStats + psTempl->asParts[COMP_CONSTRUCT])->id.toUtf8().c_str()), 0);
-	JSValue weaponlist = JS_NewArray(ctx); //engine->newArray(psTempl->numWeaps);
+	JSValue weaponlist = JS_NewArray(ctx);
 	for (int j = 0; j < psTempl->numWeaps; j++)
 	{
 		JS_DefinePropertyValueUint32(ctx, weaponlist, j, JS_NewString(ctx, (asWeaponStats + psTempl->asWeaps[j])->id.toUtf8().c_str()), 0);
@@ -1076,7 +1062,6 @@ JSValue convMax(const BASE_OBJECT *psObj, JSContext *ctx)
 	if (!psObj)
 	{
 		return JS_NULL;
-//		return QScriptValue::NullValue;
 	}
 	switch (psObj->type)
 	{
@@ -1087,37 +1072,30 @@ JSValue convMax(const BASE_OBJECT *psObj, JSContext *ctx)
 	}
 }
 
-BASE_OBJECT *IdToObject(OBJECT_TYPE type, int id, int player)
-{
-	switch (type)
-	{
-	case OBJ_DROID: return IdToDroid(id, player);
-	case OBJ_FEATURE: return IdToFeature(id, player);
-	case OBJ_STRUCTURE: return IdToStruct(id, player);
-	default: return nullptr;
-	}
-}
-
 // Call a function by name
 static JSValue callFunction(JSContext *ctx, const std::string &function, std::vector<JSValue> &args, bool event = true)
 {
 	const auto instance = engineToInstanceMap.at(ctx);
-	JSValue global_obj = JS_GetGlobalObject(ctx);
+	JSValue global_obj = instance->Get_Global_Obj();
+//	JSValue global_obj = JS_GetGlobalObject(ctx);
+//	auto free_global_obj = gsl::finally([ctx, global_obj] { JS_FreeValue(ctx, global_obj); });  // establish exit action
 	if (event)
 	{
 		// recurse into variants, if any
 		for (const std::string &s : instance->eventNamespaces)
 		{
 			std::string funcName = s + function;
-			JSValue value = JS_GetPropertyStr(ctx, global_obj, funcName.c_str()); // engine->globalObject().property(s + function);
+			JSValue value = JS_GetPropertyStr(ctx, global_obj, funcName.c_str());
 			if (JS_IsFunction(ctx, value))
 			{
 				callFunction(ctx, funcName, args, event);
 			}
+			JS_FreeValue(ctx, value);
 		}
 	}
 	code_part level = event ? LOG_SCRIPT : LOG_ERROR;
-	JSValue value = JS_GetPropertyStr(ctx, global_obj, function.c_str()); //engine->globalObject().property(function);
+	JSValue value = JS_GetPropertyStr(ctx, global_obj, function.c_str());
+	auto free_func_ref = gsl::finally([ctx, value] { JS_FreeValue(ctx, value); });  // establish exit action
 	if (!JS_IsFunction(ctx, value))
 	{
 		// not necessarily an error, may just be a trigger that is not defined (ie not needed)
@@ -1127,8 +1105,8 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 	}
 
 	JSValue result;
-	scripting_engine::instance().executeWithPerformanceMonitoring(instance, function, [ctx, &result, &value, &args](){
-		result = JS_Call(ctx, value, JS_UNDEFINED, (int)args.size(), args.data()); //value.call(QScriptValue(), args);
+	scripting_engine::instance().executeWithPerformanceMonitoring(instance, function, [ctx, &result, value, &args](){
+		result = JS_Call(ctx, value, JS_UNDEFINED, (int)args.size(), args.data());
 	});
 
 	if (JS_IsException(result))
@@ -1141,9 +1119,15 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 			JSValue name = JS_GetPropertyStr(ctx, err, "name");
 			const char* errorname_str = JS_ToCString(ctx, name);
 			result_str = (errorname_str) ? errorname_str : "<unknown error name>";
-			result_str += ":: ";
+			result_str += " - ";
 			JS_FreeCString(ctx, errorname_str);
 			JS_FreeValue(ctx, name);
+			JSValue message = JS_GetPropertyStr(ctx, err, "message");
+			const char* message_str = JS_ToCString(ctx, message);
+			result_str += (message_str) ? std::string("\"") + message_str + "\"" : "<no message>";
+			result_str += ":: \n";
+			JS_FreeCString(ctx, message_str);
+			JS_FreeValue(ctx, message);
 			JSValue stack = JS_GetPropertyStr(ctx, err, "stack");
 			if (!JS_IsUndefined(stack)) {
                 const char* stack_str = JS_ToCString(ctx, stack);
@@ -1167,15 +1151,10 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
             JS_FreeValue(ctx, stack);
 		}
 		int line = 0; // TODO: //engine->uncaughtExceptionLineNumber();
-//		QStringList bt = engine->uncaughtExceptionBacktrace();
-//		for (int i = 0; i < bt.size(); i++)
-//		{
-//			debug(LOG_ERROR, "%d : %s", i, bt.at(i).toUtf8().constData());
-//		}
+		JS_FreeValue(ctx, err);
 		ASSERT(false, "Uncaught exception calling function \"%s\" at line %d: %s",
 		       function.c_str(), line, result_str.c_str());
-//		engine->clearExceptions();
-		return JS_UNINITIALIZED;
+		return JS_UNDEFINED;
 	}
 	return result;
 }
@@ -1197,24 +1176,9 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 			return engineToInstanceMap.at(ctx);
 		}
 
-		virtual int player() const override
-		{
-			JSValue global_obj = JS_GetGlobalObject(ctx);
-			JSValue value = JS_GetPropertyStr(ctx, global_obj, "me");
-			int32_t player = -1;
-			if (JS_ToInt32(ctx, &player, value))
-			{
-				// failed
-				ASSERT(false, "Failed"); // TODO:
-			}
-			JS_FreeValue(ctx, global_obj);
-			return player;
-		}
-
 		virtual void throwError(const char *expr, int line, const char *function) const override
 		{
 			JS_ThrowReferenceError(ctx, "%s failed in %s at line %d", expr, function, line);
-//			context->throwError(QScriptContext::ReferenceError, QString(expr) +  " failed in " + QString(function) + " at line " + QString::number(line));
 		}
 
 		virtual playerCallbackFunc getNamedScriptCallback(const WzString& func) const override
@@ -1226,33 +1190,6 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 				callFunction(pCtx, func.toUtf8(), args);
 				std::for_each(args.begin(), args.end(), [pCtx](JSValue& val) { JS_FreeValue(pCtx, val); });
 			};
-		}
-
-		virtual void hack_setMe(int player) const override
-		{
-			JSValue global_obj = JS_GetGlobalObject(ctx);
-			QuickJS_DefinePropertyValue(ctx, global_obj, "me", JS_NewInt32(ctx, player), 0);
-//			engine->globalObject().setProperty("me", player);
-			JS_FreeValue(ctx, global_obj);
-		}
-
-		virtual void set_isReceivingAllEvents(bool value) const override
-		{
-			JSValue global_obj = JS_GetGlobalObject(ctx);
-			QuickJS_DefinePropertyValue(ctx, global_obj, "isReceivingAllEvents", JS_NewBool(ctx, value), 0);
-//			engine->globalObject().setProperty("isReceivingAllEvents", value, QScriptValue::ReadOnly | QScriptValue::Undeletable);
-			JS_FreeValue(ctx, global_obj);
-		}
-
-		virtual bool get_isReceivingAllEvents() const override
-		{
-			JSValue global_obj = JS_GetGlobalObject(ctx);
-			JSValue value = JS_GetPropertyStr(ctx, global_obj, "isReceivingAllEvents");
-			bool result = JS_ToBool(ctx, value);
-			JS_FreeValue(ctx, value);
-			JS_FreeValue(ctx, global_obj);
-			return result;
-//			return (engine->globalObject().property("isReceivingAllEvents")).toBool();
 		}
 
 		virtual void doNotSaveGlobal(const std::string &name) const override
@@ -1376,6 +1313,26 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 			return result;
 		}
 
+		static inline uint32_t JSValueToUint32(JSContext *ctx, JSValue &value)
+		{
+			uint32_t uintVal = 0;
+			if (JS_ToUint32(ctx, &uintVal, value))
+			{
+				// failed
+				ASSERT(false, "Failed"); // TODO:
+			}
+			JS_FreeValue(ctx, value);
+			return uintVal;
+		}
+
+		static uint32_t QuickJS_GetUint32(JSContext *ctx, JSValueConst this_obj, const char *prop)
+		{
+			JSValue val = JS_GetPropertyStr(ctx, this_obj, prop);
+			uint32_t result = JSValueToUint32(ctx, val);
+			JS_FreeValue(ctx, val);
+			return result;
+		}
+
 		static inline std::string JSValueToStdString(JSContext *ctx, JSValue &value)
 		{
 			const char* pStr = JS_ToCString(ctx, value);
@@ -1395,6 +1352,8 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 
 		bool QuickJS_GetArrayLength(JSContext* ctx, JSValueConst arr, uint64_t& len)
 		{
+			len = 0;
+
 			if (!JS_IsArray(ctx, arr))
 				return false;
 
@@ -1408,7 +1367,7 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 			}
 
 			JS_FreeValue(ctx, len_val);
-			return 0;
+			return true;
 		}
 
 		template<>
@@ -1526,6 +1485,7 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 			{
 				if (argc <= idx)
 					return {};
+				// TODO: Might have to add a check here for whether argv[idx] == JS_UNDEFINED? (depends on how QuickJS handles missing optional arguments of functions)
 				return optional<OptionalType>(unbox<OptionalType>()(idx, ctx, argc, argv, function));
 			}
 		};
@@ -1643,10 +1603,10 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 				else if ((argc - idx) >= 4)
 				{
 					int x1, y1, x2, y2;
-					x1 = JSValueToInt32(ctx, argv[idx]); //context->argument(idx).toInt32();
-					y1 = JSValueToInt32(ctx, argv[idx + 1]); //context->argument(idx + 1).toInt32();
-					x2 = JSValueToInt32(ctx, argv[idx + 2]); //context->argument(idx + 2).toInt32();
-					y2 = JSValueToInt32(ctx, argv[idx + 3]); //context->argument(idx + 3).toInt32();
+					x1 = JSValueToInt32(ctx, argv[idx]);
+					y1 = JSValueToInt32(ctx, argv[idx + 1]);
+					x2 = JSValueToInt32(ctx, argv[idx + 2]);
+					y2 = JSValueToInt32(ctx, argv[idx + 3]);
 					idx += 4;
 					return scripting_engine::area_by_values_or_area_label_lookup(x1, y1, x2, y2);
 				}
@@ -1667,7 +1627,7 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 					return {};
 
 				JSValue qval = argv[idx++];
-				int type = QuickJS_GetInt32(ctx, qval, "type"); //qval.property("type").toInt32();
+				int type = QuickJS_GetInt32(ctx, qval, "type");
 
 				JSValue triggered = JS_GetPropertyStr(ctx, qval, "triggered");
 				if (JS_IsNumber(triggered))
@@ -1778,8 +1738,30 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 
 		template<typename T>
 		JSValue box(T a, JSContext *);
+
+		JSValue box(unsigned char val, JSContext* ctx)
+		{
+			return JS_NewUint32(ctx, val);
+		}
+
+		JSValue box(bool val, JSContext* ctx)
+		{
+			return JS_NewBool(ctx, val);
+		}
+
+		JSValue box(int val, JSContext* ctx)
+		{
+			return JS_NewInt32(ctx, val);
+		}
+
+		JSValue box(unsigned int val, JSContext* ctx)
+		{
+			return JS_NewUint32(ctx, val);
+		}
+
+//		JSValue box(double val, JSContext* ctx)
 //		{
-//			return QScriptValue(a);
+//			return JS_NewFloat64(ctx, val);
 //		}
 
 		JSValue box(const char* str, JSContext* ctx)
@@ -1802,7 +1784,6 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 			if (!psObj)
 			{
 				return JS_NULL;
-//				return QScriptValue::NullValue;
 			}
 			return convMax(psObj, ctx);
 		}
@@ -1812,7 +1793,6 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 			if (!psStruct)
 			{
 				return JS_NULL;
-//				return QScriptValue::NullValue;
 			}
 			return convStructure(psStruct, ctx);
 		}
@@ -1822,7 +1802,6 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 			if (!psDroid)
 			{
 				return JS_NULL;
-//				return QScriptValue::NullValue;
 			}
 			return convDroid(psDroid, ctx);
 		}
@@ -1832,7 +1811,6 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 			if (!psFeat)
 			{
 				return JS_NULL;
-//				return QScriptValue::NullValue;
 			}
 			return convFeature(psFeat, ctx);
 		}
@@ -1842,7 +1820,6 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 			if (!psTemplate)
 			{
 				return JS_NULL;
-//				return QScriptValue::NullValue;
 			}
 			return convTemplate(psTemplate, ctx);
 		}
@@ -1850,7 +1827,7 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 //		// deliberately not defined
 //		// use `wzapi::researchResult` instead of `const RESEARCH *`
 //		template<>
-//		QScriptValue box(const RESEARCH * psResearch, QScriptEngine* engine);
+//		JSValue box(const RESEARCH * psResearch, JSContext* ctx);
 
 		JSValue box(const scr_radius& r, JSContext* ctx)
 		{
@@ -1917,18 +1894,40 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 				break;
 			}
 
-			return JS_UNINITIALIZED;
-			//return QScriptValue();
+			return JS_UNDEFINED;
+		}
+
+		JSValue box(GATEWAY* psGateway, JSContext* ctx)
+		{
+			JSValue ret = JS_NewObject(ctx);
+			QuickJS_DefinePropertyValue(ctx, ret, "x1", JS_NewInt32(ctx, psGateway->x1), 0);
+			QuickJS_DefinePropertyValue(ctx, ret, "y1", JS_NewInt32(ctx, psGateway->y1), 0);
+			QuickJS_DefinePropertyValue(ctx, ret, "x2", JS_NewInt32(ctx, psGateway->x2), 0);
+			QuickJS_DefinePropertyValue(ctx, ret, "y2", JS_NewInt32(ctx, psGateway->y2), 0);
+			return ret;
 		}
 
 		template<typename VectorType>
 		JSValue box(const std::vector<VectorType>& value, JSContext* ctx)
 		{
-			JSValue result = JS_NewArray(ctx); //engine->newArray(value.size());
+			JSValue result = JS_NewArray(ctx);
 			for (int i = 0; i < value.size(); i++)
 			{
 				VectorType item = value.at(i);
-				JS_DefinePropertyValueUint32(ctx, result, i, box(item, ctx), 0); // TODO: Check return value?
+				JS_DefinePropertyValueUint32(ctx, result, i, box(item, ctx), JS_PROP_C_W_E); // TODO: Check return value?
+			}
+			return result;
+		}
+
+		template<typename ContainedType>
+		JSValue box(const std::list<ContainedType>& value, JSContext* ctx)
+		{
+			JSValue result = JS_NewArray(ctx);
+			uint32_t i = 0;
+			for (auto item : value)
+			{
+				JS_DefinePropertyValueUint32(ctx, result, i, box(item, ctx), JS_PROP_C_W_E); // TODO: Check return value?
+				i++;
 			}
 			return result;
 		}
@@ -1938,7 +1937,6 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 			if (result.psResearch == nullptr)
 			{
 				return JS_NULL;
-//				return QScriptValue::NullValue;
 			}
 			return convResearch(result.psResearch, ctx, result.player);
 		}
@@ -1949,7 +1947,7 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 			for (int i = 0; i < results.resList.size(); i++)
 			{
 				const RESEARCH *psResearch = results.resList.at(i);
-				JS_DefinePropertyValueUint32(ctx, result, i, convResearch(psResearch, ctx, results.player), 0); // TODO: Check return value?
+				JS_DefinePropertyValueUint32(ctx, result, i, convResearch(psResearch, ctx, results.player), JS_PROP_C_W_E); // TODO: Check return value?
 			}
 			return result;
 		}
@@ -1964,8 +1962,6 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 			else
 			{
 				return JS_UNDEFINED;
-				//return QScriptValue(); // "undefined" variable
-				//return QScriptValue::NullValue;
 			}
 		}
 
@@ -1979,8 +1975,12 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 			else
 			{
 				return JS_NULL;
-//				return QScriptValue::NullValue;
 			}
+		}
+
+		JSValue box(nlohmann::json results, JSContext* ctx)
+		{
+			return mapJsonToQuickJSValue(ctx, results, JS_PROP_C_W_E);
 		}
 
 		#include <cstddef>
@@ -2046,6 +2046,22 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 		#define wrap_(wzapi_function, context, argc, argv) \
 		wrap__(wzapi_function, #wzapi_function, context, argc, argv)
 
+		#define JS_FUNC_IMPL_NAME(func_name) js_##func_name
+
+		#define IMPL_JS_FUNC(func_name, wrapped_func) \
+			static JSValue JS_FUNC_IMPL_NAME(func_name)(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) \
+			{ \
+				return wrap_(wrapped_func, ctx, argc, argv); \
+			}
+
+		#define IMPL_JS_FUNC_DEBUGMSGUPDATE(func_name, wrapped_func) \
+			static JSValue JS_FUNC_IMPL_NAME(func_name)(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) \
+			{ \
+				JSValue retVal = wrap_(wrapped_func, ctx, argc, argv); \
+				jsDebugMessageUpdate(); \
+				return retVal; \
+			}
+
 		template <typename T>
 		void append_value_list(std::vector<JSValue> &list, T t, JSContext *context) { list.push_back(box(std::forward<T>(t), context)); }
 
@@ -2057,7 +2073,7 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 //			WZ_DECL_UNUSED int dummy[] = { 0, ((void) append_value_list(args_list, std::forward<Args>(args), engine),0)... };
 			// Left-most void to avoid `expression result unused [-Wunused-value]`
 			(void)expander{ 0, ((void) append_value_list(args_list, std::forward<Args>(args), context),0)... };
-			/*QScriptValue result =*/ callFunction(context, functionName, args_list);
+			/*JSValue result =*/ callFunction(context, functionName, args_list);
 			std::for_each(args_list.begin(), args_list.end(), [context](JSValue& val) { JS_FreeValue(context, val); });
 			return true; //nlohmann::json(result.toVariant());
 		}
@@ -2099,18 +2115,18 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 		#define STRINGIFY(tok) STRINGIFY_EXPAND(tok)
 
 		#define IMPL_EVENT_HANDLER(fun, ...) \
-			bool qtscript_scripting_instance::handle_##fun(MAKE_PARAMS(__VA_ARGS__)) { \
-				return wrap_event_handler__(STRINGIFY(fun), engine, MAKE_ARGS(__VA_ARGS__)); \
+			bool quickjs_scripting_instance::handle_##fun(MAKE_PARAMS(__VA_ARGS__)) { \
+				return wrap_event_handler__(STRINGIFY(fun), ctx, MAKE_ARGS(__VA_ARGS__)); \
 			}
 
 		#define IMPL_EVENT_HANDLER_NO_PARAMS(fun) \
-		bool qtscript_scripting_instance::handle_##fun() { \
-			return wrap_event_handler__(STRINGIFY(fun), engine); \
+		bool quickjs_scripting_instance::handle_##fun() { \
+			return wrap_event_handler__(STRINGIFY(fun), ctx); \
 		}
 
 	}
 
-// Wraps a QScriptEngine instance
+// Wraps a QuickJS instance
 
 //-- ## profile(function[, arguments])
 //-- Calls a function with given arguments, measures time it took to evaluate the function,
@@ -2174,7 +2190,8 @@ static JSValue js_include(JSContext *ctx, JSValueConst this_val, int argc, JSVal
 {
 	SCRIPT_ASSERT(ctx, argc == 1, "Must specify a file to include");
 	JSValue global_obj = JS_GetGlobalObject(ctx);
-	std::string basePath = QuickJS_GetStdString(ctx, global_obj, "scriptPath"); //engine->globalObject().property("scriptPath").toString();
+	auto free_global_obj = gsl::finally([ctx, global_obj] { JS_FreeValue(ctx, global_obj); });  // establish exit action
+	std::string basePath = QuickJS_GetStdString(ctx, global_obj, "scriptPath");
 	std::string basenameStr = JSValueToStdString(ctx, argv[0]);
 	QFileInfo basename(basenameStr.c_str());
 	std::string path = basePath + "/" + basename.fileName().toStdString();
@@ -2207,12 +2224,11 @@ static JSValue js_include(JSContext *ctx, JSValueConst this_val, int argc, JSVal
 //	}
 //	context->setActivationObject(engine->globalObject());
 //	context->setThisObject(engine->globalObject());
-	JSValue result = JS_Eval(ctx, bytes, size, path.c_str(), JS_EVAL_TYPE_GLOBAL); // QScriptValue result = engine->evaluate(source, path);
+	JSValue result = JS_Eval(ctx, bytes, size, path.c_str(), JS_EVAL_TYPE_GLOBAL);
 	free(bytes);
-	if (JS_IsException(result)) // (engine->hasUncaughtException())
+	if (JS_IsException(result))
 	{
 		std::string errorAsString = QuickJS_DumpError(ctx);
-//		int line = engine->uncaughtExceptionLineNumber();
 		debug(LOG_ERROR, "Uncaught exception in include file %s: %s",
 		      path.c_str(), errorAsString.c_str());
 		JS_FreeValue(ctx, result);
@@ -2231,6 +2247,29 @@ public:
 	: stringArg(_stringArg)
 	{ }
 };
+
+static uniqueTimerID SetQuickJSTimer(JSContext *ctx, int player, const std::string& funcName, int32_t ms, const std::string& stringArg, BASE_OBJECT *psObj, timerType type)
+{
+	return scripting_engine::instance().setTimer(engineToInstanceMap.at(ctx)
+	  // timerFunc
+	, [ctx, funcName](uniqueTimerID timerID, BASE_OBJECT* baseObject, timerAdditionalData* additionalParams) {
+		quickjs_timer_additionaldata* pData = static_cast<quickjs_timer_additionaldata*>(additionalParams);
+		std::vector<JSValue> args;
+		if (baseObject != nullptr)
+		{
+			args.push_back(convMax(baseObject, ctx));
+		}
+		else if (pData && !(pData->stringArg.empty()))
+		{
+			args.push_back(JS_NewStringLen(ctx, pData->stringArg.c_str(), pData->stringArg.length()));
+		}
+		callFunction(ctx, funcName, args, true);
+		std::for_each(args.begin(), args.end(), [ctx](JSValue& val) { JS_FreeValue(ctx, val); });
+	}
+	, player, ms, funcName, psObj, type
+	// additionalParams
+	, new quickjs_timer_additionaldata(stringArg));
+}
 
 //-- ## setTimer(function, milliseconds[, object])
 //--
@@ -2259,9 +2298,9 @@ static JSValue js_setTimer(JSContext *ctx, JSValueConst this_val, int argc, JSVa
 
 	JSValue global_obj = JS_GetGlobalObject(ctx);
 	auto free_global_obj = gsl::finally([ctx, global_obj] { JS_FreeValue(ctx, global_obj); });  // establish exit action
-	int player = QuickJS_GetInt32(ctx, global_obj, "me"); //engine->globalObject().property("me").toInt32();
+	int player = QuickJS_GetInt32(ctx, global_obj, "me");
 
-	JSValue funcObj = JS_GetPropertyStr(ctx, global_obj, funcName.c_str()); //engine->globalObject().property(funcName); // check existence
+	JSValue funcObj = JS_GetPropertyStr(ctx, global_obj, funcName.c_str()); // check existence
 	SCRIPT_ASSERT(ctx, JS_IsFunction(ctx, funcObj), "No such function: %s", funcName.c_str());
 	JS_FreeValue(ctx, funcObj);
 
@@ -2276,31 +2315,32 @@ static JSValue js_setTimer(JSContext *ctx, JSValueConst this_val, int argc, JSVa
 		}
 		else // is game object
 		{
-			int baseobj = QuickJS_GetInt32(ctx, obj, "id"); //obj.property("id").toInt32();
-			OBJECT_TYPE baseobjtype = (OBJECT_TYPE)QuickJS_GetInt32(ctx, obj, "type"); //obj.property("type").toInt32();
+			int baseobj = QuickJS_GetInt32(ctx, obj, "id");
+			OBJECT_TYPE baseobjtype = (OBJECT_TYPE)QuickJS_GetInt32(ctx, obj, "type");
 			psObj = IdToObject(baseobjtype, baseobj, player);
 		}
 	}
 
-	scripting_engine::instance().setTimer(engineToInstanceMap.at(ctx)
-	  // timerFunc
-	, [ctx, funcName](uniqueTimerID timerID, BASE_OBJECT* baseObject, timerAdditionalData* additionalParams) {
-		quickjs_timer_additionaldata* pData = static_cast<quickjs_timer_additionaldata*>(additionalParams);
-		std::vector<JSValue> args;
-		if (baseObject != nullptr)
-		{
-			args.push_back(convMax(baseObject, ctx));
-		}
-		else if (pData && !(pData->stringArg.empty()))
-		{
-			args.push_back(JS_NewStringLen(ctx, pData->stringArg.c_str(), pData->stringArg.length()));
-		}
-		callFunction(ctx, funcName, args, true);
-		std::for_each(args.begin(), args.end(), [ctx](JSValue& val) { JS_FreeValue(ctx, val); });
-	}
-	, player, ms, funcName, psObj, TIMER_REPEAT
-	// additionalParams
-	, new quickjs_timer_additionaldata(stringArg));
+	SetQuickJSTimer(ctx, player, funcName, ms, stringArg, psObj, TIMER_REPEAT);
+//	scripting_engine::instance().setTimer(engineToInstanceMap.at(ctx)
+//	  // timerFunc
+//	, [ctx, funcName](uniqueTimerID timerID, BASE_OBJECT* baseObject, timerAdditionalData* additionalParams) {
+//		quickjs_timer_additionaldata* pData = static_cast<quickjs_timer_additionaldata*>(additionalParams);
+//		std::vector<JSValue> args;
+//		if (baseObject != nullptr)
+//		{
+//			args.push_back(convMax(baseObject, ctx));
+//		}
+//		else if (pData && !(pData->stringArg.empty()))
+//		{
+//			args.push_back(JS_NewStringLen(ctx, pData->stringArg.c_str(), pData->stringArg.length()));
+//		}
+//		callFunction(ctx, funcName, args, true);
+//		std::for_each(args.begin(), args.end(), [ctx](JSValue& val) { JS_FreeValue(ctx, val); });
+//	}
+//	, player, ms, funcName, psObj, TIMER_REPEAT
+//	// additionalParams
+//	, new quickjs_timer_additionaldata(stringArg));
 
 	return JS_TRUE;
 }
@@ -2318,7 +2358,7 @@ static JSValue js_removeTimer(JSContext *ctx, JSValueConst this_val, int argc, J
 
 	JSValue global_obj = JS_GetGlobalObject(ctx);
 	auto free_global_obj = gsl::finally([ctx, global_obj] { JS_FreeValue(ctx, global_obj); });  // establish exit action
-	int player = QuickJS_GetInt32(ctx, global_obj, "me"); //engine->globalObject().property("me").toInt32();
+	int player = QuickJS_GetInt32(ctx, global_obj, "me");
 
 	wzapi::scripting_instance* instance = engineToInstanceMap.at(ctx);
 	std::vector<uniqueTimerID> removedTimerIDs = scripting_engine::instance().removeTimersIf(
@@ -2358,7 +2398,7 @@ static JSValue js_queue(JSContext *ctx, JSValueConst this_val, int argc, JSValue
 	JSValue global_obj = JS_GetGlobalObject(ctx);
 	auto free_global_obj = gsl::finally([ctx, global_obj] { JS_FreeValue(ctx, global_obj); });  // establish exit action
 
-	JSValue funcObj = JS_GetPropertyStr(ctx, global_obj, funcName.c_str()); //engine->globalObject().property(funcName); // check existence
+	JSValue funcObj = JS_GetPropertyStr(ctx, global_obj, funcName.c_str()); // check existence
 	SCRIPT_ASSERT(ctx, JS_IsFunction(ctx, funcObj), "No such function: %s", funcName.c_str());
 	JS_FreeValue(ctx, funcObj);
 
@@ -2367,7 +2407,7 @@ static JSValue js_queue(JSContext *ctx, JSValueConst this_val, int argc, JSValue
 	{
 		ms = JSValueToInt32(ctx, argv[1]);
 	}
-	int player = QuickJS_GetInt32(ctx, global_obj, "me"); //int player = engine->globalObject().property("me").toInt32();
+	int player = QuickJS_GetInt32(ctx, global_obj, "me");
 
 	std::string stringArg;
 	BASE_OBJECT *psObj = nullptr;
@@ -2380,31 +2420,32 @@ static JSValue js_queue(JSContext *ctx, JSValueConst this_val, int argc, JSValue
 		}
 		else // is game object
 		{
-			int baseobj = QuickJS_GetInt32(ctx, obj, "id"); //obj.property("id").toInt32();
-			OBJECT_TYPE baseobjtype = (OBJECT_TYPE)QuickJS_GetInt32(ctx, obj, "type"); //obj.property("type").toInt32();
+			int baseobj = QuickJS_GetInt32(ctx, obj, "id");
+			OBJECT_TYPE baseobjtype = (OBJECT_TYPE)QuickJS_GetInt32(ctx, obj, "type");
 			psObj = IdToObject(baseobjtype, baseobj, player);
 		}
 	}
 
-	scripting_engine::instance().setTimer(engineToInstanceMap.at(ctx)
-	  // timerFunc
-	, [ctx, funcName](uniqueTimerID timerID, BASE_OBJECT* baseObject, timerAdditionalData* additionalParams) {
-		quickjs_timer_additionaldata* pData = static_cast<quickjs_timer_additionaldata*>(additionalParams);
-		std::vector<JSValue> args;
-		if (baseObject != nullptr)
-		{
-			args.push_back(convMax(baseObject, ctx));
-		}
-		else if (pData && !(pData->stringArg.empty()))
-		{
-			args.push_back(JS_NewStringLen(ctx, pData->stringArg.c_str(), pData->stringArg.length()));
-		}
-		callFunction(ctx, funcName, args, true);
-		std::for_each(args.begin(), args.end(), [ctx](JSValue& val) { JS_FreeValue(ctx, val); });
-	}
-	, player, ms, funcName, psObj, TIMER_ONESHOT_READY
-	// additionalParams
-	, new quickjs_timer_additionaldata(stringArg));
+	SetQuickJSTimer(ctx, player, funcName, ms, stringArg, psObj, TIMER_ONESHOT_READY);
+//	scripting_engine::instance().setTimer(engineToInstanceMap.at(ctx)
+//	  // timerFunc
+//	, [ctx, funcName](uniqueTimerID timerID, BASE_OBJECT* baseObject, timerAdditionalData* additionalParams) {
+//		quickjs_timer_additionaldata* pData = static_cast<quickjs_timer_additionaldata*>(additionalParams);
+//		std::vector<JSValue> args;
+//		if (baseObject != nullptr)
+//		{
+//			args.push_back(convMax(baseObject, ctx));
+//		}
+//		else if (pData && !(pData->stringArg.empty()))
+//		{
+//			args.push_back(JS_NewStringLen(ctx, pData->stringArg.c_str(), pData->stringArg.length()));
+//		}
+//		callFunction(ctx, funcName, args, true);
+//		std::for_each(args.begin(), args.end(), [ctx](JSValue& val) { JS_FreeValue(ctx, val); });
+//	}
+//	, player, ms, funcName, psObj, TIMER_ONESHOT_READY
+//	// additionalParams
+//	, new quickjs_timer_additionaldata(stringArg));
 	return JS_TRUE;
 }
 
@@ -2419,130 +2460,318 @@ static JSValue js_namespace(JSContext *ctx, JSValueConst this_val, int argc, JSV
 	SCRIPT_ASSERT(ctx, argc == 1, "Must have one parameter");
 	SCRIPT_ASSERT(ctx, JS_IsString(argv[0]), "Must provide a string namespace prefix");
 	std::string prefix = JSValueToStdString(ctx, argv[0]);
-	engineToInstanceMap.at(ctx)->eventNamespaces.push_back(prefix);
+	auto instance = engineToInstanceMap.at(ctx);
+	instance->eventNamespaces.push_back(prefix);
 	return JS_TRUE;
 }
 
-//ScriptMapData runMapScript_QtScript(WzString const &path, uint64_t seed, bool preview)
-//{
-//	ScriptMapData data;
-//	data.valid = false;
-//	data.mt = MersenneTwister(seed);
-//
-//	auto engine = std::unique_ptr<QScriptEngine>(new QScriptEngine());
-//	//auto engine = std::make_unique<QScriptEngine>();
-//	engine->setProcessEventsInterval(-1);
-//	UDWORD size;
-//	char *bytes = nullptr;
-//	if (!loadFile(path.toUtf8().c_str(), &bytes, &size))
-//	{
-//		debug(LOG_ERROR, "Failed to read script file \"%s\"", path.toUtf8().c_str());
-//		return data;
-//	}
-//	QString source = QString::fromUtf8(bytes, size);
-//	free(bytes);
-//	QScriptSyntaxCheckResult syntax = QScriptEngine::checkSyntax(source);
-//	ASSERT_OR_RETURN(data, syntax.state() == QScriptSyntaxCheckResult::Valid, "Syntax error in %s line %d: %s",
-//	                 path.toUtf8().c_str(), syntax.errorLineNumber(), syntax.errorMessage().toUtf8().constData());
-//	engine->globalObject().setProperty("preview", preview, QScriptValue::ReadOnly | QScriptValue::Undeletable);
-//	engine->globalObject().setProperty("XFLIP", TILE_XFLIP, QScriptValue::ReadOnly | QScriptValue::Undeletable);
-//	engine->globalObject().setProperty("YFLIP", TILE_YFLIP, QScriptValue::ReadOnly | QScriptValue::Undeletable);
-//	engine->globalObject().setProperty("ROTMASK", TILE_ROTMASK, QScriptValue::ReadOnly | QScriptValue::Undeletable);
-//	engine->globalObject().setProperty("ROTSHIFT", TILE_ROTSHIFT, QScriptValue::ReadOnly | QScriptValue::Undeletable);
-//	engine->globalObject().setProperty("TRIFLIP", TILE_TRIFLIP, QScriptValue::ReadOnly | QScriptValue::Undeletable);
-//	//engine->globalObject().setProperty("players", players, QScriptValue::ReadOnly | QScriptValue::Undeletable);
-//	engine->globalObject().setProperty("gameRand", engine->newFunction([](QScriptContext *context, QScriptEngine *, void *_data) -> QScriptValue {
-//		auto &data = *(ScriptMapData *)_data;
-//		uint32_t num = data.mt.u32();
-//		uint32_t mod = context->argument(0).toUInt32();
-//		return mod? num%mod : num;
-//	}, &data), QScriptValue::ReadOnly | QScriptValue::Undeletable);
-//	engine->globalObject().setProperty("log", engine->newFunction([](QScriptContext *context, QScriptEngine *, void *_data) -> QScriptValue {
-//		auto &data = *(ScriptMapData *)_data;
-//		(void)data;
-//		auto str = context->argument(0).toString();
-//		debug(LOG_INFO, "game.js: \"%s\"", str.toUtf8().constData());
-//		return {};
-//	}, &data), QScriptValue::ReadOnly | QScriptValue::Undeletable);
-//	engine->globalObject().setProperty("setMapData", engine->newFunction([](QScriptContext *context, QScriptEngine *, void *_data) -> QScriptValue {
-//		auto &data = *(ScriptMapData *)_data;
-//		data.valid = false;
-//		auto mapWidth = context->argument(0);
-//		auto mapHeight = context->argument(1);
-//		auto texture = context->argument(2);
-//		auto height = context->argument(3);
-//		auto structures = context->argument(4);
-//		auto droids = context->argument(5);
-//		auto features = context->argument(6);
-//		ASSERT_OR_RETURN(false, mapWidth.isNumber(), "mapWidth must be number");
-//		ASSERT_OR_RETURN(false, mapHeight.isNumber(), "mapHeight must be number");
-//		ASSERT_OR_RETURN(false, texture.isArray(), "texture must be array");
-//		ASSERT_OR_RETURN(false, height.isArray(), "height must be array");
-//		ASSERT_OR_RETURN(false, structures.isArray(), "structures must be array");
-//		ASSERT_OR_RETURN(false, droids.isArray(), "droids must be array");
-//		ASSERT_OR_RETURN(false, features.isArray(), "features must be array");
-//		data.mapWidth = mapWidth.toInt32();
-//		data.mapHeight = mapHeight.toInt32();
-//		ASSERT_OR_RETURN(false, data.mapWidth > 1 && data.mapHeight > 1 && (uint64_t)data.mapWidth*data.mapHeight <= 65536, "Map size out of bounds");
-//		size_t N = (size_t)data.mapWidth*data.mapHeight;
-//		data.texture.resize(N);
-//		data.height.resize(N);
-//		for (size_t n = 0; n < N; ++n)
-//		{
-//			data.texture[n] = texture.property(n).toUInt16();
-//			data.height[n] = height.property(n).toInt32();
-//		}
-//		uint16_t structureCount = structures.property("length").toUInt16();
-//		for (unsigned i = 0; i < structureCount; ++i) {
-//			auto structure = structures.property(i);
-//			auto position = structure.property("position");
-//			ScriptMapData::Structure sd;
-//			sd.name = structure.property("name").toString().toUtf8().constData();
-//			sd.position = {position.property(0).toInt32(), position.property(1).toInt32()};
-//			sd.direction = structure.property("direction").toInt32();
-//			sd.modules = structure.property("modules").toUInt32();
-//			sd.player = structure.property("player").toInt32();
-//			if (sd.player < -1 || sd.player >= MAX_PLAYERS) {
-//				ASSERT(false, "Invalid player");
-//				continue;
-//			}
-//			data.structures.push_back(std::move(sd));
-//		}
-//		uint16_t droidCount = droids.property("length").toUInt16();
-//		for (unsigned i = 0; i < droidCount; ++i) {
-//			auto droid = droids.property(i);
-//			auto position = droid.property("position");
-//			ScriptMapData::Droid sd;
-//			sd.name = droid.property("name").toString().toUtf8().constData();
-//			sd.position = {position.property(0).toInt32(), position.property(1).toInt32()};
-//			sd.direction = droid.property("direction").toInt32();
-//			sd.player = droid.property("player").toInt32();
-//			if (sd.player < -1 || sd.player >= MAX_PLAYERS) {
-//				ASSERT(false, "Invalid player");
-//				continue;
-//			}
-//			data.droids.push_back(std::move(sd));
-//		}
-//		uint16_t featureCount = features.property("length").toUInt16();
-//		for (unsigned i = 0; i < featureCount; ++i) {
-//			auto feature = features.property(i);
-//			auto position = feature.property("position");
-//			ScriptMapData::Feature sd;
-//			sd.name = feature.property("name").toString().toUtf8().constData();
-//			sd.position = {position.property(0).toInt32(), position.property(1).toInt32()};
-//			sd.direction = feature.property("direction").toInt32();
-//			data.features.push_back(std::move(sd));
-//		}
-//		data.valid = true;
-//		return true;
-//	}, &data), QScriptValue::ReadOnly | QScriptValue::Undeletable);
-//
-//	QScriptValue result = engine->evaluate(source, QString::fromUtf8(path.toUtf8().c_str()));
-//	ASSERT_OR_RETURN(data, !engine->hasUncaughtException(), "Uncaught exception at line %d, file %s: %s",
-//	                 engine->uncaughtExceptionLineNumber(), path.toUtf8().c_str(), result.toString().toUtf8().constData());
-//
-//	return data;
-//}
+static JSValue debugGetCallerFuncObject(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
+{
+	return js_debugger_get_caller_funcObject(ctx);
+}
+
+//-- ## debugGetCallerFuncName()
+//-- Returns the function name of the caller of the current context as a string (if available).
+//-- ex.
+//-- ```javascript
+//--   function FuncA() {
+//--     var callerFuncName = debugGetCallerFuncName();
+//--     debug(callerFuncName);
+//--   }
+//--   function FuncB() {
+//--     FuncA();
+//--   }
+//--   FuncB();
+//-- ```
+//-- Will output: "FuncB"
+//-- Useful for debug logging.
+//--
+static JSValue debugGetCallerFuncName(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
+{
+	return js_debugger_get_caller_name(ctx);
+}
+
+static JSValue debugGetBacktrace(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
+{
+	return js_debugger_build_backtrace(ctx, nullptr);
+}
+
+//MAP-- ## gameRand([mod])
+//MAP--
+//MAP-- Generates a random number in a "safe" way, that will ensure that randomly-generated
+//MAP-- maps are the same for all connected players.
+//MAP--
+static JSValue runMap_gameRand(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
+{
+	void* pOpaque = JS_GetContextOpaque(ctx);
+	if (!pOpaque)
+	{
+		return JS_ThrowInternalError(ctx, "Unable to acquire context information");
+	}
+	auto &data = *static_cast<ScriptMapData*>(pOpaque);
+	uint32_t num = data.mt.u32();
+	uint32_t mod = (argc >= 1) ? JSValueToUint32(ctx, argv[0]) : 0;
+	uint32_t result = mod? num%mod : num;
+	return JS_NewUint32(ctx, result);
+}
+
+//MAP-- ## log(string)
+//MAP--
+//MAP-- Outputs to the game's debug log a string (or object that can be converted to string)
+//MAP--
+static JSValue runMap_log(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
+{
+	SCRIPT_ASSERT(ctx, argc == 1, "Must have one parameter");
+	std::string str = JSValueToStdString(ctx, argv[0]);
+	debug(LOG_INFO, "game.js: \"%s\"", str.c_str());
+	return JS_UNDEFINED;
+}
+
+//MAP-- ## setMapData(mapWidth, mapHeight, texture, height, structures, droids, features)
+//MAP--
+//MAP-- Sets map data from that generated by the script.
+//MAP--
+//MAP-- (NOTE: Documentation incomplete. Look at the example mapScript maps: 6c-Entropy/game.js, 10c-WaterLoop/game.js)
+//MAP--
+//MAP-- `structures` is an array of structure data objects. Example:
+//MAP--    {name: "A0CommandCentre", position: [x, y], direction: 0x4000*gameRand(4), modules: 0, player: 1}
+//MAP-- `droids` is an array of droid data objects. Example:
+//MAP--    {name: "ConstructionDroid", position: [x, y], direction: gameRand(0x10000), player: 1}
+//MAP-- `features` is an array of feature data objects. Example:
+//MAP--    {name: "Tree1", position: [x, y], direction: gameRand(0x10000)}
+//MAP--
+static JSValue runMap_setMapData(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
+{
+	void* pOpaque = JS_GetContextOpaque(ctx);
+	if (!pOpaque)
+	{
+		return JS_ThrowInternalError(ctx, "Unable to acquire context information");
+	}
+	auto &data = *static_cast<ScriptMapData*>(pOpaque);
+	data.valid = false;
+	SCRIPT_ASSERT_AND_RETURNERROR(ctx, argc == 7, "Must have 7 parameters");
+	auto mapWidth = argv[0];
+	auto mapHeight = argv[1];
+	auto texture = argv[2];
+	auto height = argv[3];
+	auto structures = argv[4];
+	auto droids = argv[5];
+	auto features = argv[6];
+	SCRIPT_ASSERT_AND_RETURNERROR(ctx, JS_IsNumber(mapWidth), "mapWidth must be number");
+	SCRIPT_ASSERT_AND_RETURNERROR(ctx, JS_IsNumber(mapHeight), "mapHeight must be number");
+	SCRIPT_ASSERT_AND_RETURNERROR(ctx, JS_IsArray(ctx, texture), "texture must be array");
+	SCRIPT_ASSERT_AND_RETURNERROR(ctx, JS_IsArray(ctx, height), "height must be array");
+	SCRIPT_ASSERT_AND_RETURNERROR(ctx, JS_IsArray(ctx, structures), "structures must be array");
+	SCRIPT_ASSERT_AND_RETURNERROR(ctx, JS_IsArray(ctx, droids), "droids must be array");
+	SCRIPT_ASSERT_AND_RETURNERROR(ctx, JS_IsArray(ctx, features), "features must be array");
+	data.mapWidth = JSValueToInt32(ctx, mapWidth);
+	data.mapHeight = JSValueToInt32(ctx, mapHeight);
+	SCRIPT_ASSERT_AND_RETURNERROR(ctx, data.mapWidth > 1 && data.mapHeight > 1 && (uint64_t)data.mapWidth*data.mapHeight <= 65536, "Map size out of bounds");
+	size_t N = (size_t)data.mapWidth*data.mapHeight;
+	data.texture.resize(N);
+	data.height.resize(N);
+	uint64_t arrayLen = 0;
+	bool bGotArrayLength = QuickJS_GetArrayLength(ctx, texture, arrayLen);
+	SCRIPT_ASSERT_AND_RETURNERROR(ctx, bGotArrayLength && (arrayLen == ((uint64_t)data.mapWidth * (uint64_t)data.mapHeight)), "texture array length must equal (mapWidth * mapHeight); actual length is: %" PRIu64"", arrayLen);
+	bGotArrayLength = QuickJS_GetArrayLength(ctx, height, arrayLen);
+	SCRIPT_ASSERT_AND_RETURNERROR(ctx, bGotArrayLength && (arrayLen == ((uint64_t)data.mapWidth * (uint64_t)data.mapHeight)), "height array length must equal (mapWidth * mapHeight); actual length is: %" PRIu64"", arrayLen);
+	for (uint32_t n = 0; n < N; ++n)
+	{
+		JSValue textureVal = JS_GetPropertyUint32(ctx, texture, n);
+		auto free_texture_ref = gsl::finally([ctx, textureVal] { JS_FreeValue(ctx, textureVal); });
+		JSValue heightVal = JS_GetPropertyUint32(ctx, height, n);
+		auto free_height_ref = gsl::finally([ctx, heightVal] { JS_FreeValue(ctx, heightVal); });
+		uint32_t textureUint32 = JSValueToUint32(ctx, textureVal);
+		SCRIPT_ASSERT_AND_RETURNERROR(ctx, textureUint32 <= (uint32_t)std::numeric_limits<uint16_t>::max(), "texture value exceeds uint16::max: %" PRIu32 "", textureUint32);
+		data.texture[n] = static_cast<uint16_t>(textureUint32);
+		data.height[n] = JSValueToUint32(ctx, heightVal);
+	}
+	bGotArrayLength = QuickJS_GetArrayLength(ctx, structures, arrayLen);
+	SCRIPT_ASSERT_AND_RETURNERROR(ctx, bGotArrayLength && (arrayLen <= (uint64_t)std::numeric_limits<uint16_t>::max()), "structures array length be <= uint16::max; actual length is: %" PRIu64"", arrayLen);
+	uint16_t structureCount = static_cast<uint16_t>(arrayLen);
+	for (uint16_t i = 0; i < structureCount; ++i)
+	{
+		JSValue structure = JS_GetPropertyUint32(ctx, structures, i);
+		auto free_structure_ref = gsl::finally([ctx, structure] { JS_FreeValue(ctx, structure); });
+		ScriptMapData::Structure sd;
+		sd.name = WzString::fromUtf8(QuickJS_GetStdString(ctx, structure, "name"));
+		JSValue position = JS_GetPropertyStr(ctx, structure, "position");
+		auto free_position_ref = gsl::finally([ctx, position] { JS_FreeValue(ctx, position); });
+		if (JS_IsArray(ctx, position))
+		{
+			// [x, y]
+			bGotArrayLength = QuickJS_GetArrayLength(ctx, position, arrayLen);
+			SCRIPT_ASSERT_AND_RETURNERROR(ctx, bGotArrayLength && (arrayLen == 2), "position array length must equal 2; actual length is: %" PRIu64"", arrayLen);
+			JSValue xVal = JS_GetPropertyUint32(ctx, position, 0);
+			JSValue yVal = JS_GetPropertyUint32(ctx, position, 1);
+			sd.position = {JSValueToInt32(ctx, xVal), JSValueToInt32(ctx, yVal)};
+			JS_FreeValue(ctx, xVal);
+			JS_FreeValue(ctx, yVal);
+		}
+		sd.direction = QuickJS_GetInt32(ctx, structure, "direction");
+		sd.modules = QuickJS_GetUint32(ctx, structure, "modules");
+		sd.player = QuickJS_GetInt32(ctx, structure, "player");
+		SCRIPT_ASSERT_AND_RETURNERROR(ctx, sd.player >= 0 && sd.player < MAX_PLAYERS, "Invalid player (%d) for structure", (int)sd.player);
+		data.structures.push_back(std::move(sd));
+	}
+	bGotArrayLength = QuickJS_GetArrayLength(ctx, droids, arrayLen);
+	SCRIPT_ASSERT_AND_RETURNERROR(ctx, bGotArrayLength && (arrayLen <= (uint64_t)std::numeric_limits<uint16_t>::max()), "droids array length be <= uint16::max; actual length is: %" PRIu64"", arrayLen);
+	uint16_t droidCount = static_cast<uint16_t>(arrayLen);
+	for (uint16_t i = 0; i < droidCount; ++i)
+	{
+		JSValue droid = JS_GetPropertyUint32(ctx, droids, i);
+		auto free_droid_ref = gsl::finally([ctx, droid] { JS_FreeValue(ctx, droid); });
+		ScriptMapData::Droid sd;
+		sd.name = WzString::fromUtf8(QuickJS_GetStdString(ctx, droid, "name"));
+		JSValue position = JS_GetPropertyStr(ctx, droid, "position");
+		auto free_position_ref = gsl::finally([ctx, position] { JS_FreeValue(ctx, position); });
+		if (JS_IsArray(ctx, position))
+		{
+			// [x, y]
+			bGotArrayLength = QuickJS_GetArrayLength(ctx, position, arrayLen);
+			SCRIPT_ASSERT_AND_RETURNERROR(ctx, bGotArrayLength && (arrayLen == 2), "position array length must equal 2; actual length is: %" PRIu64"", arrayLen);
+			JSValue xVal = JS_GetPropertyUint32(ctx, position, 0);
+			JSValue yVal = JS_GetPropertyUint32(ctx, position, 1);
+			sd.position = {JSValueToInt32(ctx, xVal), JSValueToInt32(ctx, yVal)};
+			JS_FreeValue(ctx, xVal);
+			JS_FreeValue(ctx, yVal);
+		}
+		sd.direction = QuickJS_GetInt32(ctx, droid, "direction");
+		sd.player = QuickJS_GetInt32(ctx, droid, "player");
+		SCRIPT_ASSERT_AND_RETURNERROR(ctx, sd.player >= 0 && sd.player < MAX_PLAYERS, "Invalid player (%d) for droid", (int)sd.player);
+		data.droids.push_back(std::move(sd));
+	}
+	bGotArrayLength = QuickJS_GetArrayLength(ctx, features, arrayLen);
+	SCRIPT_ASSERT_AND_RETURNERROR(ctx, bGotArrayLength && (arrayLen <= (uint64_t)std::numeric_limits<uint16_t>::max()), "features array length be <= uint16::max; actual length is: %" PRIu64"", arrayLen);
+	uint16_t featureCount = static_cast<uint16_t>(arrayLen);
+	for (unsigned i = 0; i < featureCount; ++i)
+	{
+		JSValue feature = JS_GetPropertyUint32(ctx, features, i);
+		auto free_feature_ref = gsl::finally([ctx, feature] { JS_FreeValue(ctx, feature); });
+		ScriptMapData::Feature sd;
+		sd.name = WzString::fromUtf8(QuickJS_GetStdString(ctx, feature, "name"));
+		JSValue position = JS_GetPropertyStr(ctx, feature, "position");
+		auto free_position_ref = gsl::finally([ctx, position] { JS_FreeValue(ctx, position); });
+		if (JS_IsArray(ctx, position))
+		{
+			// [x, y]
+			bGotArrayLength = QuickJS_GetArrayLength(ctx, position, arrayLen);
+			SCRIPT_ASSERT_AND_RETURNERROR(ctx, bGotArrayLength && (arrayLen == 2), "position array length must equal 2; actual length is: %" PRIu64"", arrayLen);
+			JSValue xVal = JS_GetPropertyUint32(ctx, position, 0);
+			JSValue yVal = JS_GetPropertyUint32(ctx, position, 1);
+			sd.position = {JSValueToInt32(ctx, xVal), JSValueToInt32(ctx, yVal)};
+			JS_FreeValue(ctx, xVal);
+			JS_FreeValue(ctx, yVal);
+		}
+		sd.direction = QuickJS_GetInt32(ctx, feature, "direction");
+		data.features.push_back(std::move(sd));
+	}
+	data.valid = true;
+	return JS_TRUE;
+}
+
+struct MapScriptRuntimeInfo {
+	std::chrono::system_clock::time_point startTime;
+};
+
+#define MAX_MAPSCRIPT_RUNTIME_SECONDS 30
+
+/* return != 0 if the JS code needs to be interrupted */
+static int runMapScript_InterruptHandler(JSRuntime *rt, void *opaque)
+{
+	ASSERT(opaque, "Null opaque pointer?");
+	const MapScriptRuntimeInfo* pInfo = static_cast<const MapScriptRuntimeInfo*>(opaque);
+	auto secondsElapsed = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - pInfo->startTime).count();
+	return (secondsElapsed >= MAX_MAPSCRIPT_RUNTIME_SECONDS);
+}
+
+ScriptMapData runMapScript_QuickJS(WzString const &path, uint64_t seed, bool preview)
+{
+	ScriptMapData data;
+	data.valid = false;
+	data.mt = MersenneTwister(seed);
+
+	JSRuntime *rt = JS_NewRuntime();
+	auto free_runtime_ref = gsl::finally([rt] { JS_FreeRuntime(rt); });
+	JSLimitedContextOptions ctxOptions;
+	ctxOptions.baseObjects = true;
+	ctxOptions.dateObject = false;
+	ctxOptions.eval = true; // required for JS_Eval to work
+	ctxOptions.stringNormalize = false;
+	ctxOptions.regExp = false;
+	ctxOptions.json = false;
+	ctxOptions.proxy = false;
+	ctxOptions.mapSet = true;
+	ctxOptions.typedArrays = false;
+	ctxOptions.promise = false;
+	JSContext *ctx = JS_NewLimitedContext(rt, &ctxOptions);
+	auto free_context_ref = gsl::finally([ctx] { JS_FreeContext(ctx); });
+	JSValue global_obj = JS_GetGlobalObject(ctx);
+	auto free_globalobj_ref = gsl::finally([ctx, global_obj] { JS_FreeValue(ctx, global_obj); });
+
+	UDWORD size;
+	char *bytes = nullptr;
+	if (!loadFile(path.toUtf8().c_str(), &bytes, &size))
+	{
+		debug(LOG_ERROR, "Failed to read script file \"%s\"", path.toUtf8().c_str());
+		return data;
+	}
+	JSValue compiledScriptObj = JS_Eval(ctx, bytes, size, path.toUtf8().c_str(), JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_COMPILE_ONLY);
+	free(bytes);
+	if (JS_IsException(compiledScriptObj))
+	{
+		// compilation error / syntax error
+		std::string errorAsString = QuickJS_DumpError(ctx);
+		debug(LOG_ERROR, "Syntax / compilation error in %s: %s",
+			  path.toUtf8().c_str(), errorAsString.c_str());
+		JS_FreeValue(ctx, compiledScriptObj);
+		compiledScriptObj = JS_UNINITIALIZED;
+		return data;
+	}
+
+	JS_DefinePropertyValueStr(ctx, global_obj, "preview", JS_NewBool(ctx, preview), 0);
+	JS_DefinePropertyValueStr(ctx, global_obj, "XFLIP", JS_NewInt32(ctx, TILE_XFLIP), 0);
+	JS_DefinePropertyValueStr(ctx, global_obj, "YFLIP", JS_NewInt32(ctx, TILE_YFLIP), 0);
+	JS_DefinePropertyValueStr(ctx, global_obj, "ROTMASK", JS_NewInt32(ctx, TILE_ROTMASK), 0);
+	JS_DefinePropertyValueStr(ctx, global_obj, "ROTSHIFT", JS_NewInt32(ctx, TILE_ROTSHIFT), 0);
+	JS_DefinePropertyValueStr(ctx, global_obj, "TRIFLIP", JS_NewInt32(ctx, TILE_TRIFLIP), 0);
+	JS_SetContextOpaque(ctx, &data);
+
+	// Special mapScript functions
+	static const JSCFunctionListEntry js_builtin_mapFuncs[] = {
+		JS_CFUNC_DEF("gameRand", 0, runMap_gameRand ),
+		JS_CFUNC_DEF("log", 1, runMap_log ),
+		JS_CFUNC_DEF("setMapData", 7, runMap_setMapData )
+	};
+	JS_SetPropertyFunctionList(ctx, global_obj, js_builtin_mapFuncs, sizeof(js_builtin_mapFuncs) / sizeof(js_builtin_mapFuncs[0]));
+
+	// configure limitations on runtime
+	JS_SetMaxStackSize(rt, 512*1024);
+	JS_SetMemoryLimit(rt, 100*1024*1024); // 100MiB better be enough...
+
+	// install interrupt handler to prevent endless script execution (due to bugs or otherwise)
+	MapScriptRuntimeInfo mapScriptRuntimeInfo;
+	mapScriptRuntimeInfo.startTime = std::chrono::system_clock::now();
+	JS_SetInterruptHandler(rt, runMapScript_InterruptHandler, &mapScriptRuntimeInfo);
+
+	// run the map script
+	JSValue result = JS_EvalFunction(ctx, compiledScriptObj);
+	compiledScriptObj = JS_UNINITIALIZED;
+	JS_SetInterruptHandler(rt, nullptr, nullptr);
+
+	if (JS_IsException(result))
+	{
+		// compilation error / syntax error / runtime error
+		std::string errorAsString = QuickJS_DumpError(ctx);
+		debug(LOG_ERROR, "Uncaught exception in %s: %s",
+			  path.toUtf8().c_str(), errorAsString.c_str());
+		JS_FreeValue(ctx, result);
+		data.valid = false;
+		return data;
+	}
+
+	return data;
+}
 
 wzapi::scripting_instance* createQuickJSScriptInstance(const WzString& path, int player, int difficulty)
 {
@@ -2556,12 +2785,16 @@ wzapi::scripting_instance* createQuickJSScriptInstance(const WzString& path, int
 	return pNewInstance;
 }
 
-bool QuickJS_EnumerateObjectProperties(JSContext *ctx, JSValue obj, const std::function<void (const char *key, JSAtom& atom)>& func)
+bool QuickJS_EnumerateObjectProperties(JSContext *ctx, JSValue obj, const std::function<void (const char *key, JSAtom& atom)>& func, bool enumerableOnly /*= true*/)
 {
 	ASSERT_OR_RETURN(false, JS_IsObject(obj), "obj is not a JS object");
 	JSPropertyEnum * properties = nullptr;
     uint32_t count = 0;
-	int32_t flags = (JS_GPN_STRING_MASK | JS_GPN_SYMBOL_MASK | JS_GPN_ENUM_ONLY);
+	int32_t flags = (JS_GPN_STRING_MASK | JS_GPN_SYMBOL_MASK);
+	if (enumerableOnly)
+	{
+		flags |= JS_GPN_ENUM_ONLY;
+	}
 	if (JS_GetOwnPropertyNames(ctx, &properties, &count, obj, flags) != 0)
 	{
 		// JS_GetOwnPropertyNames failed?
@@ -2593,6 +2826,18 @@ bool QuickJS_EnumerateObjectProperties(JSContext *ctx, JSValue obj, const std::f
 	return true;
 }
 
+static const JSCFunctionListEntry js_builtin_funcs[] = {
+	JS_CFUNC_DEF("setTimer", 2, js_setTimer ), // JS-specific implementation
+	JS_CFUNC_DEF("queue", 1, js_queue ), // JS-specific implementation
+	JS_CFUNC_DEF("removeTimer", 1, js_removeTimer ), // JS-specific implementation
+	JS_CFUNC_DEF("profile", 1, js_profile ), // JS-specific implementation
+	JS_CFUNC_DEF("include", 1, js_include ), // backend-specific (a scripting_instance can't directly include a different type of script)
+	JS_CFUNC_DEF("namespace", 1, js_namespace ), // JS-specific implementation
+	JS_CFUNC_DEF("debugGetCallerFuncObject", 0, debugGetCallerFuncObject ), // backend-specific
+	JS_CFUNC_DEF("debugGetCallerFuncName", 0, debugGetCallerFuncName ), // backend-specific
+	JS_CFUNC_DEF("debugGetBacktrace", 0, debugGetBacktrace ) // backend-specific
+};
+
 bool quickjs_scripting_instance::loadScript(const WzString& path, int player, int difficulty)
 {
 	UDWORD size;
@@ -2609,43 +2854,24 @@ bool quickjs_scripting_instance::loadScript(const WzString& path, int player, in
 	{
 		// compilation error / syntax error
 		std::string errorAsString = QuickJS_DumpError(ctx);
-//		int line = engine->uncaughtExceptionLineNumber();
 		debug(LOG_ERROR, "Syntax / compilation error in %s: %s",
 			  path.toUtf8().c_str(), errorAsString.c_str());
 		JS_FreeValue(ctx, compiledScriptObj);
 		compiledScriptObj = JS_UNINITIALIZED;
 		return false;
 	}
-//	QScriptSyntaxCheckResult syntax = QScriptEngine::checkSyntax(m_source);
-//	ASSERT_OR_RETURN(false, syntax.state() == QScriptSyntaxCheckResult::Valid, "Syntax error in %s line %d: %s",
-//					 path.toUtf8().c_str(), syntax.errorLineNumber(), syntax.errorMessage().toUtf8().constData());
 
 	// Special functions
-	static const JSCFunctionListEntry js_builtin_funcs[] = {
-		JS_CFUNC_DEF("setTimer", 2, js_setTimer ), // JS-specific implementation
-		JS_CFUNC_DEF("queue", 1, js_queue ), // JS-specific implementation
-		JS_CFUNC_DEF("removeTimer", 1, js_removeTimer ), // JS-specific implementation
-		JS_CFUNC_DEF("profile", 1, js_profile ), // JS-specific implementation
-		JS_CFUNC_DEF("include", 1, js_include ), // backend-specific (a scripting_instance can't directly include a different type of script)
-		JS_CFUNC_DEF("namespace", 1, js_namespace ) // JS-specific implementation
-	};
 	JS_SetPropertyFunctionList(ctx, global_obj, js_builtin_funcs, sizeof(js_builtin_funcs) / sizeof(js_builtin_funcs[0]));
-//	engine->globalObject().setProperty("setTimer", engine->newFunction(js_setTimer)); // JS-specific implementation
-//	engine->globalObject().setProperty("queue", engine->newFunction(js_queue)); // JS-specific implementation
-//	engine->globalObject().setProperty("removeTimer", engine->newFunction(js_removeTimer)); // JS-specific implementation
-//	engine->globalObject().setProperty("profile", engine->newFunction(js_profile)); // JS-specific implementation
-//	engine->globalObject().setProperty("include", engine->newFunction(js_include)); // backend-specific (a scripting_instance can't directly include a different type of script)
-//	engine->globalObject().setProperty("namespace", engine->newFunction(js_namespace)); // JS-specific implementation
 
 	// Regular functions
 	QFileInfo basename(QString::fromUtf8(path.toUtf8().c_str()));
 	registerFunctions(basename.baseName().toStdString());
-
 	// Remember internal, reserved names
 	std::unordered_set<std::string>& internalNamespaceRef = internalNamespace;
 	QuickJS_EnumerateObjectProperties(ctx, global_obj, [&internalNamespaceRef](const char *key, JSAtom &) {
 		internalNamespaceRef.insert(key);
-	});
+	}, false);
 
 	return true;
 }
@@ -2658,7 +2884,6 @@ bool quickjs_scripting_instance::readyInstanceForExecution()
 	{
 		// compilation error / syntax error
 		std::string errorAsString = QuickJS_DumpError(ctx);
-//		int line = engine->uncaughtExceptionLineNumber();
 		debug(LOG_ERROR, "Syntax / compilation error in %s: %s",
 			  m_path.c_str(), errorAsString.c_str());
 		JS_FreeValue(ctx, result);
@@ -2689,11 +2914,26 @@ bool quickjs_scripting_instance::loadScriptGlobals(const nlohmann::json &result)
 	ASSERT_OR_RETURN(false, result.is_object(), "Can't load script globals from non-json-object");
 	for (auto it : result.items())
 	{
-		// IMPORTANT: "null" JSON values *MUST* map to QScriptValue::UndefinedValue.
-		//			  If they are set to QScriptValue::NullValue, it causes issues for libcampaign.js. (As the values become "defined".)
+		// IMPORTANT: "null" JSON values *MUST* map to JS_UNDEFINED.
+		//			  If they are set to JS_NULL, it causes issues for libcampaign.js. (As the values become "defined".)
 		//			  (mapJsonToQuickJSValue handles this properly.)
-		JS_DefinePropertyValueStr(ctx, global_obj, it.key().c_str(), mapJsonToQuickJSValue(ctx, it.value(), JS_PROP_C_W_E), JS_PROP_C_W_E); // TODO: Which flag to pass?
-//		engine->globalObject().setProperty(QString::fromStdString(it.key()), mapJsonToQScriptValue(ctx, it.value(), QScriptValue::PropertyFlags()));
+		// NOTE: Properties created on the JS global object (as "global variables") should be non-configurable.
+		//		 However *their* properties should probably be C_W_E.
+		int ret = JS_DefinePropertyValueStr(ctx, global_obj, it.key().c_str(), mapJsonToQuickJSValue(ctx, it.value(), JS_PROP_C_W_E), JS_PROP_WRITABLE | JS_PROP_ENUMERABLE | JS_PROP_THROW);
+		if (ret != 1)
+		{
+			// Failed to load script global
+			if (ret == -1)
+			{
+				// threw exception
+				debug(LOG_SCRIPT, "[script: %s] Failed to load script global: \"%s\"; %s", scriptName().c_str(), it.key().c_str(), QuickJS_DumpError(ctx).c_str());
+			}
+			else
+			{
+				// other failure
+				debug(LOG_SCRIPT, "[script: %s] Failed to load script global: \"%s\"", scriptName().c_str(), it.key().c_str());
+			}
+		}
 	}
 	return true;
 }
@@ -2746,50 +2986,74 @@ std::tuple<TimerFunc, timerAdditionalData *> quickjs_scripting_instance::restore
 nlohmann::json quickjs_scripting_instance::debugGetAllScriptGlobals()
 {
 	nlohmann::json globals = nlohmann::json::object();
-	QScriptValueIterator it(engine->globalObject());
-	while (it.hasNext())
-	{
-		it.next();
-		if ((internalNamespace.count(it.name().toStdString()) == 0 && !it.value().isFunction()
-			 && !it.value().equals(engine->globalObject()))
-			|| it.name() == "Upgrades" || it.name() == "Stats")
+
+	QuickJS_EnumerateObjectProperties(ctx, global_obj, [this, &globals](const char *key, JSAtom &atom) {
+        JSValue jsVal = JS_GetProperty(ctx, global_obj, atom);
+		std::string nameStr = key;
+		if (((internalNamespace.count(nameStr) == 0 && !JS_IsFunction(ctx, jsVal)
+			/*&& !it.value().equals(engine->globalObject()*/))
+			|| nameStr == "Upgrades" || nameStr == "Stats")
 		{
-			globals[it.name().toStdString()] = (it.value().toVariant()); // uses to_json QVariant implementation
+			globals[nameStr] = JSContextValue{ctx, jsVal}; // uses to_json JSContextValue implementation
 		}
-	}
+        JS_FreeValue(ctx, jsVal);
+	});
 	return globals;
 }
 
-bool quickjs_scripting_instance::debugEvaluateCommand(const std::string &_text)
+bool quickjs_scripting_instance::debugEvaluateCommand(const std::string &text)
 {
-	QString text = QString::fromStdString(_text);
-	QScriptSyntaxCheckResult syntax = QScriptEngine::checkSyntax(text);
-	if (syntax.state() != QScriptSyntaxCheckResult::Valid)
+	JSValue compiledScriptObj = JS_Eval(ctx, text.c_str(), text.length(), "<debug_evaluate_command>", JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_COMPILE_ONLY);
+	if (JS_IsException(compiledScriptObj))
 	{
+		// compilation error / syntax error
+		std::string errorAsString = QuickJS_DumpError(ctx);
 		debug(LOG_ERROR, "Syntax error in %s: %s",
-		      text.toUtf8().constData(), syntax.errorMessage().toUtf8().constData());
+			  text.c_str(), errorAsString.c_str());
+		JS_FreeValue(ctx, compiledScriptObj);
+		compiledScriptObj = JS_UNINITIALIZED;
 		return false;
 	}
-	QScriptValue result = engine->evaluate(text);
-	if (engine->hasUncaughtException())
+	JSValue result = JS_EvalFunction(ctx, compiledScriptObj);
+	compiledScriptObj = JS_UNINITIALIZED;
+	if (JS_IsException(result))
 	{
+		// compilation error / syntax error
+		std::string errorAsString = QuickJS_DumpError(ctx);
 		debug(LOG_ERROR, "Uncaught exception in %s: %s",
-		      text.toUtf8().constData(), result.toString().toUtf8().constData());
+			  text.c_str(), errorAsString.c_str());
+		JS_FreeValue(ctx, result);
 		return false;
 	}
-	console("%s", result.toString().toUtf8().constData());
+	std::string resultStr = JSValueToStdString(ctx, result);
+	console("%s", resultStr.c_str());
+	JS_FreeValue(ctx, result);
 	return true;
 }
 
 void quickjs_scripting_instance::updateGameTime(uint32_t gameTime)
 {
-	engine->globalObject().setProperty("gameTime", gameTime, QScriptValue::ReadOnly | QScriptValue::Undeletable);
+	int ret = JS_DefinePropertyValueStr(ctx, global_obj, "gameTime", JS_NewUint32(ctx, gameTime), JS_PROP_WRITABLE | JS_PROP_ENUMERABLE);
+	ASSERT(ret >= 1, "Failed to update gameTime");
+	debug(LOG_SCRIPT, "gameTime: %u", QuickJS_GetUint32(ctx, global_obj, "gameTime"));
 }
 
 void quickjs_scripting_instance::updateGroupSizes(int groupId, int size)
 {
-	QScriptValue groupMembers = engine->globalObject().property("groupSizes");
-	groupMembers.setProperty(groupId, size, QScriptValue::ReadOnly);
+	JSValue groupMembersObj = JS_GetPropertyStr(ctx, global_obj, "groupSizes");
+	JS_DefinePropertyValueStr(ctx, groupMembersObj, std::to_string(groupId).c_str(), JS_NewInt32(ctx, size), JS_PROP_C_W_E);
+
+//	nlohmann::json details = nlohmann::json::object();
+//	QuickJS_EnumerateObjectProperties(ctx, groupMembersObj, [this, groupMembersObj, &details](const char *key, JSAtom &atom) {
+//		JSValue jsVal = JS_GetProperty(ctx, groupMembersObj, atom);
+//		std::string nameStr = key;
+//		details[nameStr] = JSContextValue{ctx, jsVal}; // uses to_json JSContextValue implementation
+//		JS_FreeValue(ctx, jsVal);
+//	});
+//	debug(LOG_SCRIPT, "groupSizes: %s", details.dump().c_str());
+
+//	JS_DefinePropertyValueStr(ctx, global_obj, "groupSizes", groupMembersObj, 0);
+	JS_FreeValue(ctx, groupMembersObj);
 }
 
 void quickjs_scripting_instance::setSpecifiedGlobalVariables(const nlohmann::json& variables, wzapi::GlobalVariableFlags flags /*= wzapi::GlobalVariableFlags::ReadOnly | wzapi::GlobalVariableFlags::DoNotSave*/)
@@ -2799,24 +3063,28 @@ void quickjs_scripting_instance::setSpecifiedGlobalVariables(const nlohmann::jso
 		ASSERT(false, "setSpecifiedGlobalVariables expects a JSON object");
 		return;
 	}
-	QScriptValue::PropertyFlags propertyFlags = QScriptValue::Undeletable;
-	if ((flags & wzapi::GlobalVariableFlags::ReadOnly) == wzapi::GlobalVariableFlags::ReadOnly)
-	{
-		propertyFlags |= QScriptValue::ReadOnly;
-	}
+	int propertyFlags = toQuickJSPropertyFlags(flags) | JS_PROP_ENUMERABLE;
 	bool markGlobalAsInternal = (flags & wzapi::GlobalVariableFlags::DoNotSave) == wzapi::GlobalVariableFlags::DoNotSave;
 	for (auto it : variables.items())
 	{
 		ASSERT(!it.key().empty(), "Empty key");
-		engine->globalObject().setProperty(
-			QString::fromStdString(it.key()),
-			mapJsonToQScriptValue(engine, it.value(), propertyFlags),
-			propertyFlags
-		);
+		JS_DefinePropertyValueStr(ctx, global_obj, it.key().c_str(), mapJsonToQuickJSValue(ctx, it.value(), propertyFlags), propertyFlags);
 		if (markGlobalAsInternal)
 		{
 			internalNamespace.insert(it.key());
 		}
+	}
+}
+
+void quickjs_scripting_instance::setSpecifiedGlobalVariable(const std::string& name, const nlohmann::json& value, wzapi::GlobalVariableFlags flags /*= wzapi::GlobalVariableFlags::ReadOnly | wzapi::GlobalVariableFlags::DoNotSave*/)
+{
+	ASSERT(!name.empty(), "Empty key");
+	int propertyFlags = toQuickJSPropertyFlags(flags) | JS_PROP_ENUMERABLE;
+	bool markGlobalAsInternal = (flags & wzapi::GlobalVariableFlags::DoNotSave) == wzapi::GlobalVariableFlags::DoNotSave;
+	JS_DefinePropertyValueStr(ctx, global_obj, name.c_str(), mapJsonToQuickJSValue(ctx, value, propertyFlags), propertyFlags);
+	if (markGlobalAsInternal)
+	{
+		internalNamespace.insert(name);
 	}
 }
 
@@ -2880,14 +3148,14 @@ IMPL_EVENT_HANDLER(eventChat, int, int, const char *)
 IMPL_EVENT_HANDLER(eventBeacon, int, int, int, int, const char *)
 IMPL_EVENT_HANDLER(eventBeaconRemoved, int, int)
 IMPL_EVENT_HANDLER(eventGroupLoss, const BASE_OBJECT *, int, int)
-bool qtscript_scripting_instance::handle_eventArea(const std::string& label, const DROID *psDroid)
+bool quickjs_scripting_instance::handle_eventArea(const std::string& label, const DROID *psDroid)
 {
-	QScriptValueList args;
-	args += convDroid(psDroid, engine);
-	QString funcname = QString("eventArea" + QString::fromStdString(label));
-	debug(LOG_SCRIPT, "Triggering %s for %s", funcname.toUtf8().constData(),
-		  engine->globalObject().property("scriptName").toString().toUtf8().constData());
-	callFunction(engine, funcname, args);
+	std::vector<JSValue> args;
+	args.push_back(convDroid(psDroid, ctx));
+	std::string funcname = std::string("eventArea") + label;
+	debug(LOG_SCRIPT, "Triggering %s for %s", funcname.c_str(), scriptName().c_str());
+	callFunction(ctx, funcname, args);
+	std::for_each(args.begin(), args.end(), [this](JSValue& val) { JS_FreeValue(ctx, val); });
 	return true;
 }
 IMPL_EVENT_HANDLER(eventDesignCreated, const DROID_TEMPLATE *)
@@ -2908,21 +3176,7 @@ IMPL_EVENT_HANDLER(eventKeyPressed, int, int)
 //--
 //-- Return information about a particular weapon type. DEPRECATED - query the Stats object instead. (3.2+ only)
 //--
-static QScriptValue js_getWeaponInfo(QScriptContext *context, QScriptEngine *engine)
-{
-	QString id = context->argument(0).toString();
-	int idx = getCompFromName(COMP_WEAPON, QStringToWzString(id));
-	SCRIPT_ASSERT(context, idx >= 0, "No such weapon: %s", id.toUtf8().constData());
-	WEAPON_STATS *psStats = asWeaponStats + idx;
-	QScriptValue info = engine->newObject();
-	info.setProperty("id", id);
-	info.setProperty("name", WzStringToQScriptValue(engine, psStats->name));
-	info.setProperty("impactClass", psStats->weaponClass == WC_KINETIC ? "KINETIC" : "HEAT");
-	info.setProperty("damage", psStats->base.damage);
-	info.setProperty("firePause", psStats->base.firePause);
-	info.setProperty("fireOnMove", psStats->fireOnMove);
-	return QScriptValue(info);
-}
+IMPL_JS_FUNC(getWeaponInfo, wzapi::getWeaponInfo)
 
 //-- ## resetLabel(label[, filter])
 //--
@@ -2937,40 +3191,28 @@ static QScriptValue js_getWeaponInfo(QScriptContext *context, QScriptEngine *eng
 //-- be a specific player to watch for, or ALL_PLAYERS by default.
 //-- This is a fast operation of O(log n) algorithmic complexity. DEPRECATED - use resetLabel instead. (3.2+ only)
 //--
-static QScriptValue js_resetLabel(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(scripting_engine::resetLabel, context, engine);
-}
+IMPL_JS_FUNC(resetLabel, scripting_engine::resetLabel)
 
 //-- ## enumLabels([filter])
 //--
 //-- Returns a string list of labels that exist for this map. The optional filter
 //-- parameter can be used to only return labels of one specific type. (3.2+ only)
 //--
-static QScriptValue js_enumLabels(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(scripting_engine::enumLabels, context, engine);
-}
+IMPL_JS_FUNC(enumLabels, scripting_engine::enumLabels)
 
 //-- ## addLabel(object, label)
 //--
 //-- Add a label to a game object. If there already is a label by that name, it is overwritten.
 //-- This is a fast operation of O(log n) algorithmic complexity. (3.2+ only)
 //--
-static QScriptValue js_addLabel(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(scripting_engine::addLabel, context, engine);
-}
+IMPL_JS_FUNC(addLabel, scripting_engine::addLabel)
 
 //-- ## removeLabel(label)
 //--
 //-- Remove a label from the game. Returns the number of labels removed, which should normally be
 //-- either 1 (label found) or 0 (label not found). (3.2+ only)
 //--
-static QScriptValue js_removeLabel(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(scripting_engine::removeLabel, context, engine);
-}
+IMPL_JS_FUNC(removeLabel, scripting_engine::removeLabel)
 
 //-- ## getLabel(object)
 //--
@@ -2978,10 +3220,7 @@ static QScriptValue js_removeLabel(QScriptContext *context, QScriptEngine *engin
 //-- label found will be returned. If the object has no labels, null is returned.
 //-- This is a relatively slow operation of O(n) algorithmic complexity. (3.2+ only)
 //--
-static QScriptValue js_getLabel(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(scripting_engine::getLabelJS, context, engine);
-}
+IMPL_JS_FUNC(getLabel, scripting_engine::getLabelJS)
 
 //-- ## getObject(label | x, y | type, player, id)
 //--
@@ -3002,10 +3241,7 @@ static QScriptValue js_getLabel(QScriptContext *context, QScriptEngine *engine)
 //-- its ID, in which case you need to pass its type, owner and unique object ID. This is an
 //-- operation of O(n) algorithmic complexity. (3.2+ only)
 //--
-static QScriptValue js_getObject(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(scripting_engine::getObject, context, engine);
-}
+IMPL_JS_FUNC(getObject, scripting_engine::getObject)
 
 //-- ## enumBlips(player)
 //--
@@ -3013,53 +3249,36 @@ static QScriptValue js_getObject(QScriptContext *context, QScriptEngine *engine)
 //-- can see. This includes sensors revealed by radar detectors, as well as ECM jammers.
 //-- It does not include units going out of view.
 //--
-static QScriptValue js_enumBlips(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::enumBlips, context, engine);
-}
+IMPL_JS_FUNC(enumBlips, wzapi::enumBlips)
 
 //-- ## enumSelected()
 //--
 //-- Return an array containing all game objects currently selected by the host player. (3.2+ only)
 //--
-QScriptValue js_enumSelected(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::enumSelected, context, engine);
-}
+IMPL_JS_FUNC(enumSelected, wzapi::enumSelected)
 
 //-- ## enumGateways()
 //--
 //-- Return an array containing all the gateways on the current map. The array contains object with the properties
 //-- x1, y1, x2 and y2. (3.2+ only)
 //--
-static QScriptValue js_enumGateways(QScriptContext *, QScriptEngine *engine)
-{
-	QScriptValue result = engine->newArray(gwNumGateways());
-	int i = 0;
-	for (auto psGateway : gwGetGateways())
-	{
-		QScriptValue v = engine->newObject();
-		v.setProperty("x1", psGateway->x1, QScriptValue::ReadOnly);
-		v.setProperty("y1", psGateway->y1, QScriptValue::ReadOnly);
-		v.setProperty("x2", psGateway->x2, QScriptValue::ReadOnly);
-		v.setProperty("y2", psGateway->y2, QScriptValue::ReadOnly);
-		result.setProperty(i++, v);
-	}
-	return result;
-}
+IMPL_JS_FUNC(enumGateways, wzapi::enumGateways)
 
 //-- ## enumTemplates(player)
 //--
 //-- Return an array containing all the buildable templates for the given player. (3.2+ only)
 //--
-static QScriptValue js_enumTemplates(QScriptContext *context, QScriptEngine *engine)
+static JSValue js_enumTemplates(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
 {
-	int player = context->argument(0).toInt32();
-	QScriptValue result = engine->newArray(droidTemplates[player].size());
-	int count = 0;
+	SCRIPT_ASSERT(ctx, argc == 1, "Must have one parameter");
+	SCRIPT_ASSERT(ctx, JS_IsNumber(argv[0]), "Supplied parameter must be a player number");
+	int player = JSValueToInt32(ctx, argv[0]);
+
+	JSValue result = JS_NewArray(ctx); //engine->newArray(droidTemplates[player].size());
+	uint32_t count = 0;
 	for (auto &keyvaluepair : droidTemplates[player])
 	{
-		result.setProperty(count, convTemplate(keyvaluepair.second, engine));
+		JS_DefinePropertyValueUint32(ctx, result, count, convTemplate(keyvaluepair.second, ctx), 0); // TODO: Check return value?
 		count++;
 	}
 	return result;
@@ -3069,40 +3288,28 @@ static QScriptValue js_enumTemplates(QScriptContext *context, QScriptEngine *eng
 //--
 //-- Return an array containing all the members of a given group.
 //--
-static QScriptValue js_enumGroup(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(scripting_engine::enumGroup, context, engine);
-}
+IMPL_JS_FUNC(enumGroup, scripting_engine::enumGroup)
 
 //-- ## newGroup()
 //--
 //-- Allocate a new group. Returns its numerical ID. Deprecated since 3.2 - you should now
 //-- use your own number scheme for groups.
 //--
-static QScriptValue js_newGroup(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(scripting_engine::newGroup, context, engine);
-}
+IMPL_JS_FUNC(newGroup, scripting_engine::newGroup)
 
 //-- ## activateStructure(structure, [target[, ability]])
 //--
 //-- Activate a special ability on a structure. Currently only works on the lassat.
 //-- The lassat needs a target.
 //--
-static QScriptValue js_activateStructure(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::activateStructure, context, engine);
-}
+IMPL_JS_FUNC(activateStructure, wzapi::activateStructure)
 
 //-- ## findResearch(research, [player])
 //--
 //-- Return list of research items remaining to be researched for the given research item. (3.2+ only)
 //-- (Optional second argument 3.2.3+ only)
 //--
-static QScriptValue js_findResearch(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::findResearch, context, engine);
-}
+IMPL_JS_FUNC(findResearch, wzapi::findResearch)
 
 //-- ## pursueResearch(lab, research)
 //--
@@ -3112,49 +3319,34 @@ static QScriptValue js_findResearch(QScriptContext *context, QScriptEngine *engi
 //-- The second parameter may also be an array of such strings. The first technology that has
 //-- not yet been researched in that list will be pursued.
 //--
-static QScriptValue js_pursueResearch(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::pursueResearch, context, engine);
-}
+IMPL_JS_FUNC(pursueResearch, wzapi::pursueResearch)
 
 //-- ## getResearch(research[, player])
 //--
 //-- Fetch information about a given technology item, given by a string that matches
 //-- its definition in "research.json". If not found, returns null.
 //--
-static QScriptValue js_getResearch(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::getResearch, context, engine);
-}
+IMPL_JS_FUNC(getResearch, wzapi::getResearch)
 
 //-- ## enumResearch()
 //--
 //-- Returns an array of all research objects that are currently and immediately available for research.
 //--
-static QScriptValue js_enumResearch(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::enumResearch, context, engine);
-}
+IMPL_JS_FUNC(enumResearch, wzapi::enumResearch)
 
 //-- ## componentAvailable([component type,] component name)
 //--
 //-- Checks whether a given component is available to the current player. The first argument is
 //-- optional and deprecated.
 //--
-static QScriptValue js_componentAvailable(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::componentAvailable, context, engine);
-}
+IMPL_JS_FUNC(componentAvailable, wzapi::componentAvailable)
 
 //-- ## addFeature(name, x, y)
 //--
 //-- Create and place a feature at the given x, y position. Will cause a desync in multiplayer.
 //-- Returns the created game object on success, null otherwise. (3.2+ only)
 //--
-static QScriptValue js_addFeature(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::addFeature, context, engine);
-}
+IMPL_JS_FUNC(addFeature, wzapi::addFeature)
 
 //-- ## addDroid(player, x, y, name, body, propulsion, reserved, reserved, turrets...)
 //--
@@ -3164,10 +3356,7 @@ static QScriptValue js_addFeature(QScriptContext *context, QScriptEngine *engine
 //-- reserved parameters is recommended. In 3.2+ only, to create droids in off-world (campaign mission list),
 //-- pass -1 as both x and y.
 //--
-static QScriptValue js_addDroid(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::addDroid, context, engine);
-}
+IMPL_JS_FUNC(addDroid, wzapi::addDroid)
 
 //-- ## addDroidToTransporter(transporter, droid)
 //--
@@ -3175,10 +3364,7 @@ static QScriptValue js_addDroid(QScriptContext *context, QScriptEngine *engine)
 //-- into a transporter, which is also currently on the campaign off-world mission list.
 //-- (3.2+ only)
 //--
-static QScriptValue js_addDroidToTransporter(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::addDroidToTransporter, context, engine);
-}
+IMPL_JS_FUNC(addDroidToTransporter, wzapi::addDroidToTransporter)
 
 //-- ## makeTemplate(player, name, body, propulsion, reserved, turrets...)
 //--
@@ -3186,10 +3372,7 @@ static QScriptValue js_addDroidToTransporter(QScriptContext *context, QScriptEng
 //-- of droids before putting them into production, for instance. Will fail and return null if template
 //-- could not possibly be built using current research. (3.2+ only)
 //--
-static QScriptValue js_makeTemplate(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::makeTemplate, context, engine);
-}
+IMPL_JS_FUNC(makeTemplate, wzapi::makeTemplate)
 
 //-- ## buildDroid(factory, name, body, propulsion, reserved, reserved, turrets...)
 //--
@@ -3200,10 +3383,7 @@ static QScriptValue js_makeTemplate(QScriptContext *context, QScriptEngine *engi
 //-- It is now unused and in 3.2+ should be passed "", while in 3.1 it should be the
 //-- droid type to be built. Returns a boolean that is true if production was started.
 //--
-static QScriptValue js_buildDroid(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::buildDroid, context, engine);
-}
+IMPL_JS_FUNC(buildDroid, wzapi::buildDroid)
 
 //-- ## enumStruct([player[, structure type[, looking player]]])
 //--
@@ -3214,10 +3394,7 @@ static QScriptValue js_buildDroid(QScriptContext *context, QScriptEngine *engine
 //-- third parameter can be used to filter by visibility, the default is not
 //-- to filter.
 //--
-static QScriptValue js_enumStruct(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::enumStruct, context, engine);
-}
+IMPL_JS_FUNC(enumStruct, wzapi::enumStruct)
 
 //-- ## enumStructOffWorld([player[, structure type[, looking player]]])
 //--
@@ -3228,10 +3405,7 @@ static QScriptValue js_enumStruct(QScriptContext *context, QScriptEngine *engine
 //-- The third parameter can be used to filter by visibility, the default is not
 //-- to filter.
 //--
-static QScriptValue js_enumStructOffWorld(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::enumStructOffWorld, context, engine);
-}
+IMPL_JS_FUNC(enumStructOffWorld, wzapi::enumStructOffWorld)
 
 //-- ## enumFeature(player[, name])
 //--
@@ -3239,19 +3413,13 @@ static QScriptValue js_enumStructOffWorld(QScriptContext *context, QScriptEngine
 //-- If player is ```ALL_PLAYERS```, it will return all features irrespective of visibility to any player. If
 //-- name is empty, it will return any feature.
 //--
-static QScriptValue js_enumFeature(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::enumFeature, context, engine);
-}
+IMPL_JS_FUNC(enumFeature, wzapi::enumFeature)
 
 //-- ## enumCargo(transport droid)
 //--
 //-- Returns an array of droid objects inside given transport. (3.2+ only)
 //--
-static QScriptValue js_enumCargo(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::enumCargo, context, engine);
-}
+IMPL_JS_FUNC(enumCargo, wzapi::enumCargo)
 
 //-- ## enumDroid([player[, droid type[, looking player]]])
 //--
@@ -3260,270 +3428,152 @@ static QScriptValue js_enumCargo(QScriptContext *context, QScriptEngine *engine)
 //-- is the name of the droid type. The third parameter can be used to filter by
 //-- visibility - the default is not to filter.
 //--
-static QScriptValue js_enumDroid(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::enumDroid, context, engine);
-}
-
-void dumpScriptLog(const WzString &scriptName, int me, const std::string &info)
-{
-	WzString path = PHYSFS_getWriteDir();
-	path += WzString("/logs/") + scriptName + "." + WzString::number(me) + ".log";
-	FILE *fp = fopen(path.toUtf8().c_str(), "a"); // TODO: This will fail for unicode paths on Windows. Should use PHYSFS to open / write files
-	if (fp)
-	{
-		fputs(info.c_str(), fp);
-		fclose(fp);
-	}
-}
+IMPL_JS_FUNC(enumDroid, wzapi::enumDroid)
 
 //-- ## dump(string...)
 //--
 //-- Output text to a debug file. (3.2+ only)
 //--
-static QScriptValue js_dump(QScriptContext *context, QScriptEngine *engine)
-{
-	std::string result;
-	for (int i = 0; i < context->argumentCount(); ++i)
-	{
-		if (i != 0)
-		{
-			result.append(" ");
-		}
-		QString qStr = context->argument(i).toString();
-		if (context->state() == QScriptContext::ExceptionState)
-		{
-			break;
-		}
-		result.append(qStr.toStdString());
-	}
-	result += "\n";
-
-	WzString scriptName = QStringToWzString(engine->globalObject().property("scriptName").toString());
-	int me = engine->globalObject().property("me").toInt32();
-	dumpScriptLog(scriptName, me, result);
-	return QScriptValue();
-}
+IMPL_JS_FUNC(dump, wzapi::dump)
 
 //-- ## debug(string...)
 //--
 //-- Output text to the command line.
 //--
-static QScriptValue js_debug(QScriptContext *context, QScriptEngine *engine)
-{
-	QString result;
-	for (int i = 0; i < context->argumentCount(); ++i)
-	{
-		if (i != 0)
-		{
-			result.append(QLatin1String(" "));
-		}
-		QString s = context->argument(i).toString();
-		if (context->state() == QScriptContext::ExceptionState)
-		{
-			break;
-		}
-		result.append(s);
-	}
-	qWarning("%s", result.toUtf8().constData());
-	return QScriptValue();
-}
+IMPL_JS_FUNC(debug, wzapi::debugOutputStrings)
 
 //-- ## pickStructLocation(droid, structure type, x, y)
 //--
 //-- Pick a location for constructing a certain type of building near some given position.
 //-- Returns an object containing "type" POSITION, and "x" and "y" values, if successful.
 //--
-static QScriptValue js_pickStructLocation(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::pickStructLocation, context, engine);
-}
+IMPL_JS_FUNC(pickStructLocation, wzapi::pickStructLocation)
 
 //-- ## structureIdle(structure)
 //--
 //-- Is given structure idle?
 //--
-static QScriptValue js_structureIdle(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::structureIdle, context, engine);
-}
+IMPL_JS_FUNC(structureIdle, wzapi::structureIdle)
 
 //-- ## removeStruct(structure)
 //--
 //-- Immediately remove the given structure from the map. Returns a boolean that is true on success.
 //-- No special effects are applied. Deprecated since 3.2.
 //--
-static QScriptValue js_removeStruct(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::removeStruct, context, engine);
-}
+IMPL_JS_FUNC(removeStruct, wzapi::removeStruct)
 
 //-- ## removeObject(game object[, special effects?])
 //--
 //-- Remove the given game object with special effects. Returns a boolean that is true on success.
 //-- A second, optional boolean parameter specifies whether special effects are to be applied. (3.2+ only)
 //--
-static QScriptValue js_removeObject(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::removeObject, context, engine);
-}
+IMPL_JS_FUNC(removeObject, wzapi::removeObject)
 
 //-- ## clearConsole()
 //--
 //-- Clear the console. (3.3+ only)
 //--
-static QScriptValue js_clearConsole(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::clearConsole, context, engine);
-}
+IMPL_JS_FUNC(clearConsole, wzapi::clearConsole)
 
 //-- ## console(strings...)
 //--
 //-- Print text to the player console.
 //--
 // TODO, should cover scrShowConsoleText, scrAddConsoleText, scrTagConsoleText and scrConsole
-static QScriptValue js_console(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::console, context, engine);
-}
+IMPL_JS_FUNC(console, wzapi::console)
 
 //-- ## groupAddArea(group, x1, y1, x2, y2)
 //--
 //-- Add any droids inside the given area to the given group. (3.2+ only)
 //--
-static QScriptValue js_groupAddArea(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(scripting_engine::groupAddArea, context, engine);
-}
+IMPL_JS_FUNC(groupAddArea, scripting_engine::groupAddArea)
 
 //-- ## groupAddDroid(group, droid)
 //--
 //-- Add given droid to given group. Deprecated since 3.2 - use groupAdd() instead.
 //--
-static QScriptValue js_groupAddDroid(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(scripting_engine::groupAddDroid, context, engine);
-}
+IMPL_JS_FUNC(groupAddDroid, scripting_engine::groupAddDroid)
 
 //-- ## groupAdd(group, object)
 //--
 //-- Add given game object to the given group.
 //--
-static QScriptValue js_groupAdd(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(scripting_engine::groupAdd, context, engine);
-}
+IMPL_JS_FUNC(groupAdd, scripting_engine::groupAdd)
 
 //-- ## distBetweenTwoPoints(x1, y1, x2, y2)
 //--
 //-- Return distance between two points.
 //--
-static QScriptValue js_distBetweenTwoPoints(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::distBetweenTwoPoints, context, engine);
-}
+IMPL_JS_FUNC(distBetweenTwoPoints, wzapi::distBetweenTwoPoints)
 
 //-- ## groupSize(group)
 //--
 //-- Return the number of droids currently in the given group. Note that you can use groupSizes[] instead.
 //--
-static QScriptValue js_groupSize(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(scripting_engine::groupSize, context, engine);
-}
+IMPL_JS_FUNC(groupSize, scripting_engine::groupSize)
 
 //-- ## droidCanReach(droid, x, y)
 //--
 //-- Return whether or not the given droid could possibly drive to the given position. Does
 //-- not take player built blockades into account.
 //--
-static QScriptValue js_droidCanReach(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::droidCanReach, context, engine);
-}
+IMPL_JS_FUNC(droidCanReach, wzapi::droidCanReach)
 
 //-- ## propulsionCanReach(propulsion, x1, y1, x2, y2)
 //--
 //-- Return true if a droid with a given propulsion is able to travel from (x1, y1) to (x2, y2).
 //-- Does not take player built blockades into account. (3.2+ only)
 //--
-static QScriptValue js_propulsionCanReach(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::propulsionCanReach, context, engine);
-}
+IMPL_JS_FUNC(propulsionCanReach, wzapi::propulsionCanReach)
 
 //-- ## terrainType(x, y)
 //--
 //-- Returns tile type of a given map tile, such as TER_WATER for water tiles or TER_CLIFFFACE for cliffs.
 //-- Tile types regulate which units may pass through this tile. (3.2+ only)
 //--
-static QScriptValue js_terrainType(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::terrainType, context, engine);
-}
+IMPL_JS_FUNC(terrainType, wzapi::terrainType)
 
 //-- ## orderDroid(droid, order)
 //--
 //-- Give a droid an order to do something. (3.2+ only)
 //--
-static QScriptValue js_orderDroid(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::orderDroid, context, engine);
-}
+IMPL_JS_FUNC(orderDroid, wzapi::orderDroid)
 
 //-- ## orderDroidObj(droid, order, object)
 //--
 //-- Give a droid an order to do something to something.
 //--
-static QScriptValue js_orderDroidObj(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::orderDroidObj, context, engine);
-}
+IMPL_JS_FUNC(orderDroidObj, wzapi::orderDroidObj)
 
 //-- ## orderDroidBuild(droid, order, structure type, x, y[, direction])
 //--
 //-- Give a droid an order to build something at the given position. Returns true if allowed.
 //--
-static QScriptValue js_orderDroidBuild(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::orderDroidBuild, context, engine);
-}
+IMPL_JS_FUNC(orderDroidBuild, wzapi::orderDroidBuild)
 
 //-- ## orderDroidLoc(droid, order, x, y)
 //--
 //-- Give a droid an order to do something at the given location.
 //--
-static QScriptValue js_orderDroidLoc(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::orderDroidLoc, context, engine);
-}
+IMPL_JS_FUNC(orderDroidLoc, wzapi::orderDroidLoc)
 
 //-- ## setMissionTime(time)
 //--
 //-- Set mission countdown in seconds.
 //--
-static QScriptValue js_setMissionTime(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setMissionTime, context, engine);
-}
+IMPL_JS_FUNC(setMissionTime, wzapi::setMissionTime)
 
 //-- ## getMissionTime()
 //--
 //-- Get time remaining on mission countdown in seconds. (3.2+ only)
 //--
-static QScriptValue js_getMissionTime(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::getMissionTime, context, engine);
-}
+IMPL_JS_FUNC(getMissionTime, wzapi::getMissionTime)
 
 //-- ## setTransporterExit(x, y, player)
 //--
 //-- Set the exit position for the mission transporter. (3.2+ only)
 //--
-static QScriptValue js_setTransporterExit(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setTransporterExit, context, engine);
-}
+IMPL_JS_FUNC(setTransporterExit, wzapi::setTransporterExit)
 
 //-- ## startTransporterEntry(x, y, player)
 //--
@@ -3532,10 +3582,7 @@ static QScriptValue js_setTransporterExit(QScriptContext *context, QScriptEngine
 //-- The transport needs to be set up with the mission droids, and the first transport
 //-- found will be used. (3.2+ only)
 //--
-static QScriptValue js_startTransporterEntry(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::startTransporterEntry, context, engine);
-}
+IMPL_JS_FUNC(startTransporterEntry, wzapi::startTransporterEntry)
 
 //-- ## useSafetyTransport(flag)
 //--
@@ -3543,20 +3590,14 @@ static QScriptValue js_startTransporterEntry(QScriptContext *context, QScriptEng
 //-- setReinforcementTime() is be used to hide it before coming back after the set time
 //-- which is handled by the campaign library in the victory data section (3.3+ only).
 //--
-static QScriptValue js_useSafetyTransport(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::useSafetyTransport, context, engine);
-}
+IMPL_JS_FUNC(useSafetyTransport, wzapi::useSafetyTransport)
 
 //-- ## restoreLimboMissionData()
 //--
 //-- Swap mission type and bring back units previously stored at the start
 //-- of the mission (see cam3-c mission). (3.3+ only).
 //--
-static QScriptValue js_restoreLimboMissionData(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::restoreLimboMissionData, context, engine);
-}
+IMPL_JS_FUNC(restoreLimboMissionData, wzapi::restoreLimboMissionData)
 
 //-- ## setReinforcementTime(time)
 //--
@@ -3566,186 +3607,124 @@ static QScriptValue js_restoreLimboMissionData(QScriptContext *context, QScriptE
 //-- is set to "--:--" and reinforcements are suppressed until this function is called
 //-- again with a regular time value.
 //--
-static QScriptValue js_setReinforcementTime(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setReinforcementTime, context, engine);
-}
+IMPL_JS_FUNC(setReinforcementTime, wzapi::setReinforcementTime)
 
 //-- ## setStructureLimits(structure type, limit[, player])
 //--
 //-- Set build limits for a structure.
 //--
-static QScriptValue js_setStructureLimits(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setStructureLimits, context, engine);
-}
+IMPL_JS_FUNC(setStructureLimits, wzapi::setStructureLimits)
 
 //-- ## centreView(x, y)
 //--
 //-- Center the player's camera at the given position.
 //--
-static QScriptValue js_centreView(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::centreView, context, engine);
-}
+IMPL_JS_FUNC(centreView, wzapi::centreView)
 
 //-- ## hackPlayIngameAudio()
 //--
 //-- (3.3+ only)
 //--
-static QScriptValue js_hackPlayIngameAudio(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::hackPlayIngameAudio, context, engine);
-}
+IMPL_JS_FUNC(hackPlayIngameAudio, wzapi::hackPlayIngameAudio)
 
 //-- ## hackStopIngameAudio()
 //--
 //-- (3.3+ only)
 //--
-static QScriptValue js_hackStopIngameAudio(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::hackStopIngameAudio, context, engine);
-}
+IMPL_JS_FUNC(hackStopIngameAudio, wzapi::hackStopIngameAudio)
 
 //-- ## playSound(sound[, x, y, z])
 //--
 //-- Play a sound, optionally at a location.
 //--
-static QScriptValue js_playSound(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::playSound, context, engine);
-}
+IMPL_JS_FUNC(playSound, wzapi::playSound)
 
 //-- ## gameOverMessage(won, showBackDrop, showOutro)
 //--
 //-- End game in victory or defeat.
 //--
-static QScriptValue js_gameOverMessage(QScriptContext *context, QScriptEngine *engine)
-{
-	QScriptValue retVal = wrap_(wzapi::gameOverMessage, context, engine);
-	jsDebugMessageUpdate();
-	return retVal;
-}
+IMPL_JS_FUNC_DEBUGMSGUPDATE(gameOverMessage, wzapi::gameOverMessage)
 
 //-- ## completeResearch(research[, player [, forceResearch]])
 //--
 //-- Finish a research for the given player.
 //-- forceResearch will allow a research topic to be researched again. 3.3+
 //--
-static QScriptValue js_completeResearch(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::completeResearch, context, engine);
-}
+IMPL_JS_FUNC(completeResearch, wzapi::completeResearch)
 
 //-- ## completeAllResearch([player])
 //--
 //-- Finish all researches for the given player.
 //--
-static QScriptValue js_completeAllResearch(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::completeAllResearch, context, engine);
-}
+IMPL_JS_FUNC(completeAllResearch, wzapi::completeAllResearch)
 
 //-- ## enableResearch(research[, player])
 //--
 //-- Enable a research for the given player, allowing it to be researched.
 //--
-static QScriptValue js_enableResearch(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::enableResearch, context, engine);
-}
+IMPL_JS_FUNC(enableResearch, wzapi::enableResearch)
 
 //-- ## extraPowerTime(time, player)
 //--
 //-- Increase a player's power as if that player had power income equal to current income
 //-- over the given amount of extra time. (3.2+ only)
 //--
-static QScriptValue js_extraPowerTime(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::extraPowerTime, context, engine);
-}
+IMPL_JS_FUNC(extraPowerTime, wzapi::extraPowerTime)
 
 //-- ## setPower(power[, player])
 //--
 //-- Set a player's power directly. (Do not use this in an AI script.)
 //--
-static QScriptValue js_setPower(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setPower, context, engine);
-}
+IMPL_JS_FUNC(setPower, wzapi::setPower)
 
 //-- ## setPowerModifier(power[, player])
 //--
 //-- Set a player's power modifier percentage. (Do not use this in an AI script.) (3.2+ only)
 //--
-static QScriptValue js_setPowerModifier(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setPowerModifier, context, engine);
-}
+IMPL_JS_FUNC(setPowerModifier, wzapi::setPowerModifier)
 
 //-- ## setPowerStorageMaximum(maximum[, player])
 //--
 //-- Set a player's power storage maximum. (Do not use this in an AI script.) (3.2+ only)
 //--
-static QScriptValue js_setPowerStorageMaximum(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setPowerStorageMaximum, context, engine);
-}
+IMPL_JS_FUNC(setPowerStorageMaximum, wzapi::setPowerStorageMaximum)
 
 //-- ## enableStructure(structure type[, player])
 //--
 //-- The given structure type is made available to the given player. It will appear in the
 //-- player's build list.
 //--
-static QScriptValue js_enableStructure(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::enableStructure, context, engine);
-}
+IMPL_JS_FUNC(enableStructure, wzapi::enableStructure)
 
 //-- ## setTutorialMode(bool)
 //--
 //-- Sets a number of restrictions appropriate for tutorial if set to true.
 //--
-static QScriptValue js_setTutorialMode(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setTutorialMode, context, engine);
-}
+IMPL_JS_FUNC(setTutorialMode, wzapi::setTutorialMode)
 
 //-- ## setMiniMap(bool)
 //--
 //-- Turns visible minimap on or off in the GUI.
 //--
-static QScriptValue js_setMiniMap(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setMiniMap, context, engine);
-}
+IMPL_JS_FUNC(setMiniMap, wzapi::setMiniMap)
 
 //-- ## setDesign(bool)
 //--
 //-- Whether to allow player to design stuff.
 //--
-static QScriptValue js_setDesign(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setDesign, context, engine);
-}
+IMPL_JS_FUNC(setDesign, wzapi::setDesign)
 
 //-- ## enableTemplate(template name)
 //--
 //-- Enable a specific template (even if design is disabled).
 //--
-static QScriptValue js_enableTemplate(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::enableTemplate, context, engine);
-}
+IMPL_JS_FUNC(enableTemplate, wzapi::enableTemplate)
 
 //-- ## removeTemplate(template name)
 //--
 //-- Remove a template.
 //--
-static QScriptValue js_removeTemplate(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::removeTemplate, context, engine);
-}
+IMPL_JS_FUNC(removeTemplate, wzapi::removeTemplate)
 
 //-- ## setReticuleButton(id, tooltip, filename, filenameHigh, callback)
 //--
@@ -3754,200 +3733,135 @@ static QScriptValue js_removeTemplate(QScriptContext *context, QScriptEngine *en
 //-- you mouse over the button. Finally, the callback is which scripting function to call. Hide and show the user interface
 //-- for such changes to take effect. (3.2+ only)
 //--
-static QScriptValue js_setReticuleButton(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setReticuleButton, context, engine);
-}
+IMPL_JS_FUNC(setReticuleButton, wzapi::setReticuleButton)
 
 //-- ## showReticuleWidget(id)
 //--
 //-- Open the reticule menu widget. (3.3+ only)
 //--
-static QScriptValue js_showReticuleWidget(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::showReticuleWidget, context, engine);
-}
+IMPL_JS_FUNC(showReticuleWidget, wzapi::showReticuleWidget)
 
 //-- ## setReticuleFlash(id, flash)
 //--
 //-- Set reticule flash on or off. (3.2.3+ only)
 //--
-static QScriptValue js_setReticuleFlash(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setReticuleFlash, context, engine);
-}
+IMPL_JS_FUNC(setReticuleFlash, wzapi::setReticuleFlash)
 
 //-- ## showInterface()
 //--
 //-- Show user interface. (3.2+ only)
 //--
-static QScriptValue js_showInterface(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::showInterface, context, engine);
-}
+IMPL_JS_FUNC(showInterface, wzapi::showInterface)
 
 //-- ## hideInterface()
 //--
 //-- Hide user interface. (3.2+ only)
 //--
-static QScriptValue js_hideInterface(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::hideInterface, context, engine);
-}
+IMPL_JS_FUNC(hideInterface, wzapi::hideInterface)
 
 //-- ## removeReticuleButton(button type)
 //--
 //-- Remove reticule button. DO NOT USE FOR ANYTHING.
 //--
-static QScriptValue js_removeReticuleButton(QScriptContext *context, QScriptEngine *engine)
+static JSValue js_removeReticuleButton(JSContext *, JSValueConst, int, JSValueConst *)
 {
-	return QScriptValue();
+	return JS_UNDEFINED;
 }
 
 //-- ## applyLimitSet()
 //--
 //-- Mix user set limits with script set limits and defaults.
 //--
-static QScriptValue js_applyLimitSet(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::applyLimitSet, context, engine);
-}
+IMPL_JS_FUNC(applyLimitSet, wzapi::applyLimitSet)
 
 //-- ## enableComponent(component, player)
 //--
 //-- The given component is made available for research for the given player.
 //--
-static QScriptValue js_enableComponent(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::enableComponent, context, engine);
-}
+IMPL_JS_FUNC(enableComponent, wzapi::enableComponent)
 
 //-- ## makeComponentAvailable(component, player)
 //--
 //-- The given component is made available to the given player. This means the player can
 //-- actually build designs with it.
 //--
-static QScriptValue js_makeComponentAvailable(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::makeComponentAvailable, context, engine);
-}
+IMPL_JS_FUNC(makeComponentAvailable, wzapi::makeComponentAvailable)
 
 //-- ## allianceExistsBetween(player, player)
 //--
 //-- Returns true if an alliance exists between the two players, or they are the same player.
 //--
-static QScriptValue js_allianceExistsBetween(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::allianceExistsBetween, context, engine);
-}
+IMPL_JS_FUNC(allianceExistsBetween, wzapi::allianceExistsBetween)
 
 //-- ## _(string)
 //--
 //-- Mark string for translation.
 //--
-static QScriptValue js_translate(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::translate, context, engine);
-}
+IMPL_JS_FUNC(translate, wzapi::translate)
 
 //-- ## playerPower(player)
 //--
 //-- Return amount of power held by the given player.
 //--
-static QScriptValue js_playerPower(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::playerPower, context, engine);
-}
+IMPL_JS_FUNC(playerPower, wzapi::playerPower)
 
 //-- ## queuedPower(player)
 //--
 //-- Return amount of power queued up for production by the given player. (3.2+ only)
 //--
-static QScriptValue js_queuedPower(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::queuedPower, context, engine);
-}
+IMPL_JS_FUNC(queuedPower, wzapi::queuedPower)
 
 //-- ## isStructureAvailable(structure type[, player])
 //--
 //-- Returns true if given structure can be built. It checks both research and unit limits.
 //--
-static QScriptValue js_isStructureAvailable(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::isStructureAvailable, context, engine);
-}
+IMPL_JS_FUNC(isStructureAvailable, wzapi::isStructureAvailable)
 
 //-- ## isVTOL(droid)
 //--
 //-- Returns true if given droid is a VTOL (not including transports).
 //--
-static QScriptValue js_isVTOL(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::isVTOL, context, engine);
-}
+IMPL_JS_FUNC(isVTOL, wzapi::isVTOL)
 
 //-- ## hackGetObj(type, player, id)
 //--
 //-- Function to find and return a game object of DROID, FEATURE or STRUCTURE types, if it exists.
 //-- Otherwise, it will return null. This function is deprecated by getObject(). (3.2+ only)
 //--
-static QScriptValue js_hackGetObj(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::hackGetObj, context, engine);
-}
-
-//-- ## hackChangeMe(player)
-//--
-//-- Change the 'me' who owns this script to the given player. This needs to be run
-//-- first in ```eventGameInit``` to make sure things do not get out of control.
-//--
-// This is only intended for use in campaign scripts until we get a way to add
-// scripts for each player. (3.2+ only)
-static QScriptValue js_hackChangeMe(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::hackChangeMe, context, engine);
-}
+IMPL_JS_FUNC(hackGetObj, wzapi::hackGetObj)
 
 //-- ## receiveAllEvents(bool)
 //--
 //-- Make the current script receive all events, even those not meant for 'me'. (3.2+ only)
 //--
-static QScriptValue js_receiveAllEvents(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::receiveAllEvents, context, engine);
-}
+IMPL_JS_FUNC(receiveAllEvents, wzapi::receiveAllEvents)
 
 //-- ## hackAssert(condition, message...)
 //--
 //-- Function to perform unit testing. It will throw a script error and a game assert. (3.2+ only)
 //--
-static QScriptValue js_hackAssert(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::hackAssert, context, engine);
-}
+IMPL_JS_FUNC(hackAssert, wzapi::hackAssert)
 
 //-- ## objFromId(fake game object)
 //--
 //-- Broken function meant to make porting from the old scripting system easier. Do not use for new code.
 //-- Instead, use labels.
 //--
-static QScriptValue js_objFromId(QScriptContext *context, QScriptEngine *engine)
+static JSValue js_objFromId(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
 {
-	QScriptValue droidVal = context->argument(0);
-	int id = droidVal.property("id").toInt32();
+	SCRIPT_ASSERT(ctx, argc == 1, "Must have one parameter");
+	SCRIPT_ASSERT(ctx, JS_IsObject(argv[0]), "Must be a fake game object");
+	int id = QuickJS_GetInt32(ctx, argv[0], "id");
 	BASE_OBJECT *psObj = getBaseObjFromId(id);
-	SCRIPT_ASSERT(context, psObj, "No such object id %d", id);
-	return QScriptValue(convMax(psObj, engine));
+	SCRIPT_ASSERT(ctx, psObj, "No such object id %d", id);
+	return convMax(psObj, ctx);
 }
 
 //-- ## setDroidExperience(droid, experience)
 //--
 //-- Set the amount of experience a droid has. Experience is read using floating point precision.
 //--
-static QScriptValue js_setDroidExperience(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setDroidExperience, context, engine);
-}
+IMPL_JS_FUNC(setDroidExperience, wzapi::setDroidExperience)
 
 //-- ## donateObject(object, to)
 //--
@@ -3955,29 +3869,20 @@ static QScriptValue js_setDroidExperience(QScriptContext *context, QScriptEngine
 //-- donation was successful. May return false if this donation would push the receiving player
 //-- over unit limits. (3.2+ only)
 //--
-static QScriptValue js_donateObject(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::donateObject, context, engine);
-}
+IMPL_JS_FUNC(donateObject, wzapi::donateObject)
 
 //-- ## donatePower(amount, to)
 //--
 //-- Donate power to another player. Returns true. (3.2+ only)
 //--
-static QScriptValue js_donatePower(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::donatePower, context, engine);
-}
+IMPL_JS_FUNC(donatePower, wzapi::donatePower)
 
 //-- ## safeDest(player, x, y)
 //--
 //-- Returns true if given player is safe from hostile fire at the given location, to
 //-- the best of that player's map knowledge. Does not work in campaign at the moment.
 //--
-static QScriptValue js_safeDest(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::safeDest, context, engine);
-}
+IMPL_JS_FUNC(safeDest, wzapi::safeDest)
 
 //-- ## addStructure(structure id, player, x, y)
 //--
@@ -3985,29 +3890,20 @@ static QScriptValue js_safeDest(QScriptContext *context, QScriptEngine *engine)
 //-- Position uses world coordinates, if you want use position based on Map Tiles, then
 //-- use as addStructure(structure id, players, x*128, y*128)
 //--
-static QScriptValue js_addStructure(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::addStructure, context, engine);
-}
+IMPL_JS_FUNC(addStructure, wzapi::addStructure)
 
 //-- ## getStructureLimit(structure type[, player])
 //--
 //-- Returns build limits for a structure.
 //--
-static QScriptValue js_getStructureLimit(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::getStructureLimit, context, engine);
-}
+IMPL_JS_FUNC(getStructureLimit, wzapi::getStructureLimit)
 
 //-- ## countStruct(structure type[, player])
 //--
 //-- Count the number of structures of a given type.
 //-- The player parameter can be a specific player, ALL_PLAYERS, ALLIES or ENEMIES.
 //--
-static QScriptValue js_countStruct(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::countStruct, context, engine);
-}
+IMPL_JS_FUNC(countStruct, wzapi::countStruct)
 
 //-- ## countDroid([droid type[, player]])
 //--
@@ -4015,10 +3911,7 @@ static QScriptValue js_countStruct(QScriptContext *context, QScriptEngine *engin
 //-- DROID_ANY, DROID_COMMAND or DROID_CONSTRUCT.
 //-- The player parameter can be a specific player, ALL_PLAYERS, ALLIES or ENEMIES.
 //--
-static QScriptValue js_countDroid(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::countDroid, context, engine);
-}
+IMPL_JS_FUNC(countDroid, wzapi::countDroid)
 
 //-- ## setNoGoArea(x1, y1, x2, y2, player)
 //--
@@ -4026,52 +3919,31 @@ static QScriptValue js_countDroid(QScriptContext *context, QScriptEngine *engine
 //-- then landing lights are placed. If player is -1, then a limbo landing zone
 //-- is created and limbo droids placed.
 //--
-static QScriptValue js_setNoGoArea(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setNoGoArea, context, engine);
-}
+IMPL_JS_FUNC(setNoGoArea, wzapi::setNoGoArea)
 
 //-- ## setScrollLimits(x1, y1, x2, y2)
 //--
 //-- Limit the scrollable area of the map to the given rectangle. (3.2+ only)
 //--
-static QScriptValue js_setScrollLimits(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setScrollLimits, context, engine);
-}
+IMPL_JS_FUNC(setScrollLimits, wzapi::setScrollLimits)
 
 //-- ## getScrollLimits()
 //--
 //-- Get the limits of the scrollable area of the map as an area object. (3.2+ only)
 //--
-static QScriptValue js_getScrollLimits(QScriptContext *context, QScriptEngine *engine)
-{
-	QScriptValue ret = engine->newObject();
-	ret.setProperty("x", scrollMinX, QScriptValue::ReadOnly);
-	ret.setProperty("y", scrollMinY, QScriptValue::ReadOnly);
-	ret.setProperty("x2", scrollMaxX, QScriptValue::ReadOnly);
-	ret.setProperty("y2", scrollMaxY, QScriptValue::ReadOnly);
-	ret.setProperty("type", SCRIPT_AREA, QScriptValue::ReadOnly);
-	return ret;
-}
+IMPL_JS_FUNC(getScrollLimits, wzapi::getScrollLimits)
 
 //-- ## loadLevel(level name)
 //--
 //-- Load the level with the given name.
 //--
-static QScriptValue js_loadLevel(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::loadLevel, context, engine);
-}
+IMPL_JS_FUNC(loadLevel, wzapi::loadLevel)
 
 //-- ## autoSave()
 //--
 //-- Perform automatic save
 //--
-static QScriptValue js_autoSave(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::autoSave, context, engine);
-}
+IMPL_JS_FUNC(autoSave, wzapi::autoSave)
 
 //-- ## enumRange(x, y, range[, filter[, seen]])
 //--
@@ -4081,10 +3953,7 @@ static QScriptValue js_autoSave(QScriptContext *context, QScriptEngine *engine)
 //-- returned; by default only visible objects are returned. Calling this function is much faster than
 //-- iterating over all game objects using other enum functions. (3.2+ only)
 //--
-static QScriptValue js_enumRange(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::enumRange, context, engine);
-}
+IMPL_JS_FUNC(enumRange, wzapi::enumRange)
 
 //-- ## enumArea(<x1, y1, x2, y2 | label>[, filter[, seen]])
 //--
@@ -4095,30 +3964,24 @@ static QScriptValue js_enumRange(QScriptContext *context, QScriptEngine *engine)
 //-- positions or a label to an AREA. Calling this function is much faster than iterating over all
 //-- game objects using other enum functions. (3.2+ only)
 //--
-static QScriptValue js_enumArea(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(scripting_engine::enumAreaJS, context, engine);
-}
+IMPL_JS_FUNC(enumArea, scripting_engine::enumAreaJS)
 
 //-- ## addBeacon(x, y, target player[, message])
 //--
 //-- Send a beacon message to target player. Target may also be ```ALLIES```.
 //-- Message is currently unused. Returns a boolean that is true on success. (3.2+ only)
 //--
-static QScriptValue js_addBeacon(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::addBeacon, context, engine);
-}
+IMPL_JS_FUNC(addBeacon, wzapi::addBeacon)
 
 //-- ## removeBeacon(target player)
 //--
 //-- Remove a beacon message sent to target player. Target may also be ```ALLIES```.
 //-- Returns a boolean that is true on success. (3.2+ only)
 //--
-static QScriptValue js_removeBeacon(QScriptContext *context, QScriptEngine *engine)
+static JSValue js_removeBeacon(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
 {
-	QScriptValue retVal = wrap_(wzapi::removeBeacon, context, engine);
-	if (retVal.isBool() && retVal.toBool())
+	JSValue retVal = wrap_(wzapi::removeBeacon, ctx, argc, argv);
+	if (JS_IsBool(retVal) && JS_ToBool(ctx, retVal))
 	{
 		jsDebugMessageUpdate();
 	}
@@ -4130,65 +3993,44 @@ static QScriptValue js_removeBeacon(QScriptContext *context, QScriptEngine *engi
 //-- Send a message to target player. Target may also be ```ALL_PLAYERS``` or ```ALLIES```.
 //-- Returns a boolean that is true on success. (3.2+ only)
 //--
-static QScriptValue js_chat(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::chat, context, engine);
-}
+IMPL_JS_FUNC(chat, wzapi::chat)
 
 //-- ## setAlliance(player1, player2, value)
 //--
 //-- Set alliance status between two players to either true or false. (3.2+ only)
 //--
-static QScriptValue js_setAlliance(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setAlliance, context, engine);
-}
+IMPL_JS_FUNC(setAlliance, wzapi::setAlliance)
 
 //-- ## sendAllianceRequest(player)
 //--
 //-- Send an alliance request to a player. (3.3+ only)
 //--
-static QScriptValue js_sendAllianceRequest(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::sendAllianceRequest, context, engine);
-}
+IMPL_JS_FUNC(sendAllianceRequest, wzapi::sendAllianceRequest)
 
 //-- ## setAssemblyPoint(structure, x, y)
 //--
 //-- Set the assembly point droids go to when built for the specified structure. (3.2+ only)
 //--
-static QScriptValue js_setAssemblyPoint(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setAssemblyPoint, context, engine);
-}
+IMPL_JS_FUNC(setAssemblyPoint, wzapi::setAssemblyPoint)
 
 //-- ## hackNetOff()
 //--
 //-- Turn off network transmissions. FIXME - find a better way.
 //--
-static QScriptValue js_hackNetOff(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::hackNetOff, context, engine);
-}
+IMPL_JS_FUNC(hackNetOff, wzapi::hackNetOff)
 
 //-- ## hackNetOn()
 //--
 //-- Turn on network transmissions. FIXME - find a better way.
 //--
-static QScriptValue js_hackNetOn(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::hackNetOn, context, engine);
-}
+IMPL_JS_FUNC(hackNetOn, wzapi::hackNetOn)
 
 //-- ## getDroidProduction(factory)
 //--
 //-- Return droid in production in given factory. Note that this droid is fully
 //-- virtual, and should never be passed anywhere. (3.2+ only)
 //--
-static QScriptValue js_getDroidProduction(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::getDroidProduction, context, engine);
-}
+IMPL_JS_FUNC(getDroidProduction, wzapi::getDroidProduction)
 
 //-- ## getDroidLimit([player[, unit type]])
 //--
@@ -4198,28 +4040,19 @@ static QScriptValue js_getDroidProduction(QScriptContext *context, QScriptEngine
 //-- is passed, the limit for this unit type is returned, which may be different from
 //-- the general unit limit (eg for commanders and construction droids). (3.2+ only)
 //--
-static QScriptValue js_getDroidLimit(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::getDroidLimit, context, engine);
-}
+IMPL_JS_FUNC(getDroidLimit, wzapi::getDroidLimit)
 
 //-- ## getExperienceModifier(player)
 //--
 //-- Get the percentage of experience this player droids are going to gain. (3.2+ only)
 //--
-static QScriptValue js_getExperienceModifier(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::getExperienceModifier, context, engine);
-}
+IMPL_JS_FUNC(getExperienceModifier, wzapi::getExperienceModifier)
 
 //-- ## setExperienceModifier(player, percent)
 //--
 //-- Set the percentage of experience this player droids are going to gain. (3.2+ only)
 //--
-static QScriptValue js_setExperienceModifier(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setExperienceModifier, context, engine);
-}
+IMPL_JS_FUNC(setExperienceModifier, wzapi::setExperienceModifier)
 
 //-- ## setDroidLimit(player, value[, droid type])
 //--
@@ -4228,104 +4061,64 @@ static QScriptValue js_setExperienceModifier(QScriptContext *context, QScriptEng
 //-- for droids in general, DROID_CONSTRUCT for constructors, or DROID_COMMAND
 //-- for commanders. (3.2+ only)
 //--
-static QScriptValue js_setDroidLimit(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setDroidLimit, context, engine);
-}
+IMPL_JS_FUNC(setDroidLimit, wzapi::setDroidLimit)
 
 //-- ## setCommanderLimit(player, value)
 //--
 //-- Set the maximum number of commanders that this player can produce.
 //-- THIS FUNCTION IS DEPRECATED AND WILL BE REMOVED! (3.2+ only)
 //--
-static QScriptValue js_setCommanderLimit(QScriptContext *context, QScriptEngine *)
-{
-	int player = context->argument(0).toInt32();
-	int value = context->argument(1).toInt32();
-	setMaxCommanders(player, value);
-	return QScriptValue();
-}
+IMPL_JS_FUNC(setCommanderLimit, wzapi::setCommanderLimit)
 
 //-- ## setConstructorLimit(player, value)
 //--
 //-- Set the maximum number of constructors that this player can produce.
 //-- THIS FUNCTION IS DEPRECATED AND WILL BE REMOVED! (3.2+ only)
 //--
-static QScriptValue js_setConstructorLimit(QScriptContext *context, QScriptEngine *)
-{
-	int player = context->argument(0).toInt32();
-	int value = context->argument(1).toInt32();
-	setMaxConstructors(player, value);
-	return QScriptValue();
-}
+IMPL_JS_FUNC(setConstructorLimit, wzapi::setConstructorLimit)
 
 //-- ## hackAddMessage(message, type, player, immediate)
 //--
 //-- See wzscript docs for info, to the extent any exist. (3.2+ only)
 //--
-static QScriptValue js_hackAddMessage(QScriptContext *context, QScriptEngine *engine)
-{
-	QScriptValue retVal = wrap_(wzapi::hackAddMessage, context, engine);
-	jsDebugMessageUpdate();
-	return retVal;
-}
+IMPL_JS_FUNC_DEBUGMSGUPDATE(hackAddMessage, wzapi::hackAddMessage)
 
 //-- ## hackRemoveMessage(message, type, player)
 //--
 //-- See wzscript docs for info, to the extent any exist. (3.2+ only)
 //--
-static QScriptValue js_hackRemoveMessage(QScriptContext *context, QScriptEngine *engine)
-{
-	QScriptValue retVal = wrap_(wzapi::hackRemoveMessage, context, engine);
-	jsDebugMessageUpdate();
-	return retVal;
-}
+IMPL_JS_FUNC_DEBUGMSGUPDATE(hackRemoveMessage, wzapi::hackRemoveMessage)
 
 //-- ## setSunPosition(x, y, z)
 //--
 //-- Move the position of the Sun, which in turn moves where shadows are cast. (3.2+ only)
 //--
-static QScriptValue js_setSunPosition(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setSunPosition, context, engine);
-}
+IMPL_JS_FUNC(setSunPosition, wzapi::setSunPosition)
 
 //-- ## setSunIntensity(ambient r, g, b, diffuse r, g, b, specular r, g, b)
 //--
 //-- Set the ambient, diffuse and specular colour intensities of the Sun lighting source. (3.2+ only)
 //--
-static QScriptValue js_setSunIntensity(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setSunIntensity, context, engine);
-}
+IMPL_JS_FUNC(setSunIntensity, wzapi::setSunIntensity)
 
 //-- ## setWeather(weather type)
 //--
 //-- Set the current weather. This should be one of WEATHER_RAIN, WEATHER_SNOW or WEATHER_CLEAR. (3.2+ only)
 //--
-static QScriptValue js_setWeather(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setWeather, context, engine);
-}
+IMPL_JS_FUNC(setWeather, wzapi::setWeather)
 
 //-- ## setSky(texture file, wind speed, skybox scale)
 //--
 //-- Change the skybox. (3.2+ only)
 //--
-static QScriptValue js_setSky(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setSky, context, engine);
-}
+IMPL_JS_FUNC(setSky, wzapi::setSky)
 
 //-- ## hackDoNotSave(name)
 //--
 //-- Do not save the given global given by name to savegames. Must be
 //-- done again each time game is loaded, since this too is not saved.
 //--
-static QScriptValue js_hackDoNotSave(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::hackDoNotSave, context, engine);
-}
+IMPL_JS_FUNC(hackDoNotSave, wzapi::hackDoNotSave)
 
 //-- ## hackMarkTiles([label | x, y[, x2, y2]])
 //--
@@ -4333,47 +4126,32 @@ static QScriptValue js_hackDoNotSave(QScriptContext *context, QScriptEngine *eng
 //-- or a tile x, y position, or four positions for a square area. If no parameter
 //-- is given, all marked tiles are cleared. (3.2+ only)
 //--
-static QScriptValue js_hackMarkTiles(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::hackMarkTiles, context, engine);
-}
+IMPL_JS_FUNC(hackMarkTiles, wzapi::hackMarkTiles)
 
 //-- ## cameraSlide(x, y)
 //--
 //-- Slide the camera over to the given position on the map. (3.2+ only)
 //--
-static QScriptValue js_cameraSlide(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::cameraSlide, context, engine);
-}
+IMPL_JS_FUNC(cameraSlide, wzapi::cameraSlide)
 
 //-- ## cameraZoom(z, speed)
 //--
 //-- Slide the camera to the given zoom distance. Normal camera zoom ranges between 500 and 5000. (3.2+ only)
 //--
-static QScriptValue js_cameraZoom(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::cameraZoom, context, engine);
-}
+IMPL_JS_FUNC(cameraZoom, wzapi::cameraZoom)
 
 //-- ## cameraTrack(droid)
 //--
 //-- Make the camera follow the given droid object around. Pass in a null object to stop. (3.2+ only)
 //--
-static QScriptValue js_cameraTrack(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::cameraTrack, context, engine);
-}
+IMPL_JS_FUNC(cameraTrack, wzapi::cameraTrack)
 
 //-- ## setHealth(object, health)
 //--
 //-- Change the health of the given game object, in percentage. Does not take care of network sync, so for multiplayer games,
 //-- needs wrapping in a syncRequest. (3.2.3+ only.)
 //--
-static QScriptValue js_setHealth(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setHealth, context, engine);
-}
+IMPL_JS_FUNC(setHealth, wzapi::setHealth)
 
 //-- ## setObjectFlag(object, flag, value)
 //--
@@ -4381,10 +4159,7 @@ static QScriptValue js_setHealth(QScriptContext *context, QScriptEngine *engine)
 //-- needs wrapping in a syncRequest. (3.3+ only.)
 //-- Recognized object flags: OBJECT_FLAG_UNSELECTABLE - makes object unavailable for selection from player UI.
 //--
-static QScriptValue js_setObjectFlag(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setObjectFlag, context, engine);
-}
+IMPL_JS_FUNC(setObjectFlag, wzapi::setObjectFlag)
 
 //-- ## addSpotter(x, y, player, range, type, expiry)
 //--
@@ -4393,19 +4168,13 @@ static QScriptValue js_setObjectFlag(QScriptContext *context, QScriptEngine *eng
 //-- by ECM jammers. ```expiry```, if non-zero, is the game time at which the spotter shall automatically be
 //-- removed. The function returns a unique ID that can be used to remove the spotter with ```removeSpotter```. (3.2+ only)
 //--
-static QScriptValue js_addSpotter(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::addSpotter, context, engine);
-}
+IMPL_JS_FUNC(addSpotter, wzapi::addSpotter)
 
 //-- ## removeSpotter(id)
 //--
 //-- Remove a spotter given its unique ID. (3.2+ only)
 //--
-static QScriptValue js_removeSpotter(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::removeSpotter, context, engine);
-}
+IMPL_JS_FUNC(removeSpotter, wzapi::removeSpotter)
 
 //-- ## syncRandom(limit)
 //--
@@ -4413,10 +4182,7 @@ static QScriptValue js_removeSpotter(QScriptContext *context, QScriptEngine *eng
 //-- run on all network peers in the same game frame. If it is called on just one peer (such as would be
 //-- the case for AIs, for instance), then game sync will break. (3.2+ only)
 //--
-static QScriptValue js_syncRandom(QScriptContext *context, QScriptEngine * engine)
-{
-	return wrap_(wzapi::syncRandom, context, engine);
-}
+IMPL_JS_FUNC(syncRandom, wzapi::syncRandom)
 
 //-- ## syncRequest(req_id, x, y[, obj[, obj2]])
 //--
@@ -4424,20 +4190,14 @@ static QScriptValue js_syncRandom(QScriptContext *context, QScriptEngine * engin
 //-- Must be caught in an eventSyncRequest() function. All sync requests must be validated when received, and always
 //-- take care only to define sync requests that can be validated against cheating. (3.2+ only)
 //--
-static QScriptValue js_syncRequest(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::syncRequest, context, engine);
-}
+IMPL_JS_FUNC(syncRequest, wzapi::syncRequest)
 
 //-- ## replaceTexture(old_filename, new_filename)
 //--
 //-- Replace one texture with another. This can be used to for example give buildings on a specific tileset different
 //-- looks, or to add variety to the looks of droids in campaign missions. (3.2+ only)
 //--
-static QScriptValue js_replaceTexture(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::replaceTexture, context, engine);
-}
+IMPL_JS_FUNC(replaceTexture, wzapi::replaceTexture)
 
 //-- ## fireWeaponAtLoc(weapon, x, y[, player])
 //--
@@ -4445,377 +4205,414 @@ static QScriptValue js_replaceTexture(QScriptContext *context, QScriptEngine *en
 //-- Please use fireWeaponAtObj() to damage objects as multiplayer and campaign
 //-- may have different friendly fire logic for a few weapons (like the lassat).
 //--
-static QScriptValue js_fireWeaponAtLoc(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::fireWeaponAtLoc, context, engine);
-}
+IMPL_JS_FUNC(fireWeaponAtLoc, wzapi::fireWeaponAtLoc)
 
 //-- ## fireWeaponAtObj(weapon, game object[, player])
 //--
 //-- Fires a weapon at a game object (3.3+ only). The player is who owns the projectile.
 //--
-static QScriptValue js_fireWeaponAtObj(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::fireWeaponAtObj, context, engine);
-}
+IMPL_JS_FUNC(fireWeaponAtObj, wzapi::fireWeaponAtObj)
 
 //-- ## changePlayerColour(player, colour)
 //--
 //-- Change a player's colour slot. The current player colour can be read from the ```playerData``` array. There are as many
 //-- colour slots as the maximum number of players. (3.2.3+ only)
 //--
-static QScriptValue js_changePlayerColour(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::changePlayerColour, context, engine);
-}
+IMPL_JS_FUNC(changePlayerColour, wzapi::changePlayerColour)
 
 //-- ## getMultiTechLevel()
 //--
 //-- Returns the current multiplayer tech level. (3.3+ only)
 //--
-static QScriptValue js_getMultiTechLevel(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::getMultiTechLevel, context, engine);
-}
+IMPL_JS_FUNC(getMultiTechLevel, wzapi::getMultiTechLevel)
 
 //-- ## setCampaignNumber(num)
 //--
 //-- Set the campaign number. (3.3+ only)
 //--
-static QScriptValue js_setCampaignNumber(QScriptContext *context, QScriptEngine *engine)
-{
-	return wrap_(wzapi::setCampaignNumber, context, engine);
-}
+IMPL_JS_FUNC(setCampaignNumber, wzapi::setCampaignNumber)
 
 //-- ## getMissionType()
 //--
 //-- Return the current mission type. (3.3+ only)
 //--
-static QScriptValue js_getMissionType(QScriptContext *context, QScriptEngine *)
-{
-	return (int)mission.type;
-}
+IMPL_JS_FUNC(getMissionType, wzapi::getMissionType)
 
 //-- ## getRevealStatus()
 //--
 //-- Return the current fog reveal status. (3.3+ only)
 //--
-static QScriptValue js_getRevealStatus(QScriptContext *context, QScriptEngine *)
-{
-	return QScriptValue(getRevealStatus());
-}
+IMPL_JS_FUNC(getRevealStatus, wzapi::getRevealStatus)
 
 //-- ## setRevealStatus(bool)
 //--
 //-- Set the fog reveal status. (3.3+ only)
-static QScriptValue js_setRevealStatus(QScriptContext *context, QScriptEngine *engine)
+IMPL_JS_FUNC(setRevealStatus, wzapi::setRevealStatus)
+
+
+//JSValue js_stats(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
+//{
+//	int type = QuickJS_GetInt32(ctx, this_val, "type");
+//	int player = QuickJS_GetInt32(ctx, this_val, "player");
+//	unsigned index = QuickJS_GetUint32(ctx, this_val, "index");
+//	std::string name = QuickJS_GetStdString(ctx, this_val, "name");
+//	quickjs_execution_context execution_context(ctx);
+//	if (argc == 1) // setter
+//	{
+//		wzapi::setUpgradeStats(execution_context, player, name.toStdString(), type, index, context->argument(0).toVariant());
+//	}
+//	// Now read value and return it
+//	return mapJsonToQScriptValue(ctx, wzapi::getUpgradeStats(execution_context, player, name.toStdString(), type, index), QScriptValue::ReadOnly | QScriptValue::Undeletable);
+//}
+
+//struct StatsFuncContext
+//{
+//	StatsFuncContext(/*int statsContextId,*/ const std::string &name, int player, int type, unsigned index)
+//	: name(name)
+//	, player(player)
+//	, type(type)
+//	, index(index)
+//	{
+////		js_stats_getter_setter_func[0] = JS_CGETSET_MAGIC_DEF(name.c_str(), js_stats_get, js_stats_set, statsContextId);
+//	}
+////
+////	// non-copyable
+////	StatsFuncContext(const StatsFuncContext& other) = delete;
+////	StatsFuncContext& operator=(const StatsFuncContext&) = delete;
+//
+//	std::string name;
+//	int player;
+//	int type;
+//	unsigned index;
+//	// Must keep this around, because QuickJS may make this an "auto-init" property, which accesses the pointer to the data on first property access.
+////	JSCFunctionListEntry js_stats_getter_setter_func[1];
+//};
+//
+//static std::vector<StatsFuncContext> statsContexts;
+//
+//static inline StatsFuncContext& get_stats_context(int magic)
+//{
+//	size_t magicIdx = static_cast<size_t>(magic);
+//	if (magicIdx >= statsContexts.size())
+//	{
+//		throw std::runtime_error("out of bounds stats context index");
+//	}
+//	return statsContexts[magicIdx];
+//}
+
+static JSValue js_stats_get(JSContext *ctx, JSValueConst this_val)
 {
-	return wrap_(wzapi::setRevealStatus, context, engine);
+//	std::string thisObjAsStr = QuickJS_DumpObject(ctx, this_val);
+//	QuickJS_EnumerateObjectProperties(ctx, this_val, [&thisObjAsStr](const char *key, JSAtom &){
+//		thisObjAsStr += "\n";
+//		thisObjAsStr += key;
+//	}, false);
+	JSValue currentFuncObj = js_debugger_get_current_funcObject(ctx);
+	int type = QuickJS_GetInt32(ctx, currentFuncObj, "type");
+	int player = QuickJS_GetInt32(ctx, currentFuncObj, "player");
+	unsigned index = QuickJS_GetUint32(ctx, currentFuncObj, "index");
+	std::string name = QuickJS_GetStdString(ctx, currentFuncObj, "name");
+	JS_FreeValue(ctx, currentFuncObj);
+//	if (name != "undefined")
+//	{
+//		debug(LOG_ERROR, "Found it!");
+//	}
+//	auto& statsContext = get_stats_context(magic);
+	quickjs_execution_context execution_context(ctx);
+	return mapJsonToQuickJSValue(ctx, wzapi::getUpgradeStats(execution_context, player, name, type, index), 0);
 }
 
-
-QScriptValue js_stats(QScriptContext *context, QScriptEngine *engine)
+static JSValue js_stats_set(JSContext *ctx, JSValueConst this_val, JSValueConst val)
 {
-	QScriptValue callee = context->callee();
-	int type = callee.property("type").toInt32();
-	int player = callee.property("player").toInt32();
-	unsigned index = callee.property("index").toUInt32();
-	QString name = callee.property("name").toString();
-	qtscript_execution_context execution_context(context, engine);
-	if (context->argumentCount() == 1) // setter
-	{
-		wzapi::setUpgradeStats(execution_context, player, name.toStdString(), type, index, context->argument(0).toVariant());
-	}
+	JSValue currentFuncObj = js_debugger_get_current_funcObject(ctx);
+	int type = QuickJS_GetInt32(ctx, currentFuncObj, "type");
+	int player = QuickJS_GetInt32(ctx, currentFuncObj, "player");
+	unsigned index = QuickJS_GetUint32(ctx, currentFuncObj, "index");
+	std::string name = QuickJS_GetStdString(ctx, currentFuncObj, "name");
+	JS_FreeValue(ctx, currentFuncObj);
+//	auto& statsContext = get_stats_context(magic);
+	quickjs_execution_context execution_context(ctx);
+	wzapi::setUpgradeStats(execution_context, player, name, type, index, JSContextValue{ctx, val});
 	// Now read value and return it
-	return mapJsonToQScriptValue(engine, wzapi::getUpgradeStats(execution_context, player, name.toStdString(), type, index), QScriptValue::ReadOnly | QScriptValue::Undeletable);
+	return mapJsonToQuickJSValue(ctx, wzapi::getUpgradeStats(execution_context, player, name, type, index), 0);
 }
 
-static void setStatsFunc(QScriptValue &base, QScriptEngine *engine, const QString& name, int player, int type, int index)
-{
-	QScriptValue v = engine->newFunction(js_stats);
-	base.setProperty(name, v, QScriptValue::PropertyGetter | QScriptValue::PropertySetter);
-	v.setProperty("player", player, QScriptValue::SkipInEnumeration | QScriptValue::ReadOnly | QScriptValue::Undeletable);
-	v.setProperty("type", type, QScriptValue::SkipInEnumeration | QScriptValue::ReadOnly | QScriptValue::Undeletable);
-	v.setProperty("index", index, QScriptValue::SkipInEnumeration | QScriptValue::ReadOnly | QScriptValue::Undeletable);
-	v.setProperty("name", name, QScriptValue::SkipInEnumeration | QScriptValue::ReadOnly | QScriptValue::Undeletable);
-}
 
-nlohmann::json scripting_engine::constructDerrickPositions()
+
+static void setStatsFunc(JSValue &base, JSContext *ctx, const std::string& name, int player, int type, unsigned index)
 {
-	// Static map knowledge about start positions
-	//== * ```derrickPositions``` An array of derrick starting positions on the current map. Each item in the array is an
-	//== object containing the x and y variables for a derrick.
-	nlohmann::json derrickPositions = nlohmann::json::array(); //engine->newArray(derricks.size());
-	for (int i = 0; i < derricks.size(); i++)
+	const JSCFunctionListEntry js_stats_getter_setter_func[] = {
+		JS_CGETSET_DEF(name.c_str(), js_stats_get, js_stats_set)
+	};
+
+//	size_t statContextId = statsContexts.size();
+//	statsContexts.emplace_back(name, player, type, index);
+//	JS_SetPropertyFunctionList(ctx, base, js_stats_getter_setter_func, sizeof(js_stats_getter_setter_func) / sizeof(js_stats_getter_setter_func[0]));
+
+	JSValue getter = JS_UNDEFINED;
+	JSValue setter = JS_UNDEFINED;
+	char buf[64];
+
+	JSAtom atom = JS_NewAtom(ctx, name.c_str());
+
+	snprintf(buf, sizeof(buf), "get %s", name.c_str());
+	getter = JS_NewCFunction2(ctx, js_stats_getter_setter_func[0].u.getset.get.generic,
+							  buf, 0, JS_CFUNC_getter,
+							  0);
+	snprintf(buf, sizeof(buf), "set %s", name.c_str());
+	setter = JS_NewCFunction2(ctx, js_stats_getter_setter_func[0].u.getset.set.generic,
+							  buf, 1, JS_CFUNC_setter,
+							  0);
+
+	JSValue funcObjects[2] = {getter, setter};
+	for (size_t i = 0; i < 2; i++)
 	{
-		nlohmann::json vector = nlohmann::json::object();
-		vector["x"] = map_coord(derricks[i].x);
-		vector["y"] = map_coord(derricks[i].y);
-		vector["type"] = SCRIPT_POSITION;
-		derrickPositions.push_back(vector);
+		QuickJS_DefinePropertyValue(ctx, funcObjects[i], "player", JS_NewInt32(ctx, player), 0);
+		QuickJS_DefinePropertyValue(ctx, funcObjects[i], "type", JS_NewInt32(ctx, type), 0);
+		QuickJS_DefinePropertyValue(ctx, funcObjects[i], "index", JS_NewUint32(ctx, index), 0);
+		QuickJS_DefinePropertyValue(ctx, funcObjects[i], "name", JS_NewStringLen(ctx, name.c_str(), name.length()), 0);
 	}
-	return derrickPositions;
+
+	JS_DefinePropertyGetSet(ctx, base, atom, getter, setter, js_stats_getter_setter_func[0].prop_flags);
+
+	JS_FreeAtom(ctx, atom);
+//
+//	// Get the function object, and add some properties to it
+//	JSValue funcObj = JS_GetPropertyStr(ctx, base, name.c_str());
+//	JS_FreeValue(ctx, funcObj);
+//	QuickJS_DefinePropertyValue(ctx, funcObj, "player", JS_NewInt32(ctx, player), 0);
+//	QuickJS_DefinePropertyValue(ctx, funcObj, "type", JS_NewInt32(ctx, type), 0);
+//	QuickJS_DefinePropertyValue(ctx, funcObj, "index", JS_NewUint32(ctx, index), 0);
+//	QuickJS_DefinePropertyValue(ctx, funcObj, "name", JS_NewStringLen(ctx, name.c_str(), name.length()), 0);
 }
 
-nlohmann::json scripting_engine::constructStartPositions()
-{
-	// Static map knowledge about start positions
-	//== * ```startPositions``` An array of player start positions on the current map. Each item in the array is an
-	//== object containing the x and y variables for a player start position.
-	nlohmann::json startPositions = nlohmann::json::array(); //engine->newArray(game.maxPlayers);
-	for (int i = 0; i < game.maxPlayers; i++)
-	{
-		nlohmann::json vector = nlohmann::json::object();
-		vector["x"] = map_coord(positions[i].x);
-		vector["y"] = map_coord(positions[i].y);
-		vector["type"] = SCRIPT_POSITION;
-		startPositions.push_back(vector);
-	}
-	return startPositions;
-}
-
-QScriptValue constructUpgradesQScriptValue(QScriptEngine *engine)
+JSValue constructUpgradesQuickJSValue(JSContext *ctx)
 {
 	auto upgradesObj = wzapi::getUpgradesObject();
 
-	QScriptValue upgrades = engine->newArray(MAX_PLAYERS);
+	JSValue upgrades = JS_NewArray(ctx);
 	for (auto& playerUpgrades : upgradesObj)
 	{
-		QScriptValue node = engine->newObject();
+		JSValue node = JS_NewObject(ctx);
 
 		for (const auto& gameEntityClass : playerUpgrades)
 		{
 			const std::string& gameEntityClassName = gameEntityClass.first;
-			QScriptValue entityBase = engine->newObject();
+			JSValue entityBase = JS_NewObject(ctx);
 			for (const auto& gameEntity : gameEntityClass.second)
 			{
 				const std::string& gameEntityName = gameEntity.first;
 				const auto& gameEntityRules = gameEntity.second;
-				QScriptValue v = engine->newObject();
+				JSValue v = JS_NewObject(ctx);
 				for (const auto& property : gameEntityRules)
 				{
-					setStatsFunc(v, engine, QString::fromUtf8(property.first.c_str()), gameEntityRules.getPlayer(), property.second, gameEntityRules.getIndex());
+					setStatsFunc(v, ctx, property.first, gameEntityRules.getPlayer(), property.second, gameEntityRules.getIndex());
 				}
-				entityBase.setProperty(QString::fromUtf8(gameEntityName.c_str()), v, QScriptValue::ReadOnly | QScriptValue::Undeletable);
+				QuickJS_DefinePropertyValue(ctx, entityBase, gameEntityName.c_str(), v, 0);
 			}
-			node.setProperty(QString::fromUtf8(gameEntityClassName.c_str()), entityBase, QScriptValue::ReadOnly | QScriptValue::Undeletable);
+			QuickJS_DefinePropertyValue(ctx, node, gameEntityClassName.c_str(), entityBase, 0);
 		}
 
 		// Finally
 		ASSERT(playerUpgrades.getPlayer() >= 0 && playerUpgrades.getPlayer() < MAX_PLAYERS, "Invalid player index");
-		upgrades.setProperty(playerUpgrades.getPlayer(), node, QScriptValue::ReadOnly | QScriptValue::Undeletable);
+//		QuickJS_DefinePropertyValue(ctx, upgrades, std::to_string(playerUpgrades.getPlayer()).c_str(), node, 0);
+		JS_DefinePropertyValueUint32(ctx, upgrades, static_cast<uint32_t>(playerUpgrades.getPlayer()), node, 0);
 	}
 
 	return upgrades;
 }
 
+#define JS_REGISTER_FUNC(js_func_name, max_num_parameters) \
+	JS_SetPropertyStr(ctx, global_obj, #js_func_name, \
+		JS_NewCFunction(ctx, JS_FUNC_IMPL_NAME(js_func_name), #js_func_name, max_num_parameters));
+
+#define JS_REGISTER_FUNC_NAME(js_func_name, max_num_parameters, full_impl_handler_func_name) \
+	JS_SetPropertyStr(ctx, global_obj, #js_func_name, \
+		JS_NewCFunction(ctx, full_impl_handler_func_name, #js_func_name, max_num_parameters));
+
+#define MAX_JS_VARARGS 20
+
 bool quickjs_scripting_instance::registerFunctions(const std::string& scriptName)
 {
-	debug(LOG_WZ, "Loading functions for engine %p, script %s", static_cast<void *>(engine), scriptName.toUtf8().constData());
-
-	// Register 'Stats' object. It is a read-only representation of basic game component states.
-	nlohmann::json stats = wzapi::constructStatsObject();
-	engine->globalObject().setProperty("Stats", mapJsonToQScriptValue(engine, stats, QScriptValue::ReadOnly | QScriptValue::Undeletable), QScriptValue::ReadOnly | QScriptValue::Undeletable);
+	debug(LOG_WZ, "Loading functions for context %p, script %s", static_cast<void *>(ctx), scriptName.c_str());
 
 	//== * ```Upgrades``` A special array containing per-player rules information for game entity types,
 	//== which can be written to in order to implement upgrades and other dynamic rules changes. Each item in the
 	//== array contains a subset of the sparse array of rules information in the ```Stats``` global.
 	//== These values are defined:
-	QScriptValue upgrades = constructUpgradesQScriptValue(engine);
-	engine->globalObject().setProperty("Upgrades", upgrades, QScriptValue::ReadOnly | QScriptValue::Undeletable);
+	JSValue upgrades = constructUpgradesQuickJSValue(ctx);
+	JS_DefinePropertyValueStr(ctx, global_obj, "Upgrades", upgrades, 0);
 
 	// Register functions to the script engine here
-	engine->globalObject().setProperty("_", engine->newFunction(js_translate)); // WZAPI
-	engine->globalObject().setProperty("dump", engine->newFunction(js_dump));
-	engine->globalObject().setProperty("syncRandom", engine->newFunction(js_syncRandom)); // WZAPI
-	engine->globalObject().setProperty("label", engine->newFunction(js_getObject)); // deprecated // scripting_engine
-	engine->globalObject().setProperty("getObject", engine->newFunction(js_getObject)); // scripting_engine
-	engine->globalObject().setProperty("addLabel", engine->newFunction(js_addLabel)); // scripting_engine
-	engine->globalObject().setProperty("removeLabel", engine->newFunction(js_removeLabel)); // scripting_engine
-	engine->globalObject().setProperty("getLabel", engine->newFunction(js_getLabel)); // scripting_engine
-	engine->globalObject().setProperty("enumLabels", engine->newFunction(js_enumLabels)); // scripting_engine
-	engine->globalObject().setProperty("enumGateways", engine->newFunction(js_enumGateways));
-	engine->globalObject().setProperty("enumTemplates", engine->newFunction(js_enumTemplates));
-	engine->globalObject().setProperty("makeTemplate", engine->newFunction(js_makeTemplate)); // WZAPI
-	engine->globalObject().setProperty("setAlliance", engine->newFunction(js_setAlliance)); // WZAPI
-	engine->globalObject().setProperty("sendAllianceRequest", engine->newFunction(js_sendAllianceRequest)); // WZAPI
-	engine->globalObject().setProperty("setAssemblyPoint", engine->newFunction(js_setAssemblyPoint)); // WZAPI
-	engine->globalObject().setProperty("setSunPosition", engine->newFunction(js_setSunPosition)); // WZAPI
-	engine->globalObject().setProperty("setSunIntensity", engine->newFunction(js_setSunIntensity)); // WZAPI
-	engine->globalObject().setProperty("setWeather", engine->newFunction(js_setWeather)); // WZAPI
-	engine->globalObject().setProperty("setSky", engine->newFunction(js_setSky)); // WZAPI
-	engine->globalObject().setProperty("cameraSlide", engine->newFunction(js_cameraSlide)); // WZAPI
-	engine->globalObject().setProperty("cameraTrack", engine->newFunction(js_cameraTrack)); // WZAPI
-	engine->globalObject().setProperty("cameraZoom", engine->newFunction(js_cameraZoom)); // WZAPI
-	engine->globalObject().setProperty("resetArea", engine->newFunction(js_resetLabel)); // deprecated // scripting_engine
-	engine->globalObject().setProperty("resetLabel", engine->newFunction(js_resetLabel)); // scripting_engine
-	engine->globalObject().setProperty("addSpotter", engine->newFunction(js_addSpotter)); // WZAPI
-	engine->globalObject().setProperty("removeSpotter", engine->newFunction(js_removeSpotter)); // WZAPI
-	engine->globalObject().setProperty("syncRequest", engine->newFunction(js_syncRequest)); // WZAPI
-	engine->globalObject().setProperty("replaceTexture", engine->newFunction(js_replaceTexture)); // WZAPI
-	engine->globalObject().setProperty("changePlayerColour", engine->newFunction(js_changePlayerColour)); // WZAPI
-	engine->globalObject().setProperty("setHealth", engine->newFunction(js_setHealth)); // WZAPI
-	engine->globalObject().setProperty("useSafetyTransport", engine->newFunction(js_useSafetyTransport)); // WZAPI
-	engine->globalObject().setProperty("restoreLimboMissionData", engine->newFunction(js_restoreLimboMissionData)); // WZAPI
-	engine->globalObject().setProperty("getMultiTechLevel", engine->newFunction(js_getMultiTechLevel)); // WZAPI
-	engine->globalObject().setProperty("setCampaignNumber", engine->newFunction(js_setCampaignNumber)); // WZAPI
-	engine->globalObject().setProperty("getMissionType", engine->newFunction(js_getMissionType));
-	engine->globalObject().setProperty("getRevealStatus", engine->newFunction(js_getRevealStatus));
-	engine->globalObject().setProperty("setRevealStatus", engine->newFunction(js_setRevealStatus)); // WZAPI
-	engine->globalObject().setProperty("autoSave", engine->newFunction(js_autoSave)); // WZAPI
+	JS_REGISTER_FUNC_NAME(_, 1, JS_FUNC_IMPL_NAME(translate)); // WZAPI
+	JS_REGISTER_FUNC(dump, std::min(1, MAX_JS_VARARGS));
+	JS_REGISTER_FUNC(syncRandom, 1); // WZAPI
+	JS_REGISTER_FUNC_NAME(label, std::min(1, 3), JS_FUNC_IMPL_NAME(getObject)); // deprecated // scripting_engine
+	JS_REGISTER_FUNC(getObject, std::min(1, 3)); // scripting_engine
+	JS_REGISTER_FUNC(addLabel, std::min(2, 3)); // scripting_engine
+	JS_REGISTER_FUNC(removeLabel, 1); // scripting_engine
+	JS_REGISTER_FUNC(getLabel, 1); // scripting_engine
+	JS_REGISTER_FUNC(enumLabels, 1); // scripting_engine
+	JS_REGISTER_FUNC(enumGateways, 0); // WZAPI
+	JS_REGISTER_FUNC(enumTemplates, 1);
+	JS_REGISTER_FUNC(makeTemplate, std::min(6, 6 + MAX_JS_VARARGS)); // WZAPI
+	JS_REGISTER_FUNC(setAlliance, 3); // WZAPI
+	JS_REGISTER_FUNC(sendAllianceRequest, 1); // WZAPI
+	JS_REGISTER_FUNC(setAssemblyPoint, 3); // WZAPI
+	JS_REGISTER_FUNC(setSunPosition, 3); // WZAPI
+	JS_REGISTER_FUNC(setSunIntensity, 9); // WZAPI
+	JS_REGISTER_FUNC(setWeather, 1); // WZAPI
+	JS_REGISTER_FUNC(setSky, 3); // WZAPI
+	JS_REGISTER_FUNC(cameraSlide, 2); // WZAPI
+	JS_REGISTER_FUNC(cameraTrack, 1); // WZAPI
+	JS_REGISTER_FUNC(cameraZoom, 2); // WZAPI
+	JS_REGISTER_FUNC_NAME(resetArea, std::min(1, 2), JS_FUNC_IMPL_NAME(resetLabel)); // deprecated // scripting_engine
+	JS_REGISTER_FUNC(resetLabel, std::min(1, 2)); // scripting_engine
+	JS_REGISTER_FUNC(addSpotter, 6); // WZAPI
+	JS_REGISTER_FUNC(removeSpotter, 1); // WZAPI
+	JS_REGISTER_FUNC(syncRequest, std::min(3, 5)); // WZAPI
+	JS_REGISTER_FUNC(replaceTexture, 2); // WZAPI
+	JS_REGISTER_FUNC(changePlayerColour, 2); // WZAPI
+	JS_REGISTER_FUNC(setHealth, 2); // WZAPI
+	JS_REGISTER_FUNC(useSafetyTransport, 1); // WZAPI
+	JS_REGISTER_FUNC(restoreLimboMissionData, 0); // WZAPI
+	JS_REGISTER_FUNC(getMultiTechLevel, 0); // WZAPI
+	JS_REGISTER_FUNC(setCampaignNumber, 1); // WZAPI
+	JS_REGISTER_FUNC(getMissionType, 0); // WZAPI
+	JS_REGISTER_FUNC(getRevealStatus, 0); // WZAPI
+	JS_REGISTER_FUNC(setRevealStatus, 1); // WZAPI
+	JS_REGISTER_FUNC(autoSave, 0); // WZAPI
 
 	// horrible hacks follow -- do not rely on these being present!
-	engine->globalObject().setProperty("hackNetOff", engine->newFunction(js_hackNetOff)); // WZAPI
-	engine->globalObject().setProperty("hackNetOn", engine->newFunction(js_hackNetOn)); // WZAPI
-	engine->globalObject().setProperty("hackAddMessage", engine->newFunction(js_hackAddMessage)); // WZAPI
-	engine->globalObject().setProperty("hackRemoveMessage", engine->newFunction(js_hackRemoveMessage)); // WZAPI
-	engine->globalObject().setProperty("objFromId", engine->newFunction(js_objFromId));
-	engine->globalObject().setProperty("hackGetObj", engine->newFunction(js_hackGetObj)); // WZAPI
-	engine->globalObject().setProperty("hackChangeMe", engine->newFunction(js_hackChangeMe)); // WZAPI
-	engine->globalObject().setProperty("hackAssert", engine->newFunction(js_hackAssert)); // WZAPI
-	engine->globalObject().setProperty("hackMarkTiles", engine->newFunction(js_hackMarkTiles)); // WZAPI
-	engine->globalObject().setProperty("receiveAllEvents", engine->newFunction(js_receiveAllEvents)); // WZAPI
-	engine->globalObject().setProperty("hackDoNotSave", engine->newFunction(js_hackDoNotSave)); // WZAPI
-	engine->globalObject().setProperty("hackPlayIngameAudio", engine->newFunction(js_hackPlayIngameAudio)); // WZAPI
-	engine->globalObject().setProperty("hackStopIngameAudio", engine->newFunction(js_hackStopIngameAudio)); // WZAPI
+	JS_REGISTER_FUNC(hackNetOff, 0); // WZAPI
+	JS_REGISTER_FUNC(hackNetOn, 0); // WZAPI
+	JS_REGISTER_FUNC(hackAddMessage, 4); // WZAPI
+	JS_REGISTER_FUNC(hackRemoveMessage, 3); // WZAPI
+	JS_REGISTER_FUNC(objFromId, 1);
+	JS_REGISTER_FUNC(hackGetObj, 3); // WZAPI
+	JS_REGISTER_FUNC(hackAssert, std::min(2, 2 + MAX_JS_VARARGS)); // WZAPI
+	JS_REGISTER_FUNC(hackMarkTiles, std::min(1, 4)); // WZAPI
+	JS_REGISTER_FUNC(receiveAllEvents, 1); // WZAPI
+	JS_REGISTER_FUNC(hackDoNotSave, 1); // WZAPI
+	JS_REGISTER_FUNC(hackPlayIngameAudio, 0); // WZAPI
+	JS_REGISTER_FUNC(hackStopIngameAudio, 0); // WZAPI
 
 	// General functions -- geared for use in AI scripts
-	engine->globalObject().setProperty("debug", engine->newFunction(js_debug));
-	engine->globalObject().setProperty("console", engine->newFunction(js_console)); // WZAPI
-	engine->globalObject().setProperty("clearConsole", engine->newFunction(js_clearConsole)); // WZAPI
-	engine->globalObject().setProperty("structureIdle", engine->newFunction(js_structureIdle)); // WZAPI
-	engine->globalObject().setProperty("enumStruct", engine->newFunction(js_enumStruct)); // WZAPI
-	engine->globalObject().setProperty("enumStructOffWorld", engine->newFunction(js_enumStructOffWorld)); // WZAPI
-	engine->globalObject().setProperty("enumDroid", engine->newFunction(js_enumDroid)); // WZAPI
-	engine->globalObject().setProperty("enumGroup", engine->newFunction(js_enumGroup)); // scripting_engine
-	engine->globalObject().setProperty("enumFeature", engine->newFunction(js_enumFeature)); // WZAPI
-	engine->globalObject().setProperty("enumBlips", engine->newFunction(js_enumBlips)); // WZAPI
-	engine->globalObject().setProperty("enumSelected", engine->newFunction(js_enumSelected)); // WZAPI
-	engine->globalObject().setProperty("enumResearch", engine->newFunction(js_enumResearch)); // WZAPI
-	engine->globalObject().setProperty("enumRange", engine->newFunction(js_enumRange)); // WZAPI
-	engine->globalObject().setProperty("enumArea", engine->newFunction(js_enumArea)); // scripting_engine
-	engine->globalObject().setProperty("getResearch", engine->newFunction(js_getResearch)); // WZAPI
-	engine->globalObject().setProperty("pursueResearch", engine->newFunction(js_pursueResearch)); // WZAPI
-	engine->globalObject().setProperty("findResearch", engine->newFunction(js_findResearch)); // WZAPI
-	engine->globalObject().setProperty("distBetweenTwoPoints", engine->newFunction(js_distBetweenTwoPoints)); // WZAPI
-	engine->globalObject().setProperty("newGroup", engine->newFunction(js_newGroup)); // scripting_engine
-	engine->globalObject().setProperty("groupAddArea", engine->newFunction(js_groupAddArea)); // scripting_engine
-	engine->globalObject().setProperty("groupAddDroid", engine->newFunction(js_groupAddDroid)); // scripting_engine
-	engine->globalObject().setProperty("groupAdd", engine->newFunction(js_groupAdd)); // scripting_engine
-	engine->globalObject().setProperty("groupSize", engine->newFunction(js_groupSize)); // scripting_engine
-	engine->globalObject().setProperty("orderDroidLoc", engine->newFunction(js_orderDroidLoc)); // WZAPI
-	engine->globalObject().setProperty("playerPower", engine->newFunction(js_playerPower)); // WZAPI
-	engine->globalObject().setProperty("queuedPower", engine->newFunction(js_queuedPower)); // WZAPI
-	engine->globalObject().setProperty("isStructureAvailable", engine->newFunction(js_isStructureAvailable)); // WZAPI
-	engine->globalObject().setProperty("pickStructLocation", engine->newFunction(js_pickStructLocation)); // WZAPI
-	engine->globalObject().setProperty("droidCanReach", engine->newFunction(js_droidCanReach)); // WZAPI
-	engine->globalObject().setProperty("propulsionCanReach", engine->newFunction(js_propulsionCanReach)); // WZAPI
-	engine->globalObject().setProperty("terrainType", engine->newFunction(js_terrainType)); // WZAPI
-	engine->globalObject().setProperty("orderDroidBuild", engine->newFunction(js_orderDroidBuild)); // WZAPI
-	engine->globalObject().setProperty("orderDroidObj", engine->newFunction(js_orderDroidObj)); // WZAPI
-	engine->globalObject().setProperty("orderDroid", engine->newFunction(js_orderDroid)); // WZAPI
-	engine->globalObject().setProperty("buildDroid", engine->newFunction(js_buildDroid)); // WZAPI
-	engine->globalObject().setProperty("addDroid", engine->newFunction(js_addDroid)); // WZAPI
-	engine->globalObject().setProperty("addDroidToTransporter", engine->newFunction(js_addDroidToTransporter)); // WZAPI
-	engine->globalObject().setProperty("addFeature", engine->newFunction(js_addFeature)); // WZAPI
-	engine->globalObject().setProperty("componentAvailable", engine->newFunction(js_componentAvailable)); // WZAPI
-	engine->globalObject().setProperty("isVTOL", engine->newFunction(js_isVTOL)); // WZAPI
-	engine->globalObject().setProperty("safeDest", engine->newFunction(js_safeDest)); // WZAPI
-	engine->globalObject().setProperty("activateStructure", engine->newFunction(js_activateStructure)); // WZAPI
-	engine->globalObject().setProperty("chat", engine->newFunction(js_chat)); // WZAPI
-	engine->globalObject().setProperty("addBeacon", engine->newFunction(js_addBeacon)); // WZAPI
-	engine->globalObject().setProperty("removeBeacon", engine->newFunction(js_removeBeacon)); // WZAPI
-	engine->globalObject().setProperty("getDroidProduction", engine->newFunction(js_getDroidProduction)); // WZAPI
-	engine->globalObject().setProperty("getDroidLimit", engine->newFunction(js_getDroidLimit)); // WZAPI
-	engine->globalObject().setProperty("getExperienceModifier", engine->newFunction(js_getExperienceModifier)); // WZAPI
-	engine->globalObject().setProperty("setDroidLimit", engine->newFunction(js_setDroidLimit)); // WZAPI
-	engine->globalObject().setProperty("setCommanderLimit", engine->newFunction(js_setCommanderLimit)); // deprecated!!
-	engine->globalObject().setProperty("setConstructorLimit", engine->newFunction(js_setConstructorLimit)); // deprecated!!
-	engine->globalObject().setProperty("setExperienceModifier", engine->newFunction(js_setExperienceModifier)); // WZAPI
-	engine->globalObject().setProperty("getWeaponInfo", engine->newFunction(js_getWeaponInfo)); // deprecated!!
-	engine->globalObject().setProperty("enumCargo", engine->newFunction(js_enumCargo)); // WZAPI
+	JS_REGISTER_FUNC(debug, std::min(1, 1 + MAX_JS_VARARGS));
+	JS_REGISTER_FUNC(console, std::min(1, 1 + MAX_JS_VARARGS)); // WZAPI
+	JS_REGISTER_FUNC(clearConsole, 0); // WZAPI
+	JS_REGISTER_FUNC(structureIdle, 1); // WZAPI
+	JS_REGISTER_FUNC(enumStruct, std::min(0, 3)); // WZAPI
+	JS_REGISTER_FUNC(enumStructOffWorld, std::min(0, 3)); // WZAPI
+	JS_REGISTER_FUNC(enumDroid, std::min(0, 3)); // WZAPI
+	JS_REGISTER_FUNC(enumGroup, 1); // scripting_engine
+	JS_REGISTER_FUNC(enumFeature, std::min(1, 2)); // WZAPI
+	JS_REGISTER_FUNC(enumBlips, 1); // WZAPI
+	JS_REGISTER_FUNC(enumSelected, 0); // WZAPI
+	JS_REGISTER_FUNC(enumResearch, 0); // WZAPI
+	JS_REGISTER_FUNC(enumRange, std::min(3, 5)); // WZAPI
+	JS_REGISTER_FUNC(enumArea, std::min(1, 6)); // scripting_engine
+	JS_REGISTER_FUNC(getResearch, std::min(1, 2)); // WZAPI
+	JS_REGISTER_FUNC(pursueResearch, 2); // WZAPI
+	JS_REGISTER_FUNC(findResearch, std::min(1, 2)); // WZAPI
+	JS_REGISTER_FUNC(distBetweenTwoPoints, 4); // WZAPI
+	JS_REGISTER_FUNC(newGroup, 0); // scripting_engine
+	JS_REGISTER_FUNC(groupAddArea, 5); // scripting_engine
+	JS_REGISTER_FUNC(groupAddDroid, 2); // scripting_engine
+	JS_REGISTER_FUNC(groupAdd, 2); // scripting_engine
+	JS_REGISTER_FUNC(groupSize, 1); // scripting_engine
+	JS_REGISTER_FUNC(orderDroidLoc, 4); // WZAPI
+	JS_REGISTER_FUNC(playerPower, 1); // WZAPI
+	JS_REGISTER_FUNC(queuedPower, 1); // WZAPI
+	JS_REGISTER_FUNC(isStructureAvailable, std::min(1, 2)); // WZAPI
+	JS_REGISTER_FUNC(pickStructLocation, std::min(4, 5)); // WZAPI
+	JS_REGISTER_FUNC(droidCanReach, 3); // WZAPI
+	JS_REGISTER_FUNC(propulsionCanReach, 5); // WZAPI
+	JS_REGISTER_FUNC(terrainType, 2); // WZAPI
+	JS_REGISTER_FUNC(orderDroidBuild, std::min(5, 6)); // WZAPI
+	JS_REGISTER_FUNC(orderDroidObj, 3); // WZAPI
+	JS_REGISTER_FUNC(orderDroid, 2); // WZAPI
+	JS_REGISTER_FUNC(buildDroid, std::min(7, 7 + MAX_JS_VARARGS)); // WZAPI
+	JS_REGISTER_FUNC(addDroid, std::min(9, 9 + MAX_JS_VARARGS)); // WZAPI
+	JS_REGISTER_FUNC(addDroidToTransporter, 2); // WZAPI
+	JS_REGISTER_FUNC(addFeature, 3); // WZAPI
+	JS_REGISTER_FUNC(componentAvailable, std::min(1, 2)); // WZAPI
+	JS_REGISTER_FUNC(isVTOL, 1); // WZAPI
+	JS_REGISTER_FUNC(safeDest, 3); // WZAPI
+	JS_REGISTER_FUNC(activateStructure, std::min(1, 2)); // WZAPI
+	JS_REGISTER_FUNC(chat, 2); // WZAPI
+	JS_REGISTER_FUNC(addBeacon, std::min(3, 4)); // WZAPI
+	JS_REGISTER_FUNC(removeBeacon, 1); // WZAPI
+	JS_REGISTER_FUNC(getDroidProduction, 1); // WZAPI
+	JS_REGISTER_FUNC(getDroidLimit, std::min(0, 2)); // WZAPI
+	JS_REGISTER_FUNC(getExperienceModifier, 1); // WZAPI
+	JS_REGISTER_FUNC(setDroidLimit, std::min(2, 3)); // WZAPI
+	JS_REGISTER_FUNC(setCommanderLimit, 2); // deprecated!!
+	JS_REGISTER_FUNC(setConstructorLimit, 2); // deprecated!!
+	JS_REGISTER_FUNC(setExperienceModifier, 2); // WZAPI
+	JS_REGISTER_FUNC(getWeaponInfo, 1); // WZAPI // deprecated!!
+	JS_REGISTER_FUNC(enumCargo, 1); // WZAPI
 
 	// Functions that operate on the current player only
-	engine->globalObject().setProperty("centreView", engine->newFunction(js_centreView)); // WZAPI
-	engine->globalObject().setProperty("playSound", engine->newFunction(js_playSound)); // WZAPI
-	engine->globalObject().setProperty("gameOverMessage", engine->newFunction(js_gameOverMessage)); // WZAPI
+	JS_REGISTER_FUNC(centreView, 2); // WZAPI
+	JS_REGISTER_FUNC(playSound, std::min(1, 4)); // WZAPI
+	JS_REGISTER_FUNC(gameOverMessage, std::min(1, 3)); // WZAPI
 
 	// Global state manipulation -- not for use with skirmish AI (unless you want it to cheat, obviously)
-	engine->globalObject().setProperty("setStructureLimits", engine->newFunction(js_setStructureLimits)); // WZAPI
-	engine->globalObject().setProperty("applyLimitSet", engine->newFunction(js_applyLimitSet)); // WZAPI
-	engine->globalObject().setProperty("setMissionTime", engine->newFunction(js_setMissionTime)); // WZAPI
-	engine->globalObject().setProperty("getMissionTime", engine->newFunction(js_getMissionTime)); // WZAPI
-	engine->globalObject().setProperty("setReinforcementTime", engine->newFunction(js_setReinforcementTime)); // WZAPI
-	engine->globalObject().setProperty("completeResearch", engine->newFunction(js_completeResearch)); // WZAPI
-	engine->globalObject().setProperty("completeAllResearch", engine->newFunction(js_completeAllResearch)); // WZAPI
-	engine->globalObject().setProperty("enableResearch", engine->newFunction(js_enableResearch)); // WZAPI
-	engine->globalObject().setProperty("setPower", engine->newFunction(js_setPower)); // WZAPI
-	engine->globalObject().setProperty("setPowerModifier", engine->newFunction(js_setPowerModifier)); // WZAPI
-	engine->globalObject().setProperty("setPowerStorageMaximum", engine->newFunction(js_setPowerStorageMaximum)); // WZAPI
-	engine->globalObject().setProperty("extraPowerTime", engine->newFunction(js_extraPowerTime)); // WZAPI
-	engine->globalObject().setProperty("setTutorialMode", engine->newFunction(js_setTutorialMode)); // WZAPI
-	engine->globalObject().setProperty("setDesign", engine->newFunction(js_setDesign)); // WZAPI
-	engine->globalObject().setProperty("enableTemplate", engine->newFunction(js_enableTemplate)); // WZAPI
-	engine->globalObject().setProperty("removeTemplate", engine->newFunction(js_removeTemplate)); // WZAPI
-	engine->globalObject().setProperty("setMiniMap", engine->newFunction(js_setMiniMap)); // WZAPI
-	engine->globalObject().setProperty("setReticuleButton", engine->newFunction(js_setReticuleButton)); // WZAPI
-	engine->globalObject().setProperty("setReticuleFlash", engine->newFunction(js_setReticuleFlash)); // WZAPI
-	engine->globalObject().setProperty("showReticuleWidget", engine->newFunction(js_showReticuleWidget)); // WZAPI
-	engine->globalObject().setProperty("showInterface", engine->newFunction(js_showInterface)); // WZAPI
-	engine->globalObject().setProperty("hideInterface", engine->newFunction(js_hideInterface)); // WZAPI
-	engine->globalObject().setProperty("addReticuleButton", engine->newFunction(js_removeReticuleButton)); // deprecated!!
-	engine->globalObject().setProperty("removeReticuleButton", engine->newFunction(js_removeReticuleButton)); // deprecated!!
-	engine->globalObject().setProperty("enableStructure", engine->newFunction(js_enableStructure)); // WZAPI
-	engine->globalObject().setProperty("makeComponentAvailable", engine->newFunction(js_makeComponentAvailable)); // WZAPI
-	engine->globalObject().setProperty("enableComponent", engine->newFunction(js_enableComponent)); // WZAPI
-	engine->globalObject().setProperty("allianceExistsBetween", engine->newFunction(js_allianceExistsBetween)); // WZAPI
-	engine->globalObject().setProperty("removeStruct", engine->newFunction(js_removeStruct)); // WZAPI // deprecated!!
-	engine->globalObject().setProperty("removeObject", engine->newFunction(js_removeObject)); // WZAPI
-	engine->globalObject().setProperty("setScrollParams", engine->newFunction(js_setScrollLimits)); // deprecated!!
-	engine->globalObject().setProperty("setScrollLimits", engine->newFunction(js_setScrollLimits)); // WZAPI
-	engine->globalObject().setProperty("getScrollLimits", engine->newFunction(js_getScrollLimits));
-	engine->globalObject().setProperty("addStructure", engine->newFunction(js_addStructure)); // WZAPI
-	engine->globalObject().setProperty("getStructureLimit", engine->newFunction(js_getStructureLimit)); // WZAPI
-	engine->globalObject().setProperty("countStruct", engine->newFunction(js_countStruct)); // WZAPI
-	engine->globalObject().setProperty("countDroid", engine->newFunction(js_countDroid)); // WZAPI
-	engine->globalObject().setProperty("loadLevel", engine->newFunction(js_loadLevel)); // WZAPI
-	engine->globalObject().setProperty("setDroidExperience", engine->newFunction(js_setDroidExperience)); // WZAPI
-	engine->globalObject().setProperty("donateObject", engine->newFunction(js_donateObject)); // WZAPI
-	engine->globalObject().setProperty("donatePower", engine->newFunction(js_donatePower)); // WZAPI
-	engine->globalObject().setProperty("setNoGoArea", engine->newFunction(js_setNoGoArea)); // WZAPI
-	engine->globalObject().setProperty("startTransporterEntry", engine->newFunction(js_startTransporterEntry)); // WZAPI
-	engine->globalObject().setProperty("setTransporterExit", engine->newFunction(js_setTransporterExit)); // WZAPI
-	engine->globalObject().setProperty("setObjectFlag", engine->newFunction(js_setObjectFlag)); // WZAPI
-	engine->globalObject().setProperty("fireWeaponAtLoc", engine->newFunction(js_fireWeaponAtLoc)); // WZAPI
-	engine->globalObject().setProperty("fireWeaponAtObj", engine->newFunction(js_fireWeaponAtObj)); // WZAPI
-
-	// Set some useful constants
-	setSpecifiedGlobalVariables(wzapi::getUsefulConstants());
-
-	/// Place to store group sizes
-	//== * ```groupSizes``` A sparse array of group sizes. If a group has never been used, the entry in this array will
-	//== be undefined.
-	engine->globalObject().setProperty("groupSizes", engine->newObject());
-
-	// Static knowledge about players
-	nlohmann::json playerData = wzapi::constructStaticPlayerData();
-	engine->globalObject().setProperty("playerData", mapJsonToQScriptValue(engine, playerData, QScriptValue::ReadOnly | QScriptValue::Undeletable), QScriptValue::ReadOnly | QScriptValue::Undeletable);
-
-	// Static map knowledge about start positions
-	nlohmann::json startPositions = scripting_engine::instance().constructStartPositions();
-	nlohmann::json derrickPositions = scripting_engine::instance().constructDerrickPositions();
-	engine->globalObject().setProperty("derrickPositions", mapJsonToQScriptValue(engine, derrickPositions, QScriptValue::ReadOnly | QScriptValue::Undeletable), QScriptValue::ReadOnly | QScriptValue::Undeletable);
-	engine->globalObject().setProperty("startPositions", mapJsonToQScriptValue(engine, startPositions, QScriptValue::ReadOnly | QScriptValue::Undeletable), QScriptValue::ReadOnly | QScriptValue::Undeletable);
-
-	// Clear previous log file
-	PHYSFS_delete(QString("logs/" + scriptName + ".log").toUtf8().constData());
+	JS_REGISTER_FUNC(setStructureLimits, std::min(2, 3)); // WZAPI
+	JS_REGISTER_FUNC(applyLimitSet, 0); // WZAPI
+	JS_REGISTER_FUNC(setMissionTime, 1); // WZAPI
+	JS_REGISTER_FUNC(getMissionTime, 0); // WZAPI
+	JS_REGISTER_FUNC(setReinforcementTime, 1); // WZAPI
+	JS_REGISTER_FUNC(completeResearch, std::min(1, 3)); // WZAPI
+	JS_REGISTER_FUNC(completeAllResearch, std::min(0, 1)); // WZAPI
+	JS_REGISTER_FUNC(enableResearch, std::min(1, 2)); // WZAPI
+	JS_REGISTER_FUNC(setPower, std::min(1, 2)); // WZAPI
+	JS_REGISTER_FUNC(setPowerModifier, std::min(1, 2)); // WZAPI
+	JS_REGISTER_FUNC(setPowerStorageMaximum, std::min(1, 2)); // WZAPI
+	JS_REGISTER_FUNC(extraPowerTime, std::min(1, 2)); // WZAPI
+	JS_REGISTER_FUNC(setTutorialMode, 1); // WZAPI
+	JS_REGISTER_FUNC(setDesign, 1); // WZAPI
+	JS_REGISTER_FUNC(enableTemplate, 1); // WZAPI
+	JS_REGISTER_FUNC(removeTemplate, 1); // WZAPI
+	JS_REGISTER_FUNC(setMiniMap, 1); // WZAPI
+	JS_REGISTER_FUNC(setReticuleButton, std::min(4, 5)); // WZAPI
+	JS_REGISTER_FUNC(setReticuleFlash, 2); // WZAPI
+	JS_REGISTER_FUNC(showReticuleWidget, 1); // WZAPI
+	JS_REGISTER_FUNC(showInterface, 0); // WZAPI
+	JS_REGISTER_FUNC(hideInterface, 0); // WZAPI
+	JS_REGISTER_FUNC_NAME(addReticuleButton, 1, JS_FUNC_IMPL_NAME(removeReticuleButton)); // deprecated!!
+	JS_REGISTER_FUNC(removeReticuleButton, 1); // deprecated!!
+	JS_REGISTER_FUNC(enableStructure, std::min(1, 2)); // WZAPI
+	JS_REGISTER_FUNC(makeComponentAvailable, 2); // WZAPI
+	JS_REGISTER_FUNC(enableComponent, 2); // WZAPI
+	JS_REGISTER_FUNC(allianceExistsBetween, 2); // WZAPI
+	JS_REGISTER_FUNC(removeStruct, 1); // WZAPI // deprecated!!
+	JS_REGISTER_FUNC(removeObject, std::min(1, 2)); // WZAPI
+	JS_REGISTER_FUNC_NAME(setScrollParams, 4, JS_FUNC_IMPL_NAME(setScrollLimits)); // deprecated!!
+	JS_REGISTER_FUNC(setScrollLimits, 4); // WZAPI
+	JS_REGISTER_FUNC(getScrollLimits, 0); // WZAPI
+	JS_REGISTER_FUNC(addStructure, 4); // WZAPI
+	JS_REGISTER_FUNC(getStructureLimit, std::min(1, 2)); // WZAPI
+	JS_REGISTER_FUNC(countStruct, std::min(1, 2)); // WZAPI
+	JS_REGISTER_FUNC(countDroid, std::min(0, 2)); // WZAPI
+	JS_REGISTER_FUNC(loadLevel, 1); // WZAPI
+	JS_REGISTER_FUNC(setDroidExperience, 2); // WZAPI
+	JS_REGISTER_FUNC(donateObject, 2); // WZAPI
+	JS_REGISTER_FUNC(donatePower, 2); // WZAPI
+	JS_REGISTER_FUNC(setNoGoArea, 5); // WZAPI
+	JS_REGISTER_FUNC(startTransporterEntry, 3); // WZAPI
+	JS_REGISTER_FUNC(setTransporterExit, 3); // WZAPI
+	JS_REGISTER_FUNC(setObjectFlag, 3); // WZAPI
+	JS_REGISTER_FUNC(fireWeaponAtLoc, std::min(3, 4)); // WZAPI
+	JS_REGISTER_FUNC(fireWeaponAtObj, std::min(2, 3)); // WZAPI
 
 	return true;
 }
 
 // Enable JSON support for custom types
 
-// QVariant
+// JSContextValue
 void to_json(nlohmann::json& j, const JSContextValue& v) {
 	// IMPORTANT: This largely follows the Qt documentation on QJsonValue::fromVariant
 	// See: http://doc.qt.io/qt-5/qjsonvalue.html#fromVariant
@@ -4844,22 +4641,21 @@ void to_json(nlohmann::json& j, const JSContextValue& v) {
 				nlohmann::json jsonValue;
 				to_json(jsonValue, JSContextValue{v.ctx, jsVal});
 				j.push_back(jsonValue);
-				JS_FreeValue(ctx, resVal);
+				JS_FreeValue(v.ctx, jsVal);
 			}
 		}
 		return;
 	}
-	if (JS_IsObject(v.ctx, v.value))
+	if (JS_IsObject(v.value))
 	{
 		j = nlohmann::json::object();
-		QuickJS_EnumerateObjectProperties(v.ctx, v.value, [v, result](const char *key, JSAtom &atom) {
+		QuickJS_EnumerateObjectProperties(v.ctx, v.value, [v, &j](const char *key, JSAtom &atom) {
 			JSValue jsVal = JS_GetProperty(v.ctx, v.value, atom);
 			std::string nameStr = key;
-			nlohmann::json jsonValue;
-			to_json(jsonValue, JSContextValue{v.ctx, jsVal});
-			j[nameStr] = jsonValue;
-			JS_FreeValue(ctx, jsVal);
-		});
+			j[nameStr] = JSContextValue{v.ctx, jsVal};
+			JS_FreeValue(v.ctx, jsVal);
+		}, false);
+		return;
 	}
 
 	int tag = JS_VALUE_GET_NORM_TAG(v.value);
@@ -4868,12 +4664,13 @@ void to_json(nlohmann::json& j, const JSContextValue& v) {
 		case JS_TAG_BOOL:
 			j = JS_ToBool(v.ctx, v.value);
 			break;
-		case JS_TAG_INT;
+		case JS_TAG_INT:
 		{
 			int32_t intVal;
 			if (JS_ToInt32(v.ctx, &intVal, v.value))
 			{
 				// Failed
+				debug(LOG_SCRIPT, "Failed to convert to int32_t");
 			}
 			j = intVal;
 			break;
@@ -4884,6 +4681,7 @@ void to_json(nlohmann::json& j, const JSContextValue& v) {
 			if (JS_ToFloat64(v.ctx, &dblVal, v.value))
 			{
 				// Failed
+				debug(LOG_SCRIPT, "Failed to convert to double");
 			}
 			j = dblVal;
 			break;
@@ -4895,93 +4693,32 @@ void to_json(nlohmann::json& j, const JSContextValue& v) {
 		{
 			const char* pStr = JS_ToCString(v.ctx, v.value);
 			j = json((pStr) ? pStr : "");
-			JS_FreeCString(ctx, pStr);
+			JS_FreeCString(v.ctx, pStr);
 			break;
 		}
 		default:
+		{
 			// In every other case, a conversion to a string will be attempted
+			const char* pStr = JS_ToCString(v.ctx, v.value);
+			// If the returned string is empty, a Null QJsonValue will be stored, otherwise a String value using the returned QString.
+			if (pStr)
+			{
+				std::string str(pStr);
+				if (str.empty())
+				{
+					j = nlohmann::json(); // null value
+				}
+				else
+				{
+					j = str;
+				}
+				JS_FreeCString(v.ctx, pStr);
+			}
+			else
+			{
+				j = nlohmann::json(); // null value
+			}
+		}
 	}
-//
-//	switch (value.userType())
-//	{
-//#if (QT_VERSION >= QT_VERSION_CHECK(5, 9, 0))
-//		case QMetaType::Nullptr:
-//			j = nlohmann::json(); // null value
-//			break;
-//#endif
-//		case QMetaType::Bool:
-//			j = value.toBool();
-//			break;
-//		case QMetaType::Int:
-//			j = value.toInt();
-//			break;
-//		case QMetaType::UInt:
-//			j = value.toUInt();
-//			break;
-//		case QMetaType::LongLong:
-//			j = value.toLongLong();
-//			break;
-//		case QMetaType::ULongLong:
-//			j = value.toULongLong();
-//			break;
-//		case QMetaType::Float:
-//		case QVariant::Double:
-//			j = value.toDouble();
-//			break;
-//		case QMetaType::QString:
-//		{
-//			QString qstring = value.toString();
-//			j = json(qstring.toUtf8().constData());
-//			break;
-//		}
-//		case QMetaType::QStringList:
-//		case QMetaType::QVariantList:
-//		{
-//			// an array
-//			j = nlohmann::json::array();
-//			QList<QVariant> list = value.toList();
-//			for (QVariant& list_variant : list)
-//			{
-//				nlohmann::json list_variant_json_value;
-//				to_json(list_variant_json_value, list_variant);
-//				j.push_back(list_variant_json_value);
-//			}
-//			break;
-//		}
-//		case QMetaType::QVariantMap:
-//		{
-//			// an object
-//			j = nlohmann::json::object();
-//			QMap<QString, QVariant> map = value.toMap();
-//			for (QMap<QString, QVariant>::const_iterator i = map.constBegin(); i != map.constEnd(); ++i)
-//			{
-//				j[i.key().toUtf8().constData()] = i.value();
-//			}
-//			break;
-//		}
-//		case QMetaType::QVariantHash:
-//		{
-//			// an object
-//			j = nlohmann::json::object();
-//			QHash<QString, QVariant> hash = value.toHash();
-//			for (QHash<QString, QVariant>::const_iterator i = hash.constBegin(); i != hash.constEnd(); ++i)
-//			{
-//				j[i.key().toUtf8().constData()] = i.value();
-//			}
-//			break;
-//		}
-//		default:
-//			// For all other QVariant types a conversion to a QString will be attempted.
-//			QString qstring = value.toString();
-//			// If the returned string is empty, a Null QJsonValue will be stored, otherwise a String value using the returned QString.
-//			if (qstring.isEmpty())
-//			{
-//				j = nlohmann::json(); // null value
-//			}
-//			else
-//			{
-//				j = std::string(qstring.toUtf8().constData());
-//			}
-//	}
 }
 
