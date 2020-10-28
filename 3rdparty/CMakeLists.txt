@@ -97,4 +97,5 @@ if(MSVC)
 	set(QUICKJS_COMPILE_OPTIONS "${QUICKJS_COMPILE_OPTIONS} /wd4018")
 
 	target_compile_options(quickjs PRIVATE "${QUICKJS_COMPILE_OPTIONS}")
+	target_compile_definitions(quickjs PRIVATE "_CRT_SECURE_NO_WARNINGS")
 endif()
