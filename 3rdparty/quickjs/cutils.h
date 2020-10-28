@@ -73,6 +73,10 @@
 #else
   #define __maybe_unused /* not supported */
 #endif
+#if defined(_MSC_VER)
+  #include <BaseTsd.h>
+  typedef SSIZE_T ssize_t;
+#endif
 
 #define xglue(x, y) x ## y
 #define glue(x, y) xglue(x, y)
