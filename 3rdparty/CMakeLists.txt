@@ -49,7 +49,7 @@ target_include_directories(glad PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/glad/include
 
 set(QUICKJS_HEADERS
 	quickjs/cutils.h
-	quickjs/libbf.h
+#	quickjs/libbf.h
 	quickjs/libregexp.h
 	quickjs/libunicode.h
 	quickjs/list.h
@@ -61,7 +61,7 @@ set(QUICKJS_HEADERS
 
 set(QUICKJS_SOURCES
 	quickjs/cutils.c
-	quickjs/libbf.c
+#	quickjs/libbf.c
 	quickjs/libregexp.c
 	quickjs/libunicode.c
 	quickjs/quickjs.c
@@ -89,3 +89,12 @@ set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 target_link_libraries(quickjs PRIVATE Threads::Threads)
+if(MSVC)
+	# Disable some warnings for QuickJS
+	set(QUICKJS_COMPILE_OPTIONS "")
+
+	# warning C4018: '<': signed/unsigned mismatch
+	set(QUICKJS_COMPILE_OPTIONS "${QUICKJS_COMPILE_OPTIONS} /wd4018")
+
+	target_compile_options(quickjs PRIVATE "${QUICKJS_COMPILE_OPTIONS}")
+endif()
