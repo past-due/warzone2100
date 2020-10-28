@@ -54,6 +54,9 @@ set(QUICKJS_HEADERS
 	quickjs/libunicode.h
 	quickjs/list.h
 	quickjs/quickjs.h
+	# extensions
+	quickjs/quickjs-debugger.h
+	quickjs/quickjs-limitedcontext.h
 )
 
 set(QUICKJS_SOURCES
@@ -62,11 +65,27 @@ set(QUICKJS_SOURCES
 	quickjs/libregexp.c
 	quickjs/libunicode.c
 	quickjs/quickjs.c
+	# extensions
+	# INCLUDED DIRECTLY IN QUICKJS.C: quickjs/quickjs-debugger.c
+	# INCLUDED DIRECTLY IN QUICKJS.C: quickjs/quickjs-limitedcontext.c
 )
 
+file(STRINGS "quickjs/VERSION" QUICKJS_VERSION_STR)
+
+INCLUDE(CheckIncludeFiles)
+CHECK_INCLUDE_FILES("sys/time.h" HAVE_SYS_TIME_H LANGUAGE C)
 add_library(quickjs STATIC ${QUICKJS_HEADERS} ${QUICKJS_SOURCES})
 set_property(TARGET quickjs PROPERTY FOLDER "3rdparty")
 target_include_directories(quickjs PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/quickjs")
 target_compile_definitions(quickjs PRIVATE
-	CONFIG_VERSION="2020-09-06"
+	CONFIG_VERSION="${QUICKJS_VERSION_STR}"
+	_GNU_SOURCE
+	QUICKJS_DISABLE_ATOMICS
 )
+if(HAVE_SYS_TIME_H)
+	target_compile_definitions(quickjs PRIVATE QUICKJS_HAVE_SYS_TIME_H)
+endif()
+set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+find_package(Threads REQUIRED)
+target_link_libraries(quickjs PRIVATE Threads::Threads)
