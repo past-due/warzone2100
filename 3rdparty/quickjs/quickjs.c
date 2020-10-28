@@ -41554,6 +41554,11 @@ static JSValue js_math_random(JSContext *ctx, JSValueConst this_val,
     return __JS_NewFloat64(ctx, u.d - 1.0);
 }
 
+#if defined(_MSC_VER)
+  #pragma function (ceil)	// Fix MSVC error C2099: initializer is not a constant
+  #pragma function (floor)	// Fix MSVC error C2099: initializer is not a constant
+#endif
+
 static const JSCFunctionListEntry js_math_funcs[] = {
     JS_CFUNC_MAGIC_DEF("min", 2, js_math_min_max, 0 ),
     JS_CFUNC_MAGIC_DEF("max", 2, js_math_min_max, 1 ),
