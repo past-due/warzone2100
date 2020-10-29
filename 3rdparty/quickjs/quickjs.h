@@ -218,13 +218,13 @@ typedef struct JSValue {
 #define JS_MKVAL(tag, val) (JSValue){ (JSValueUnion){ .int32 = val }, tag }
 #define JS_MKPTR(tag, p) (JSValue){ (JSValueUnion){ .ptr = p }, tag }
 
-#if !defined(JS_NAN_BOXING) && defined(__cplusplus)
+#if defined(__cplusplus)
 #undef JS_MKVAL
 #undef JS_MKPTR
 #define with(T, ...)\
-	([&]{ T ${}; __VA_ARGS__; return $; }())
-#define JS_MKVAL(tag, val) JSValue{ with(JSValueUnion, $.int32 = val), tag }
-#define JS_MKPTR(tag, p) JSValue{ with(JSValueUnion, $.ptr = p), tag }
+	([&]{ T t{}; __VA_ARGS__; return t; }())
+#define JS_MKVAL(tag, val) JSValue{ with(JSValueUnion, t.int32 = val), tag }
+#define JS_MKPTR(tag, p) JSValue{ with(JSValueUnion, t.ptr = p), tag }
 #endif
 
 #define JS_TAG_IS_FLOAT64(tag) ((unsigned)(tag) == JS_TAG_FLOAT64)
