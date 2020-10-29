@@ -57,6 +57,6 @@ namespace gsl {
 	{
 		return final_act<F>(std::forward<F>(f));
 	}
-};
+}
 
 #endif // __INCLUDED_GSL_FINALLY_H__
