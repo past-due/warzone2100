@@ -46,6 +46,40 @@ enum FMV_MODE
 	FMV_MAX
 };
 
+enum class JS_BACKEND
+{
+	quickjs,
+	qtscript,
+	num_backends // Must be last!
+};
+
+std::string js_backend_names[] =
+{
+	"quickjs",
+	"qtscript",
+	"invalid" // Must be last!
+};
+
+static_assert((size_t)JS_BACKEND::num_backends == (sizeof(js_backend_names) / sizeof(std::string)) - 1, "js_backend_names must match JS_BACKEND enum");
+
+inline bool js_backend_from_str(const char *str, JS_BACKEND &output_backend)
+{
+	for (size_t i = 0; i < (size_t)JS_BACKEND::num_backends; i++)
+	{
+		if (strcasecmp(js_backend_names[i].c_str(), str) == 0)
+		{
+			output_backend = (JS_BACKEND)i;
+			return true;
+		}
+	}
+	return false;
+}
+
+inline std::string to_string(JS_BACKEND backend)
+{
+	return js_backend_names[(size_t)backend];
+}
+
 /***************************************************************************/
 /*
  *	Global ProtoTypes
@@ -102,6 +136,8 @@ void war_setScanlineMode(SCANLINE_MODE mode);
 SCANLINE_MODE war_getScanlineMode();
 video_backend war_getGfxBackend();
 void war_setGfxBackend(video_backend backend);
+JS_BACKEND war_getJSBackend();
+void war_setJSBackend(JS_BACKEND backend);
 
 /**
  * Enable or disable sound initialization
