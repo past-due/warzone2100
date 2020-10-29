@@ -89,9 +89,16 @@
 #include "lib/framework/file.h"
 #include <unordered_map>
 
+#if !defined(__clang__) && defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-function-type"
+#endif
 #include "quickjs.h"
 #include "quickjs-debugger.h"
 #include "quickjs-limitedcontext.h"
+#if !defined(__clang__) && defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic pop
+#endif
 #include "3rdparty/gsl_finally.h"
 
 // Alternatives for C++ - can't use the JS_CFUNC_DEF / JS_CGETSET_DEF / etc defines
