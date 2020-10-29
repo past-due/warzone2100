@@ -94,11 +94,11 @@ if(MSVC)
 	set(QUICKJS_COMPILE_OPTIONS "")
 
 	# warning C4018: '<': signed/unsigned mismatch
-	set(QUICKJS_COMPILE_OPTIONS "${QUICKJS_COMPILE_OPTIONS} /wd4018")
+	set(QUICKJS_COMPILE_OPTIONS ${QUICKJS_COMPILE_OPTIONS} /wd4018)
 
 	# warning C4191: 'type cast': unsafe conversion from 'JSCFunctionMagic (__cdecl *)' to 'JSCFunction (__cdecl *)'
-	set(QUICKJS_COMPILE_OPTIONS "${QUICKJS_COMPILE_OPTIONS} /wd4191")
+	set(QUICKJS_COMPILE_OPTIONS ${QUICKJS_COMPILE_OPTIONS} /wd4191)
 
-	target_compile_options(quickjs PRIVATE "${QUICKJS_COMPILE_OPTIONS}")
+	target_compile_options(quickjs PRIVATE ${QUICKJS_COMPILE_OPTIONS})
 	target_compile_definitions(quickjs PRIVATE "_CRT_SECURE_NO_WARNINGS")
 endif()
