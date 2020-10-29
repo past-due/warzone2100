@@ -1116,8 +1116,6 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 {
 	const auto instance = engineToInstanceMap.at(ctx);
 	JSValue global_obj = instance->Get_Global_Obj();
-//	JSValue global_obj = JS_GetGlobalObject(ctx);
-//	auto free_global_obj = gsl::finally([ctx, global_obj] { JS_FreeValue(ctx, global_obj); });  // establish exit action
 	if (event)
 	{
 		// recurse into variants, if any
@@ -1172,27 +1170,14 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
                 const char* stack_str = JS_ToCString(ctx, stack);
                 if (stack_str) {
 					result_str += stack_str;
-//                    const char *p;
-//                    int len;
-//
-////                    if (outfile)
-////                        fprintf(outfile, "%s", stack_str);
-//
-//                    len = strlen(filename);
-//                    p = strstr(stack_str, filename);
-//                    if (p != NULL && p[len] == ':') {
-//                        error_line = atoi(p + len + 1);
-//                        has_error_line = TRUE;
-//                    }
                     JS_FreeCString(ctx, stack_str);
                 }
             }
             JS_FreeValue(ctx, stack);
 		}
-		int line = 0; // TODO: //engine->uncaughtExceptionLineNumber();
 		JS_FreeValue(ctx, err);
-		ASSERT(false, "Uncaught exception calling function \"%s\" at line %d: %s",
-		       function.c_str(), line, result_str.c_str());
+		ASSERT(false, "Uncaught exception calling function \"%s\": %s",
+		       function.c_str(), result_str.c_str());
 		return JS_UNDEFINED;
 	}
 	return result;
@@ -1982,7 +1967,7 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 
 		JSValue box(const wzapi::researchResults& results, JSContext* ctx)
 		{
-			JSValue result = JS_NewArray(ctx); //engine->newArray(results.resList.size());
+			JSValue result = JS_NewArray(ctx);
 			for (uint32_t i = 0; i < results.resList.size(); i++)
 			{
 				const RESEARCH *psResearch = results.resList.at(i);
@@ -2197,7 +2182,7 @@ static std::string QuickJS_DumpObject(JSContext *ctx, JSValue obj)
     }
 	else
 	{
-        result = "[exception]";
+        result = "[failed to convert object to string]";
     }
 	return result;
 }
@@ -2252,19 +2237,20 @@ static JSValue js_include(JSContext *ctx, JSValueConst this_val, int argc, JSVal
 		JS_ThrowReferenceError(ctx, "Failed to read include file \"%s\" (path=%s, name=%s)", path.c_str(), basePath.c_str(), basename.filePath().toUtf8().constData());
 		return JS_FALSE;
 	}
-//	QString source = QString::fromUtf8(bytes, size);
-//	free(bytes);
-//	QScriptSyntaxCheckResult syntax = QScriptEngine::checkSyntax(source);
-//	if (syntax.state() != QScriptSyntaxCheckResult::Valid)
-//	{
-//		debug(LOG_ERROR, "Syntax error in include %s line %d: %s",
-//		      path.toUtf8().constData(), syntax.errorLineNumber(), syntax.errorMessage().toUtf8().constData());
-//		return JS_FALSE;
-//	}
-//	context->setActivationObject(engine->globalObject());
-//	context->setThisObject(engine->globalObject());
-	JSValue result = JS_Eval(ctx, bytes, size, path.c_str(), JS_EVAL_TYPE_GLOBAL);
+	JSValue compiledFuncObj = JS_Eval(ctx, bytes, size, path.c_str(), JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_COMPILE_ONLY);
 	free(bytes);
+	if (JS_IsException(compiledFuncObj))
+	{
+		// compilation error / syntax error
+		std::string errorAsString = QuickJS_DumpError(ctx);
+		debug(LOG_ERROR, "Syntax error in include file %s: %s",
+			  path.c_str(), errorAsString.c_str());
+		JS_FreeValue(ctx, compiledFuncObj);
+		compiledFuncObj = JS_UNINITIALIZED;
+		return JS_FALSE;
+	}
+	JSValue result = JS_EvalFunction(ctx, compiledFuncObj);
+	compiledFuncObj = JS_UNINITIALIZED;
 	if (JS_IsException(result))
 	{
 		std::string errorAsString = QuickJS_DumpError(ctx);
@@ -2361,25 +2347,6 @@ static JSValue js_setTimer(JSContext *ctx, JSValueConst this_val, int argc, JSVa
 	}
 
 	SetQuickJSTimer(ctx, player, funcName, ms, stringArg, psObj, TIMER_REPEAT);
-//	scripting_engine::instance().setTimer(engineToInstanceMap.at(ctx)
-//	  // timerFunc
-//	, [ctx, funcName](uniqueTimerID timerID, BASE_OBJECT* baseObject, timerAdditionalData* additionalParams) {
-//		quickjs_timer_additionaldata* pData = static_cast<quickjs_timer_additionaldata*>(additionalParams);
-//		std::vector<JSValue> args;
-//		if (baseObject != nullptr)
-//		{
-//			args.push_back(convMax(baseObject, ctx));
-//		}
-//		else if (pData && !(pData->stringArg.empty()))
-//		{
-//			args.push_back(JS_NewStringLen(ctx, pData->stringArg.c_str(), pData->stringArg.length()));
-//		}
-//		callFunction(ctx, funcName, args, true);
-//		std::for_each(args.begin(), args.end(), [ctx](JSValue& val) { JS_FreeValue(ctx, val); });
-//	}
-//	, player, ms, funcName, psObj, TIMER_REPEAT
-//	// additionalParams
-//	, new quickjs_timer_additionaldata(stringArg));
 
 	return JS_TRUE;
 }
@@ -2466,25 +2433,7 @@ static JSValue js_queue(JSContext *ctx, JSValueConst this_val, int argc, JSValue
 	}
 
 	SetQuickJSTimer(ctx, player, funcName, ms, stringArg, psObj, TIMER_ONESHOT_READY);
-//	scripting_engine::instance().setTimer(engineToInstanceMap.at(ctx)
-//	  // timerFunc
-//	, [ctx, funcName](uniqueTimerID timerID, BASE_OBJECT* baseObject, timerAdditionalData* additionalParams) {
-//		quickjs_timer_additionaldata* pData = static_cast<quickjs_timer_additionaldata*>(additionalParams);
-//		std::vector<JSValue> args;
-//		if (baseObject != nullptr)
-//		{
-//			args.push_back(convMax(baseObject, ctx));
-//		}
-//		else if (pData && !(pData->stringArg.empty()))
-//		{
-//			args.push_back(JS_NewStringLen(ctx, pData->stringArg.c_str(), pData->stringArg.length()));
-//		}
-//		callFunction(ctx, funcName, args, true);
-//		std::for_each(args.begin(), args.end(), [ctx](JSValue& val) { JS_FreeValue(ctx, val); });
-//	}
-//	, player, ms, funcName, psObj, TIMER_ONESHOT_READY
-//	// additionalParams
-//	, new quickjs_timer_additionaldata(stringArg));
+
 	return JS_TRUE;
 }
 
@@ -2837,6 +2786,7 @@ bool QuickJS_EnumerateObjectProperties(JSContext *ctx, JSValue obj, const std::f
 	if (JS_GetOwnPropertyNames(ctx, &properties, &count, obj, flags) != 0)
 	{
 		// JS_GetOwnPropertyNames failed?
+		debug(LOG_ERROR, "JS_GetOwnPropertyNames failed");
 		return false;
 	}
 
@@ -2848,14 +2798,7 @@ bool QuickJS_EnumerateObjectProperties(JSContext *ctx, JSValue obj, const std::f
 
 		func(key, atom);
 
-//        JSValue jsval = JS_GetProperty(ctx, obj, atom);
-//        const char *val = JS_ToCString(ctx, jsval);
-//
-//        fprintf(stderr, "key=%s, val=%s\n", key, val);
-
-//        JS_FreeValue(ctx, jsval);
         JS_FreeCString(ctx, key);
-//        JS_FreeCString(ctx, val);
     }
 	for (int i = 0; i < count; i++)
 	{
@@ -3074,24 +3017,12 @@ void quickjs_scripting_instance::updateGameTime(uint32_t gameTime)
 {
 	int ret = JS_DefinePropertyValueStr(ctx, global_obj, "gameTime", JS_NewUint32(ctx, gameTime), JS_PROP_WRITABLE | JS_PROP_ENUMERABLE);
 	ASSERT(ret >= 1, "Failed to update gameTime");
-	debug(LOG_SCRIPT, "gameTime: %u", QuickJS_GetUint32(ctx, global_obj, "gameTime"));
 }
 
 void quickjs_scripting_instance::updateGroupSizes(int groupId, int size)
 {
 	JSValue groupMembersObj = JS_GetPropertyStr(ctx, global_obj, "groupSizes");
 	JS_DefinePropertyValueStr(ctx, groupMembersObj, std::to_string(groupId).c_str(), JS_NewInt32(ctx, size), JS_PROP_C_W_E);
-
-//	nlohmann::json details = nlohmann::json::object();
-//	QuickJS_EnumerateObjectProperties(ctx, groupMembersObj, [this, groupMembersObj, &details](const char *key, JSAtom &atom) {
-//		JSValue jsVal = JS_GetProperty(ctx, groupMembersObj, atom);
-//		std::string nameStr = key;
-//		details[nameStr] = JSContextValue{ctx, jsVal}; // uses to_json JSContextValue implementation
-//		JS_FreeValue(ctx, jsVal);
-//	});
-//	debug(LOG_SCRIPT, "groupSizes: %s", details.dump().c_str());
-
-//	JS_DefinePropertyValueStr(ctx, global_obj, "groupSizes", groupMembersObj, 0);
 	JS_FreeValue(ctx, groupMembersObj);
 }
 
@@ -4289,74 +4220,14 @@ IMPL_JS_FUNC(getRevealStatus, wzapi::getRevealStatus)
 IMPL_JS_FUNC(setRevealStatus, wzapi::setRevealStatus)
 
 
-//JSValue js_stats(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
-//{
-//	int type = QuickJS_GetInt32(ctx, this_val, "type");
-//	int player = QuickJS_GetInt32(ctx, this_val, "player");
-//	unsigned index = QuickJS_GetUint32(ctx, this_val, "index");
-//	std::string name = QuickJS_GetStdString(ctx, this_val, "name");
-//	quickjs_execution_context execution_context(ctx);
-//	if (argc == 1) // setter
-//	{
-//		wzapi::setUpgradeStats(execution_context, player, name.toStdString(), type, index, context->argument(0).toVariant());
-//	}
-//	// Now read value and return it
-//	return mapJsonToQScriptValue(ctx, wzapi::getUpgradeStats(execution_context, player, name.toStdString(), type, index), QScriptValue::ReadOnly | QScriptValue::Undeletable);
-//}
-
-//struct StatsFuncContext
-//{
-//	StatsFuncContext(/*int statsContextId,*/ const std::string &name, int player, int type, unsigned index)
-//	: name(name)
-//	, player(player)
-//	, type(type)
-//	, index(index)
-//	{
-////		js_stats_getter_setter_func[0] = JS_CGETSET_MAGIC_DEF(name.c_str(), js_stats_get, js_stats_set, statsContextId);
-//	}
-////
-////	// non-copyable
-////	StatsFuncContext(const StatsFuncContext& other) = delete;
-////	StatsFuncContext& operator=(const StatsFuncContext&) = delete;
-//
-//	std::string name;
-//	int player;
-//	int type;
-//	unsigned index;
-//	// Must keep this around, because QuickJS may make this an "auto-init" property, which accesses the pointer to the data on first property access.
-////	JSCFunctionListEntry js_stats_getter_setter_func[1];
-//};
-//
-//static std::vector<StatsFuncContext> statsContexts;
-//
-//static inline StatsFuncContext& get_stats_context(int magic)
-//{
-//	size_t magicIdx = static_cast<size_t>(magic);
-//	if (magicIdx >= statsContexts.size())
-//	{
-//		throw std::runtime_error("out of bounds stats context index");
-//	}
-//	return statsContexts[magicIdx];
-//}
-
 static JSValue js_stats_get(JSContext *ctx, JSValueConst this_val)
 {
-//	std::string thisObjAsStr = QuickJS_DumpObject(ctx, this_val);
-//	QuickJS_EnumerateObjectProperties(ctx, this_val, [&thisObjAsStr](const char *key, JSAtom &){
-//		thisObjAsStr += "\n";
-//		thisObjAsStr += key;
-//	}, false);
 	JSValue currentFuncObj = js_debugger_get_current_funcObject(ctx);
 	int type = QuickJS_GetInt32(ctx, currentFuncObj, "type");
 	int player = QuickJS_GetInt32(ctx, currentFuncObj, "player");
 	unsigned index = QuickJS_GetUint32(ctx, currentFuncObj, "index");
 	std::string name = QuickJS_GetStdString(ctx, currentFuncObj, "name");
 	JS_FreeValue(ctx, currentFuncObj);
-//	if (name != "undefined")
-//	{
-//		debug(LOG_ERROR, "Found it!");
-//	}
-//	auto& statsContext = get_stats_context(magic);
 	quickjs_execution_context execution_context(ctx);
 	return mapJsonToQuickJSValue(ctx, wzapi::getUpgradeStats(execution_context, player, name, type, index), 0);
 }
@@ -4369,7 +4240,6 @@ static JSValue js_stats_set(JSContext *ctx, JSValueConst this_val, JSValueConst 
 	unsigned index = QuickJS_GetUint32(ctx, currentFuncObj, "index");
 	std::string name = QuickJS_GetStdString(ctx, currentFuncObj, "name");
 	JS_FreeValue(ctx, currentFuncObj);
-//	auto& statsContext = get_stats_context(magic);
 	quickjs_execution_context execution_context(ctx);
 	wzapi::setUpgradeStats(execution_context, player, name, type, index, JSContextValue{ctx, val});
 	// Now read value and return it
@@ -4383,10 +4253,6 @@ static void setStatsFunc(JSValue &base, JSContext *ctx, const std::string& name,
 	const JSCFunctionListEntry js_stats_getter_setter_func[] = {
 		QJS_CGETSET_DEF(name.c_str(), js_stats_get, js_stats_set)
 	};
-
-//	size_t statContextId = statsContexts.size();
-//	statsContexts.emplace_back(name, player, type, index);
-//	JS_SetPropertyFunctionList(ctx, base, js_stats_getter_setter_func, sizeof(js_stats_getter_setter_func) / sizeof(js_stats_getter_setter_func[0]));
 
 	JSValue getter = JS_UNDEFINED;
 	JSValue setter = JS_UNDEFINED;
@@ -4415,14 +4281,6 @@ static void setStatsFunc(JSValue &base, JSContext *ctx, const std::string& name,
 	JS_DefinePropertyGetSet(ctx, base, atom, getter, setter, js_stats_getter_setter_func[0].prop_flags);
 
 	JS_FreeAtom(ctx, atom);
-//
-//	// Get the function object, and add some properties to it
-//	JSValue funcObj = JS_GetPropertyStr(ctx, base, name.c_str());
-//	JS_FreeValue(ctx, funcObj);
-//	QuickJS_DefinePropertyValue(ctx, funcObj, "player", JS_NewInt32(ctx, player), 0);
-//	QuickJS_DefinePropertyValue(ctx, funcObj, "type", JS_NewInt32(ctx, type), 0);
-//	QuickJS_DefinePropertyValue(ctx, funcObj, "index", JS_NewUint32(ctx, index), 0);
-//	QuickJS_DefinePropertyValue(ctx, funcObj, "name", JS_NewStringLen(ctx, name.c_str(), name.length()), 0);
 }
 
 JSValue constructUpgradesQuickJSValue(JSContext *ctx)
@@ -4705,7 +4563,7 @@ void to_json(nlohmann::json& j, const JSContextValue& v) {
 			break;
 		case JS_TAG_INT:
 		{
-			int32_t intVal;
+			int32_t intVal = 0;
 			if (JS_ToInt32(v.ctx, &intVal, v.value))
 			{
 				// Failed
@@ -4716,7 +4574,7 @@ void to_json(nlohmann::json& j, const JSContextValue& v) {
 		}
 		case JS_TAG_FLOAT64:
 		{
-			double dblVal;
+			double dblVal = 0.0;
 			if (JS_ToFloat64(v.ctx, &dblVal, v.value))
 			{
 				// Failed
