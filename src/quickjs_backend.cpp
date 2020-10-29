@@ -94,6 +94,35 @@
 #include "quickjs-limitedcontext.h"
 #include "3rdparty/gsl_finally.h"
 
+// Alternatives for C++ - can't use the JS_CFUNC_DEF / JS_CGETSET_DEF / etc defines
+// #define JS_CFUNC_DEF(name, length, func1) { name, JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE, JS_DEF_CFUNC, 0, .u = { .func = { length, JS_CFUNC_generic, { .generic = func1 } } } }
+static inline JSCFunctionListEntry QJS_CFUNC_DEF(const char *name, uint8_t length, JSCFunction *func1)
+{
+	JSCFunctionListEntry entry;
+	entry.name = name;
+	entry.prop_flags = JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE;
+	entry.def_type = JS_DEF_CFUNC;
+	entry.magic = 0;
+	entry.u.func.length = length;
+	entry.u.func.cproto = JS_CFUNC_generic;
+	entry.u.func.cfunc.generic = func1;
+	return entry;
+}
+// #define JS_CGETSET_DEF(name, fgetter, fsetter) { name, JS_PROP_CONFIGURABLE, JS_DEF_CGETSET, 0, .u = { .getset = { .get = { .getter = fgetter }, .set = { .setter = fsetter } } } }
+typedef JSValue JSCFunctionGetter(JSContext *ctx, JSValueConst this_val);
+typedef JSValue JSCFunctionSetter(JSContext *ctx, JSValueConst this_val, JSValueConst val);
+static inline JSCFunctionListEntry QJS_CGETSET_DEF(const char *name, JSCFunctionGetter *fgetter, JSCFunctionSetter *fsetter)
+{
+	JSCFunctionListEntry entry;
+	entry.name = name;
+	entry.prop_flags = JS_PROP_CONFIGURABLE;
+	entry.def_type = JS_DEF_CGETSET;
+	entry.magic = 0;
+	entry.u.getset.get.getter = fgetter;
+	entry.u.getset.set.setter = fsetter;
+	return entry;
+}
+
 struct JSContextValue {
 	JSContext *ctx;
 	JSValue value;
@@ -595,14 +624,14 @@ static JSValue mapJsonObjectToQuickJSValue(JSContext *ctx, const nlohmann::json 
 {
 	JSValue value = JS_NewObject(ctx);
 //    JSAtom prop_name;
-    int ret;
+//    int ret;
 	for (auto it = obj.begin(); it != obj.end(); ++it)
 	{
 		JSValue prop_val = mapJsonToQuickJSValue(ctx, it.value(), prop_flags);
 //		JS_SetPropertyStr(ctx, value, it.key().c_str(), childVal);
 //		prop_name = JS_NewAtom(ctx, it.key().c_str());
 //		ret = JS_DefinePropertyValue(ctx, value, prop_name, prop_val, prop_flags);
-		ret = JS_DefinePropertyValueStr(ctx, value, it.key().c_str(), prop_val, prop_flags);
+		/*ret =*/ JS_DefinePropertyValueStr(ctx, value, it.key().c_str(), prop_val, prop_flags);
 //		JS_FreeAtom(ctx, prop_name);
 	}
 	return value;
@@ -1209,7 +1238,7 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 	{
 		template<typename T>
 		struct unbox {
-			//T operator()(size_t& idx, QScriptContext *context) const;
+			//T operator()(size_t& idx, JSContext *ctx, int argc, JSValueConst *argv, const char *function) const;
 		};
 
 		template<>
@@ -1493,7 +1522,7 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 		template<>
 		struct unbox<wzapi::reservedParam>
 		{
-			wzapi::reservedParam operator()(size_t& idx, JSContext *ctx, int argc, JSValueConst *argv, const char *function)
+			wzapi::reservedParam operator()(size_t& idx, JSContext *ctx, int argc, WZ_DECL_UNUSED JSValueConst *argv, const char *function)
 			{
 				if (argc <= idx)
 					return {};
@@ -1944,7 +1973,7 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 		JSValue box(const wzapi::researchResults& results, JSContext* ctx)
 		{
 			JSValue result = JS_NewArray(ctx); //engine->newArray(results.resList.size());
-			for (int i = 0; i < results.resList.size(); i++)
+			for (uint32_t i = 0; i < results.resList.size(); i++)
 			{
 				const RESEARCH *psResearch = results.resList.at(i);
 				JS_DefinePropertyValueUint32(ctx, result, i, convResearch(psResearch, ctx, results.player), JS_PROP_C_W_E); // TODO: Check return value?
@@ -2028,7 +2057,7 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 		MSVC_PRAGMA(warning( disable : 4189 )) // disable "warning C4189: 'idx': local variable is initialized but not referenced"
 		
 		template<typename R, typename...Args>
-		JSValue wrap__(R(*f)(const wzapi::execution_context&, Args...), WZ_DECL_UNUSED const char *wrappedFunctionName, JSContext *context, int argc, JSValueConst *argv)
+		JSValue wrap__(R(*f)(const wzapi::execution_context&, Args...), WZ_DECL_UNUSED const char *wrappedFunctionName, JSContext *context, WZ_DECL_UNUSED int argc, WZ_DECL_UNUSED JSValueConst *argv)
 		{
 			size_t idx WZ_DECL_UNUSED = 0; // unused when Args... is empty
 			quickjs_execution_context execution_context(context);
@@ -2036,7 +2065,7 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 		}
 
 		template<typename R, typename...Args>
-		JSValue wrap__(R(*f)(), WZ_DECL_UNUSED const char *wrappedFunctionName, JSContext *context, int argc, JSValueConst *argv)
+		JSValue wrap__(R(*f)(), WZ_DECL_UNUSED const char *wrappedFunctionName, JSContext *context, WZ_DECL_UNUSED int argc, WZ_DECL_UNUSED JSValueConst *argv)
 		{
 			return box(f(), context);
 		}
@@ -2739,9 +2768,9 @@ ScriptMapData runMapScript_QuickJS(WzString const &path, uint64_t seed, bool pre
 
 	// Special mapScript functions
 	static const JSCFunctionListEntry js_builtin_mapFuncs[] = {
-		JS_CFUNC_DEF("gameRand", 0, runMap_gameRand ),
-		JS_CFUNC_DEF("log", 1, runMap_log ),
-		JS_CFUNC_DEF("setMapData", 7, runMap_setMapData )
+		QJS_CFUNC_DEF("gameRand", 0, runMap_gameRand ),
+		QJS_CFUNC_DEF("log", 1, runMap_log ),
+		QJS_CFUNC_DEF("setMapData", 7, runMap_setMapData )
 	};
 	JS_SetPropertyFunctionList(ctx, global_obj, js_builtin_mapFuncs, sizeof(js_builtin_mapFuncs) / sizeof(js_builtin_mapFuncs[0]));
 
@@ -2827,15 +2856,15 @@ bool QuickJS_EnumerateObjectProperties(JSContext *ctx, JSValue obj, const std::f
 }
 
 static const JSCFunctionListEntry js_builtin_funcs[] = {
-	JS_CFUNC_DEF("setTimer", 2, js_setTimer ), // JS-specific implementation
-	JS_CFUNC_DEF("queue", 1, js_queue ), // JS-specific implementation
-	JS_CFUNC_DEF("removeTimer", 1, js_removeTimer ), // JS-specific implementation
-	JS_CFUNC_DEF("profile", 1, js_profile ), // JS-specific implementation
-	JS_CFUNC_DEF("include", 1, js_include ), // backend-specific (a scripting_instance can't directly include a different type of script)
-	JS_CFUNC_DEF("namespace", 1, js_namespace ), // JS-specific implementation
-	JS_CFUNC_DEF("debugGetCallerFuncObject", 0, debugGetCallerFuncObject ), // backend-specific
-	JS_CFUNC_DEF("debugGetCallerFuncName", 0, debugGetCallerFuncName ), // backend-specific
-	JS_CFUNC_DEF("debugGetBacktrace", 0, debugGetBacktrace ) // backend-specific
+	QJS_CFUNC_DEF("setTimer", 2, js_setTimer ), // JS-specific implementation
+	QJS_CFUNC_DEF("queue", 1, js_queue ), // JS-specific implementation
+	QJS_CFUNC_DEF("removeTimer", 1, js_removeTimer ), // JS-specific implementation
+	QJS_CFUNC_DEF("profile", 1, js_profile ), // JS-specific implementation
+	QJS_CFUNC_DEF("include", 1, js_include ), // backend-specific (a scripting_instance can't directly include a different type of script)
+	QJS_CFUNC_DEF("namespace", 1, js_namespace ), // JS-specific implementation
+	QJS_CFUNC_DEF("debugGetCallerFuncObject", 0, debugGetCallerFuncObject ), // backend-specific
+	QJS_CFUNC_DEF("debugGetCallerFuncName", 0, debugGetCallerFuncName ), // backend-specific
+	QJS_CFUNC_DEF("debugGetBacktrace", 0, debugGetBacktrace ) // backend-specific
 };
 
 bool quickjs_scripting_instance::loadScript(const WzString& path, int player, int difficulty)
@@ -4342,7 +4371,7 @@ static JSValue js_stats_set(JSContext *ctx, JSValueConst this_val, JSValueConst 
 static void setStatsFunc(JSValue &base, JSContext *ctx, const std::string& name, int player, int type, unsigned index)
 {
 	const JSCFunctionListEntry js_stats_getter_setter_func[] = {
-		JS_CGETSET_DEF(name.c_str(), js_stats_get, js_stats_set)
+		QJS_CGETSET_DEF(name.c_str(), js_stats_get, js_stats_set)
 	};
 
 //	size_t statContextId = statsContexts.size();
