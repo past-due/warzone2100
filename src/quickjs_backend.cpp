@@ -93,9 +93,12 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-function-type"
 #endif
+MSVC_PRAGMA(warning( push ))
+MSVC_PRAGMA(warning( disable : 4191 )) // disable "warning C4191: 'type cast': unsafe conversion from 'JSCFunctionMagic (__cdecl *)' to 'JSCFunction (__cdecl *)'"
 #include "quickjs.h"
 #include "quickjs-debugger.h"
 #include "quickjs-limitedcontext.h"
+MSVC_PRAGMA(warning( pop ))
 #if !defined(__clang__) && defined(__GNUC__) && __GNUC__ >= 8
 #pragma GCC diagnostic pop
 #endif
@@ -1947,7 +1950,7 @@ static JSValue callFunction(JSContext *ctx, const std::string &function, std::ve
 		JSValue box(const std::vector<VectorType>& value, JSContext* ctx)
 		{
 			JSValue result = JS_NewArray(ctx);
-			for (int i = 0; i < value.size(); i++)
+			for (uint32_t i = 0; i < value.size(); i++)
 			{
 				VectorType item = value.at(i);
 				JS_DefinePropertyValueUint32(ctx, result, i, box(item, ctx), JS_PROP_C_W_E); // TODO: Check return value?
@@ -3039,19 +3042,19 @@ nlohmann::json quickjs_scripting_instance::debugGetAllScriptGlobals()
 
 bool quickjs_scripting_instance::debugEvaluateCommand(const std::string &text)
 {
-	JSValue compiledScriptObj = JS_Eval(ctx, text.c_str(), text.length(), "<debug_evaluate_command>", JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_COMPILE_ONLY);
-	if (JS_IsException(compiledScriptObj))
+	JSValue compiledFuncObj = JS_Eval(ctx, text.c_str(), text.length(), "<debug_evaluate_command>", JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_COMPILE_ONLY);
+	if (JS_IsException(compiledFuncObj))
 	{
 		// compilation error / syntax error
 		std::string errorAsString = QuickJS_DumpError(ctx);
 		debug(LOG_ERROR, "Syntax error in %s: %s",
 			  text.c_str(), errorAsString.c_str());
-		JS_FreeValue(ctx, compiledScriptObj);
-		compiledScriptObj = JS_UNINITIALIZED;
+		JS_FreeValue(ctx, compiledFuncObj);
+		compiledFuncObj = JS_UNINITIALIZED;
 		return false;
 	}
-	JSValue result = JS_EvalFunction(ctx, compiledScriptObj);
-	compiledScriptObj = JS_UNINITIALIZED;
+	JSValue result = JS_EvalFunction(ctx, compiledFuncObj);
+	compiledFuncObj = JS_UNINITIALIZED;
 	if (JS_IsException(result))
 	{
 		// compilation error / syntax error
