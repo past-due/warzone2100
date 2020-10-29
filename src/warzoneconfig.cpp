@@ -63,6 +63,7 @@ struct WARZONE_GLOBALS
 	int scrollEvent = 0; // map/radar zoom
 	bool radarJump = false;
 	video_backend gfxBackend = video_backend::opengl; // the actual default value is determined in loadConfig()
+	JS_BACKEND jsBackend = (JS_BACKEND)0;
 };
 
 static WARZONE_GLOBALS warGlobs;
@@ -360,4 +361,14 @@ video_backend war_getGfxBackend()
 void war_setGfxBackend(video_backend backend)
 {
 	warGlobs.gfxBackend = backend;
+}
+
+JS_BACKEND war_getJSBackend()
+{
+	return warGlobs.jsBackend;
+}
+
+void war_setJSBackend(JS_BACKEND backend)
+{
+	warGlobs.jsBackend = backend;
 }
