@@ -105,7 +105,7 @@ public:
 	}
 	size_t pages() const
 	{
-		return (myChildren.empty()) ? 0 : std::max<size_t>((myChildren.size() - 1) / widgetsPerPage(), 0) + 1;
+		return myChildren.empty() ? 1 : ((myChildren.size() - 1) / widgetsPerPage()) + 1;
 	}
 
 	/* The optional "onCurrentPageChanged" callback function */

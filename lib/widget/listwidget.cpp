@@ -140,10 +140,10 @@ void TabSelectionWidget::doLayoutAll()
 	TabSelectionStyle tabStyle;
 	int scrollSpace = 0;
 	tabsAtOnce = tabs();
-	tabStyle.tabSize = WzSize(width() / tabs(), height());
+	tabStyle.tabSize = WzSize(width() / static_cast<int>(tabs()), height());
 	tabStyle.scrollTabSize = WzSize(0, 0);
 	tabStyle.tabGap = 0;
-	for (unsigned n = 0; n < styles.size(); ++n)
+	for (size_t n = 0; n < styles.size(); ++n)
 	{
 		bool haveScroll_ = !styles[n].scrollTabSize.isEmpty();
 		int scrollSpace_ = haveScroll_ ? styles[n].scrollTabSize.width() + styles[n].tabGap : 0;
@@ -162,7 +162,7 @@ void TabSelectionWidget::doLayoutAll()
 	nextTabPageButton->setGeometry(width() - tabStyle.scrollTabSize.width(), 0, tabStyle.scrollTabSize.width(), tabStyle.scrollTabSize.height());
 	nextTabPageButton->setImages(tabStyle.nextScrollTabImage, tabStyle.nextScrollTabImageDown, tabStyle.nextScrollTabImageHighlight);
 	nextTabPageButton->show(currentTab / tabsAtOnce < (tabs() - 1) / tabsAtOnce);
-	for (unsigned n = 0; n < tabButtons.size(); ++n)
+	for (size_t n = 0; n < tabButtons.size(); ++n)
 	{
 		tabButtons[n]->setGeometry(scrollSpace + n % tabsAtOnce * (tabStyle.tabSize.width() + tabStyle.tabGap), 0, tabStyle.tabSize.width(), tabStyle.tabSize.height());
 		tabButtons[n]->setImages(tabStyle.tabImage, tabStyle.tabImageDown, tabStyle.tabImageHighlight);
