@@ -112,6 +112,10 @@ void pie_AssignTexture(size_t page, gfx_api::texture* texture)
 static size_t pie_AddTexPage_Impl(iV_Image *s, const char *filename, bool gameTexture, size_t page)
 {
 	ASSERT(s && filename, "Bad input parameter");
+
+	_NAME_TO_TEX_PAGE_MAP[filename] = page;
+	debug(LOG_TEXTURE, "%s page=%zu", filename, page);
+
 	if (gameTexture) // this is a game texture, use texture compression
 	{
 		gfx_api::pixel_format format = iV_getPixelFormat(s);
@@ -156,8 +160,6 @@ size_t pie_AddTexPage(iV_Image *s, const char *filename, bool gameTexture, size_
 	// replace
 	_NAME_TO_TEX_PAGE_MAP.erase(_TEX_PAGE[page].name);
 	_TEX_PAGE[page].name = filename;
-	_NAME_TO_TEX_PAGE_MAP[filename] = page;
-	debug(LOG_TEXTURE, "%s page=%zu", filename, page);
 
 	return pie_AddTexPage_Impl(s, filename, gameTexture, page);
 }
