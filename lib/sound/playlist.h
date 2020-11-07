@@ -22,11 +22,15 @@
 #define __INCLUDED_LIB_SOUND_PLAYLIST_H__
 
 #include "lib/framework/types.h"
+#include <string>
+#include "cdaudio.h"
 
 void PlayList_Init();
 void PlayList_Quit();
 bool PlayList_Read(const char *path);
-const char *PlayList_CurrentSong();
-const char *PlayList_NextSong();
+size_t PlayList_FilterByMusicMode(MusicGameMode currentMode);
+
+std::string PlayList_CurrentSong();
+std::string PlayList_NextSong();
 
 #endif // __INCLUDED_LIB_SOUND_PLAYLIST_H__

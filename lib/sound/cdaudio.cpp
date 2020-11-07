@@ -109,20 +109,20 @@ static bool cdAudio_OpenTrack(const char *filename)
 
 static void cdAudio_TrackFinished(const void *user_data)
 {
-	const char *filename = PlayList_NextSong();
+	std::string filename = PlayList_NextSong();
 
 	// This pointer is now officially invalidated; so set it to NULL
 	cdStream = nullptr;
 
-	if (filename == nullptr)
+	if (filename.empty())
 	{
 		debug(LOG_ERROR, "Out of playlist?! was playing %s", (const char *)user_data);
 		return;
 	}
 
-	if (!stopping && cdAudio_OpenTrack(filename))
+	if (!stopping && cdAudio_OpenTrack(filename.c_str()))
 	{
-		debug(LOG_SOUND, "Now playing %s (was playing %s)", filename, (const char *)user_data);
+		debug(LOG_SOUND, "Now playing %s (was playing %s)", filename.c_str(), (const char *)user_data);
 	}
 }
 
@@ -137,20 +137,34 @@ bool cdAudio_PlayTrack(SONG_CONTEXT context)
 
 	case SONG_INGAME:
 		{
-			const char *filename = PlayList_CurrentSong();
+			std::string filename = PlayList_CurrentSong();
 
-			if (filename == nullptr)
+			if (filename.empty())
 			{
 				return false;
 			}
 
-			return cdAudio_OpenTrack(filename);
+			return cdAudio_OpenTrack(filename.c_str());
 		}
 	}
 
 	ASSERT(!"Invalid songcontext", "Invalid song context specified for playing: %u", (unsigned int)context);
 
 	return false;
+}
+
+void cdAudio_SetGameMode(MusicGameMode mode)
+{
+	if (mode == MusicGameMode::MENUS)
+	{
+		// do not filter by music mode for menu music
+		return;
+	}
+	if (PlayList_FilterByMusicMode(mode) == 0)
+	{
+		// no music configured for this game mode...
+		debug(LOG_WARNING, "No music configured for current game mode");
+	}
 }
 
 void cdAudio_Stop()

@@ -26,136 +26,274 @@
 #include "playlist.h"
 #include "cdaudio.h"
 
-#define BUFFER_SIZE 2048
+#include <memory>
+#include <3rdparty/json/json.hpp>
+
+struct WZ_ALBUM; // forward-declare
 
 struct WZ_TRACK
 {
-	char		path[PATH_MAX];
-	WZ_TRACK       *next;
+	std::string filename;
+	std::string title;
+	std::string author;
+	bool music_modes[NUM_MUSICGAMEMODES] = {false};
+	unsigned int base_volume = 100;
+	unsigned int bpm = 80;
+	std::weak_ptr<WZ_ALBUM> album;
+
+	bool enabledForMusicMode(MusicGameMode mode) const
+	{
+		return music_modes[static_cast<std::underlying_type<MusicGameMode>::type>(mode)];
+	}
+	void setMusicMode(MusicGameMode mode, bool enabled)
+	{
+		music_modes[static_cast<std::underlying_type<MusicGameMode>::type>(mode)] = enabled;
+	}
 };
 
-static WZ_TRACK *currentSong = nullptr;
-static int numSongs = 0;
-static WZ_TRACK *songList = nullptr;
+struct WZ_ALBUM
+{
+	std::string title;
+	std::string author;
+	std::string date;
+	std::string description;
+	std::string album_cover_filename;
+	std::vector<std::shared_ptr<WZ_TRACK>> tracks;
+};
+
+
+static std::vector<std::shared_ptr<WZ_ALBUM>> albumList;
+static std::vector<std::shared_ptr<WZ_TRACK>> playList;
+static size_t currentSong = 0;
+static MusicGameMode lastFilteredMode = MusicGameMode::MENUS;
 
 void PlayList_Init()
 {
-	songList = nullptr;
-	currentSong = nullptr;
-	numSongs = 0;
+	albumList.clear();
+	playList.clear();
+	currentSong = 0;
 }
 
 void PlayList_Quit()
 {
-	WZ_TRACK *list = songList;
+	PlayList_Init();
+}
 
-	while (list)
+size_t PlayList_SetTrackFilter(const std::function<bool (const WZ_TRACK& track)>& filterFunc)
+{
+	playList.clear();
+	for (const auto& album : albumList)
 	{
-		WZ_TRACK *next = list->next;
+		for (const auto& track : album->tracks)
+		{
+			if (filterFunc(*track.get()))
+			{
+				playList.push_back(track);
+			}
+		}
+	}
+	return playList.size();
+}
 
-		free(list);
-		list = next;
+size_t PlayList_FilterByMusicMode(MusicGameMode currentMode)
+{
+	size_t result = PlayList_SetTrackFilter([currentMode](const WZ_TRACK& track) -> bool {
+		return track.enabledForMusicMode(currentMode);
+	});
+	if (lastFilteredMode != currentMode)
+	{
+		currentSong = 0;
+	}
+	lastFilteredMode = currentMode;
+	return result;
+}
+
+static std::shared_ptr<WZ_ALBUM> PlayList_LoadAlbum(const nlohmann::json& json, const std::string& sourcePath, const std::string& albumDir)
+{
+	ASSERT(!json.is_null(), "JSON album from %s is null", sourcePath.c_str());
+	ASSERT(json.is_object(), "JSON album from %s is not an object", sourcePath.c_str());
+
+	std::shared_ptr<WZ_ALBUM> album = std::make_shared<WZ_ALBUM>();
+
+#define GET_REQUIRED_ALBUM_KEY_STRVAL(KEY) \
+	if (!json.contains(#KEY)) \
+	{ \
+		debug(LOG_ERROR, "%s: Missing required `" #KEY "` key", sourcePath.c_str()); \
+		return nullptr; \
+	} \
+	album->KEY = json[#KEY].get<std::string>();
+
+	GET_REQUIRED_ALBUM_KEY_STRVAL(title);
+	GET_REQUIRED_ALBUM_KEY_STRVAL(author);
+	GET_REQUIRED_ALBUM_KEY_STRVAL(date);
+	GET_REQUIRED_ALBUM_KEY_STRVAL(description);
+	GET_REQUIRED_ALBUM_KEY_STRVAL(album_cover_filename);
+
+	if (!json.contains("tracks"))
+	{
+		debug(LOG_ERROR, "Missing required `tracks` key");
+		return nullptr;
+	}
+	if (!json["tracks"].is_array())
+	{
+		debug(LOG_ERROR, "Required key `tracks` should be an array");
+		return nullptr;
 	}
 
-	PlayList_Init();
+#define GET_REQUIRED_TRACK_KEY(KEY, TYPE) \
+	if (!trackJson.contains(#KEY)) \
+	{ \
+		debug(LOG_ERROR, "%s: Missing required track key: `" #KEY "`", sourcePath.c_str()); \
+		return nullptr; \
+	} \
+	track->KEY = trackJson[#KEY].get<TYPE>();
+
+	for (auto& trackJson : json["tracks"])
+	{
+		std::shared_ptr<WZ_TRACK> track = std::make_shared<WZ_TRACK>();
+		GET_REQUIRED_TRACK_KEY(filename, std::string);
+		if (track->filename.empty())
+		{
+			// Track must have a filename
+			debug(LOG_ERROR, "%s: Empty or invalid filename for track", sourcePath.c_str());
+			return nullptr;
+		}
+		track->filename = albumDir + "/" + track->filename;
+		GET_REQUIRED_TRACK_KEY(title, std::string);
+		GET_REQUIRED_TRACK_KEY(author, std::string);
+		GET_REQUIRED_TRACK_KEY(base_volume, unsigned int);
+		GET_REQUIRED_TRACK_KEY(bpm, unsigned int);
+		track->album = std::weak_ptr<WZ_ALBUM>(album);
+
+		// music_modes // TODO: Only process the "default" modes if they aren't loaded from saved settings for this track
+		if (!trackJson.contains("default_music_modes"))
+		{
+			debug(LOG_ERROR, "%s: Missing required track key: `default_music_modes`", sourcePath.c_str());
+			return nullptr;
+		}
+		if (!trackJson["default_music_modes"].is_array())
+		{
+			debug(LOG_ERROR, "%s: Required track key `default_music_modes` should be an array", sourcePath.c_str());
+			return nullptr;
+		}
+		for (const auto& musicModeJSON : trackJson["default_music_modes"])
+		{
+			if (!musicModeJSON.is_string())
+			{
+				debug(LOG_ERROR, "%s: `default_music_modes` array item should be a string", sourcePath.c_str());
+				continue;
+			}
+			std::string musicMode = musicModeJSON.get<std::string>();
+			if (musicMode == "campaign")
+			{
+				track->setMusicMode(MusicGameMode::CAMPAIGN, true);
+			}
+			else if (musicMode == "challenge")
+			{
+				track->setMusicMode(MusicGameMode::CHALLENGE, true);
+			}
+			else if (musicMode == "skirmish")
+			{
+				track->setMusicMode(MusicGameMode::SKIRMISH, true);
+			}
+			else if (musicMode == "multiplayer")
+			{
+				track->setMusicMode(MusicGameMode::MULTIPLAYER, true);
+			}
+			else
+			{
+				debug(LOG_WARNING, "%s: `default_music_modes` array item is unknown value: %s", sourcePath.c_str(), musicMode.c_str());
+				continue;
+			}
+		}
+		album->tracks.push_back(std::move(track));
+	}
+
+	return album;
 }
 
 bool PlayList_Read(const char *path)
 {
-	WZ_TRACK **last = &songList;
-	PHYSFS_file *fileHandle;
-	char listName[PATH_MAX];
+	UDWORD size = 0;
+	char *data = nullptr;
+	std::string albumsPath = astringf("%s/albums", path);
 
-	// Construct file name
-	ssprintf(listName, "%s/music.wpl", path);
-
-	// Attempt to open the playlist file
-	fileHandle = PHYSFS_openRead(listName);
-	debug(LOG_WZ, "Reading...[directory: %s] %s", WZ_PHYSFS_getRealDir_String(listName).c_str(), listName);
-	if (fileHandle == nullptr)
+	char **pAlbumFolderList = PHYSFS_enumerateFiles(albumsPath.c_str());
+	for (char **i = pAlbumFolderList; *i != nullptr; i++)
 	{
-		debug(LOG_INFO, "PHYSFS_openRead(\"%s\") failed with error: %s\n", listName, WZ_PHYSFS_getLastError());
-		return false;
-	}
-
-	// Find the end of the songList
-	for (; *last; last = &(*last)->next) {}
-
-	while (!PHYSFS_eof(fileHandle))
-	{
-		WZ_TRACK *song;
-		char filename[BUFFER_SIZE];
-		size_t buf_pos = 0;
-
-		// Read a single line
-		while (buf_pos < sizeof(filename) - 1
-		       && WZ_PHYSFS_readBytes(fileHandle, &filename[buf_pos], 1)
-		       && filename[buf_pos] != '\n'
-		       && filename[buf_pos] != '\r')
-		{
-			++buf_pos;
-		}
-
-		// Nul-terminate string, and trim line endings ('\n' and '\r')
-		filename[buf_pos] = '\0';
-
-		// Don't add empty filenames to the playlist
-		if (filename[0] == '\0' /* strlen(filename) == 0 */)
+		std::string albumDir = albumsPath + "/" + *i;
+		std::string str = albumDir + "/album.json";
+		if (!PHYSFS_exists(str.c_str()))
 		{
 			continue;
 		}
-
-		song = (WZ_TRACK *)malloc(sizeof(*songList));
-		if (song == nullptr)
+		if (!loadFile(str.c_str(), &data, &size))
 		{
-			debug(LOG_FATAL, "Out of memory!");
-			PHYSFS_close(fileHandle);
-			abort();
-			return false;
+			debug(LOG_ERROR, "album JSON file \"%s\" could not be opened!", str.c_str());
+			continue;
 		}
+		nlohmann::json tmpJson;
+		try {
+			tmpJson = nlohmann::json::parse(data, data + size);
+		}
+		catch (const std::exception &e) {
+			debug(LOG_ERROR, "album JSON file %s is invalid: %s", str.c_str(), e.what());
+			continue;
+		}
+		catch (...) {
+			debug(LOG_FATAL, "Unexpected exception parsing album JSON from %s", str.c_str());
+		}
+		ASSERT(!tmpJson.is_null(), "JSON album from %s is null", str.c_str());
+		ASSERT(tmpJson.is_object(), "JSON album from %s is not an object. Read: \n%s", str.c_str(), data);
+		free(data);
 
-		sstrcpy(song->path, path);
-		sstrcat(song->path, "/");
-		sstrcat(song->path, filename);
-		song->next = nullptr;
-
-		// Append this song to the list
-		*last = song;
-		last = &song->next;
-
-		numSongs++;
-		debug(LOG_SOUND, "Added song %s to playlist", filename);
+		// load album data
+		auto album = PlayList_LoadAlbum(tmpJson, str, albumDir);
+		if (!album)
+		{
+			debug(LOG_ERROR, "Failed to load album JSON: %s", str.c_str());
+			continue;
+		}
+		albumList.push_back(std::move(album));
 	}
-	PHYSFS_close(fileHandle);
-	currentSong = songList;
+	PHYSFS_freeList(pAlbumFolderList);
 
-	return true;
+	// TODO: Ensure that "original_sountrack" is always the first album in the list
+
+	currentSong = 0;
+
+	return !albumList.empty();
 }
 
-const char *PlayList_CurrentSong()
+std::string PlayList_CurrentSong()
 {
-	if (currentSong)
+	if (!playList.empty())
 	{
-		return currentSong->path;
+		if (currentSong >= playList.size())
+		{
+			currentSong = 0;
+		}
+		auto pSong = playList[currentSong];
+		if (pSong)
+		{
+			return pSong->filename;
+		}
 	}
-	else
-	{
-		return nullptr;
-	}
+	return std::string();
 }
 
-const char *PlayList_NextSong()
+std::string PlayList_NextSong()
 {
 	// If there's a next song in the playlist select it
-	if (currentSong
-	    && currentSong->next)
+	if (!playList.empty()
+	    && currentSong < (playList.size() - 1))
 	{
-		currentSong = currentSong->next;
+		currentSong++;
 	}
 	// Otherwise jump to the start of the playlist
 	else
 	{
-		currentSong = songList;
+		currentSong = 0;
 	}
 
 	return PlayList_CurrentSong();

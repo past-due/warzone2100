@@ -27,9 +27,20 @@ enum SONG_CONTEXT
 	SONG_INGAME,
 };
 
+enum class MusicGameMode
+{
+	MENUS = -1,
+	CAMPAIGN = 0,
+	CHALLENGE,
+	SKIRMISH,
+	MULTIPLAYER
+};
+#define NUM_MUSICGAMEMODES 4
+
 bool cdAudio_Open(const char *user_musicdir);
 void cdAudio_Close();
 bool cdAudio_PlayTrack(SONG_CONTEXT context);
+void cdAudio_SetGameMode(MusicGameMode mode);
 void cdAudio_Stop();
 void cdAudio_Pause();
 void cdAudio_Resume();
