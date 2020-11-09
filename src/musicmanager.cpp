@@ -188,7 +188,6 @@ void WzMusicModeCheckboxButton::display(int xOffset, int yOffset)
 	bool isDisabled = (getState() & WBUT_DISABLE) != 0;
 
 	// calculate checkbox dimensions
-	int cbSize = checkboxSize();
 	Vector2i checkboxOffset{0, (height() - cbSize) / 2}; // left-align, center vertically
 	Vector2i checkboxPos{x0 + checkboxOffset.x, y0 + checkboxOffset.y};
 
