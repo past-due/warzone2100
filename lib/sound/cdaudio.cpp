@@ -49,11 +49,11 @@ static std::shared_ptr<const WZ_TRACK> currentTrack;
 static std::vector<std::shared_ptr<CDAudioEventSink>> registeredEventSinks;
 
 CDAudioEventSink::~CDAudioEventSink() { }
-void CDAudioEventSink::startedPlayingTrack(const std::shared_ptr<const WZ_TRACK>& track) {};
-void CDAudioEventSink::trackEnded(const std::shared_ptr<const WZ_TRACK>& track) {};
-void CDAudioEventSink::musicStopped() {};
-void CDAudioEventSink::musicPaused(const std::shared_ptr<const WZ_TRACK>& track) {};
-void CDAudioEventSink::musicResumed(const std::shared_ptr<const WZ_TRACK>& track) {};
+void CDAudioEventSink::startedPlayingTrack(const std::shared_ptr<const WZ_TRACK>& track) { }
+void CDAudioEventSink::trackEnded(const std::shared_ptr<const WZ_TRACK>& track) { }
+void CDAudioEventSink::musicStopped() { }
+void CDAudioEventSink::musicPaused(const std::shared_ptr<const WZ_TRACK>& track) { }
+void CDAudioEventSink::musicResumed(const std::shared_ptr<const WZ_TRACK>& track) { }
 
 static inline void EventSinkCleanup()
 {
@@ -99,6 +99,7 @@ std::string to_string(MusicGameMode mode)
 		case MusicGameMode::MULTIPLAYER:
 			return _("Multiplayer");
 	}
+	return ""; // silence warning
 }
 
 bool cdAudio_Open(const char *user_musicdir)
