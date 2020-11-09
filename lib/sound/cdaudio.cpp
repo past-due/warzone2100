@@ -32,13 +32,74 @@
 #include "mixer.h"
 #include "playlist.h"
 
+#include <algorithm>
+
 static float		music_volume = 0.5;
 
 static const size_t bufferSize = 16 * 1024;
 static const unsigned int buffer_count = 32;
 static bool		music_initialized = false;
 static bool		stopping = true;
+static bool		is_opening_new_track = false;
 static AUDIO_STREAM *cdStream = nullptr;
+
+const char MENU_MUSIC[] = "music/menu.ogg";
+static SONG_CONTEXT currentSongContext = SONG_FRONTEND;
+static std::shared_ptr<const WZ_TRACK> currentTrack;
+static std::vector<std::shared_ptr<CDAudioEventSink>> registeredEventSinks;
+
+CDAudioEventSink::~CDAudioEventSink() { }
+void CDAudioEventSink::startedPlayingTrack(const std::shared_ptr<const WZ_TRACK>& track) {};
+void CDAudioEventSink::trackEnded(const std::shared_ptr<const WZ_TRACK>& track) {};
+void CDAudioEventSink::musicStopped() {};
+void CDAudioEventSink::musicPaused(const std::shared_ptr<const WZ_TRACK>& track) {};
+void CDAudioEventSink::musicResumed(const std::shared_ptr<const WZ_TRACK>& track) {};
+
+static inline void EventSinkCleanup()
+{
+	if (registeredEventSinks.empty()) { return; }
+	registeredEventSinks.erase(
+		std::remove_if(
+			registeredEventSinks.begin(), registeredEventSinks.end(),
+			[](const std::shared_ptr<CDAudioEventSink>& a) {
+				if (!a) { return true; }
+				if (a->unregisterEventSink()) { return true; }
+				return false;
+			}
+		)
+	, registeredEventSinks.end());
+}
+
+#define NOTIFY_MUSIC_EVENT(event) \
+EventSinkCleanup(); \
+for (auto sink : registeredEventSinks) \
+{ \
+	sink->event(); \
+}
+
+#define NOTIFY_MUSIC_EVENT_TRACK(event, currenttrack) \
+EventSinkCleanup(); \
+for (auto sink : registeredEventSinks) \
+{ \
+	sink->event(currenttrack); \
+}
+
+std::string to_string(MusicGameMode mode)
+{
+	switch (mode)
+	{
+		case MusicGameMode::MENUS:
+			return _("Menu");
+		case MusicGameMode::CAMPAIGN:
+			return _("Campaign");
+		case MusicGameMode::CHALLENGE:
+			return _("Challenge");
+		case MusicGameMode::SKIRMISH:
+			return _("Skirmish");
+		case MusicGameMode::MULTIPLAYER:
+			return _("Multiplayer");
+	}
+}
 
 bool cdAudio_Open(const char *user_musicdir)
 {
@@ -68,89 +129,158 @@ void cdAudio_Close(void)
 	stopping = true;
 }
 
-static void cdAudio_TrackFinished(const void *);
+static void cdAudio_TrackFinished(const void *, const std::shared_ptr<const WZ_TRACK>& track);
+static void cdAudio_Stop_Internal(bool suppressEvent = false);
 
-static bool cdAudio_OpenTrack(const char *filename)
+static std::shared_ptr<WZ_TRACK> cdAudio_GetMenuTrack()
+{
+	std::shared_ptr<WZ_TRACK> pTrack = std::make_shared<WZ_TRACK>();
+	pTrack->filename = MENU_MUSIC;
+	pTrack->title = _("Menu Music");
+	pTrack->author = "Martin Severn";
+	pTrack->base_volume = 100;
+	pTrack->bpm = 80;
+	return pTrack;
+}
+
+static bool cdAudio_OpenTrack(std::shared_ptr<const WZ_TRACK> track, const std::function<void (const std::shared_ptr<const WZ_TRACK>&)>& onTrackComplete = std::function<void (const std::shared_ptr<const WZ_TRACK>&)>())
 {
 	if (!music_initialized)
 	{
 		return false;
 	}
 
-	debug(LOG_SOUND, "called(%s)", filename);
-	cdAudio_Stop();
+	const std::string& filename = track->filename;
 
-	if (strncasecmp(filename + strlen(filename) - 4, ".ogg", 4) == 0)
+	debug(LOG_SOUND, "called(%s)", filename.c_str());
+	is_opening_new_track = true;
+	cdAudio_Stop_Internal(true);
+	is_opening_new_track = false;
+
+	PlayList_SetCurrentSong(track);
+
+	if (strncasecmp(filename.c_str() + filename.length() - 4, ".ogg", 4) == 0)
 	{
-		PHYSFS_file *music_file = PHYSFS_openRead(filename);
+		PHYSFS_file *music_file = PHYSFS_openRead(filename.c_str());
 
-		debug(LOG_WZ, "Reading...[directory: %s] %s", WZ_PHYSFS_getRealDir_String(filename).c_str(), filename);
+		debug(LOG_WZ, "Reading...[directory: %s] %s", WZ_PHYSFS_getRealDir_String(filename.c_str()).c_str(), filename.c_str());
 		if (music_file == nullptr)
 		{
-			debug(LOG_ERROR, "Failed opening file [directory: %s] %s, with error %s", WZ_PHYSFS_getRealDir_String(filename).c_str(), filename, WZ_PHYSFS_getLastError());
+			debug(LOG_ERROR, "Failed opening file [directory: %s] %s, with error %s", WZ_PHYSFS_getRealDir_String(filename.c_str()).c_str(), filename.c_str(), WZ_PHYSFS_getLastError());
+			NOTIFY_MUSIC_EVENT(musicStopped);
 			return false;
 		}
 
-		cdStream = sound_PlayStreamWithBuf(music_file, music_volume, cdAudio_TrackFinished, filename, bufferSize, buffer_count);
+		cdStream = sound_PlayStreamWithBuf(music_file, music_volume, [track, onTrackComplete](const void* userdata) {
+			cdAudio_TrackFinished(userdata, track);
+			if (onTrackComplete)
+			{
+				onTrackComplete(track);
+			}
+		}, filename.c_str(), bufferSize, buffer_count, true);
 		if (cdStream == nullptr)
 		{
 			PHYSFS_close(music_file);
-			debug(LOG_ERROR, "Failed creating audio stream for %s", filename);
+			debug(LOG_ERROR, "Failed creating audio stream for %s", filename.c_str());
+			NOTIFY_MUSIC_EVENT(musicStopped);
 			return false;
 		}
+		currentTrack = track;
+		NOTIFY_MUSIC_EVENT_TRACK(startedPlayingTrack, track);
 
-		debug(LOG_SOUND, "successful(%s)", filename);
+		debug(LOG_SOUND, "successful(%s)", filename.c_str());
 		stopping = false;
 		return true;
 	}
 
+	NOTIFY_MUSIC_EVENT(musicStopped);
 	return false; // unhandled
 }
 
-static void cdAudio_TrackFinished(const void *user_data)
+static std::shared_ptr<const WZ_TRACK> cdAudio_GetNextTrack()
 {
-	std::string filename = PlayList_NextSong();
+	std::shared_ptr<const WZ_TRACK> nextTrack;
+	switch (currentSongContext)
+	{
+	case SONG_FRONTEND:
+		nextTrack = cdAudio_GetMenuTrack();
+		break;
+
+	case SONG_INGAME:
+		nextTrack = PlayList_NextSong();
+		break;
+	}
+	return nextTrack;
+}
+
+static void cdAudio_TrackFinished(const void *user_data, const std::shared_ptr<const WZ_TRACK>& track)
+{
+	NOTIFY_MUSIC_EVENT_TRACK(trackEnded, track);
 
 	// This pointer is now officially invalidated; so set it to NULL
 	cdStream = nullptr;
+	currentTrack = nullptr;
 
-	if (filename.empty())
+	if (is_opening_new_track)
 	{
-		debug(LOG_ERROR, "Out of playlist?! was playing %s", (const char *)user_data);
+		return; // shortcut further processing
+	}
+	std::shared_ptr<const WZ_TRACK> nextTrack = cdAudio_GetNextTrack();
+
+	if (!nextTrack)
+	{
+		if (!stopping)
+		{
+			debug(LOG_ERROR, "Out of playlist?! was playing %s", track->filename.c_str());
+			NOTIFY_MUSIC_EVENT(musicStopped);
+		}
 		return;
 	}
 
-	if (!stopping && cdAudio_OpenTrack(filename.c_str()))
+	if (!stopping && cdAudio_OpenTrack(nextTrack))
 	{
-		debug(LOG_SOUND, "Now playing %s (was playing %s)", filename.c_str(), (const char *)user_data);
+		debug(LOG_SOUND, "Now playing %s (was playing %s)", nextTrack->filename.c_str(), track->filename.c_str());
 	}
 }
 
 bool cdAudio_PlayTrack(SONG_CONTEXT context)
 {
 	debug(LOG_SOUND, "called(%d)", (int)context);
+	currentSongContext = context;
 
 	switch (context)
 	{
 	case SONG_FRONTEND:
-		return cdAudio_OpenTrack("music/menu.ogg");
+		return cdAudio_OpenTrack(cdAudio_GetMenuTrack());
 
 	case SONG_INGAME:
 		{
-			std::string filename = PlayList_CurrentSong();
+			auto nextTrack = PlayList_CurrentSong();
 
-			if (filename.empty())
+			if (!nextTrack)
 			{
+				cdAudio_Stop();
 				return false;
 			}
 
-			return cdAudio_OpenTrack(filename.c_str());
+			return cdAudio_OpenTrack(nextTrack);
 		}
 	}
 
 	ASSERT(!"Invalid songcontext", "Invalid song context specified for playing: %u", (unsigned int)context);
 
 	return false;
+}
+
+bool cdAudio_PlayTrack(const std::shared_ptr<const WZ_TRACK>& track, const std::function<void (const std::shared_ptr<const WZ_TRACK>&)>& onTrackComplete)
+{
+	if (!track) { return false; }
+	return cdAudio_OpenTrack(track, onTrackComplete);
+}
+
+SONG_CONTEXT cdAudio_CurrentSongContext()
+{
+	return currentSongContext;
 }
 
 void cdAudio_SetGameMode(MusicGameMode mode)
@@ -167,7 +297,17 @@ void cdAudio_SetGameMode(MusicGameMode mode)
 	}
 }
 
+void cdAudio_NextTrack()
+{
+	cdAudio_OpenTrack(cdAudio_GetNextTrack());
+}
+
 void cdAudio_Stop()
+{
+	cdAudio_Stop_Internal();
+}
+
+void cdAudio_Stop_Internal(bool suppressEvent)
 {
 	stopping = true;
 	debug(LOG_SOUND, "called, cdStream=%p", static_cast<void *>(cdStream));
@@ -176,7 +316,12 @@ void cdAudio_Stop()
 	{
 		sound_StopStream(cdStream);
 		cdStream = nullptr;
+		currentTrack = nullptr;
 		sound_Update();
+		if (!suppressEvent)
+		{
+			NOTIFY_MUSIC_EVENT(musicStopped);
+		}
 	}
 }
 
@@ -186,6 +331,7 @@ void cdAudio_Pause()
 	if (cdStream)
 	{
 		sound_PauseStream(cdStream);
+		NOTIFY_MUSIC_EVENT_TRACK(musicPaused, currentTrack);
 	}
 }
 
@@ -195,6 +341,7 @@ void cdAudio_Resume()
 	if (cdStream)
 	{
 		sound_ResumeStream(cdStream);
+		NOTIFY_MUSIC_EVENT_TRACK(musicResumed, currentTrack);
 	}
 }
 
@@ -213,4 +360,16 @@ void sound_SetMusicVolume(float volume)
 	{
 		sound_SetStreamVolume(cdStream, music_volume);
 	}
+}
+
+std::shared_ptr<const WZ_TRACK> cdAudio_GetCurrentTrack()
+{
+	return currentTrack;
+}
+
+void cdAudio_RegisterForEvents(std::shared_ptr<CDAudioEventSink> musicEventSink)
+{
+	if (!musicEventSink) { return; }
+	if (musicEventSink->unregisterEventSink()) { return; }
+	registeredEventSinks.push_back(musicEventSink);
 }

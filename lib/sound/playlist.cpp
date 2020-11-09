@@ -26,52 +26,35 @@
 #include "playlist.h"
 #include "cdaudio.h"
 
-#include <memory>
 #include <3rdparty/json/json.hpp>
+#include <algorithm>
+#include <unordered_map>
 
-struct WZ_ALBUM; // forward-declare
+#include <optional-lite/optional.hpp>
+using nonstd::optional;
+using nonstd::nullopt;
 
-struct WZ_TRACK
+struct WZ_TRACK_SETTINGS
 {
-	std::string filename;
-	std::string title;
-	std::string author;
+	bool default_music_modes[NUM_MUSICGAMEMODES] = {false};
 	bool music_modes[NUM_MUSICGAMEMODES] = {false};
-	unsigned int base_volume = 100;
-	unsigned int bpm = 80;
-	std::weak_ptr<WZ_ALBUM> album;
-
-	bool enabledForMusicMode(MusicGameMode mode) const
-	{
-		return music_modes[static_cast<std::underlying_type<MusicGameMode>::type>(mode)];
-	}
-	void setMusicMode(MusicGameMode mode, bool enabled)
-	{
-		music_modes[static_cast<std::underlying_type<MusicGameMode>::type>(mode)] = enabled;
-	}
 };
-
-struct WZ_ALBUM
-{
-	std::string title;
-	std::string author;
-	std::string date;
-	std::string description;
-	std::string album_cover_filename;
-	std::vector<std::shared_ptr<WZ_TRACK>> tracks;
-};
-
 
 static std::vector<std::shared_ptr<WZ_ALBUM>> albumList;
-static std::vector<std::shared_ptr<WZ_TRACK>> playList;
-static size_t currentSong = 0;
+static std::vector<std::shared_ptr<const WZ_TRACK>> fullTrackList;
+typedef std::unordered_map<std::shared_ptr<const WZ_TRACK>, WZ_TRACK_SETTINGS> TRACK_SETTINGS_MAP;
+static TRACK_SETTINGS_MAP trackToSettingsMap;
+static optional<size_t> currentSong = nullopt;
 static MusicGameMode lastFilteredMode = MusicGameMode::MENUS;
+static std::function<bool (const std::shared_ptr<const WZ_TRACK>& track)> currentFilterFunc;
 
 void PlayList_Init()
 {
 	albumList.clear();
-	playList.clear();
-	currentSong = 0;
+	fullTrackList.clear();
+	trackToSettingsMap.clear();
+	currentFilterFunc = nullptr;
+	currentSong = nullopt;
 }
 
 void PlayList_Quit()
@@ -79,33 +62,76 @@ void PlayList_Quit()
 	PlayList_Init();
 }
 
-size_t PlayList_SetTrackFilter(const std::function<bool (const WZ_TRACK& track)>& filterFunc)
+bool PlayList_TrackEnabledForMusicMode(const std::shared_ptr<const WZ_TRACK>& track, MusicGameMode mode)
 {
-	playList.clear();
+	auto it = trackToSettingsMap.find(track);
+	if (it == trackToSettingsMap.end())
+	{
+		return false;
+	}
+	return it->second.music_modes[static_cast<std::underlying_type<MusicGameMode>::type>(mode)];
+}
+
+void PlayList_SetTrackMusicMode(const std::shared_ptr<const WZ_TRACK>& track, MusicGameMode mode, bool enabled)
+{
+	auto it = trackToSettingsMap.find(track);
+	if (it == trackToSettingsMap.end())
+	{
+		return;
+	}
+	it->second.music_modes[static_cast<std::underlying_type<MusicGameMode>::type>(mode)] = enabled;
+}
+
+static void PlayList_SetTrackDefaultMusicMode(const std::shared_ptr<const WZ_TRACK>& track, MusicGameMode mode, bool enabled)
+{
+	auto it = trackToSettingsMap.find(track);
+	if (it == trackToSettingsMap.end())
+	{
+		auto result = trackToSettingsMap.insert(TRACK_SETTINGS_MAP::value_type(track, WZ_TRACK_SETTINGS()));
+		it = result.first;
+	}
+	it->second.default_music_modes[static_cast<std::underlying_type<MusicGameMode>::type>(mode)] = enabled;
+	it->second.music_modes[static_cast<std::underlying_type<MusicGameMode>::type>(mode)] = enabled;
+}
+
+const std::vector<std::shared_ptr<const WZ_TRACK>>& PlayList_GetFullTrackList()
+{
+	return fullTrackList;
+}
+
+size_t PlayList_SetTrackFilter(const std::function<bool (const std::shared_ptr<const WZ_TRACK>& track)>& filterFunc)
+{
+	size_t tracksEnabled = 0;
 	for (const auto& album : albumList)
 	{
 		for (const auto& track : album->tracks)
 		{
-			if (filterFunc(*track.get()))
+			if (filterFunc(track))
 			{
-				playList.push_back(track);
+				++tracksEnabled;
 			}
 		}
 	}
-	return playList.size();
+	currentFilterFunc = filterFunc;
+	return tracksEnabled;
 }
 
 size_t PlayList_FilterByMusicMode(MusicGameMode currentMode)
 {
-	size_t result = PlayList_SetTrackFilter([currentMode](const WZ_TRACK& track) -> bool {
-		return track.enabledForMusicMode(currentMode);
+	size_t result = PlayList_SetTrackFilter([currentMode](const std::shared_ptr<const WZ_TRACK>& track) -> bool {
+		return PlayList_TrackEnabledForMusicMode(track, currentMode);
 	});
 	if (lastFilteredMode != currentMode)
 	{
-		currentSong = 0;
+		currentSong = nullopt;
 	}
 	lastFilteredMode = currentMode;
 	return result;
+}
+
+MusicGameMode PlayList_GetCurrentMusicMode()
+{
+	return lastFilteredMode;
 }
 
 static std::shared_ptr<WZ_ALBUM> PlayList_LoadAlbum(const nlohmann::json& json, const std::string& sourcePath, const std::string& albumDir)
@@ -128,6 +154,10 @@ static std::shared_ptr<WZ_ALBUM> PlayList_LoadAlbum(const nlohmann::json& json, 
 	GET_REQUIRED_ALBUM_KEY_STRVAL(date);
 	GET_REQUIRED_ALBUM_KEY_STRVAL(description);
 	GET_REQUIRED_ALBUM_KEY_STRVAL(album_cover_filename);
+	if (!album->album_cover_filename.empty())
+	{
+		album->album_cover_filename = albumDir + "/" + album->album_cover_filename;
+	}
 
 	if (!json.contains("tracks"))
 	{
@@ -186,19 +216,19 @@ static std::shared_ptr<WZ_ALBUM> PlayList_LoadAlbum(const nlohmann::json& json, 
 			std::string musicMode = musicModeJSON.get<std::string>();
 			if (musicMode == "campaign")
 			{
-				track->setMusicMode(MusicGameMode::CAMPAIGN, true);
+				PlayList_SetTrackDefaultMusicMode(track, MusicGameMode::CAMPAIGN, true);
 			}
 			else if (musicMode == "challenge")
 			{
-				track->setMusicMode(MusicGameMode::CHALLENGE, true);
+				PlayList_SetTrackDefaultMusicMode(track, MusicGameMode::CHALLENGE, true);
 			}
 			else if (musicMode == "skirmish")
 			{
-				track->setMusicMode(MusicGameMode::SKIRMISH, true);
+				PlayList_SetTrackDefaultMusicMode(track, MusicGameMode::SKIRMISH, true);
 			}
 			else if (musicMode == "multiplayer")
 			{
-				track->setMusicMode(MusicGameMode::MULTIPLAYER, true);
+				PlayList_SetTrackDefaultMusicMode(track, MusicGameMode::MULTIPLAYER, true);
 			}
 			else
 			{
@@ -258,43 +288,77 @@ bool PlayList_Read(const char *path)
 	}
 	PHYSFS_freeList(pAlbumFolderList);
 
-	// TODO: Ensure that "original_sountrack" is always the first album in the list
+	// Ensure that "Warzone 2100 OST" is always the first album in the list
+	std::stable_sort(albumList.begin(), albumList.end(), [](const std::shared_ptr<WZ_ALBUM>& a, const std::shared_ptr<WZ_ALBUM>& b) -> bool {
+		if (a == b) { return false; }
+		if (a->title == "Warzone 2100 OST") { return true; }
+		return false;
+	});
 
-	currentSong = 0;
+	// generate full track list
+	fullTrackList.clear();
+	for (const auto& album : albumList)
+	{
+		for (const auto& track : album->tracks)
+		{
+			fullTrackList.push_back(track);
+		}
+	}
+	currentSong = nullopt;
 
 	return !albumList.empty();
 }
 
-std::string PlayList_CurrentSong()
+static optional<size_t> PlayList_FindNextMatchingTrack(size_t startingSongIdx)
 {
-	if (!playList.empty())
+	size_t idx = (startingSongIdx < (fullTrackList.size() - 1)) ? (startingSongIdx + 1) : 0;
+	while (idx != startingSongIdx)
 	{
-		if (currentSong >= playList.size())
+		if (currentFilterFunc(fullTrackList[idx]))
 		{
-			currentSong = 0;
+			return idx;
 		}
-		auto pSong = playList[currentSong];
-		if (pSong)
-		{
-			return pSong->filename;
-		}
+		idx = (idx < (fullTrackList.size() - 1)) ? (idx + 1) : 0;
 	}
-	return std::string();
+	return nullopt;
 }
 
-std::string PlayList_NextSong()
+std::shared_ptr<const WZ_TRACK> PlayList_CurrentSong()
 {
-	// If there's a next song in the playlist select it
-	if (!playList.empty()
-	    && currentSong < (playList.size() - 1))
+	if (fullTrackList.empty())
 	{
-		currentSong++;
+		return nullptr;
 	}
-	// Otherwise jump to the start of the playlist
-	else
+	if (!currentSong.has_value() || (currentSong.value() >= fullTrackList.size()))
 	{
-		currentSong = 0;
+		currentSong = PlayList_FindNextMatchingTrack(fullTrackList.size() - 1);
+		if (!currentSong.has_value())
+		{
+			return nullptr;
+		}
 	}
+	return fullTrackList[currentSong.value()];
+}
 
+std::shared_ptr<const WZ_TRACK> PlayList_NextSong()
+{
+	size_t currentSongIdx = currentSong.has_value() ? currentSong.value() : (fullTrackList.size() - 1);
+	currentSong = PlayList_FindNextMatchingTrack(currentSongIdx);
 	return PlayList_CurrentSong();
+}
+
+bool PlayList_SetCurrentSong(const std::shared_ptr<const WZ_TRACK>& track)
+{
+	if (!track) { return false; }
+	optional<size_t> trackIdx = nullopt;
+	for (size_t i = 0; i < fullTrackList.size(); i++)
+	{
+		if (track == fullTrackList[i])
+		{
+			trackIdx = i;
+			break;
+		}
+	}
+	currentSong = trackIdx;
+	return trackIdx.has_value();
 }
