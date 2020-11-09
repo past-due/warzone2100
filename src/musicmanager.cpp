@@ -25,9 +25,6 @@
 #include "musicmanager.h"
 
 #include "lib/ivis_opengl/pieblitfunc.h"
-#include "lib/ivis_opengl/piemode.h"
-#include "lib/ivis_opengl/piestate.h"
-#include "lib/ivis_opengl/screen.h"
 #include "intdisplay.h"
 #include "hci.h"
 #include "multiint.h"
@@ -41,23 +38,6 @@
 #include <chrono>
 #include <memory>
 
-struct DisplayRemoteGameHeaderCache
-{
-	WzText wzHeaderText_GameName;
-	WzText wzHeaderText_MapName;
-	WzText wzHeaderText_Players;
-	WzText wzHeaderText_Status;
-};
-struct DisplayRemoteGameCache
-{
-	WzText wzText_CurrentVsMaxNumPlayers;
-	WidthLimitedWzText wzText_GameName;
-	WidthLimitedWzText wzText_MapName;
-	WidthLimitedWzText wzText_ModNames;
-	WidthLimitedWzText wzText_VersionString;
-};
-
-static DisplayRemoteGameHeaderCache remoteGameListHeaderCache;
 
 #define W_TRACK_ROW_PADDING 5
 #define W_TRACK_COL_PADDING 10
@@ -75,16 +55,13 @@ static DisplayRemoteGameHeaderCache remoteGameListHeaderCache;
 
 #define TL_W				FRONTEND_BOTFORMW
 #define TL_H				400
-#define TL_H_REDUCED		300
 #define TL_X				FRONTEND_BOTFORMX
 #define TL_Y				(W_TRACK_HEADER_Y + W_TRACK_HEADER_HEIGHT)
 #define TL_SX				FRONTEND_SIDEX
 
 #define TL_ENTRYW			(FRONTEND_BOTFORMW - 80)
 #define TL_ENTRYH			(25)
-#define TL_ENTRYCOUNT		(13)
 
-#define TL_PREVIEWBOX_Y		(TL_H + 45)
 #define TL_PREVIEWBOX_Y_SPACING 45
 #define TL_PREVIEWBOX_H		80
 
@@ -122,7 +99,7 @@ static int GetTrackListStartXPos(int ingame)
 	return TL_X - 10;
 }
 
-// MARK: - CDAudio Event Sink
+// MARK: - MusicManager_CDAudioEventSink declaration
 class MusicManager_CDAudioEventSink : public CDAudioEventSink
 {
 public:
@@ -142,7 +119,24 @@ private:
 	bool shouldUnregisterEventSink = false;
 };
 
-// MARK: - WzCheckboxButton
+// MARK: - Globals
+
+struct TrackRowCache; // forward-declare
+class W_TRACK_ROW; // foward-declare
+static std::unordered_map<W_TRACK_ROW*, std::shared_ptr<TrackRowCache>> trackRowsCache;
+static std::vector<std::shared_ptr<const WZ_TRACK>> trackList;
+static std::shared_ptr<const WZ_TRACK> selectedTrack;
+static std::shared_ptr<MusicManager_CDAudioEventSink> musicManagerAudioEventSink;
+
+// now-playing widgets
+static W_LABEL *psNowPlaying = nullptr;
+static W_LABEL *psSelectedTrackName = nullptr;
+static W_LABEL *psSelectedTrackAuthorName = nullptr;
+static W_LABEL *psSelectedTrackAlbumName = nullptr;
+static W_LABEL *psSelectedTrackAlbumDate = nullptr;
+static W_LABEL *psSelectedTrackAlbumDescription = nullptr;
+
+// MARK: - WzMusicModeCheckboxButton
 
 struct WzMusicModeCheckboxButton : public W_BUTTON
 {
@@ -224,24 +218,13 @@ void WzMusicModeCheckboxButton::highlightLost()
 	W_BUTTON::highlightLost();
 }
 
+// MARK: - W_TRACK_ROW
+
 struct TrackRowCache {
 	WzText wzText_Title;
 	WzText wzText_Album;
 	UDWORD lastUsedFrameNumber;
 };
-class W_TRACK_ROW;
-static std::unordered_map<W_TRACK_ROW*, std::shared_ptr<TrackRowCache>> trackRowsCache;
-static std::vector<std::shared_ptr<const WZ_TRACK>> trackList;
-static std::shared_ptr<const WZ_TRACK> selectedTrack;
-static std::shared_ptr<MusicManager_CDAudioEventSink> musicManagerAudioEventSink;
-
-// now-playing widgets
-static W_LABEL *psNowPlaying = nullptr;
-static W_LABEL *psSelectedTrackName = nullptr;
-static W_LABEL *psSelectedTrackAuthorName = nullptr;
-static W_LABEL *psSelectedTrackAlbumName = nullptr;
-static W_LABEL *psSelectedTrackAlbumDate = nullptr;
-static W_LABEL *psSelectedTrackAlbumDescription = nullptr;
 
 class W_TRACK_ROW : public W_BUTTON
 {
@@ -374,177 +357,9 @@ void W_TRACK_ROW::display(int xOffset, int yOffset)
 	// Music mode checkboxes are child widgets
 }
 
-static void addTrackDetailsBox(WIDGET *parent, bool ingame);
-static void addTrackList(WIDGET *parent, bool ingame);
+// MARK: - "Now Playing" Details Block
 
-static void closeMusicManager(bool ingame)
-{
-	trackList.clear();
-	trackRowsCache.clear();
-	selectedTrack.reset();
-	if (musicManagerAudioEventSink)
-	{
-		musicManagerAudioEventSink->setUnregisterEventSink();
-		musicManagerAudioEventSink.reset();
-	}
-	if (!ingame)
-	{
-		cdAudio_PlayTrack(cdAudio_CurrentSongContext());
-	}
-
-	psNowPlaying = nullptr;
-	psSelectedTrackName = nullptr;
-	psSelectedTrackAuthorName = nullptr;
-	psSelectedTrackAlbumName = nullptr;
-	psSelectedTrackAlbumDate = nullptr;
-	psSelectedTrackAlbumDescription = nullptr;
-}
-
-class MusicManagerForm : public IntFormTransparent
-{
-public:
-	MusicManagerForm(WIDGET *parent, bool ingame)
-	: IntFormTransparent(parent)
-	, ingame(ingame)
-	{
-		this->id = MM_FORM;
-		this->setCalcLayout(LAMBDA_CALCLAYOUT_SIMPLE({
-			psWidget->setGeometry(0, 0, pie_GetVideoBufferWidth(), pie_GetVideoBufferHeight());
-		}));
-
-		// draws the background of the form
-		IntFormAnimated *botForm = new IntFormAnimated(this);
-		botForm->id = MM_FORM + 1;
-
-		if (!ingame)
-		{
-			botForm->setCalcLayout(LAMBDA_CALCLAYOUT_SIMPLE({
-				psWidget->setGeometry(TL_X, 20, TL_W, GetTrackListHeight());
-			}));
-
-			// cancel
-			addMultiBut(psWScreen, botForm->id, MM_RETURN, 10, 5, MULTIOP_OKW, MULTIOP_OKH, _("Return To Previous Screen"),
-					IMAGE_RETURN, IMAGE_RETURN_HI, IMAGE_RETURN_HI);
-		}
-		else
-		{
-			// Text versions for in-game where image resources are not available
-			botForm->setCalcLayout(LAMBDA_CALCLAYOUT_SIMPLE({
-				psWidget->setGeometry(((300-(TL_W/2))+D_W), ((240-(GetTotalTrackAndDetailsBoxHeight()/2))+D_H), TL_W, GetTrackListHeight() + 20);
-			}));
-
-			W_BUTINIT sButInit;
-
-			sButInit.formID		= botForm->id;
-			sButInit.style		= WBUT_PLAIN | WBUT_TXTCENTRE;
-			sButInit.width		= TL_W;
-			sButInit.FontID		= font_regular;
-			sButInit.x		= 0;
-			sButInit.height		= 10;
-			sButInit.pDisplay	= displayTextOption;
-			sButInit.initPUserDataFunc = []() -> void * { return new DisplayTextOptionCache(); };
-			sButInit.onDelete = [](WIDGET *psWidget) {
-				assert(psWidget->pUserData != nullptr);
-				delete static_cast<DisplayTextOptionCache *>(psWidget->pUserData);
-				psWidget->pUserData = nullptr;
-			};
-
-			sButInit.id			= MM_RETURN;
-			sButInit.y			= GetTrackListHeight() - 10;
-			sButInit.pText		= _("Resume Game");
-			sButInit.calcLayout = LAMBDA_CALCLAYOUT_SIMPLE({
-				psWidget->move(0, GetTrackListHeight() - 10);
-			});
-
-			widgAddButton(psWScreen, &sButInit);
-		}
-
-		// get track list
-		trackList = PlayList_GetFullTrackList();
-		selectedTrack = cdAudio_GetCurrentTrack();
-
-		// register for cd audio events
-		musicManagerAudioEventSink = std::shared_ptr<MusicManager_CDAudioEventSink>(new MusicManager_CDAudioEventSink());
-		cdAudio_RegisterForEvents(std::static_pointer_cast<CDAudioEventSink>(musicManagerAudioEventSink));
-
-		addTrackList(botForm, ingame);
-		addTrackDetailsBox(this, ingame);
-	}
-	~MusicManagerForm()
-	{
-		closeMusicManager(ingame);
-	}
-private:
-	bool ingame;
-};
-
-static bool musicManager(WIDGET *parent, bool ingame)
-{
-	new MusicManagerForm(parent, ingame);
-	return true;
-}
-
-bool startInGameMusicManager()
-{
-	WIDGET *parent = psWScreen->psForm;
-	return musicManager(parent, true);
-}
-
-bool startMusicManager()
-{
-	addBackdrop();	//background image
-	addSideText(FRONTEND_SIDETEXT, TL_SX, 20, _("MUSIC MANAGER"));
-	WIDGET *parent = widgGetFromID(psWScreen, FRONTEND_BACKDROP);
-	return musicManager(parent, false);
-}
-
-bool runInGameMusicManager(unsigned id)
-{
-	if (id == MM_RETURN)			// return
-	{
-		// TODO: save playlist settings
-		widgDelete(psWScreen, MM_FORM);
-		return true;
-	}
-
-	return false;
-}
-
-bool runMusicManager()
-{
-	WidgetTriggers const &triggers = widgRunScreen(psWScreen);
-	unsigned id = triggers.empty() ? 0 : triggers.front().widget->id; // Just use first click here, since the next click could be on another menu.
-
-	if (id == MM_RETURN)			// return
-	{
-		// TODO: save playlist settings
-		changeTitleMode(OPTIONS);
-	}
-
-	widgDisplayScreen(psWScreen);				// show the widgets currently running
-
-	UDWORD currentFrameNum = frameGetFrameNumber();
-	for (auto i = trackRowsCache.begin(), last = trackRowsCache.end(); i != last; )
-	{
-		if (i->second->lastUsedFrameNumber != currentFrameNum)
-		{
-			i = trackRowsCache.erase(i);
-		}
-		else
-		{
-			++i;
-		}
-	}
-
-	if (CancelPressed())
-	{
-		changeTitleMode(OPTIONS);
-	}
-
-	return true;
-}
-
-gfx_api::texture* loadImageToTexture(const std::string& imagePath)
+static gfx_api::texture* loadImageToTexture(const std::string& imagePath)
 {
 	if (imagePath.empty())
 	{
@@ -730,8 +545,6 @@ static void UpdateTrackDetailsBox()
 	pTrackDetailsBox->loadImage((pAlbum) ? pAlbum->album_cover_filename : "");
 }
 
-
-
 static void addTrackDetailsBox(WIDGET *parent, bool ingame)
 {
 	if (widgGetFromID(psWScreen, MULTIOP_CONSOLEBOX))
@@ -759,17 +572,31 @@ static void addTrackDetailsBox(WIDGET *parent, bool ingame)
 	return;
 }
 
+// MARK: - Track List
+
 class WzMusicListHeader : public W_FORM
 {
 public:
 	WzMusicListHeader(WIDGET *parent);
-
 	virtual void display(int xOffset, int yOffset);
 };
 
 WzMusicListHeader::WzMusicListHeader(WIDGET *parent)
 	: W_FORM(parent)
+{ }
+
+void WzMusicListHeader::display(int xOffset, int yOffset)
 {
+	int x0 = x() + xOffset;
+	int y0 = y() + yOffset;
+	int x1 = x0 + width();
+	int y1 = y0 + height() - 1;
+	iV_TransBoxFill(x0, y0, x1, y1);
+	iV_Line(x0, y1, x1, y1, WZCOL_MENU_SEPARATOR);
+
+	// column lines
+	iV_Line(x0 + W_TRACK_COL_TITLE_X + W_TRACK_COL_TITLE_W, y0 + 5, x0 + W_TRACK_COL_TITLE_X + W_TRACK_COL_TITLE_W, y1 - 5, WZCOL_MENU_SEPARATOR);
+	iV_Line(x0 + W_TRACK_COL_ALBUM_X + W_TRACK_COL_ALBUM_W, y0 + 5, x0 + W_TRACK_COL_ALBUM_X + W_TRACK_COL_ALBUM_W, y1 - 5, WZCOL_MENU_SEPARATOR);
 }
 
 class WzMusicListHeaderColImage : public W_BUTTON
@@ -796,8 +623,8 @@ public:
 	{
 		if (pAlbumCoverTexture)
 		{
-			int imageLeft = x() + xOffset; //+ ((width() - W_TRACK_HEADER_COL_IMAGE_SIZE) / 2);
-			int imageTop = y() + yOffset; //+ ((height() - W_TRACK_HEADER_COL_IMAGE_SIZE) / 2);
+			int imageLeft = x() + xOffset;
+			int imageTop = y() + yOffset;
 
 			iV_DrawImageAnisotropic(*pAlbumCoverTexture, Vector2i(imageLeft, imageTop), Vector2f(0,0), Vector2f(W_TRACK_HEADER_COL_IMAGE_SIZE, W_TRACK_HEADER_COL_IMAGE_SIZE), 0.f, WZCOL_WHITE);
 		}
@@ -812,22 +639,6 @@ static const std::string music_mode_col_header_images[] = {
 	"images/frontend/image_music_skirmish.png",
 	"images/frontend/image_music_multiplayer.png"
 };
-
-void WzMusicListHeader::display(int xOffset, int yOffset)
-{
-	int x0 = x() + xOffset;
-	int y0 = y() + yOffset;
-	int x1 = x0 + width();
-	int y1 = y0 + height() - 1;
-	iV_TransBoxFill(x0, y0, x1, y1);
-	iV_Line(x0, y1, x1, y1, WZCOL_MENU_SEPARATOR);
-
-	// column lines
-	iV_Line(x0 + W_TRACK_COL_TITLE_X + W_TRACK_COL_TITLE_W, y0 + 5, x0 + W_TRACK_COL_TITLE_X + W_TRACK_COL_TITLE_W, y1 - 5, WZCOL_MENU_SEPARATOR);
-	iV_Line(x0 + W_TRACK_COL_ALBUM_X + W_TRACK_COL_ALBUM_W, y0 + 5, x0 + W_TRACK_COL_ALBUM_X + W_TRACK_COL_ALBUM_W, y1 - 5, WZCOL_MENU_SEPARATOR);
-}
-
-//static bool isSwitchingToNewSong = false;
 
 static void addTrackList(WIDGET *parent, bool ingame)
 {
@@ -880,6 +691,180 @@ static void addTrackList(WIDGET *parent, bool ingame)
 		});
 		pTracksScrollableList->addItem(pTrackRow);
 	}
+}
+
+// MARK: - "Now Playing" Details Block
+
+static void closeMusicManager(bool ingame)
+{
+	trackList.clear();
+	trackRowsCache.clear();
+	selectedTrack.reset();
+	if (musicManagerAudioEventSink)
+	{
+		musicManagerAudioEventSink->setUnregisterEventSink();
+		musicManagerAudioEventSink.reset();
+	}
+	if (!ingame)
+	{
+		cdAudio_PlayTrack(cdAudio_CurrentSongContext());
+	}
+
+	psNowPlaying = nullptr;
+	psSelectedTrackName = nullptr;
+	psSelectedTrackAuthorName = nullptr;
+	psSelectedTrackAlbumName = nullptr;
+	psSelectedTrackAlbumDate = nullptr;
+	psSelectedTrackAlbumDescription = nullptr;
+}
+
+class MusicManagerForm : public IntFormTransparent
+{
+public:
+	MusicManagerForm(WIDGET *parent, bool ingame)
+	: IntFormTransparent(parent)
+	, ingame(ingame)
+	{
+		this->id = MM_FORM;
+		this->setCalcLayout(LAMBDA_CALCLAYOUT_SIMPLE({
+			psWidget->setGeometry(0, 0, pie_GetVideoBufferWidth(), pie_GetVideoBufferHeight());
+		}));
+
+		// draws the background of the form
+		IntFormAnimated *botForm = new IntFormAnimated(this);
+		botForm->id = MM_FORM + 1;
+
+		if (!ingame)
+		{
+			botForm->setCalcLayout(LAMBDA_CALCLAYOUT_SIMPLE({
+				psWidget->setGeometry(TL_X, 20, TL_W, GetTrackListHeight());
+			}));
+
+			// cancel
+			addMultiBut(psWScreen, botForm->id, MM_RETURN, 10, 5, MULTIOP_OKW, MULTIOP_OKH, _("Return To Previous Screen"),
+					IMAGE_RETURN, IMAGE_RETURN_HI, IMAGE_RETURN_HI);
+		}
+		else
+		{
+			// Text versions for in-game where image resources are not available
+			botForm->setCalcLayout(LAMBDA_CALCLAYOUT_SIMPLE({
+				psWidget->setGeometry(((300-(TL_W/2))+D_W), ((240-(GetTotalTrackAndDetailsBoxHeight()/2))+D_H), TL_W, GetTrackListHeight() + 20);
+			}));
+
+			W_BUTINIT sButInit;
+
+			sButInit.formID		= botForm->id;
+			sButInit.style		= WBUT_PLAIN | WBUT_TXTCENTRE;
+			sButInit.width		= TL_W;
+			sButInit.FontID		= font_regular;
+			sButInit.x		= 0;
+			sButInit.height		= 10;
+			sButInit.pDisplay	= displayTextOption;
+			sButInit.initPUserDataFunc = []() -> void * { return new DisplayTextOptionCache(); };
+			sButInit.onDelete = [](WIDGET *psWidget) {
+				assert(psWidget->pUserData != nullptr);
+				delete static_cast<DisplayTextOptionCache *>(psWidget->pUserData);
+				psWidget->pUserData = nullptr;
+			};
+
+			sButInit.id			= MM_RETURN;
+			sButInit.y			= GetTrackListHeight() - 10;
+			sButInit.pText		= _("Resume Game");
+			sButInit.calcLayout = LAMBDA_CALCLAYOUT_SIMPLE({
+				psWidget->move(0, GetTrackListHeight() - 10);
+			});
+
+			widgAddButton(psWScreen, &sButInit);
+		}
+
+		// get track list
+		trackList = PlayList_GetFullTrackList();
+		selectedTrack = cdAudio_GetCurrentTrack();
+
+		// register for cd audio events
+		musicManagerAudioEventSink = std::shared_ptr<MusicManager_CDAudioEventSink>(new MusicManager_CDAudioEventSink());
+		cdAudio_RegisterForEvents(std::static_pointer_cast<CDAudioEventSink>(musicManagerAudioEventSink));
+
+		addTrackList(botForm, ingame);
+		addTrackDetailsBox(this, ingame);
+	}
+	~MusicManagerForm()
+	{
+		closeMusicManager(ingame);
+	}
+private:
+	bool ingame;
+};
+
+static bool musicManager(WIDGET *parent, bool ingame)
+{
+	new MusicManagerForm(parent, ingame);
+	return true;
+}
+
+bool startInGameMusicManager()
+{
+	WIDGET *parent = psWScreen->psForm;
+	return musicManager(parent, true);
+}
+
+bool startMusicManager()
+{
+	addBackdrop();	//background image
+	addSideText(FRONTEND_SIDETEXT, TL_SX, 20, _("MUSIC MANAGER"));
+	WIDGET *parent = widgGetFromID(psWScreen, FRONTEND_BACKDROP);
+	return musicManager(parent, false);
+}
+
+static void perFrameCleanup()
+{
+	UDWORD currentFrameNum = frameGetFrameNumber();
+	for (auto i = trackRowsCache.begin(), last = trackRowsCache.end(); i != last; )
+	{
+		if (i->second->lastUsedFrameNumber != currentFrameNum)
+		{
+			i = trackRowsCache.erase(i);
+		}
+		else
+		{
+			++i;
+		}
+	}
+}
+
+bool runInGameMusicManager(unsigned id)
+{
+	if (id == MM_RETURN)			// return
+	{
+		widgDelete(psWScreen, MM_FORM);
+		return true;
+	}
+
+	perFrameCleanup();
+
+	return false;
+}
+
+bool runMusicManager()
+{
+	WidgetTriggers const &triggers = widgRunScreen(psWScreen);
+	unsigned id = triggers.empty() ? 0 : triggers.front().widget->id; // Just use first click here, since the next click could be on another menu.
+
+	if (id == MM_RETURN)			// return
+	{
+		changeTitleMode(OPTIONS);
+	}
+
+	widgDisplayScreen(psWScreen);				// show the widgets currently running
+
+	perFrameCleanup();
+
+	if (CancelPressed())
+	{
+		changeTitleMode(OPTIONS);
+	}
+
+	return true;
 }
 
 // MARK: - CD Audio Event Sink Implementation
