@@ -232,7 +232,10 @@ bool WZ_Playlist_Preferences::savePreferences()
 	std::ostringstream stream;
 	stream << mRoot.dump(4) << std::endl;
 	std::string jsonString = stream.str();
-	saveFile(mFilename.c_str(), jsonString.c_str(), jsonString.size());
+#if SIZE_MAX >= UDWORD_MAX
+	ASSERT_OR_RETURN(false, jsonString.size() <= static_cast<size_t>(std::numeric_limits<UDWORD>::max()), "jsonString.size (%zu) exceeds UDWORD::max", jsonString.size());
+#endif
+	saveFile(mFilename.c_str(), jsonString.c_str(), static_cast<UDWORD>(jsonString.size()));
 	return true;
 }
 
