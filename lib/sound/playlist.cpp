@@ -29,6 +29,7 @@
 #include <3rdparty/json/json.hpp>
 #include <algorithm>
 #include <unordered_map>
+#include <sstream>
 
 #include <optional-lite/optional.hpp>
 using nonstd::optional;
@@ -36,30 +37,241 @@ using nonstd::nullopt;
 
 struct WZ_TRACK_SETTINGS
 {
-	bool default_music_modes[NUM_MUSICGAMEMODES] = {false};
 	bool music_modes[NUM_MUSICGAMEMODES] = {false};
+
+public:
+	void setMusicMode(MusicGameMode mode, bool enabled)
+	{
+		music_modes[static_cast<std::underlying_type<MusicGameMode>::type>(mode)] = enabled;
+	}
 };
+
+inline void to_json(nlohmann::json& j, const WZ_TRACK_SETTINGS& p)
+{
+	j = nlohmann::json::object();
+	nlohmann::json music_modes = nlohmann::json::array();
+	for (size_t i = 0; i < NUM_MUSICGAMEMODES; i++)
+	{
+		music_modes[i] = p.music_modes[i];
+	}
+	j["music_modes"] = music_modes;
+}
+
+inline void from_json(const nlohmann::json& j, WZ_TRACK_SETTINGS& p)
+{
+	if (!j.is_object())
+	{
+		throw nlohmann::json::type_error::create(302, "type must be an object, but is " + std::string(j.type_name()));
+	}
+	auto it = j.find("music_modes");
+	if (it != j.end())
+	{
+		if (!it.value().is_array())
+		{
+			throw nlohmann::json::type_error::create(302, "music_modes type must be an array, but is " + std::string(j.type_name()));
+		}
+		size_t i = 0;
+		for (const auto& v : it.value())
+		{
+			if (i >= NUM_MUSICGAMEMODES)
+			{
+				break;
+			}
+			p.music_modes[i] = v.get<bool>();
+			i++;
+		}
+	}
+}
+
+struct WZ_TRACK_SETTINGS_PAIR
+{
+	WZ_TRACK_SETTINGS default_settings;
+	WZ_TRACK_SETTINGS user_settings;
+};
+
+class WZ_Playlist_Preferences
+{
+public:
+	WZ_Playlist_Preferences(const std::string &fileName);
+
+	optional<WZ_TRACK_SETTINGS> getTrackSettings(const std::shared_ptr<const WZ_TRACK>& track);
+	void setTrackSettings(const std::shared_ptr<const WZ_TRACK>& track, const WZ_TRACK_SETTINGS& settings);
+
+	void clearAllPreferences();
+	bool savePreferences();
+
+private:
+	std::string keyForTrack(const std::shared_ptr<const WZ_TRACK>& track) const;
+	void storeValueForTrack(const std::shared_ptr<const WZ_TRACK>& track, const std::string& key, const nlohmann::json& value);
+	optional<nlohmann::json> getJSONValueForTrack(const std::shared_ptr<const WZ_TRACK>& track, const std::string& key) const;
+
+	template<typename T>
+	optional<T> getValueForTrack(const std::shared_ptr<const WZ_TRACK>& track, const std::string& key) const
+	{
+		optional<T> result = nullopt;
+		try {
+			auto jsonResult = getJSONValueForTrack(track, key);
+			if (!jsonResult.has_value())
+			{
+				return nullopt;
+			}
+			result = jsonResult.value().get<T>();
+		}
+		catch (const std::exception &e) {
+			debug(LOG_WARNING, "Failed to convert json_variant to %s because of error: %s", typeid(T).name(), e.what());
+			return nullopt;
+		}
+		catch (...) {
+			debug(LOG_FATAL, "Unexpected exception encountered: json_variant::toType<%s>", typeid(T).name());
+		}
+		return result;
+	}
+
+private:
+	nlohmann::json mRoot;
+	std::string mFilename;
+};
+
+WZ_Playlist_Preferences::WZ_Playlist_Preferences(const std::string &fileName)
+: mFilename(fileName)
+{
+	if (PHYSFS_exists(fileName.c_str()))
+	{
+		UDWORD size;
+		char *data;
+		if (loadFile(fileName.c_str(), &data, &size))
+		{
+			try {
+				mRoot = nlohmann::json::parse(data, data + size);
+			}
+			catch (const std::exception &e) {
+				ASSERT(false, "JSON document from %s is invalid: %s", fileName.c_str(), e.what());
+			}
+			catch (...) {
+				debug(LOG_ERROR, "Unexpected exception parsing JSON %s", fileName.c_str());
+			}
+			ASSERT(!mRoot.is_null(), "JSON document from %s is null", fileName.c_str());
+			ASSERT(mRoot.is_object(), "JSON document from %s is not an object. Read: \n%s", fileName.c_str(), data);
+			free(data);
+		}
+		else
+		{
+			debug(LOG_ERROR, "Could not open \"%s\"", fileName.c_str());
+			// treat as if no preferences exist yet
+			mRoot = nlohmann::json::object();
+		}
+	}
+	else
+	{
+		// no preferences exist yet
+		mRoot = nlohmann::json::object();
+	}
+
+	// always ensure there's a "notifications" dictionary in the root object
+	auto notificationsObject = mRoot.find("tracks");
+	if (notificationsObject == mRoot.end() || !notificationsObject->is_object())
+	{
+		// create a dictionary object
+		mRoot["tracks"] = nlohmann::json::object();
+	}
+}
+
+std::string WZ_Playlist_Preferences::keyForTrack(const std::shared_ptr<const WZ_TRACK>& track) const
+{
+	// remove the "music/albums/" prefix
+	std::string result = track->filename;
+	if (result.rfind("music/albums/", 0) == 0)
+	{
+		result = result.substr(13);
+	}
+	return result;
+}
+
+void WZ_Playlist_Preferences::storeValueForTrack(const std::shared_ptr<const WZ_TRACK>& track, const std::string& key, const nlohmann::json& value)
+{
+	nlohmann::json& trackSettingsObj = mRoot["tracks"];
+	std::string trackKey = keyForTrack(track);
+	auto trackData = trackSettingsObj.find(trackKey);
+	if (trackData == trackSettingsObj.end() || !trackData->is_object())
+	{
+		trackSettingsObj[trackKey] = nlohmann::json::object();
+		trackData = trackSettingsObj.find(trackKey);
+	}
+	(*trackData)[key] = value;
+}
+
+optional<nlohmann::json> WZ_Playlist_Preferences::getJSONValueForTrack(const std::shared_ptr<const WZ_TRACK>& track, const std::string& key) const
+{
+	try {
+		return mRoot.at("tracks").at(keyForTrack(track)).at(key);
+	}
+	catch (nlohmann::json::out_of_range&)
+	{
+		// some part of the path doesn't exist yet
+		return nullopt;
+	}
+}
+
+optional<WZ_TRACK_SETTINGS> WZ_Playlist_Preferences::getTrackSettings(const std::shared_ptr<const WZ_TRACK>& track)
+{
+	return getValueForTrack<WZ_TRACK_SETTINGS>(track, "settings");
+}
+
+void WZ_Playlist_Preferences::setTrackSettings(const std::shared_ptr<const WZ_TRACK>& track, const WZ_TRACK_SETTINGS& settings)
+{
+	storeValueForTrack(track, "settings", settings);
+}
+
+void WZ_Playlist_Preferences::clearAllPreferences()
+{
+	mRoot["tracks"] = nlohmann::json::object();
+}
+
+bool WZ_Playlist_Preferences::savePreferences()
+{
+	std::ostringstream stream;
+	stream << mRoot.dump(4) << std::endl;
+	std::string jsonString = stream.str();
+	saveFile(mFilename.c_str(), jsonString.c_str(), jsonString.size());
+	return true;
+}
 
 static std::vector<std::shared_ptr<WZ_ALBUM>> albumList;
 static std::vector<std::shared_ptr<const WZ_TRACK>> fullTrackList;
-typedef std::unordered_map<std::shared_ptr<const WZ_TRACK>, WZ_TRACK_SETTINGS> TRACK_SETTINGS_MAP;
+typedef std::unordered_map<std::shared_ptr<const WZ_TRACK>, WZ_TRACK_SETTINGS_PAIR> TRACK_SETTINGS_MAP;
 static TRACK_SETTINGS_MAP trackToSettingsMap;
 static optional<size_t> currentSong = nullopt;
 static MusicGameMode lastFilteredMode = MusicGameMode::MENUS;
 static std::function<bool (const std::shared_ptr<const WZ_TRACK>& track)> currentFilterFunc;
+static WZ_Playlist_Preferences* playlistPrefs = nullptr;
 
-void PlayList_Init()
+static void PlayList_ClearAll()
 {
 	albumList.clear();
 	fullTrackList.clear();
 	trackToSettingsMap.clear();
 	currentFilterFunc = nullptr;
 	currentSong = nullopt;
+	if (playlistPrefs)
+	{
+		delete playlistPrefs;
+		playlistPrefs = nullptr;
+	}
+}
+
+void PlayList_Init()
+{
+	PlayList_ClearAll();
+	playlistPrefs = new WZ_Playlist_Preferences("music.json");
 }
 
 void PlayList_Quit()
 {
-	PlayList_Init();
+	if (playlistPrefs)
+	{
+		playlistPrefs->savePreferences();
+	}
+	PlayList_ClearAll();
 }
 
 bool PlayList_TrackEnabledForMusicMode(const std::shared_ptr<const WZ_TRACK>& track, MusicGameMode mode)
@@ -69,7 +281,7 @@ bool PlayList_TrackEnabledForMusicMode(const std::shared_ptr<const WZ_TRACK>& tr
 	{
 		return false;
 	}
-	return it->second.music_modes[static_cast<std::underlying_type<MusicGameMode>::type>(mode)];
+	return it->second.user_settings.music_modes[static_cast<std::underlying_type<MusicGameMode>::type>(mode)];
 }
 
 void PlayList_SetTrackMusicMode(const std::shared_ptr<const WZ_TRACK>& track, MusicGameMode mode, bool enabled)
@@ -79,19 +291,38 @@ void PlayList_SetTrackMusicMode(const std::shared_ptr<const WZ_TRACK>& track, Mu
 	{
 		return;
 	}
-	it->second.music_modes[static_cast<std::underlying_type<MusicGameMode>::type>(mode)] = enabled;
+	bool oldValue = it->second.user_settings.music_modes[static_cast<std::underlying_type<MusicGameMode>::type>(mode)];
+	if (oldValue != enabled)
+	{
+		it->second.user_settings.music_modes[static_cast<std::underlying_type<MusicGameMode>::type>(mode)] = enabled;
+		if (playlistPrefs)
+		{
+			playlistPrefs->setTrackSettings(track, it->second.user_settings);
+		}
+	}
 }
 
-static void PlayList_SetTrackDefaultMusicMode(const std::shared_ptr<const WZ_TRACK>& track, MusicGameMode mode, bool enabled)
+static void PlayList_SetTrackDefaultSettings(const std::shared_ptr<const WZ_TRACK>& track, const WZ_TRACK_SETTINGS& default_settings)
 {
 	auto it = trackToSettingsMap.find(track);
 	if (it == trackToSettingsMap.end())
 	{
-		auto result = trackToSettingsMap.insert(TRACK_SETTINGS_MAP::value_type(track, WZ_TRACK_SETTINGS()));
+		auto result = trackToSettingsMap.insert(TRACK_SETTINGS_MAP::value_type(track, WZ_TRACK_SETTINGS_PAIR()));
 		it = result.first;
 	}
-	it->second.default_music_modes[static_cast<std::underlying_type<MusicGameMode>::type>(mode)] = enabled;
-	it->second.music_modes[static_cast<std::underlying_type<MusicGameMode>::type>(mode)] = enabled;
+	it->second.default_settings = default_settings;
+	auto user_settings = playlistPrefs->getTrackSettings(track);
+	if (user_settings.has_value())
+	{
+		// load the saved user settings
+		it->second.user_settings = user_settings.value();
+	}
+	else
+	{
+		// initialize the user settings to the defaults
+		it->second.user_settings = default_settings;
+		playlistPrefs->setTrackSettings(track, it->second.user_settings);
+	}
 }
 
 const std::vector<std::shared_ptr<const WZ_TRACK>>& PlayList_GetFullTrackList()
@@ -206,6 +437,8 @@ static std::shared_ptr<WZ_ALBUM> PlayList_LoadAlbum(const nlohmann::json& json, 
 			debug(LOG_ERROR, "%s: Required track key `default_music_modes` should be an array", sourcePath.c_str());
 			return nullptr;
 		}
+
+		WZ_TRACK_SETTINGS default_settings;
 		for (const auto& musicModeJSON : trackJson["default_music_modes"])
 		{
 			if (!musicModeJSON.is_string())
@@ -216,19 +449,19 @@ static std::shared_ptr<WZ_ALBUM> PlayList_LoadAlbum(const nlohmann::json& json, 
 			std::string musicMode = musicModeJSON.get<std::string>();
 			if (musicMode == "campaign")
 			{
-				PlayList_SetTrackDefaultMusicMode(track, MusicGameMode::CAMPAIGN, true);
+				default_settings.setMusicMode(MusicGameMode::CAMPAIGN, true);
 			}
 			else if (musicMode == "challenge")
 			{
-				PlayList_SetTrackDefaultMusicMode(track, MusicGameMode::CHALLENGE, true);
+				default_settings.setMusicMode(MusicGameMode::CHALLENGE, true);
 			}
 			else if (musicMode == "skirmish")
 			{
-				PlayList_SetTrackDefaultMusicMode(track, MusicGameMode::SKIRMISH, true);
+				default_settings.setMusicMode(MusicGameMode::SKIRMISH, true);
 			}
 			else if (musicMode == "multiplayer")
 			{
-				PlayList_SetTrackDefaultMusicMode(track, MusicGameMode::MULTIPLAYER, true);
+				default_settings.setMusicMode(MusicGameMode::MULTIPLAYER, true);
 			}
 			else
 			{
@@ -236,6 +469,7 @@ static std::shared_ptr<WZ_ALBUM> PlayList_LoadAlbum(const nlohmann::json& json, 
 				continue;
 			}
 		}
+		PlayList_SetTrackDefaultSettings(track, default_settings);
 		album->tracks.push_back(std::move(track));
 	}
 
