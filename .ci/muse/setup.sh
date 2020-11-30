@@ -11,6 +11,8 @@ git submodule update --init --recursive
 # Create the build directory
 mkdir build
 
-# # MuseDev seems to currently run in-source builds
-# # Truncate the DisallowInSourceBuilds.cmake file to allow this (for now)
-# echo "" > ./cmake/DisallowInSourceBuilds.cmake
+# Run CMake
+cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -B ./build .
+
+# Copy compile commands database to the location that MuseDev expects it
+mv build/compile_commands.json ./
