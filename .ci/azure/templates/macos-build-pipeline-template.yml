@@ -101,7 +101,7 @@ jobs:
         fi
         echo "ADDITIONAL_CMAKE_ARGUMENTS=${ADDITIONAL_CMAKE_ARGUMENTS}"
         if [ "${DESIRED_XCODE_DEV_DIR}" != "default" ]; then
-          # Need to run configure_mac script twice
+          # Need to run configure_mac script more than once
 
           if [ "${DESIRED_VCPKG_BUILD_XCODE_DEV_DIR}" != "default" ]; then
             echo "Run configure_mac to just build vcpkg (with Xcode: ${DESIRED_VCPKG_BUILD_XCODE_DEV_DIR})"
@@ -109,7 +109,7 @@ jobs:
           else
             echo "Run configure_mac to just build vcpkg (with system default Xcode)"
           fi
-          ADDITIONAL_CONFIGURE_ARGS="-DONLY_BUILD_VCPKG=true"
+          ADDITIONAL_CONFIGURE_ARGS="-DCONFIGURE_PHASES=build-vcpkg"
           echo "cmake ${ADDITIONAL_CONFIGURE_ARGS} -DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING=\"${WZ_DISTRIBUTOR}\" -DADDITIONAL_CMAKE_ARGUMENTS=\"-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY=;-DCODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO\" -P ../configure_mac.cmake"
           cmake ${ADDITIONAL_CONFIGURE_ARGS} -DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING="${WZ_DISTRIBUTOR}" -DADDITIONAL_CMAKE_ARGUMENTS="${ADDITIONAL_CMAKE_ARGUMENTS}" -P ../src/configure_mac.cmake
 
@@ -119,7 +119,17 @@ jobs:
           fi
           echo "Switching Xcode: ${VCPKG_INSTALL_XCODE_DEV_DIR}"
           sudo xcode-select -switch "${VCPKG_INSTALL_XCODE_DEV_DIR}"
-          ADDITIONAL_CONFIGURE_ARGS="-DSKIP_VCPKG_BUILD=true"
+          ADDITIONAL_CONFIGURE_ARGS="-DCONFIGURE_PHASES=install-vcpkg"
+
+          echo "Run configure_mac just to build vcpkg dependencies"
+          echo "cmake ${ADDITIONAL_CONFIGURE_ARGS} -DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING=\"${WZ_DISTRIBUTOR}\" -DADDITIONAL_CMAKE_ARGUMENTS=\"-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY=;-DCODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO\" -P ../configure_mac.cmake"
+          cmake ${ADDITIONAL_CONFIGURE_ARGS} -DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING="${WZ_DISTRIBUTOR}" -DADDITIONAL_CMAKE_ARGUMENTS="${ADDITIONAL_CMAKE_ARGUMENTS}" -P ../src/configure_mac.cmake
+
+          if [ "${DESIRED_VCPKG_INSTALL_XCODE_DEV_DIR}" != "default" ]; then
+            echo "Switching Xcode: ${DESIRED_XCODE_DEV_DIR}"
+            sudo xcode-select -switch "${DESIRED_XCODE_DEV_DIR}"
+          fi
+          ADDITIONAL_CONFIGURE_ARGS="-DCONFIGURE_PHASES=config-wz"
         fi
         echo "cmake ${ADDITIONAL_CONFIGURE_ARGS} -DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING=\"${WZ_DISTRIBUTOR}\" -DADDITIONAL_CMAKE_ARGUMENTS=\"-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY=;-DCODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO\" -P ../configure_mac.cmake"
         cmake ${ADDITIONAL_CONFIGURE_ARGS} -DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING="${WZ_DISTRIBUTOR}" -DADDITIONAL_CMAKE_ARGUMENTS="${ADDITIONAL_CMAKE_ARGUMENTS}" -P ../src/configure_mac.cmake

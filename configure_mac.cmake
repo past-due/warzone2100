@@ -4,8 +4,7 @@ cmake_minimum_required(VERSION 3.5)
 #  - VCPKG_BUILD_TYPE : This will be used to modify the current triplet (once vcpkg is downloaded)
 #  - WZ_DISTRIBUTOR : Passed to the main WZ CMake configure command
 #  - ADDITIONAL_CMAKE_ARGUMENTS : Additional arguments to be passed to CMake configure
-#  - ONLY_BUILD_VCPKG : Only proceed through the steps to build vcpkg
-#  - SKIP_VCPKG_BUILD : Skip building vcpkg itself, proceed with remaining steps
+#  - CONFIGURE_PHASES : "build-vcpkg;install-vcpkg;config-wz"
 
 ########################################################
 
@@ -25,6 +24,10 @@ set(VULKAN_SDK_DL_SHA256 "b76c58d086486b803405522183a46a16928356449db229afadecb9
 
 ########################################################
 # 0.) Prep-work
+
+if(NOT DEFINED CONFIGURE_PHASES)
+  set(CONFIGURE_PHASES "build-vcpkg;install-vcpkg;config-wz")
+endif()
 
 # Get full path to this file
 if(NOT CMAKE_SCRIPT_MODE_FILE)
@@ -97,7 +100,7 @@ endif()
 # 2.) Download & build vcpkg, install dependencies
 
 
-if((NOT DEFINED SKIP_VCPKG_BUILD) OR NOT SKIP_VCPKG_BUILD)
+if("build-vcpkg" IN_LIST CONFIGURE_PHASES)
 
 ########################################################
 ## 1-a.) Download vcpkg, pin to commit
@@ -247,15 +250,12 @@ if(DEFINED VCPKG_BUILD_TYPE)
 	unset(triplet)
 endif()
 
-endif((NOT DEFINED SKIP_VCPKG_BUILD) OR NOT SKIP_VCPKG_BUILD)
-
-if(DEFINED ONLY_BUILD_VCPKG AND ONLY_BUILD_VCPKG)
-	message(STATUS "ONLY_BUILD_VCPKG: Stopping configure script after vcpkg build")
-	return()
-endif()
+endif("build-vcpkg" IN_LIST CONFIGURE_PHASES)
 
 ########################################################
 ## 1-e.) Download & build WZ macOS dependencies
+
+if("install-vcpkg" IN_LIST CONFIGURE_PHASES)
 
 execute_process(COMMAND ${CMAKE_COMMAND} -E echo "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
 execute_process(COMMAND ${CMAKE_COMMAND} -E echo "++ vcpkg install dependencies...")
@@ -288,8 +288,12 @@ execute_process(COMMAND "${CMAKE_COMMAND}" -E sleep "1")
 
 execute_process(COMMAND ${CMAKE_COMMAND} -E echo "++ vcpkg install finished")
 
+endif("install-vcpkg" IN_LIST CONFIGURE_PHASES)
+
 ########################################################
 # 3.) CMake configure (generate Xcode project)
+
+if("config-wz" IN_LIST CONFIGURE_PHASES)
 
 set(_additional_configure_arguments "")
 if(DEFINED WZ_DISTRIBUTOR)
@@ -316,6 +320,8 @@ if(NOT _exstatus EQUAL 0)
 endif()
 
 execute_process(COMMAND ${CMAKE_COMMAND} -E echo "++ CMake generated Xcode project at: ${CMAKE_CURRENT_SOURCE_DIR}/warzone2100.xcodeproj")
+
+endif("config-wz" IN_LIST CONFIGURE_PHASES)
 
 ########################################################
 
