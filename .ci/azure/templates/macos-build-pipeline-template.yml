@@ -136,7 +136,7 @@ jobs:
         result=${?}
         if [ $result -ne 0 ]; then
         	echo "ERROR: configure_mac.cmake failed"
-          cat "build/vcpkg-manifest-install.log"
+          cat "/Users/runner/work/1/build/vcpkg-manifest-install.log"
         	exit ${result}
         fi
         if [ "${DESIRED_XCODE_DEV_DIR}" != "default" ] && [ "${DESIRED_VCPKG_INSTALL_XCODE_DEV_DIR}" != "${DESIRED_XCODE_DEV_DIR}" ]; then
