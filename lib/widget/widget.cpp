@@ -193,6 +193,7 @@ WIDGET::WIDGET(W_INIT const *init, WIDGET_TYPE type)
 
 WIDGET::WIDGET(WIDGET *parent, WIDGET_TYPE type): WIDGET(type)
 {
+	ASSERT_OR_RETURN(, parent, "WIDGET::WIDGET - parent is null!!");
 	parent->attach(this);
 }
 
