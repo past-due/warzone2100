@@ -189,7 +189,7 @@ public:
 		setTip((stringUtf8 != nullptr) ? std::string(stringUtf8) : std::string());
 	}
 
-	WIDGET *parent()
+	WIDGET *parent() const
 	{
 		return parentWidget;
 	}
