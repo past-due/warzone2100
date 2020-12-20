@@ -481,5 +481,10 @@ bool multiGameShutdown()
 	bMultiMessages					= false;
 	selectedPlayer					= 0;		// Back to use player 0 (single player friendly)
 
+	for (auto& player : NetPlay.players)
+	{
+		player.resetAll();
+	}
+
 	return true;
 }
