@@ -227,6 +227,8 @@ void clearPlayer(UDWORD player, bool quietly)
 		psStruct = psNext;
 	}
 
+	setMultiStats(player, PLAYERSTATS(), true); // local only
+
 	return;
 }
 
