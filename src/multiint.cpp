@@ -1731,7 +1731,6 @@ void WzMultiplayerOptionsTitleUI::openDifficultyChooser(uint32_t player)
 {
 	closeAllChoosers();
 
-	widgDelete(psWScreen, MULTIOP_AI_FORM);
 	widgDelete(psWScreen, MULTIOP_PLAYERS);
 	widgDelete(psWScreen, FRONTEND_SIDETEXT2);
 	difficultyChooserUp = player;
@@ -1783,7 +1782,6 @@ void WzMultiplayerOptionsTitleUI::openDifficultyChooser(uint32_t player)
 void WzMultiplayerOptionsTitleUI::openAiChooser(uint32_t player)
 {
 	closeAllChoosers();
-	widgDelete(psWScreen, MULTIOP_AI_FORM);
 	widgDelete(psWScreen, MULTIOP_PLAYERS);
 	widgDelete(psWScreen, FRONTEND_SIDETEXT2);
 	aiChooserUp = player;
@@ -1802,16 +1800,7 @@ void WzMultiplayerOptionsTitleUI::openAiChooser(uint32_t player)
 	sButInit.formID = MULTIOP_AI_FORM;
 	sButInit.x = 7;
 	sButInit.width = MULTIOP_PLAYERWIDTH + 1;
-	// Try to fit as many as possible, just got to make sure text fits in the 'box'.
-	// NOTE: Correct way would be to get the actual font size, render the text, and see what fits.
-	if (aidata.size() > 8)
-	{
-		sButInit.height = MULTIOP_PLAYERHEIGHT - 7;
-	}
-	else
-	{
-		sButInit.height = MULTIOP_PLAYERHEIGHT;
-	}
+	sButInit.height = MULTIOP_PLAYERHEIGHT;
 	sButInit.pDisplay = displayAi;
 	sButInit.initPUserDataFunc = []() -> void * { return new DisplayAICache(); };
 	sButInit.onDelete = [](WIDGET *psWidget) {
@@ -1822,19 +1811,6 @@ void WzMultiplayerOptionsTitleUI::openAiChooser(uint32_t player)
 
 	// only need this button in (true) mp games
 	int mpbutton = NetPlay.bComms ? 1 : 0;
-	// cap AI's that are shown, since it looks a bit ugly.  *FIXME*
-	int capAIs = aidata.size();
-	if (aidata.size() > 9)
-	{
-		debug(LOG_INFO, "You have too many AI's loaded for the GUI to handle.  Only the first 10 will be shown.");
-		displayRoomNotifyMessage("You have too many AI's loaded for the GUI to handle.  Only the first 10 will be shown.");
-		capAIs = 10;
-	}
-
-	// button height * how many AI + possible buttons (openclosed)
-	int gap = MULTIOP_PLAYERSH - ((sButInit.height) * (capAIs + 1 + mpbutton));
-	int gapDiv = (capAIs > 1) ? capAIs - 1 : 1; //avoid zero division with only 1 AI
-	gap = std::min(gap, 5 * gapDiv);
 
 	// Open button
 	if (mpbutton)
@@ -1852,21 +1828,54 @@ void WzMultiplayerOptionsTitleUI::openAiChooser(uint32_t player)
 	sButInit.UserData = (UDWORD)AI_CLOSED;
 	if (mpbutton)
 	{
-		sButInit.y = sButInit.height;
+		sButInit.y = sButInit.y + sButInit.height;
 	}
 	else
 	{
-		sButInit.y = 0; //since we don't have the lone mpbutton, we can start at position 0
+		sButInit.y = 3; //since we don't have the lone mpbutton, we can start at position 0
 	}
 	widgAddButton(psWScreen, &sButInit);
 
-	for (int i = 0; i < capAIs; i++)
+	ScrollableListWidget *pAIScrollableList = new ScrollableListWidget(aiForm);
+	pAIScrollableList->setBackgroundColor(WZCOL_TRANSPARENT_BOX);
+	int aiListStartXPos = sButInit.x;
+	int aiListStartYPos = (sButInit.height + sButInit.y) + 10;
+	int aiListEntryHeight = sButInit.height;
+	int aiListEntryWidth = sButInit.width;
+	int aiListHeight = aiListEntryHeight * 7;
+	pAIScrollableList->setCalcLayout([aiListStartXPos, aiListStartYPos, aiListEntryWidth, aiListHeight](WIDGET *psWidget, unsigned int, unsigned int, unsigned int, unsigned int){
+		psWidget->setGeometry(aiListStartXPos, aiListStartYPos, aiListEntryWidth, aiListHeight);
+	});
+
+	W_BUTINIT emptyInit;
+	auto psWeakTitleUI = std::weak_ptr<WzMultiplayerOptionsTitleUI>(std::dynamic_pointer_cast<WzMultiplayerOptionsTitleUI>(shared_from_this()));
+	for (size_t aiIdx = 0; aiIdx < aidata.size(); aiIdx++)
 	{
-		sButInit.y = (sButInit.height * gapDiv + gap) * (i + 1 + mpbutton) / gapDiv; // +1 for 'closed', and possible +1 more for 'open' for MP games)
-		sButInit.pTip = aidata[i].tip;
-		sButInit.id = MULTIOP_AI_START + i;
-		sButInit.UserData = i;
-		widgAddButton(psWScreen, &sButInit);
+		W_BUTTON *pAIRow = new W_BUTTON(&emptyInit);
+		pAIRow->setTip(aidata[aiIdx].tip); // TODO: Tip does not display at the proper location when ScrollableListWidget is scrolled
+		pAIRow->id = MULTIOP_AI_START + aiIdx;
+		pAIRow->UserData = aiIdx;
+		pAIRow->setGeometry(0, 0, sButInit.width, sButInit.height);
+		pAIRow->displayFunction = displayAi;
+		pAIRow->pUserData = new DisplayAICache();
+		pAIRow->setOnDelete([](WIDGET *psWidget) {
+			assert(psWidget->pUserData != nullptr);
+			delete static_cast<DisplayAICache *>(psWidget->pUserData);
+			psWidget->pUserData = nullptr;
+		});
+		pAIRow->addOnClickHandler([psWeakTitleUI, aiIdx, player](W_BUTTON& clickedButton) {
+			auto pStrongPtr = psWeakTitleUI.lock();
+			ASSERT_OR_RETURN(, pStrongPtr.operator bool(), "WzMultiplayerOptionsTitleUI no longer exists");
+			NetPlay.players[player].ai = aiIdx;
+			sstrcpy(NetPlay.players[player].name, getAIName(player));
+			NetPlay.players[player].difficulty = AIDifficulty::MEDIUM;
+			NETBroadcastPlayerInfo(player);
+			pStrongPtr->closeAiChooser();
+			pStrongPtr->addPlayerBox(true);
+			resetReadyStatus(false);
+			ActivityManager::instance().updateMultiplayGameData(game, ingame, NETGameIsLocked());
+		});
+		pAIScrollableList->addItem(pAIRow);
 	}
 }
 
@@ -2042,14 +2051,14 @@ void WzMultiplayerOptionsTitleUI::closeTeamChooser()
 
 void WzMultiplayerOptionsTitleUI::closeAiChooser()
 {
-	widgDelete(psWScreen, MULTIOP_AI_FORM);
+	widgDeleteLater(psWScreen, MULTIOP_AI_FORM);
 	widgDelete(psWScreen, FRONTEND_SIDETEXT2);
 	aiChooserUp = -1;
 }
 
 void WzMultiplayerOptionsTitleUI::closeDifficultyChooser()
 {
-	widgDelete(psWScreen, MULTIOP_AI_FORM);
+	widgDeleteLater(psWScreen, MULTIOP_AI_FORM);
 	widgDelete(psWScreen, FRONTEND_SIDETEXT2);
 	difficultyChooserUp = -1;
 }
@@ -3737,19 +3746,6 @@ void WzMultiplayerOptionsTitleUI::processMultiopWidgets(UDWORD id)
 		closeDifficultyChooser();
 		addPlayerBox(true);
 		resetReadyStatus(false);
-	}
-
-	if (id >= MULTIOP_AI_START && id <= MULTIOP_AI_END && aiChooserUp != -1)
-	{
-		int idx = id - MULTIOP_AI_START;
-		NetPlay.players[aiChooserUp].ai = idx;
-		sstrcpy(NetPlay.players[aiChooserUp].name, getAIName(aiChooserUp));
-		NetPlay.players[aiChooserUp].difficulty = AIDifficulty::MEDIUM;
-		NETBroadcastPlayerInfo(aiChooserUp);
-		closeAiChooser();
-		addPlayerBox(true);
-		resetReadyStatus(false);
-		ActivityManager::instance().updateMultiplayGameData(game, ingame, NETGameIsLocked());
 	}
 
 	STATIC_ASSERT(MULTIOP_TEAMS_START + MAX_PLAYERS - 1 <= MULTIOP_TEAMS_END);
