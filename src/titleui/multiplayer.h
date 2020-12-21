@@ -78,8 +78,7 @@ private:
 	std::shared_ptr<WzTitleUI> parent;
 	bool performedFirstStart = false;
 
-	int8_t colourChooserUp;
-	int8_t teamChooserUp;
+	int8_t inlineChooserUp;
 	int8_t aiChooserUp;
 	int8_t difficultyChooserUp;
 	int8_t positionChooserUp;
