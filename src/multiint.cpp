@@ -1887,35 +1887,46 @@ void WzMultiplayerOptionsTitleUI::openTeamChooser(uint32_t player)
 	UDWORD i;
 	int disallow = allPlayersOnSameTeam(player);
 
+	bool canChangeTeams = !locked.teams;
+	bool canKickPlayer = (player != selectedPlayer && NetPlay.bComms && NetPlay.isHost && NetPlay.players[player].allocated);
+	if (!canChangeTeams && !canKickPlayer)
+	{
+		return;
+	}
+
 	debug(LOG_NET, "Opened team chooser for %d, current team: %d", player, NetPlay.players[player].team);
 
 	initInlineChooser(player);
 
 	// add form.
-	addBlueForm(MULTIOP_PLAYERS, MULTIOP_TEAMCHOOSER_FORM, "", 8, playerBoxHeight(player), MULTIOP_ROW_WIDTH, MULTIOP_TEAMSHEIGHT);
+	auto psParentForm = (W_FORM *)widgGetFromID(psWScreen, MULTIOP_PLAYERS);
+	addInlineChooserBlueForm(psInlineChooserOverlayScreen, psParentForm, MULTIOP_TEAMCHOOSER_FORM, "", 8, playerBoxHeight(player), MULTIOP_ROW_WIDTH, MULTIOP_TEAMSHEIGHT);
 
-	int teamW = iV_GetImageWidth(FrontImages, IMAGE_TEAM0);
-	int teamH = iV_GetImageHeight(FrontImages, IMAGE_TEAM0);
-	int space = MULTIOP_ROW_WIDTH - 4 - teamW * (game.maxPlayers + 1);
-	int spaceDiv = game.maxPlayers;
-	space = std::min(space, 3 * spaceDiv);
-
-	// add the teams, skipping the one we CAN'T be on (if applicable)
-	for (i = 0; i < game.maxPlayers; i++)
+	if (canChangeTeams)
 	{
-		if (i != disallow)
+		int teamW = iV_GetImageWidth(FrontImages, IMAGE_TEAM0);
+		int teamH = iV_GetImageHeight(FrontImages, IMAGE_TEAM0);
+		int space = MULTIOP_ROW_WIDTH - 4 - teamW * (game.maxPlayers + 1);
+		int spaceDiv = game.maxPlayers;
+		space = std::min(space, 3 * spaceDiv);
+
+		// add the teams, skipping the one we CAN'T be on (if applicable)
+		for (i = 0; i < game.maxPlayers; i++)
 		{
-			addMultiBut(psWScreen, MULTIOP_TEAMCHOOSER_FORM, MULTIOP_TEAMCHOOSER + i, i * (teamW * spaceDiv + space) / spaceDiv + 3, 6, teamW, teamH, _("Team"), IMAGE_TEAM0 + i, IMAGE_TEAM0_HI + i, IMAGE_TEAM0_HI + i);
+			if (i != disallow)
+			{
+				addMultiBut(psInlineChooserOverlayScreen, MULTIOP_TEAMCHOOSER_FORM, MULTIOP_TEAMCHOOSER + i, i * (teamW * spaceDiv + space) / spaceDiv + 3, 6, teamW, teamH, _("Team"), IMAGE_TEAM0 + i, IMAGE_TEAM0_HI + i, IMAGE_TEAM0_HI + i);
+			}
+			// may want to add some kind of 'can't do' icon instead of being blank?
 		}
-		// may want to add some kind of 'can't do' icon instead of being blank?
 	}
 
 	// add a kick button
-	if (player != selectedPlayer && NetPlay.bComms && NetPlay.isHost && NetPlay.players[player].allocated)
+	if (canKickPlayer)
 	{
 		const int imgwidth = iV_GetImageWidth(FrontImages, IMAGE_NOJOIN);
 		const int imgheight = iV_GetImageHeight(FrontImages, IMAGE_NOJOIN);
-		addMultiBut(psWScreen, MULTIOP_TEAMCHOOSER_FORM, MULTIOP_TEAMCHOOSER_KICK, MULTIOP_ROW_WIDTH - imgwidth - 4, 8, imgwidth, imgheight,
+		addMultiBut(psInlineChooserOverlayScreen, MULTIOP_TEAMCHOOSER_FORM, MULTIOP_TEAMCHOOSER_KICK, MULTIOP_ROW_WIDTH - imgwidth - 4, 8, imgwidth, imgheight,
 			("Kick player"), IMAGE_NOJOIN, IMAGE_NOJOIN, IMAGE_NOJOIN);
 	}
 
@@ -1988,7 +1999,8 @@ void WzMultiplayerOptionsTitleUI::closeColourChooser()
 void WzMultiplayerOptionsTitleUI::closeTeamChooser()
 {
 	teamChooserUp = -1;
-	widgDelete(psWScreen, MULTIOP_TEAMCHOOSER_FORM);
+	widgDeleteLater(psInlineChooserOverlayScreen, MULTIOP_TEAMCHOOSER_FORM);
+	widgRemoveOverlayScreen(psInlineChooserOverlayScreen);
 }
 
 void WzMultiplayerOptionsTitleUI::closeAiChooser()
