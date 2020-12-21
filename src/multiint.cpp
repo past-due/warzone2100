@@ -1226,6 +1226,26 @@ MultichoiceWidget::MultichoiceWidget(WIDGET *parent, int value)
 	lockCurrent = true;
 }
 
+static void addInlineChooserBlueForm(const std::shared_ptr<W_SCREEN> &psScreen, W_FORM *psParent, UDWORD id, WzString txt, UDWORD x, UDWORD y, UDWORD w, UDWORD h)
+{
+	W_FORMINIT sFormInit;                  // draw options box.
+	sFormInit.formID = MULTIOP_INLINE_OVERLAY_ROOT_FRM;
+	sFormInit.id	= id;
+	sFormInit.x		= (UWORD) x;
+	sFormInit.y		= (UWORD) y;
+	sFormInit.style = WFORM_PLAIN;
+	sFormInit.width = (UWORD)w;//190;
+	sFormInit.height = (UWORD)h; //27;
+	sFormInit.pDisplay =  intDisplayFeBox;
+
+	// TODO: Once widget smart pointer refactor is available, take a weak_ptr of psParent
+	sFormInit.calcLayout = [x, y, psParent](WIDGET *psWidget, unsigned int, unsigned int, unsigned int, unsigned int){
+		if (!psParent) { return; }
+		psWidget->move(psParent->screenPosX() + x, psParent->screenPosY() + y);
+	};
+	widgAddForm(psScreen, &sFormInit);
+}
+
 static void addBlueForm(UDWORD parent, UDWORD id, WzString txt, UDWORD x, UDWORD y, UDWORD w, UDWORD h)
 {
 	W_FORMINIT sFormInit;                  // draw options box.
@@ -1688,6 +1708,23 @@ void WzMultiplayerOptionsTitleUI::initInlineChooser(uint32_t player)
 
 	// remove any choosers already up
 	closeAllChoosers();
+
+	widgRegisterOverlayScreen(psInlineChooserOverlayScreen, 1);
+}
+
+static bool addMultiButWithClickHandler(const std::shared_ptr<W_SCREEN> &screen, UDWORD formid, UDWORD id, UDWORD x, UDWORD y, UDWORD width, UDWORD height, const char *tipres, UDWORD norm, UDWORD down, UDWORD hi, const W_BUTTON::W_BUTTON_ONCLICK_FUNC& clickHandler, unsigned tc = MAX_PLAYERS)
+{
+	if (!addMultiBut(screen, formid, id, x, y, width, height, tipres, norm, down, hi, tc))
+	{
+		return false;
+	}
+	WzMultiButton *psButton = static_cast<WzMultiButton*>(widgGetFromID(screen, id));
+	if (!psButton)
+	{
+		return false;
+	}
+	psButton->addOnClickHandler(clickHandler);
+	return true;
 }
 
 void WzMultiplayerOptionsTitleUI::openDifficultyChooser(uint32_t player)
@@ -1891,7 +1928,8 @@ void WzMultiplayerOptionsTitleUI::openColourChooser(uint32_t player)
 	initInlineChooser(player);
 
 	// add form.
-	addBlueForm(MULTIOP_PLAYERS, MULTIOP_COLCHOOSER_FORM, "",
+	auto psParentForm = (W_FORM *)widgGetFromID(psWScreen, MULTIOP_PLAYERS);
+	addInlineChooserBlueForm(psInlineChooserOverlayScreen, psParentForm, MULTIOP_COLCHOOSER_FORM, "",
 		8,
 		playerBoxHeight(player),
 		MULTIOP_ROW_WIDTH, MULTIOP_PLAYERHEIGHT);
@@ -1902,16 +1940,38 @@ void WzMultiplayerOptionsTitleUI::openColourChooser(uint32_t player)
 	int space = MULTIOP_ROW_WIDTH - 0 - flagW * MAX_PLAYERS_IN_GUI;
 	int spaceDiv = MAX_PLAYERS_IN_GUI;
 	space = std::min(space, 5 * spaceDiv);
+
+	auto psWeakTitleUI = std::weak_ptr<WzMultiplayerOptionsTitleUI>(std::dynamic_pointer_cast<WzMultiplayerOptionsTitleUI>(shared_from_this()));
+
 	for (unsigned i = 0; i < MAX_PLAYERS_IN_GUI; i++)
 	{
-		addMultiBut(psWScreen, MULTIOP_COLCHOOSER_FORM, MULTIOP_COLCHOOSER + getPlayerColour(i),
+		auto onClickHandler = [psWeakTitleUI](W_BUTTON &button) {
+			UDWORD id = button.id;
+			auto pStrongPtr = psWeakTitleUI.lock();
+			if (!pStrongPtr)
+			{
+				debug(LOG_ERROR, "WzMultiplayerOptionsTitleUI no longer exists");
+				return;
+			}
+			STATIC_ASSERT(MULTIOP_COLCHOOSER + MAX_PLAYERS - 1 <= MULTIOP_COLCHOOSER_END);
+			if (id >= MULTIOP_COLCHOOSER && id < MULTIOP_COLCHOOSER + MAX_PLAYERS - 1)  // chose a new colour.
+			{
+				resetReadyStatus(false, true);		// will reset only locally if not a host
+				SendColourRequest(pStrongPtr->colourChooserUp, id - MULTIOP_COLCHOOSER);
+				pStrongPtr->closeColourChooser();
+				pStrongPtr->addPlayerBox(true);
+			}
+		};
+
+		addMultiButWithClickHandler(psInlineChooserOverlayScreen, MULTIOP_COLCHOOSER_FORM, MULTIOP_COLCHOOSER + getPlayerColour(i),
 			i * (flagW * spaceDiv + space) / spaceDiv + 7, 4, // x, y
 			flagW, flagH,  // w, h
-			getPlayerColourName(i), IMAGE_PLAYERN, IMAGE_PLAYERN_HI, IMAGE_PLAYERN_HI, getPlayerColour(i));
+			getPlayerColourName(i), IMAGE_PLAYERN, IMAGE_PLAYERN_HI, IMAGE_PLAYERN_HI, onClickHandler, getPlayerColour(i)
+		);
 
 		if (!safeToUseColour(selectedPlayer, i))
 		{
-			widgSetButtonState(psWScreen, MULTIOP_COLCHOOSER + getPlayerColour(i), WBUT_DISABLE);
+			widgSetButtonState(psInlineChooserOverlayScreen, MULTIOP_COLCHOOSER + getPlayerColour(i), WBUT_DISABLE);
 		}
 	}
 
@@ -1921,7 +1981,8 @@ void WzMultiplayerOptionsTitleUI::openColourChooser(uint32_t player)
 void WzMultiplayerOptionsTitleUI::closeColourChooser()
 {
 	colourChooserUp = -1;
-	widgDelete(psWScreen, MULTIOP_COLCHOOSER_FORM);
+	widgDeleteLater(psInlineChooserOverlayScreen, MULTIOP_COLCHOOSER_FORM);
+	widgRemoveOverlayScreen(psInlineChooserOverlayScreen);
 }
 
 void WzMultiplayerOptionsTitleUI::closeTeamChooser()
@@ -4351,6 +4412,14 @@ WzMultiplayerOptionsTitleUI::WzMultiplayerOptionsTitleUI(std::shared_ptr<WzTitle
 {
 }
 
+void WzMultiplayerOptionsTitleUI::screenSizeDidChange(unsigned int oldWidth, unsigned int oldHeight, unsigned int newWidth, unsigned int newHeight)
+{
+	// NOTE: To properly support resizing the inline overlay screen based on underlying screen layer recalculations
+	// frontendScreenSizeDidChange() should be called after intScreenSizeDidChange() in gameScreenSizeDidChange()
+	if (psInlineChooserOverlayScreen == nullptr) return;
+	psInlineChooserOverlayScreen->screenSizeDidChange(oldWidth, oldHeight, newWidth, newHeight);
+}
+
 static void printHostHelpMessagesToConsole()
 {
 	char buf[512] = { '\0' };
@@ -4405,6 +4474,62 @@ void calcBackdropLayoutForMultiplayerOptionsTitleUI(WIDGET *psWidget, unsigned i
 	);
 }
 
+class W_INLINEOPTIONSCLICKFORM : public W_CLICKFORM
+{
+public:
+	W_INLINEOPTIONSCLICKFORM(W_FORMINIT const *init) : W_CLICKFORM(init) {}
+	W_INLINEOPTIONSCLICKFORM(WIDGET *parent) : W_CLICKFORM(parent) {}
+public:
+	static W_INLINEOPTIONSCLICKFORM* make()
+	{
+		W_FORMINIT sInit;
+		sInit.id = MULTIOP_INLINE_OVERLAY_ROOT_FRM;
+		sInit.style = WFORM_PLAIN | WFORM_INVISIBLE;
+		sInit.x = 0;
+		sInit.y = 0;
+		sInit.width = screenWidth - 1;
+		sInit.height = screenHeight - 1;
+		sInit.calcLayout = LAMBDA_CALCLAYOUT_SIMPLE({
+			psWidget->setGeometry(0, 0, screenWidth - 1, screenHeight - 1);
+		});
+
+		auto psForm = new W_INLINEOPTIONSCLICKFORM(&sInit);
+		return psForm;
+	}
+
+	void clicked(W_CONTEXT *psContext, WIDGET_KEY key) override
+	{
+		if (onClickedFunc)
+		{
+			onClickedFunc();
+		}
+	}
+
+	void display(int xOffset, int yOffset) override
+	{
+		// just draw slightly darkened background
+		int x0 = x() + xOffset;
+		int y0 = y() + yOffset;
+		pie_UniTransBoxFill(x0, y0, x0 + width(), y0 + height(), pal_RGBA(0, 0, 0, 125));
+	}
+
+	void run(W_CONTEXT *psContext) override
+	{
+		if (CancelPressed())
+		{
+			if (onCancelPressed)
+			{
+				onCancelPressed();
+			}
+		}
+		inputLoseFocus();	// clear the input buffer.
+	}
+
+public:
+	std::function<void ()> onClickedFunc;
+	std::function<void ()> onCancelPressed;
+};
+
 void WzMultiplayerOptionsTitleUI::start()
 {
 	const bool bReenter = performedFirstStart;
@@ -4435,6 +4560,22 @@ void WzMultiplayerOptionsTitleUI::start()
 		difficultyChooserUp = -1;
 		positionChooserUp = -1;
 		colourChooserUp = -1;
+
+		// Initialize the inline chooser overlay screen
+		psInlineChooserOverlayScreen = W_SCREEN::make();
+		auto newRootFrm = W_INLINEOPTIONSCLICKFORM::make();
+		std::weak_ptr<W_SCREEN> psWeakInlineOverlayScreen(psInlineChooserOverlayScreen);
+		WzMultiplayerOptionsTitleUI *psTitleUI = this;
+		newRootFrm->onClickedFunc = [psWeakInlineOverlayScreen, psTitleUI]() {
+			if (auto psOverlayScreen = psWeakInlineOverlayScreen.lock())
+			{
+				widgRemoveOverlayScreen(psOverlayScreen);
+			}
+			psTitleUI->closeAllChoosers();
+			psTitleUI->addPlayerBox(true);
+		};
+		newRootFrm->onCancelPressed = newRootFrm->onClickedFunc;
+		psInlineChooserOverlayScreen->psForm->attach(newRootFrm);
 
 		ingame.localOptionsReceived = false;
 
