@@ -2170,11 +2170,13 @@ void addText(UDWORD id, UDWORD PosX, UDWORD PosY, const char *txt, UDWORD formID
 }
 
 // ////////////////////////////////////////////////////////////////////////////
-void addSideText(UDWORD id,  UDWORD PosX, UDWORD PosY, const char *txt)
+W_LABEL *addSideText(const std::shared_ptr<W_SCREEN> &psScreen, UDWORD formId, UDWORD id, UDWORD PosX, UDWORD PosY, const char *txt)
 {
+	ASSERT_OR_RETURN(nullptr, psScreen != nullptr, "Invalid screen pointer");
+
 	W_LABINIT sLabInit;
 
-	sLabInit.formID = FRONTEND_BACKDROP;
+	sLabInit.formID = formId;
 	sLabInit.id = id;
 	sLabInit.x = (short) PosX;
 	sLabInit.y = (short) PosY;
@@ -2191,7 +2193,13 @@ void addSideText(UDWORD id,  UDWORD PosX, UDWORD PosY, const char *txt)
 		delete static_cast<DisplayTextOptionCache *>(psWidget->pUserData);
 		psWidget->pUserData = nullptr;
 	};
-	widgAddLabel(psWScreen, &sLabInit);
+
+	return widgAddLabel(psScreen, &sLabInit);
+}
+
+W_LABEL *addSideText(UDWORD id, UDWORD PosX, UDWORD PosY, const char *txt)
+{
+	return addSideText(psWScreen, FRONTEND_BACKDROP, id, PosX, PosY, txt);
 }
 
 // ////////////////////////////////////////////////////////////////////////////
