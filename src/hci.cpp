@@ -4918,7 +4918,7 @@ void chatDialog(int mode)
 		WIDGET *parent = psWScreen->psForm;
 		static IntFormAnimated *consoleBox = nullptr;
 		W_EDITBOX *chatBox = nullptr;
-		W_CONTEXT sContext;
+		W_CONTEXT sContext = W_CONTEXT::ZeroContext();
 
 		consoleBox = new IntFormAnimated(parent);
 		consoleBox->id = CHAT_CONSOLEBOX;
@@ -4939,8 +4939,6 @@ void chatDialog(int mode)
 			chatBox->setBoxColours(WZCOL_YELLOW, WZCOL_YELLOW, WZCOL_MENU_BACKGROUND);
 			widgSetUserData2(psWScreen, CHAT_EDITBOX, CHAT_TEAM);
 		}
-		sContext.xOffset = sContext.yOffset = 0;
-		sContext.mx = sContext.my = 0;
 
 		W_LABEL *label = new W_LABEL(consoleBox);
 		label->setGeometry(2, 2,60, 16);

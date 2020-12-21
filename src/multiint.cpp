@@ -4204,7 +4204,7 @@ TITLECODE WzMultiplayerOptionsTitleUI::run()
 	// if we don't have the focus, then autoclick in the chatbox.
 	if (!psWScreen->psFocus)
 	{
-		context.xOffset = 	context.yOffset = 0;
+		W_CONTEXT context = W_CONTEXT::ZeroContext();
 		context.mx			= mouseX();
 		context.my			= mouseY();
 

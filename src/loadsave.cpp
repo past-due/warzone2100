@@ -544,7 +544,6 @@ bool runLoadSave(bool bResetMissionWidgets)
 {
 	static char     sDelete[PATH_MAX];
 	UDWORD		i, campaign;
-	W_CONTEXT		context;
 	char NewSaveGamePath[PATH_MAX] = {'\0'};
 
 	WidgetTriggers const &triggers = widgRunScreen(psRequestScreen);
@@ -632,8 +631,7 @@ bool runLoadSave(bool bResetMissionWidgets)
 				chosenSlotId = id;
 
 				// auto click in the edit box we just made.
-				context.xOffset		= 0;
-				context.yOffset		= 0;
+				W_CONTEXT context = W_CONTEXT::ZeroContext();
 				context.mx			= mouseX();
 				context.my			= mouseY();
 				saveEntryEdit->clicked(&context);
