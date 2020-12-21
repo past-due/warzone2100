@@ -4172,7 +4172,6 @@ TITLECODE WzMultiplayerOptionsTitleUI::run()
 {
 	static UDWORD	lastrefresh = 0;
 	PLAYERSTATS		playerStats;
-	W_CONTEXT		context;
 
 	frontendMultiMessages(true);
 	if (NetPlay.isHost)
