@@ -97,6 +97,16 @@ void widgShutDown(void)
 void widgRegisterOverlayScreen(const std::shared_ptr<W_SCREEN> &psScreen, uint16_t zOrder)
 {
 	OverlayScreen newOverlay {psScreen, zOrder};
+	auto it = std::find_if(overlays.begin(), overlays.end(), [psScreen](const OverlayScreen& overlay) -> bool {
+		return overlay.psScreen == psScreen;
+	});
+	if (it != overlays.end())
+	{
+		// screen already exists in overlay stack
+		// update zOrder if needed
+		it->zOrder = zOrder;
+		return;
+	}
 	overlays.insert(std::upper_bound(overlays.begin(), overlays.end(), newOverlay, [](const OverlayScreen& a, const OverlayScreen& b){ return a.zOrder > b.zOrder; }), newOverlay);
 }
 
