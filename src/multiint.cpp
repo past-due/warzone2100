@@ -1712,6 +1712,44 @@ void WzMultiplayerOptionsTitleUI::initInlineChooser(uint32_t player)
 	widgRegisterOverlayScreen(psInlineChooserOverlayScreen, 1);
 }
 
+IntFormAnimated* WzMultiplayerOptionsTitleUI::initRightSideChooser(const char* sideText)
+{
+	// remove any choosers already up
+	closeAllChoosers();
+
+	// delete everything on that player's row,
+	widgDelete(psWScreen, MULTIOP_PLAYERS);
+	widgDelete(psWScreen, FRONTEND_SIDETEXT2);
+
+	widgRegisterOverlayScreen(psInlineChooserOverlayScreen, 1);
+
+	WIDGET* psParent = widgGetFromID(psWScreen, FRONTEND_BACKDROP);
+	if (psParent == nullptr)
+	{
+		return nullptr;
+	}
+
+	WIDGET *chooserParent = widgGetFromID(psInlineChooserOverlayScreen, MULTIOP_INLINE_OVERLAY_ROOT_FRM);
+
+	IntFormAnimated *aiForm = new IntFormAnimated(chooserParent, false);
+	aiForm->id = MULTIOP_AI_FORM;
+	// TODO: Once widget smart pointer refactor is available, take a weak_ptr of psParent
+	aiForm->setCalcLayout([psParent](WIDGET *psWidget, unsigned int, unsigned int, unsigned int, unsigned int){
+		psWidget->setGeometry(psParent->screenPosX() + MULTIOP_PLAYERSX, psParent->screenPosY() + MULTIOP_PLAYERSY, MULTIOP_PLAYERSW, MULTIOP_PLAYERSH);
+	});
+
+	W_LABEL *psSideTextLabel = addSideText(psInlineChooserOverlayScreen, MULTIOP_INLINE_OVERLAY_ROOT_FRM, FRONTEND_SIDETEXT2, MULTIOP_PLAYERSX - 3, MULTIOP_PLAYERSY, sideText);
+	if (psSideTextLabel)
+	{
+		// TODO: Once widget smart pointer refactor is available, take a weak_ptr of psParent
+		psSideTextLabel->setCalcLayout([psParent](WIDGET *psWidget, unsigned int, unsigned int, unsigned int, unsigned int){
+			psWidget->setGeometry(psParent->screenPosX() + MULTIOP_PLAYERSX - 3, psParent->screenPosY() + MULTIOP_PLAYERSY, MULTIOP_PLAYERSW, MULTIOP_PLAYERSH);
+		});
+	}
+
+	return aiForm;
+}
+
 static bool addMultiButWithClickHandler(const std::shared_ptr<W_SCREEN> &screen, UDWORD formid, UDWORD id, UDWORD x, UDWORD y, UDWORD width, UDWORD height, const char *tipres, UDWORD norm, UDWORD down, UDWORD hi, const W_BUTTON::W_BUTTON_ONCLICK_FUNC& clickHandler, unsigned tc = MAX_PLAYERS)
 {
 	if (!addMultiBut(screen, formid, id, x, y, width, height, tipres, norm, down, hi, tc))
@@ -1781,20 +1819,14 @@ void WzMultiplayerOptionsTitleUI::openDifficultyChooser(uint32_t player)
 
 void WzMultiplayerOptionsTitleUI::openAiChooser(uint32_t player)
 {
-	closeAllChoosers();
-	widgDelete(psWScreen, MULTIOP_PLAYERS);
-	widgDelete(psWScreen, FRONTEND_SIDETEXT2);
-	aiChooserUp = player;
+	IntFormAnimated *aiForm = initRightSideChooser(_("CHOOSE AI"));
+	if (!aiForm)
+	{
+		debug(LOG_ERROR, "Failed to initialize right-side chooser?");
+		return;
+	}
 
-	WIDGET *chooserParent = widgGetFromID(psWScreen, FRONTEND_BACKDROP);
-
-	IntFormAnimated *aiForm = new IntFormAnimated(chooserParent, false);
-	aiForm->id = MULTIOP_AI_FORM;
-	aiForm->setCalcLayout(LAMBDA_CALCLAYOUT_SIMPLE({
-		psWidget->setGeometry(MULTIOP_PLAYERSX, MULTIOP_PLAYERSY, MULTIOP_PLAYERSW, MULTIOP_PLAYERSH);
-	}));
-
-	addSideText(FRONTEND_SIDETEXT2, MULTIOP_PLAYERSX - 3, MULTIOP_PLAYERSY, _("CHOOSE AI"));
+	auto psWeakTitleUI = std::weak_ptr<WzMultiplayerOptionsTitleUI>(std::dynamic_pointer_cast<WzMultiplayerOptionsTitleUI>(shared_from_this()));
 
 	W_BUTINIT sButInit;
 	sButInit.formID = MULTIOP_AI_FORM;
@@ -1812,6 +1844,33 @@ void WzMultiplayerOptionsTitleUI::openAiChooser(uint32_t player)
 	// only need this button in (true) mp games
 	int mpbutton = NetPlay.bComms ? 1 : 0;
 
+	auto openCloseOnClickHandler = [psWeakTitleUI, player](W_BUTTON& clickedButton) {
+		auto pStrongPtr = psWeakTitleUI.lock();
+		ASSERT_OR_RETURN(, pStrongPtr.operator bool(), "WzMultiplayerOptionsTitleUI no longer exists");
+
+		switch (clickedButton.id)
+		{
+		case MULTIOP_AI_CLOSED:
+			NetPlay.players[player].ai = AI_CLOSED;
+			break;
+		case MULTIOP_AI_OPEN:
+			NetPlay.players[player].ai = AI_OPEN;
+			break;
+		default:
+			debug(LOG_ERROR, "Unexpected button id");
+			return;
+			break;
+		}
+
+		// common code
+		NetPlay.players[player].difficulty = AIDifficulty::DISABLED; // disable AI for this slot
+		NETBroadcastPlayerInfo(player);
+		pStrongPtr->closeAiChooser();
+		pStrongPtr->addPlayerBox(true);
+		resetReadyStatus(false);
+		ActivityManager::instance().updateMultiplayGameData(game, ingame, NETGameIsLocked());
+	};
+
 	// Open button
 	if (mpbutton)
 	{
@@ -1819,7 +1878,11 @@ void WzMultiplayerOptionsTitleUI::openAiChooser(uint32_t player)
 		sButInit.pTip = _("Allow human players to join in this slot");
 		sButInit.UserData = (UDWORD)AI_OPEN;
 		sButInit.y = 3;	//Top most position
-		widgAddButton(psWScreen, &sButInit);
+		auto psButton = widgAddButton(psInlineChooserOverlayScreen, &sButInit);
+		if (psButton)
+		{
+			psButton->addOnClickHandler(openCloseOnClickHandler);
+		}
 	}
 
 	// Closed button
@@ -1834,7 +1897,11 @@ void WzMultiplayerOptionsTitleUI::openAiChooser(uint32_t player)
 	{
 		sButInit.y = 3; //since we don't have the lone mpbutton, we can start at position 0
 	}
-	widgAddButton(psWScreen, &sButInit);
+	auto psCloseButton = widgAddButton(psInlineChooserOverlayScreen, &sButInit);
+	if (psCloseButton)
+	{
+		psCloseButton->addOnClickHandler(openCloseOnClickHandler);
+	}
 
 	ScrollableListWidget *pAIScrollableList = new ScrollableListWidget(aiForm);
 	pAIScrollableList->setBackgroundColor(WZCOL_TRANSPARENT_BOX);
@@ -1848,7 +1915,6 @@ void WzMultiplayerOptionsTitleUI::openAiChooser(uint32_t player)
 	});
 
 	W_BUTINIT emptyInit;
-	auto psWeakTitleUI = std::weak_ptr<WzMultiplayerOptionsTitleUI>(std::dynamic_pointer_cast<WzMultiplayerOptionsTitleUI>(shared_from_this()));
 	for (size_t aiIdx = 0; aiIdx < aidata.size(); aiIdx++)
 	{
 		W_BUTTON *pAIRow = new W_BUTTON(&emptyInit);
@@ -1877,6 +1943,8 @@ void WzMultiplayerOptionsTitleUI::openAiChooser(uint32_t player)
 		});
 		pAIScrollableList->addItem(pAIRow);
 	}
+
+	aiChooserUp = player;
 }
 
 void WzMultiplayerOptionsTitleUI::openPositionChooser(uint32_t player)
@@ -2051,9 +2119,10 @@ void WzMultiplayerOptionsTitleUI::closeTeamChooser()
 
 void WzMultiplayerOptionsTitleUI::closeAiChooser()
 {
-	widgDeleteLater(psWScreen, MULTIOP_AI_FORM);
-	widgDelete(psWScreen, FRONTEND_SIDETEXT2);
+	widgDeleteLater(psInlineChooserOverlayScreen, MULTIOP_AI_FORM);
+	widgDeleteLater(psInlineChooserOverlayScreen, FRONTEND_SIDETEXT2);
 	aiChooserUp = -1;
+	widgRemoveOverlayScreen(psInlineChooserOverlayScreen);
 }
 
 void WzMultiplayerOptionsTitleUI::closeDifficultyChooser()
@@ -2438,7 +2507,6 @@ void WzMultiplayerOptionsTitleUI::addPlayerBox(bool players)
 
 	if (aiChooserUp >= 0)
 	{
-		openAiChooser(aiChooserUp);
 		return;
 	}
 	else if (difficultyChooserUp >= 0)
@@ -3718,24 +3786,8 @@ void WzMultiplayerOptionsTitleUI::processMultiopWidgets(UDWORD id)
 	case MULTIOP_MAP_PREVIEW:
 		loadMapPreview(true);
 		break;
-	case MULTIOP_AI_CLOSED:
-		NetPlay.players[aiChooserUp].ai = AI_CLOSED;
-		break;
-	case MULTIOP_AI_OPEN:
-		NetPlay.players[aiChooserUp].ai = AI_OPEN;
-		break;
 	default:
 		break;
-	}
-
-	if (id == MULTIOP_AI_CLOSED || id == MULTIOP_AI_OPEN)		// common code
-	{
-		NetPlay.players[aiChooserUp].difficulty = AIDifficulty::DISABLED; // disable AI for this slot
-		NETBroadcastPlayerInfo(aiChooserUp);
-		closeAiChooser();
-		addPlayerBox(true);
-		resetReadyStatus(false);
-		ActivityManager::instance().updateMultiplayGameData(game, ingame, NETGameIsLocked());
 	}
 
 	if (id >= MULTIOP_DIFFICULTY_CHOOSE_START && id <= MULTIOP_DIFFICULTY_CHOOSE_END && difficultyChooserUp != -1)
