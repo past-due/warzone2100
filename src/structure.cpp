@@ -948,7 +948,7 @@ static void refundFactoryBuildPower(STRUCTURE *psBuilding)
 }
 
 /* Set the type of droid for a factory to build */
-bool structSetManufacture(STRUCTURE *psStruct, DROID_TEMPLATE *psTempl, QUEUE_MODE mode)
+bool structSetManufacture(STRUCTURE *psStruct, const std::shared_ptr<DROID_TEMPLATE>& psTempl, QUEUE_MODE mode)
 {
 	CHECK_STRUCTURE(psStruct);
 
@@ -956,15 +956,15 @@ bool structSetManufacture(STRUCTURE *psStruct, DROID_TEMPLATE *psTempl, QUEUE_MO
 
 	/* psTempl might be NULL if the build is being cancelled in the middle */
 	ASSERT_OR_RETURN(false, !psTempl
-	                 || (validTemplateForFactory(psTempl, psStruct, true) && researchedTemplate(psTempl, psStruct->player, true, true))
+	                 || (validTemplateForFactory(psTempl.get(), psStruct, true) && researchedTemplate(psTempl.get(), psStruct->player, true, true))
 	                 || psStruct->player == scavengerPlayer() || !bMultiPlayer,
 	                 "Wrong template for player %d factory, type %d.", psStruct->player, psStruct->pStructureType->type);
 
-	FACTORY *psFact = &psStruct->pFunctionality->factory;
+	FACTORY *psFact = dynamic_cast<FACTORY *>(psStruct->pFunctionality.get());
 
 	if (mode == ModeQueue)
 	{
-		sendStructureInfo(psStruct, STRUCTUREINFO_MANUFACTURE, psTempl);
+		sendStructureInfo(psStruct, STRUCTUREINFO_MANUFACTURE, psTempl.get());
 		setStatusPendingStart(*psFact, psTempl);
 		return true;  // Wait for our message before doing anything.
 	}
@@ -986,7 +986,7 @@ bool structSetManufacture(STRUCTURE *psStruct, DROID_TEMPLATE *psTempl, QUEUE_MO
 		psFact->timeStarted = ACTION_START_TIME;//gameTime;
 		psFact->timeStartHold = 0;
 
-		psFact->buildPointsRemaining = calcTemplateBuild(psTempl);
+		psFact->buildPointsRemaining = calcTemplateBuild(psTempl.get());
 		//check for zero build time - usually caused by 'silly' data! If so, set to 1 build point - ie very fast!
 		psFact->buildPointsRemaining = std::max(psFact->buildPointsRemaining, 1);
 	}
@@ -1583,11 +1583,11 @@ STRUCTURE *buildStructureDir(STRUCTURE_STATS *pStructureType, UDWORD x, UDWORD y
 		// rotate a wall if necessary
 		if (!FromSave && (pStructureType->type == REF_WALL || pStructureType->type == REF_GATE))
 		{
-			psBuilding->pFunctionality->wall.type = wallType(wallOrientation);
+			dynamic_cast<WALL *>(psBuilding->pFunctionality.get())->type = wallType(wallOrientation);
 			if (wallOrientation != WallConnectNone)
 			{
 				psBuilding->rot.direction = wallDir(wallOrientation);
-				psBuilding->sDisplay.imd = psBuilding->pStructureType->pIMD[std::min<unsigned>(psBuilding->pFunctionality->wall.type, psBuilding->pStructureType->pIMD.size() - 1)];
+				psBuilding->sDisplay.imd = psBuilding->pStructureType->pIMD[std::min<unsigned>(dynamic_cast<WALL *>(psBuilding->pFunctionality.get())->type, psBuilding->pStructureType->pIMD.size() - 1)];
 			}
 		}
 
@@ -1613,11 +1613,11 @@ STRUCTURE *buildStructureDir(STRUCTURE_STATS *pStructureType, UDWORD x, UDWORD y
 				FLAG_POSITION *fp = nullptr;
 				if (StructIsFactory(psStruct))
 				{
-					fp = psStruct->pFunctionality->factory.psAssemblyPoint;
+					fp = dynamic_cast<FACTORY *>(psStruct->pFunctionality.get())->psAssemblyPoint;
 				}
 				else if (psStruct->pStructureType->type == REF_REPAIR_FACILITY)
 				{
-					fp = psStruct->pFunctionality->repairFacility.psDeliveryPoint;
+					fp = dynamic_cast<REPAIR_FACILITY *>(psStruct->pFunctionality.get())->psDeliveryPoint;
 				}
 				if (fp != nullptr)
 				{
@@ -1681,7 +1681,7 @@ STRUCTURE *buildStructureDir(STRUCTURE_STATS *pStructureType, UDWORD x, UDWORD y
 				psBuilding->capacity++;
 				bUpgraded = true;
 				//cancel any research - put on hold now
-				if (psBuilding->pFunctionality->researchFacility.psSubject)
+				if (dynamic_cast<RESEARCH_FACILITY *>(psBuilding->pFunctionality.get())->psSubject)
 				{
 					//cancel the topic
 					holdResearch(psBuilding, ModeImmediate);
@@ -1858,18 +1858,31 @@ static bool setFunctionality(STRUCTURE *psBuilding, STRUCTURE_TYPE functionType)
 	switch (functionType)
 	{
 	case REF_FACTORY:
+		// fall-through
 	case REF_CYBORG_FACTORY:
+		// fall-through
 	case REF_VTOL_FACTORY:
+		psBuilding->pFunctionality = std::unique_ptr<FACTORY>(new FACTORY());
+		break;
 	case REF_RESEARCH:
+		psBuilding->pFunctionality = std::unique_ptr<RESEARCH_FACILITY>(new RESEARCH_FACILITY());
+		break;
 	case REF_POWER_GEN:
+		psBuilding->pFunctionality = std::unique_ptr<POWER_GEN>(new POWER_GEN());
+		break;
 	case REF_RESOURCE_EXTRACTOR:
+		psBuilding->pFunctionality = std::unique_ptr<RES_EXTRACTOR>(new RES_EXTRACTOR());
+		break;
 	case REF_REPAIR_FACILITY:
+		psBuilding->pFunctionality = std::unique_ptr<REPAIR_FACILITY>(new REPAIR_FACILITY());
+		break;
 	case REF_REARM_PAD:
+		psBuilding->pFunctionality = std::unique_ptr<REARM_PAD>(new REARM_PAD());
+		break;
 	case REF_WALL:
+		// fall-through
 	case REF_GATE:
-		// Allocate space for the buildings functionality
-		psBuilding->pFunctionality = (FUNCTIONALITY *)calloc(1, sizeof(*psBuilding->pFunctionality));
-		ASSERT_OR_RETURN(false, psBuilding != nullptr, "Out of memory");
+		psBuilding->pFunctionality = std::unique_ptr<WALL>(new WALL());
 		break;
 
 	default:
@@ -1883,7 +1896,7 @@ static bool setFunctionality(STRUCTURE *psBuilding, STRUCTURE_TYPE functionType)
 	case REF_CYBORG_FACTORY:
 	case REF_VTOL_FACTORY:
 		{
-			FACTORY *psFactory = &psBuilding->pFunctionality->factory;
+			FACTORY *psFactory = dynamic_cast<FACTORY *>(psBuilding->pFunctionality.get());
 
 			psFactory->psSubject = nullptr;
 
@@ -1905,13 +1918,13 @@ static bool setFunctionality(STRUCTURE *psBuilding, STRUCTURE_TYPE functionType)
 			switch (functionType)
 			{
 			case REF_FACTORY:
-				setFlagPositionInc(psBuilding->pFunctionality, psBuilding->player, FACTORY_FLAG);
+				setFlagPositionInc(psBuilding->pFunctionality.get(), psBuilding->player, FACTORY_FLAG);
 				break;
 			case REF_CYBORG_FACTORY:
-				setFlagPositionInc(psBuilding->pFunctionality, psBuilding->player, CYBORG_FLAG);
+				setFlagPositionInc(psBuilding->pFunctionality.get(), psBuilding->player, CYBORG_FLAG);
 				break;
 			case REF_VTOL_FACTORY:
-				setFlagPositionInc(psBuilding->pFunctionality, psBuilding->player, VTOL_FLAG);
+				setFlagPositionInc(psBuilding->pFunctionality.get(), psBuilding->player, VTOL_FLAG);
 				break;
 			default:
 				ASSERT_OR_RETURN(false, false, "Invalid factory type");
@@ -1926,7 +1939,7 @@ static bool setFunctionality(STRUCTURE *psBuilding, STRUCTURE_TYPE functionType)
 		}
 	case REF_RESOURCE_EXTRACTOR:
 		{
-			RES_EXTRACTOR *psResExtracter = &psBuilding->pFunctionality->resourceExtractor;
+			RES_EXTRACTOR *psResExtracter = dynamic_cast<RES_EXTRACTOR *>(psBuilding->pFunctionality.get());
 
 			// Make the structure inactive
 			psResExtracter->psPowerGen = nullptr;
@@ -1934,7 +1947,7 @@ static bool setFunctionality(STRUCTURE *psBuilding, STRUCTURE_TYPE functionType)
 		}
 	case REF_REPAIR_FACILITY:
 		{
-			REPAIR_FACILITY *psRepairFac = &psBuilding->pFunctionality->repairFacility;
+			REPAIR_FACILITY *psRepairFac = dynamic_cast<REPAIR_FACILITY *>(psBuilding->pFunctionality.get());
 
 			psRepairFac->psObj = nullptr;
 			psRepairFac->droidQueue = 0;
@@ -1955,7 +1968,7 @@ static bool setFunctionality(STRUCTURE *psBuilding, STRUCTURE_TYPE functionType)
 
 			// Add the flag (triangular marker on the ground) at the delivery point
 			addFlagPosition(psRepairFac->psDeliveryPoint);
-			setFlagPositionInc(psBuilding->pFunctionality, psBuilding->player, REPAIR_FLAG);
+			setFlagPositionInc(psBuilding->pFunctionality.get(), psBuilding->player, REPAIR_FLAG);
 			break;
 		}
 	// Structure types without a FUNCTIONALITY
@@ -1977,7 +1990,7 @@ void assignFactoryCommandDroid(STRUCTURE *psStruct, DROID *psCommander)
 	CHECK_STRUCTURE(psStruct);
 	ASSERT_OR_RETURN(, StructIsFactory(psStruct), "structure not a factory");
 
-	psFact = &psStruct->pFunctionality->factory;
+	psFact = dynamic_cast<FACTORY *>(psStruct->pFunctionality.get());
 
 	switch (psStruct->pStructureType->type)
 	{
@@ -2084,7 +2097,8 @@ void clearCommandDroidFactory(DROID *psDroid)
 		    (psCurr->pStructureType->type == REF_CYBORG_FACTORY) ||
 		    (psCurr->pStructureType->type == REF_VTOL_FACTORY))
 		{
-			if (psCurr->pFunctionality->factory.psCommander == psDroid)
+			FACTORY *psFact = dynamic_cast<FACTORY *>(psCurr->pFunctionality.get());
+			if (psFact->psCommander == psDroid)
 			{
 				assignFactoryCommandDroid(psCurr, nullptr);
 			}
@@ -2096,7 +2110,8 @@ void clearCommandDroidFactory(DROID *psDroid)
 		    (psCurr->pStructureType->type == REF_CYBORG_FACTORY) ||
 		    (psCurr->pStructureType->type == REF_VTOL_FACTORY))
 		{
-			if (psCurr->pFunctionality->factory.psCommander == psDroid)
+			FACTORY *psFact = dynamic_cast<FACTORY *>(psCurr->pFunctionality.get());
+			if (psFact->psCommander == psDroid)
 			{
 				assignFactoryCommandDroid(psCurr, nullptr);
 			}
@@ -4950,14 +4965,14 @@ void setFlagPositionInc(FUNCTIONALITY *pFunctionality, UDWORD player, UBYTE fact
 	if (factoryType == REPAIR_FLAG)
 	{
 		// this is a special case, there are no flag numbers for this "factory"
-		REPAIR_FACILITY *psRepair = &pFunctionality->repairFacility;
+		REPAIR_FACILITY *psRepair = dynamic_cast<REPAIR_FACILITY *>(pFunctionality);
 		psRepair->psDeliveryPoint->factoryInc = 0;
 		psRepair->psDeliveryPoint->factoryType = factoryType;
 		// factoryNumFlag[player][factoryType][inc] = true;
 	}
 	else
 	{
-		FACTORY *psFactory = &pFunctionality->factory;
+		FACTORY *psFactory = dynamic_cast<FACTORY *>(pFunctionality);
 		psFactory->psAssemblyPoint->factoryInc = inc;
 		psFactory->psAssemblyPoint->factoryType = factoryType;
 		factoryNumFlag[player][factoryType][inc] = true;
@@ -6495,7 +6510,7 @@ void checkDeliveryPoints(UDWORD version)
 								return;
 							}
 							addFlagPosition(psRepair->psDeliveryPoint);
-							setFlagPositionInc(psStruct->pFunctionality, psStruct->player, REPAIR_FLAG);
+							setFlagPositionInc(psStruct->pFunctionality.get(), psStruct->player, REPAIR_FLAG);
 							//initialise the assembly point position
 							x = map_coord(psStruct->pos.x + 256);
 							y = map_coord(psStruct->pos.y + 256);

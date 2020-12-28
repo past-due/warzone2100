@@ -6020,7 +6020,7 @@ bool loadSaveTemplate(const char *pFileName)
 		ini.beginArray("templates");
 		while (ini.remainingArrayItems() > 0)
 		{
-			addTemplate(player, std::unique_ptr<DROID_TEMPLATE>(new DROID_TEMPLATE(loadTemplate())));
+			addTemplate(player, std::make_shared<DROID_TEMPLATE>(loadTemplate()));
 		}
 		ini.endArray();
 		ini.endGroup();

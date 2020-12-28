@@ -1828,14 +1828,14 @@ RESEARCH_FACILITY *StructureGetResearch(STRUCTURE *Structure)
 }
 
 
-DROID_TEMPLATE *FactoryGetTemplate(FACTORY *Factory)
+std::shared_ptr<DROID_TEMPLATE> FactoryGetTemplate(FACTORY *Factory)
 {
 	if (Factory->psSubjectPending != nullptr)
 	{
-		return (DROID_TEMPLATE *)Factory->psSubjectPending;
+		return Factory->psSubjectPending;
 	}
 
-	return (DROID_TEMPLATE *)Factory->psSubject;
+	return Factory->psSubject;
 }
 
 bool StatIsStructure(BASE_STATS const *Stat)

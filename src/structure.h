@@ -96,7 +96,7 @@ void structureBuild(STRUCTURE *psStructure, DROID *psDroid, int buildPoints, int
 void structureDemolish(STRUCTURE *psStructure, DROID *psDroid, int buildPoints);
 void structureRepair(STRUCTURE *psStruct, DROID *psDroid, int buildRate);
 /* Set the type of droid for a factory to build */
-bool structSetManufacture(STRUCTURE *psStruct, DROID_TEMPLATE *psTempl, QUEUE_MODE mode);
+bool structSetManufacture(STRUCTURE *psStruct, const std::shared_ptr<DROID_TEMPLATE>& psTempl, QUEUE_MODE mode);
 uint32_t structureBuildPointsToCompletion(const STRUCTURE & structure);
 float structureCompletionProgress(const STRUCTURE & structure);
 
@@ -405,7 +405,7 @@ static inline void _setStructureTarget(STRUCTURE *psBuilding, BASE_OBJECT *psNew
 
 // Functions for the GUI to know what's pending, before it's synchronised.
 template<typename Functionality, typename Subject>
-static inline void setStatusPendingStart(Functionality &functionality, Subject *subject)
+static inline void setStatusPendingStart(Functionality &functionality, Subject subject)
 {
 	functionality.psSubjectPending = subject;
 	functionality.statusPending = FACTORY_START_PENDING;

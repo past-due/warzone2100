@@ -40,8 +40,7 @@
 #include "main.h"
 
 // Template storage
-std::map<UDWORD, std::unique_ptr<DROID_TEMPLATE>> droidTemplates[MAX_PLAYERS];
-std::vector<std::unique_ptr<DROID_TEMPLATE>> replacedDroidTemplates[MAX_PLAYERS];
+std::map<UDWORD, std::shared_ptr<DROID_TEMPLATE>> droidTemplates[MAX_PLAYERS];
 
 bool allowDesign = true;
 bool includeRedundantDesigns = false;
@@ -478,29 +477,19 @@ bool loadDroidTemplates(const char *filename)
 	return true;
 }
 
-DROID_TEMPLATE *copyTemplate(int player, DROID_TEMPLATE *psTemplate)
+std::shared_ptr<DROID_TEMPLATE> copyTemplate(int player, DROID_TEMPLATE *psTemplate)
 {
-	auto dup = std::unique_ptr<DROID_TEMPLATE>(new DROID_TEMPLATE(*psTemplate));
-	return addTemplate(player, std::move(dup));
+	auto dup = std::shared_ptr<DROID_TEMPLATE>(new DROID_TEMPLATE(*psTemplate));
+	UDWORD multiPlayerID = dup->multiPlayerID;
+	droidTemplates[player][multiPlayerID] = dup;
+	return dup;
 }
 
-DROID_TEMPLATE* addTemplate(int player, std::unique_ptr<DROID_TEMPLATE> psTemplate)
+std::shared_ptr<DROID_TEMPLATE> addTemplate(int player, std::shared_ptr<DROID_TEMPLATE> psTemplate)
 {
 	UDWORD multiPlayerID = psTemplate->multiPlayerID;
-	auto it = droidTemplates[player].find(multiPlayerID);
-	if (it != droidTemplates[player].end())
-	{
-		// replacing existing template
-		it->second.swap(psTemplate);
-		replacedDroidTemplates[player].push_back(std::move(psTemplate));
-		return it->second.get();
-	}
-	else
-	{
-		// new template
-		auto result = droidTemplates[player].insert(std::pair<UDWORD, std::unique_ptr<DROID_TEMPLATE>>(multiPlayerID, std::move(psTemplate)));
-		return result.first->second.get();
-	}
+	droidTemplates[player][multiPlayerID] = psTemplate;
+	return psTemplate;
 }
 
 void enumerateTemplates(int player, const std::function<bool (DROID_TEMPLATE* psTemplate)>& func)

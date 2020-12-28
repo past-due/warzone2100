@@ -1754,8 +1754,8 @@ bool wzapi::buildDroid(WZAPI_PARAMS(STRUCTURE *psFactory, std::string templName,
 		// Add to list
 		debug(LOG_SCRIPT, "adding template %s for player %d", getStatsName(psTemplate), player);
 		psTemplate->multiPlayerID = generateNewObjectId();
-		DROID_TEMPLATE *psAddedTemplate = addTemplate(player, std::move(psTemplate));
-		if (!structSetManufacture(psStruct, psAddedTemplate, ModeQueue))
+		auto psAddedTemplate = addTemplate(player, std::move(psTemplate));
+		if (!structSetManufacture(psStruct, psAddedTemplate.get(), ModeQueue))
 		{
 			debug(LOG_ERROR, "Could not produce template %s in %s", getStatsName(psTemplate), objInfo(psStruct));
 			return false;

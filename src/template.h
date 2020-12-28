@@ -34,10 +34,10 @@ bool initTemplates();
 
 /// Take ownership of template given by pointer.
 /// Returns a new usable DROID_TEMPLATE *
-DROID_TEMPLATE* addTemplate(int player, std::unique_ptr<DROID_TEMPLATE> psTemplate);
+std::shared_ptr<DROID_TEMPLATE> addTemplate(int player, std::shared_ptr<DROID_TEMPLATE> psTemplate);
 
 /// Make a duplicate of template given by pointer and store it. Then return pointer to copy.
-DROID_TEMPLATE *copyTemplate(int player, DROID_TEMPLATE *psTemplate);
+std::shared_ptr<DROID_TEMPLATE> copyTemplate(int player, DROID_TEMPLATE *psTemplate);
 
 void enumerateTemplates(int player, const std::function<bool (DROID_TEMPLATE* psTemplate)>& func);
 DROID_TEMPLATE* findPlayerTemplateById(int player, UDWORD templateId);
