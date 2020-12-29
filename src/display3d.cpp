@@ -2281,7 +2281,7 @@ static void renderStructureTurrets(STRUCTURE *psStructure, iIMDShape *strImd, PI
 			{
 				if (psStructure->pStructureType->type == REF_REPAIR_FACILITY)
 				{
-					REPAIR_FACILITY *psRepairFac = dynamic_cast<REPAIR_FACILITY *>(psStructure->pFunctionality.get());
+					REPAIR_FACILITY *psRepairFac = &psStructure->pFunctionality->repairFacility;
 					// draw repair flash if the Repair Facility has a target which it has started work on
 					if (weaponImd[i]->nconnectors && psRepairFac->psObj != nullptr
 					    && psRepairFac->psObj->type == OBJ_DROID)
@@ -3649,7 +3649,7 @@ static void structureEffectsPlayer(UDWORD player)
 		}
 		if (psStructure->pStructureType->type == REF_POWER_GEN && psStructure->visible[selectedPlayer])
 		{
-			POWER_GEN *psPowerGen = dynamic_cast<POWER_GEN *>(psStructure->pFunctionality.get());
+			POWER_GEN *psPowerGen = &psStructure->pFunctionality->powerGenerator;
 			unsigned numConnected = 0;
 			for (int i = 0; i < NUM_POWER_MODULES; i++)
 			{
@@ -3701,7 +3701,7 @@ static void structureEffectsPlayer(UDWORD player)
 		else if (psStructure->pStructureType->type == REF_REARM_PAD
 		         && psStructure->visible[selectedPlayer])
 		{
-			REARM_PAD *psReArmPad = dynamic_cast<REARM_PAD *>(psStructure->pFunctionality.get());
+			REARM_PAD *psReArmPad = &psStructure->pFunctionality->rearmPad;
 			BASE_OBJECT *psChosenObj = psReArmPad->psObj;
 			if (psChosenObj != nullptr && (((DROID *)psChosenObj)->visible[selectedPlayer]))
 			{

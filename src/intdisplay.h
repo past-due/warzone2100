@@ -261,7 +261,7 @@ iIMDShape *DroidGetIMD(DROID *Droid);
 bool StructureIsManufacturingPending(STRUCTURE *structure);   ///< Returns true iff the structure is either manufacturing or on hold (even if not yet synchronised). (But ignores research.)
 bool structureIsResearchingPending(STRUCTURE *structure);     ///< Returns true iff the structure is either researching or on hold (even if not yet synchronised). (But ignores manufacturing.)
 bool StructureIsOnHoldPending(STRUCTURE *structure);          ///< Returns true iff the structure is on hold (even if not yet synchronised).
-std::shared_ptr<DROID_TEMPLATE> FactoryGetTemplate(FACTORY *Factory);
+DROID_TEMPLATE *FactoryGetTemplate(FACTORY *Factory);
 
 RESEARCH_FACILITY *StructureGetResearch(STRUCTURE *Structure);
 FACTORY *StructureGetFactory(STRUCTURE *Structure);

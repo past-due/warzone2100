@@ -30,7 +30,6 @@
 #include "weapondef.h"
 
 #include <vector>
-#include <memory>
 
 #define NUM_FACTORY_MODULES 2
 #define NUM_POWER_MODULES 4
@@ -186,15 +185,9 @@ enum StatusPending
 	FACTORY_CANCEL_PENDING
 };
 
-struct FUNCTIONALITY // base class for functionality
-{
-	FUNCTIONALITY() {}
-	virtual ~FUNCTIONALITY() {};
-};
-
 struct RESEARCH;
 
-struct RESEARCH_FACILITY : public FUNCTIONALITY
+struct RESEARCH_FACILITY
 {
 	RESEARCH *psSubject;              // The subject the structure is working on.
 	RESEARCH *psSubjectPending;       // The subject the structure is going to work on when the GAME_RESEARCHSTATUS message is received.
@@ -206,12 +199,12 @@ struct RESEARCH_FACILITY : public FUNCTIONALITY
 
 struct DROID_TEMPLATE;
 
-struct FACTORY : public FUNCTIONALITY
+struct FACTORY
 {
 	uint8_t productionLoops;          ///< Number of loops to perform. Not synchronised, and only meaningful for selectedPlayer.
 	UBYTE loopsPerformed;             /* how many times the loop has been performed*/
-	std::shared_ptr<DROID_TEMPLATE> psSubject;        ///< The subject the structure is working on.
-	std::shared_ptr<DROID_TEMPLATE> psSubjectPending; ///< The subject the structure is going to working on. (Pending = not yet synchronised.)
+	DROID_TEMPLATE *psSubject;        ///< The subject the structure is working on.
+	DROID_TEMPLATE *psSubjectPending; ///< The subject the structure is going to working on. (Pending = not yet synchronised.)
 	StatusPending statusPending;      ///< Pending = not yet synchronised.
 	unsigned pendingCount;            ///< Number of messages sent but not yet processed.
 	UDWORD timeStarted;               /* The time the building started on the subject*/
@@ -222,19 +215,19 @@ struct FACTORY : public FUNCTIONALITY
 	uint32_t secondaryOrder;          ///< Secondary order state for all units coming out of the factory.
 };
 
-struct RES_EXTRACTOR : public FUNCTIONALITY
+struct RES_EXTRACTOR
 {
 	struct STRUCTURE *psPowerGen;    ///< owning power generator
 };
 
-struct POWER_GEN : public FUNCTIONALITY
+struct POWER_GEN
 {
 	struct STRUCTURE *apResExtractors[NUM_POWER_MODULES];   ///< Pointers to associated oil derricks
 };
 
 class DROID_GROUP;
 
-struct REPAIR_FACILITY : public FUNCTIONALITY
+struct REPAIR_FACILITY
 {
 	BASE_OBJECT *psObj;                /* Object being repaired */
 	FLAG_POSITION *psDeliveryPoint;    /* Place for the repaired droids to assemble at */
@@ -243,16 +236,27 @@ struct REPAIR_FACILITY : public FUNCTIONALITY
 	int droidQueue;                    ///< Last count of droid queue for this facility
 };
 
-struct REARM_PAD : public FUNCTIONALITY
+struct REARM_PAD
 {
 	UDWORD timeStarted;            /* Time reArm started on current object */
 	BASE_OBJECT *psObj;            /* Object being rearmed */
 	UDWORD timeLastUpdated;        /* Time rearm was last updated */
 };
 
-struct WALL : public FUNCTIONALITY
+struct WALL
 {
 	unsigned type;             // Type of wall, 0 = ─, 1 = ┼, 2 = ┴, 3 = ┘.
+};
+
+union FUNCTIONALITY
+{
+	RESEARCH_FACILITY researchFacility;
+	FACTORY           factory;
+	RES_EXTRACTOR     resourceExtractor;
+	POWER_GEN         powerGenerator;
+	REPAIR_FACILITY   repairFacility;
+	REARM_PAD         rearmPad;
+	WALL              wall;
 };
 
 //this structure is used whenever an instance of a building is required in game
@@ -266,7 +270,7 @@ struct STRUCTURE : public BASE_OBJECT
 	uint32_t            currentBuildPts;            /* the build points currently assigned to this structure */
 	int                 resistance;                 /* current resistance points, 0 = cannot be attacked electrically */
 	UDWORD              lastResistance;             /* time the resistance was last increased*/
-	std::unique_ptr<FUNCTIONALITY> pFunctionality;            /* pointer to structure that contains fields necessary for functionality */
+	FUNCTIONALITY       *pFunctionality;            /* pointer to structure that contains fields necessary for functionality */
 	int                 buildRate;                  ///< Rate that this structure is being built, calculated each tick. Only meaningful if status == SS_BEING_BUILT. If construction hasn't started and build rate is 0, remove the structure.
 	int                 lastBuildRate;              ///< Needed if wanting the buildRate between buildRate being reset to 0 each tick and the trucks calculating it.
 	BASE_OBJECT *psTarget[MAX_WEAPONS];

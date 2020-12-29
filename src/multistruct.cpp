@@ -312,7 +312,7 @@ void recvStructureInfo(NETQUEUE queue)
 	uint32_t        structId = 0;
 	uint8_t         structureInfo;
 	STRUCTURE      *psStruct;
-	std::shared_ptr<DROID_TEMPLATE> pT;
+	DROID_TEMPLATE t, *pT = &t;
 	int32_t droidType;
 
 	NETbeginDecode(queue, GAME_STRUCTUREINFO);
@@ -321,27 +321,26 @@ void recvStructureInfo(NETQUEUE queue)
 	NETuint8_t(&structureInfo);
 	if (structureInfo == STRUCTUREINFO_MANUFACTURE)
 	{
-		DROID_TEMPLATE t;
 		WzString name;
 		NETwzstring(name);
-		t.name = name;
-		NETuint32_t(&t.multiPlayerID);
+		pT->name = name;
+		NETuint32_t(&pT->multiPlayerID);
 		NETint32_t(&droidType);
-		NETuint8_t(&t.asParts[COMP_BODY]);
-		NETuint8_t(&t.asParts[COMP_BRAIN]);
-		NETuint8_t(&t.asParts[COMP_PROPULSION]);
-		NETuint8_t(&t.asParts[COMP_REPAIRUNIT]);
-		NETuint8_t(&t.asParts[COMP_ECM]);
-		NETuint8_t(&t.asParts[COMP_SENSOR]);
-		NETuint8_t(&t.asParts[COMP_CONSTRUCT]);
-		NETint8_t(&t.numWeaps);
-		ASSERT_OR_RETURN(, t.numWeaps >= 0 && t.numWeaps <= ARRAY_SIZE(t.asWeaps), "Bad numWeaps %d", t.numWeaps);
-		for (int i = 0; i < t.numWeaps; i++)
+		NETuint8_t(&pT->asParts[COMP_BODY]);
+		NETuint8_t(&pT->asParts[COMP_BRAIN]);
+		NETuint8_t(&pT->asParts[COMP_PROPULSION]);
+		NETuint8_t(&pT->asParts[COMP_REPAIRUNIT]);
+		NETuint8_t(&pT->asParts[COMP_ECM]);
+		NETuint8_t(&pT->asParts[COMP_SENSOR]);
+		NETuint8_t(&pT->asParts[COMP_CONSTRUCT]);
+		NETint8_t(&pT->numWeaps);
+		ASSERT_OR_RETURN(, pT->numWeaps >= 0 && pT->numWeaps <= ARRAY_SIZE(pT->asWeaps), "Bad numWeaps %d", pT->numWeaps);
+		for (int i = 0; i < pT->numWeaps; i++)
 		{
-			NETuint32_t(&t.asWeaps[i]);
+			NETuint32_t(&pT->asWeaps[i]);
 		}
-		t.droidType = (DROID_TYPE)droidType;
-		pT = copyTemplate(player, &t);
+		pT->droidType = (DROID_TYPE)droidType;
+		pT = copyTemplate(player, pT);
 	}
 	NETend();
 
@@ -362,12 +361,12 @@ void recvStructureInfo(NETQUEUE queue)
 
 	CHECK_STRUCTURE(psStruct);
 
-	if (structureInfo == STRUCTUREINFO_MANUFACTURE && !researchedTemplate(pT.get(), player, true, true))
+	if (structureInfo == STRUCTUREINFO_MANUFACTURE && !researchedTemplate(pT, player, true, true))
 	{
 		debug(LOG_ERROR, "Invalid droid received from player %d with name %s", (int)player, pT->name.toUtf8().c_str());
 		return;
 	}
-	if (structureInfo == STRUCTUREINFO_MANUFACTURE && !intValidTemplate(pT.get(), nullptr, true, player))
+	if (structureInfo == STRUCTUREINFO_MANUFACTURE && !intValidTemplate(pT, nullptr, true, player))
 	{
 		debug(LOG_ERROR, "Illegal droid received from player %d with name %s", (int)player, pT->name.toUtf8().c_str());
 		return;
@@ -375,11 +374,11 @@ void recvStructureInfo(NETQUEUE queue)
 
 	if (StructIsFactory(psStruct))
 	{
-		popStatusPending(*dynamic_cast<FACTORY *>(psStruct->pFunctionality.get()));
+		popStatusPending(psStruct->pFunctionality->factory);
 	}
 	else if (psStruct->pStructureType->type == REF_RESEARCH)
 	{
-		popStatusPending(*dynamic_cast<RESEARCH_FACILITY *>(psStruct->pFunctionality.get()));
+		popStatusPending(psStruct->pFunctionality->researchFacility);
 	}
 
 	syncDebugStructure(psStruct, '<');
