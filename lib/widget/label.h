@@ -71,6 +71,8 @@ public:
 	}
 	void setTextAlignment(WzTextAlignment align);
 
+	int getMaxLineWidth() const;
+
 	using WIDGET::setTip;
 
 private:

@@ -180,6 +180,7 @@ void W_LABEL::setString(WzString string)
 	aTextLines.push_back({string.toStdString(), Vector2i(0,0), Vector2i(0,0)});
 	displayCache.wzText.clear();
 	displayCache.wzText.push_back(WzCachedText(string.toStdString(), FontID));
+	maxLineWidth = iV_GetTextWidth(string.toUtf8().c_str(), FontID);
 	dirty = true;
 }
 
@@ -201,4 +202,9 @@ void W_LABEL::run(W_CONTEXT *)
 	{
 		wzTextLine.tick();
 	}
+}
+
+int W_LABEL::getMaxLineWidth() const
+{
+	return maxLineWidth;
 }
