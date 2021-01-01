@@ -125,6 +125,9 @@ public:
 	// setMinimumColumnWidths(const std::vector<size_t>& newMinColumnWidths)
 	void setMinimumColumnWidth(size_t col, size_t newMinColumnWidth);
 
+	// Change the table background color
+	void setBackgroundColor(PIELIGHT const &color);
+
 protected:
 	virtual void geometryChanged() override;
 

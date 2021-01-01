@@ -334,8 +334,8 @@ std::shared_ptr<ScrollableTableWidget> ScrollableTableWidget::make(const std::ve
 	// Create and add scrollableList
 	result->scrollableList = ScrollableListWidget::make();
 	result->attach(result->scrollableList);
-	// Position scrollableList below column headers
 	result->scrollableList->setBackgroundColor(WZCOL_TRANSPARENT_BOX);
+	// Position scrollableList below column headers
 	result->scrollableList->setCalcLayout(LAMBDA_CALCLAYOUT_SIMPLE({
 		if (auto psParent = std::dynamic_pointer_cast<ScrollableTableWidget>(psWidget->parent()))
 		{
@@ -352,6 +352,11 @@ void ScrollableTableWidget::geometryChanged()
 	// Trigger calcLayout on children
 	header->callCalcLayout();
 	scrollableList->callCalcLayout();
+}
+
+void ScrollableTableWidget::setBackgroundColor(PIELIGHT const &color)
+{
+	scrollableList->setBackgroundColor(color);
 }
 
 void ScrollableTableWidget::addRow(const std::shared_ptr<TableRow> &row)
