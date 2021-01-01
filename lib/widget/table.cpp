@@ -27,6 +27,7 @@
 #include "lib/framework/input.h"
 #include "lib/ivis_opengl/pieblitfunc.h"
 
+#include <algorithm>
 #include <numeric>
 
 #define TABLE_ROW_PADDING 5
