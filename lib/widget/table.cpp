@@ -203,7 +203,7 @@ void TableHeader::clicked(W_CONTEXT *psContext, WIDGET_KEY key)
 	{
 		// determine the column that is being resized
 		colBeingResized = nullopt;
-		for (size_t colIdx = columns.size() - 1; colIdx >= 0; colIdx--)
+		for (size_t colIdx = columns.size() - 1; /* termination handled in loop body */; colIdx--)
 		{
 			auto& columnWidget = columns[colIdx].columnWidget;
 			int col_x1 = columnWidget->x() + columnWidget->width();
@@ -221,7 +221,6 @@ void TableHeader::clicked(W_CONTEXT *psContext, WIDGET_KEY key)
 			}
 		}
 		if (!colBeingResized.has_value()) { return; }
-		fprintf(stdout, "Resizing column: %zu\n", colBeingResized.value());
 		dragStart = Vector2i(psContext->mx, psContext->my);
 	}
 }
