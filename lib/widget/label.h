@@ -77,6 +77,11 @@ public:
 
 	int getMaxLineWidth() const;
 
+	void setCacheNeverExpires(bool value)
+	{
+		cacheNeverExpires = value;
+	}
+
 	using WIDGET::setTip;
 
 private:
@@ -89,6 +94,7 @@ private:
 	int lineSpacing = 0;
 	bool canTruncate = false;
 	bool isTruncated = false;
+	bool cacheNeverExpires = false;
 };
 
 #endif // __INCLUDED_LIB_WIDGET_LABEL_H__

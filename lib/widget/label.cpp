@@ -30,6 +30,8 @@
 
 #include <algorithm>
 
+#define LABEL_DEFAULT_CACHE_EXPIRY 250
+
 W_LABINIT::W_LABINIT()
 	: FontID(font_regular)
 {}
@@ -72,7 +74,7 @@ int W_LABEL::setFormattedString(WzString string, uint32_t MaxWidth, iV_fonts fon
 	displayCache.wzText.clear();
 	for (size_t idx = 0; idx < aTextLines.size(); idx++)
 	{
-		displayCache.wzText.push_back(WzCachedText(aTextLines[idx].text, FontID));
+		displayCache.wzText.push_back(WzCachedText(aTextLines[idx].text, FontID, LABEL_DEFAULT_CACHE_EXPIRY));
 	}
 
 	return requiredHeight;
@@ -212,7 +214,7 @@ void W_LABEL::setString(WzString string)
 	aTextLines.clear();
 	aTextLines.push_back({string.toStdString(), Vector2i(0,0), Vector2i(0,0)});
 	displayCache.wzText.clear();
-	displayCache.wzText.push_back(WzCachedText(string.toStdString(), FontID));
+	displayCache.wzText.push_back(WzCachedText(string.toStdString(), FontID, LABEL_DEFAULT_CACHE_EXPIRY));
 	maxLineWidth = iV_GetTextWidth(string.toUtf8().c_str(), FontID);
 	dirty = true;
 }
@@ -231,9 +233,12 @@ void W_LABEL::setTextAlignment(WzTextAlignment align)
 
 void W_LABEL::run(W_CONTEXT *)
 {
-	for (auto& wzTextLine : displayCache.wzText)
+	if (!cacheNeverExpires)
 	{
-		wzTextLine.tick();
+		for (auto& wzTextLine : displayCache.wzText)
+		{
+			wzTextLine.tick();
+		}
 	}
 }
 
