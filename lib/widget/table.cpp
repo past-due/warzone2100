@@ -116,7 +116,7 @@ void TableRow::resizeColumns(const std::vector<size_t>& newColumnWidths, int col
 	size_t colIdx = 0;
 	for (; colIdx < std::min(newColumnWidths.size(), columnWidgets.size()); colIdx++)
 	{
-		columnWidgets[colIdx]->setGeometry(lastColumnEndX + columnPadding + columnPadding, columnWidgets[colIdx]->y(), newColumnWidths[colIdx], columnWidgets[colIdx]->height());
+		columnWidgets[colIdx]->setGeometry(lastColumnEndX + columnPadding + columnPadding, columnWidgets[colIdx]->y(), static_cast<int>(newColumnWidths[colIdx]), columnWidgets[colIdx]->height());
 		columnWidgets[colIdx]->show();
 		lastColumnEndX = (columnWidgets[colIdx]->x() + columnWidgets[colIdx]->width());
 	}
