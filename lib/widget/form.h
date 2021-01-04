@@ -50,6 +50,7 @@ public:
 	void highlightLost() override;
 	void display(int xOffset, int yOffset) override;
 
+	void screenSizeDidChange(int oldWidth, int oldHeight, int newWidth, int newHeight) override;
 	bool hitTest(int x, int y) override;
 	bool processClickRecursive(W_CONTEXT *psContext, WIDGET_KEY key, bool wasPressed) override;
 	void displayRecursive(WidgetGraphicsContext const &context) override;

@@ -264,6 +264,18 @@ void W_FORM::display(int xOffset, int yOffset)
 	}
 }
 
+void W_FORM::screenSizeDidChange(int oldWidth, int oldHeight, int newWidth, int newHeight)
+{
+	if (formState == FormState::MINIMIZED)
+	{
+		// must ensure that the minimizedRect is fully within the new screen bounds
+		int newMinX0 = std::max(0, std::min(minimizedRect.x(), newWidth - minimizedRect.width()));
+		int newMinY0 = std::max(0, std::min(minimizedRect.y(), newHeight - minimizedRect.height()));
+		minimizedRect = WzRect(newMinX0, newMinY0, minimizedRect.width(), minimizedRect.height());
+	}
+	WIDGET::screenSizeDidChange(oldWidth, oldHeight, newWidth, newHeight);
+}
+
 bool W_FORM::hitTest(int x, int y)
 {
 	if (!minimizable || formState != FormState::MINIMIZED)
@@ -404,7 +416,7 @@ Vector2i W_FORM::calcMinimizedSize() const
 		minimizedSize.x = minimizedTitle->getMaxLineWidth() + 15;
 	}
 	// height = height of the font's line height + padding
-	minimizedSize.y = iV_GetTextLineSize(font_regular_bold) + 4;
+	minimizedSize.y = iV_GetTextLineSize(font_regular_bold) + 6;
 	return minimizedSize;
 }
 
