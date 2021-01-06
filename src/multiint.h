@@ -83,6 +83,25 @@ void sendRoomSystemMessage(char const *text);
 void displayRoomSystemMessage(char const *text);
 void displayRoomNotifyMessage(char const *text);
 
+// W_INLINEOPTIONSCLICKFORM
+
+class W_INLINEOPTIONSCLICKFORM : public W_CLICKFORM
+{
+public:
+	W_INLINEOPTIONSCLICKFORM(W_FORMINIT const *init);
+	W_INLINEOPTIONSCLICKFORM();
+public:
+	static std::shared_ptr<W_INLINEOPTIONSCLICKFORM> make();
+	void clicked(W_CONTEXT *psContext, WIDGET_KEY key) override;
+	void display(int xOffset, int yOffset) override;
+	void run(W_CONTEXT *psContext) override;
+
+public:
+	PIELIGHT backgroundColor = pal_RGBA(0, 0, 0, 125);
+	std::function<void ()> onClickedFunc;
+	std::function<void ()> onCancelPressed;
+};
+
 // ////////////////////////////////////////////////////////////////
 // CONNECTION SCREEN
 
