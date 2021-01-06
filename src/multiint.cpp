@@ -4446,54 +4446,6 @@ void calcBackdropLayoutForMultiplayerOptionsTitleUI(WIDGET *psWidget, unsigned i
 	);
 }
 
-
-W_INLINEOPTIONSCLICKFORM::W_INLINEOPTIONSCLICKFORM(W_FORMINIT const *init) : W_CLICKFORM(init) {}
-W_INLINEOPTIONSCLICKFORM::W_INLINEOPTIONSCLICKFORM() : W_CLICKFORM() {}
-
-std::shared_ptr<W_INLINEOPTIONSCLICKFORM> W_INLINEOPTIONSCLICKFORM::make()
-{
-	W_FORMINIT sInit;
-	sInit.id = MULTIOP_INLINE_OVERLAY_ROOT_FRM;
-	sInit.style = WFORM_PLAIN | WFORM_CLICKABLE;
-	sInit.x = 0;
-	sInit.y = 0;
-	sInit.width = screenWidth - 1;
-	sInit.height = screenHeight - 1;
-	sInit.calcLayout = LAMBDA_CALCLAYOUT_SIMPLE({
-		psWidget->setGeometry(0, 0, screenWidth - 1, screenHeight - 1);
-	});
-
-	return std::make_shared<W_INLINEOPTIONSCLICKFORM>(&sInit);
-}
-
-void W_INLINEOPTIONSCLICKFORM::clicked(W_CONTEXT *psContext, WIDGET_KEY key)
-{
-	if (onClickedFunc)
-	{
-		onClickedFunc();
-	}
-}
-
-void W_INLINEOPTIONSCLICKFORM::display(int xOffset, int yOffset)
-{
-	// just draw slightly darkened background
-	int x0 = x() + xOffset;
-	int y0 = y() + yOffset;
-	pie_UniTransBoxFill(x0, y0, x0 + width(), y0 + height(), backgroundColor);
-}
-
-void W_INLINEOPTIONSCLICKFORM::run(W_CONTEXT *psContext)
-{
-	if (CancelPressed())
-	{
-		if (onCancelPressed)
-		{
-			onCancelPressed();
-		}
-	}
-	inputLoseFocus();	// clear the input buffer.
-}
-
 void WzMultiplayerOptionsTitleUI::start()
 {
 	const bool bReenter = performedFirstStart;
@@ -4526,7 +4478,7 @@ void WzMultiplayerOptionsTitleUI::start()
 
 		// Initialize the inline chooser overlay screen
 		psInlineChooserOverlayScreen = W_SCREEN::make();
-		auto newRootFrm = W_INLINEOPTIONSCLICKFORM::make();
+		auto newRootFrm = W_FULLSCREENOVERLAY_CLICKFORM::make(MULTIOP_INLINE_OVERLAY_ROOT_FRM);
 		std::weak_ptr<W_SCREEN> psWeakInlineOverlayScreen(psInlineChooserOverlayScreen);
 		WzMultiplayerOptionsTitleUI *psTitleUI = this;
 		newRootFrm->onClickedFunc = [psWeakInlineOverlayScreen, psTitleUI]() {
