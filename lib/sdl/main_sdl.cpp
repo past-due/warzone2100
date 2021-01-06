@@ -289,7 +289,7 @@ void StopTextInput(void* pTextInputResigner)
 bool isInTextInputMode()
 {
 	bool result = (GetTextEventsOwner != nullptr);
-	ASSERT(SDL_IsTextInputActive() == result, "How did GetTextEvents state and SDL_IsTextInputActive get out of sync?");
+	ASSERT((SDL_IsTextInputActive() != SDL_FALSE) == result, "How did GetTextEvents state and SDL_IsTextInputActive get out of sync?");
 	return result;
 }
 
