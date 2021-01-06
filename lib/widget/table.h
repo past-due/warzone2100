@@ -91,7 +91,6 @@ public:
 	// Add a new table row
 	// See: ``TableRow``
 	void addRow(const std::shared_ptr<TableRow> &row);
-	//void changeRow(size_t position, const std::shared_ptr<TableRow> &row);
 	void clearRows();
 
 	// Get the maximum width that can be used by the column widths passed to changeColumnWidths, based on the current widget size (minus padding)
