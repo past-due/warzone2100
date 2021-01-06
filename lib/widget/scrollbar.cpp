@@ -58,6 +58,12 @@ uint16_t ScrollBarWidget::position() const
 	return slider->pos;
 }
 
+void ScrollBarWidget::setPosition(uint16_t newPosition)
+{
+	CLIP(newPosition, 0, slider->numStops);
+	slider->pos = newPosition;
+}
+
 void ScrollBarWidget::incrementPosition(int32_t amount)
 {
 	if (isEnabled()) {
