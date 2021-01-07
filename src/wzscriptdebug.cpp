@@ -590,7 +590,7 @@ public:
 			try {
 				powerValue = std::stoi(powerString.toStdString());
 			}
-			catch (const std::exception& e) {
+			catch (const std::exception&) {
 				debug(LOG_ERROR, "Invalid power value (not convertable to an integer - use numbers only): %s", powerString.toUtf8().c_str());
 				return;
 			}
@@ -1226,9 +1226,9 @@ public:
 			ASSERT(currentMaxColumnWidths[1].size() == 3, "Unexpected number of columns");
 			currentMaxColumnWidths[1][0] = static_cast<size_t>(width() / 3);
 			currentMaxColumnWidths[1][1] = 0;
-			for (const auto& type : view_type)
+			for (const auto& str : view_type)
 			{
-				currentMaxColumnWidths[1][1] = std::max(currentMaxColumnWidths[1][1], static_cast<size_t>(iV_GetTextWidth(type.toUtf8().c_str(), font_regular)));
+				currentMaxColumnWidths[1][1] = std::max(currentMaxColumnWidths[1][1], static_cast<size_t>(iV_GetTextWidth(str.toUtf8().c_str(), font_regular)));
 			}
 			currentMaxColumnWidths[1][2] = static_cast<size_t>(width() - currentMaxColumnWidths[1][0] - currentMaxColumnWidths[1][1]);
 		}
