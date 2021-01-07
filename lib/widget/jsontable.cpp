@@ -556,8 +556,9 @@ std::shared_ptr<WIDGET> JSONTableWidget::createOptionsPopoverForm()
 	auto itemsList = ScrollableListWidget::make();
 	itemsList->setBackgroundColor(WZCOL_MENU_BACKGROUND);
 	itemsList->setPadding({3, 4, 3, 4});
-	itemsList->setItemSpacing(1);
-	itemsList->setGeometry(itemsList->x(), itemsList->y(), maxButtonWidth + 8, totalButtonHeight + (buttons.size() * 1) + 6);
+	const int itemSpacing = 1;
+	itemsList->setItemSpacing(itemSpacing);
+	itemsList->setGeometry(itemsList->x(), itemsList->y(), maxButtonWidth + 8, totalButtonHeight + (static_cast<int>(buttons.size()) * itemSpacing) + 6);
 	for (auto& button : buttons)
 	{
 		itemsList->addItem(button);
@@ -578,10 +579,14 @@ static void displayChildDropShadows(WIDGET *psWidget, UDWORD xOffset, UDWORD yOf
 		if (!child->visible()) { continue; }
 		int childX0 = child->x() + childXOffset;
 		int childY0 = child->y() + childYOffset;
-		int childDropshadowWiderX0 = clip<int>(childX0, 0, childX0 - widerPadding);
-		int childDropshadowCloserX0 = clip<int>(childX0, 0, childX0 - closerPadding);
-		pie_UniTransBoxFill(childDropshadowWiderX0, childY0, childDropshadowWiderX0 + child->width() + (2 * widerPadding), childY0 + child->height() + widerPadding, dropShadowColor);
-		pie_UniTransBoxFill(childDropshadowCloserX0, childY0, childDropshadowCloserX0 + child->width() + (2 * closerPadding), childY0 + child->height() + closerPadding, dropShadowColor);
+		int childDropshadowWiderX0 = std::max(childX0 - widerPadding, 0);
+		int childDropshadowWiderX1 = std::min(childX0 + child->width() + widerPadding, pie_GetVideoBufferWidth());
+		int childDropshadowWiderY1 = std::min(childY0 + child->height() + widerPadding, pie_GetVideoBufferHeight());
+		int childDropshadowCloserX0 = std::max(childX0 - closerPadding, 0);
+		int childDropshadowCloserX1 = std::min(childX0 + child->width() + closerPadding, pie_GetVideoBufferWidth());
+		int childDropshadowCloserY1 = std::min(childY0 + child->height() + closerPadding, pie_GetVideoBufferHeight());
+		pie_UniTransBoxFill(childDropshadowWiderX0, childY0, childDropshadowWiderX1, childDropshadowWiderY1, dropShadowColor);
+		pie_UniTransBoxFill(childDropshadowCloserX0, childY0, childDropshadowCloserX1, childDropshadowCloserY1, dropShadowColor);
 	}
 }
 
