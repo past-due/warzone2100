@@ -158,7 +158,9 @@ message(STATUS \"CMAKE_CXX_COMPILER_VERSION=\${CMAKE_CXX_COMPILER_VERSION}\")
 ")
 
 set(_old_env_CXX "$ENV{CXX}")
+set(_old_env_CXXFLAGS "$ENV{CXXFLAGS}")
 set(ENV{CXX} "clang++") # matching behavior of --allowAppleClang in vcpkg's scripts/bootstrap.sh
+set(ENV{CXXFLAGS} "-stdlib=libc++")
 
 # Run a simple CMake configure, which will output according to the script above
 execute_process(
@@ -169,7 +171,9 @@ execute_process(
 )
 
 set(ENV{CXX} "${_old_env_CXX}")
+set(ENV{CXXFLAGS} "${_old_env_CXXFLAGS}")
 unset(_old_env_CXX)
+unset(_old_env_CXXFLAGS)
 
 # Remove the temp directory
 execute_process(
