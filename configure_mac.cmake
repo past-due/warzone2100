@@ -149,7 +149,7 @@ execute_process(
 
 # Generate a basic CMake project file that just outputs the desired variables
 file(WRITE "temp_compiler_detection/CMakeLists.txt" "\
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.12)
 project(detect_compiler CXX)
 cmake_policy(SET CMP0025 NEW)
 
@@ -276,8 +276,12 @@ endif()
 set(_vcpkgInstallResult -1)
 set(_vcpkgAttempts 0)
 while(NOT _vcpkgInstallResult EQUAL 0 AND _vcpkgAttempts LESS 3)
+	set(_additional_vcpkg_debug_flags)
+	if (_vcpkgAttempts GREATER 0)
+		set(_additional_vcpkg_debug_flags --debug)
+	endif()
 	execute_process(
-		COMMAND ./vcpkg/vcpkg install --x-manifest-root=${_repoBase} --x-install-root=./vcpkg_installed/ ${_additional_vcpkg_flags}
+		COMMAND ./vcpkg/vcpkg install --x-manifest-root=${_repoBase} --x-install-root=./vcpkg_installed/ ${_additional_vcpkg_flags} ${_additional_vcpkg_debug_flags}
 		RESULT_VARIABLE _vcpkgInstallResult
 	)
 	MATH(EXPR _vcpkgAttempts "${_vcpkgAttempts}+1")
