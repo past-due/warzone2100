@@ -56,6 +56,8 @@ jobs:
         brew install gettext
         # NOTE: Specify an explicit Asciidoctor version to help ensure reproducible builds
         gem install asciidoctor -v 2.0.10 --no-document
+
+        if (brew outdated | grep cmake > /dev/null); then echo "upgrading CMake"; brew upgrade cmake; fi
         cmake --version
     - name: Prep Environment
       run: |
