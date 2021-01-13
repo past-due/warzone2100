@@ -70,6 +70,9 @@ jobs:
         fi
         echo "WZ_DISTRIBUTOR=${WZ_DISTRIBUTOR}"
         echo "WZ_DISTRIBUTOR=${WZ_DISTRIBUTOR}" >> $GITHUB_ENV
+        
+        echo "Setting Xcode: ${DESIRED_XCODE_DEV_DIR}"
+        sudo xcode-select -s "${DESIRED_XCODE_DEV_DIR}"
     - name: configure_mac.cmake
       working-directory: ./build
       run: |
