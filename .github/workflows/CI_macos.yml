@@ -90,6 +90,10 @@ jobs:
         	echo "ERROR: configure_mac.cmake failed"
         	exit ${result}
         fi
+    - name: (TEMP) Output failure logs
+      if: failure()
+      run: |
+        cat "build/vcpkg/buildtrees/openal-soft/install-arm64-osx-rel-out.log"
     - name: Build Xcode project
       working-directory: ./build
       run: |
