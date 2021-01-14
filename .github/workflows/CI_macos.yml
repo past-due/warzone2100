@@ -126,12 +126,14 @@ jobs:
       working-directory: ./build
       run: |
         # Build Xcode project, and package "warzone2100.zip"
+        set -o pipefail && \
         xcodebuild  \
          -project warzone2100.xcodeproj \
          -target "package" \
          -configuration "Release" \
          -destination "platform=macOS" \
-         -PBXBuildsContinueAfterErrors=NO
+         -PBXBuildsContinueAfterErrors=NO \
+        | tee "xcodebuild.log" | xcpretty -c
         result=${?}
         if [ $result -ne 0 ]; then
         	echo "ERROR: xcodebuild failed"
