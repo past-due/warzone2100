@@ -68,6 +68,7 @@ jobs:
         # NOTE: Specify an explicit Asciidoctor version to help ensure reproducible builds
         gem install asciidoctor -v 2.0.10 --no-document
 
+        brew update
         if (brew outdated | grep cmake > /dev/null); then echo "upgrading CMake"; brew upgrade cmake; fi
         cmake --version
     - name: Prep Environment
@@ -109,6 +110,15 @@ jobs:
     - name: (TEMP) Output failure logs
       if: failure()
       run: |
+        if [ -f "build/vcpkg/buildtrees/detect_compiler/config-x64-osx-rel-out.log" ]; then
+          echo "****************************************"
+          cat "build/vcpkg/buildtrees/detect_compiler/config-x64-osx-rel-out.log"
+        fi
+        if [ -f "build/vcpkg/buildtrees/detect_compiler/config-x64-osx-rel-err.log" ]; then
+          echo "****************************************"
+          cat "build/vcpkg/buildtrees/detect_compiler/config-x64-osx-rel-err.log"
+        fi
+        echo "****************************************"
         cat "build/vcpkg/buildtrees/openal-soft/install-arm64-osx-rel-out.log"
     - name: Build Xcode project
       working-directory: ./build
