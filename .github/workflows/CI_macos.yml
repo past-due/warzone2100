@@ -87,7 +87,7 @@ jobs:
         fi
         echo "ADDITIONAL_CMAKE_ARGUMENTS=${ADDITIONAL_CMAKE_ARGUMENTS}"
         
-        echo "-DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING=\"${WZ_DISTRIBUTOR}\" -DADDITIONAL_CMAKE_ARGUMENTS=\"${ADDITIONAL_CMAKE_ARGUMENTS}\" -P ../configure_mac.cmake"
+        echo "-DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING=\"${WZ_DISTRIBUTOR}\" -DADDITIONAL_CMAKE_ARGUMENTS=\"${ADDITIONAL_CMAKE_ARGUMENTS}\" -P ../src/configure_mac.cmake"
         cmake -DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING="${WZ_DISTRIBUTOR}" -DADDITIONAL_CMAKE_ARGUMENTS="${ADDITIONAL_CMAKE_ARGUMENTS}" -P ../src/configure_mac.cmake
         result=${?}
         if [ $result -ne 0 ]; then
