@@ -87,6 +87,10 @@ jobs:
         
         echo "Setting Xcode: ${DESIRED_XCODE_DEV_DIR}"
         sudo xcode-select -s "${DESIRED_XCODE_DEV_DIR}"
+        
+        CXXFLAGS="${CXXFLAGS} -stdlib=libc++"
+        echo "CXXFLAGS=${CXXFLAGS}"
+        echo "CXXFLAGS=${CXXFLAGS}" >> $GITHUB_ENV
     - name: configure_mac.cmake
       working-directory: ./build
       run: |
