@@ -211,6 +211,9 @@ file(REMOVE "vcpkg/ports/physfs/CONTROL")
 execute_process(COMMAND ${CMAKE_COMMAND} -E copy "${_repoBase}/physfs-vcpkg.json" "vcpkg/ports/physfs/vcpkg.json")
 execute_process(COMMAND ${CMAKE_COMMAND} -E copy "${_repoBase}/physfs-portfile.cmake" "vcpkg/ports/physfs/portfile.cmake")
 
+## Temp patch arm64 cross-compile for make configure
+execute_process(COMMAND ${CMAKE_COMMAND} -E copy "${_repoBase}/arm64-osx.cmake" "vcpkg/triplets/community/arm64-osx.cmake")
+
 ########################################################
 ## 1-d.) Build vcpkg
 
