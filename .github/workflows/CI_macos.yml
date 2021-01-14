@@ -15,18 +15,16 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: "Xcode 12.2 (x64)"
-            image: "macos-latest"
+          - name: "Xcode 12.3 (x64)"
             osx_target_arch: "x86_64"
             vcpkg_triplet: "x64-osx"
-            xcode_dev_dir: "/Applications/Xcode_12.2.app"
+            xcode_dev_dir: "/Applications/Xcode_12.3.app"
             include_videos: true
             artifact_suffix: "x64"
-          - name: "Xcode 12.2 (ARM64)"
-            image: "macos-latest"
+          - name: "Xcode 12.3 (ARM64)"
             osx_target_arch: "arm64"
             vcpkg_triplet: "arm64-osx"
-            xcode_dev_dir: "/Applications/Xcode_12.2.app"
+            xcode_dev_dir: "/Applications/Xcode_12.3.app"
             include_videos: false
             artifact_suffix: "arm64"
       fail-fast: false
@@ -78,8 +76,7 @@ jobs:
     - name: configure_mac.cmake
       working-directory: ./build
       run: |
-        ADDITIONAL_CONFIGURE_ARGS=""
-        ADDITIONAL_CMAKE_ARGUMENTS="-DCMAKE_OSX_ARCHITECTURES=${WZ_OSX_TARGET_ARCH};\"-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY=-\";-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO"
+        ADDITIONAL_CMAKE_ARGUMENTS="-DCMAKE_OSX_ARCHITECTURES=${WZ_OSX_TARGET_ARCH};-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY=-;-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO"
         echo "WZ_INCLUDE_VIDEOS=${WZ_INCLUDE_VIDEOS}"
         if [ "${WZ_INCLUDE_VIDEOS}" == "true" ]; then
           ADDITIONAL_CMAKE_ARGUMENTS="${ADDITIONAL_CMAKE_ARGUMENTS};-DWZ_INCLUDE_VIDEOS:BOOL=ON"
@@ -88,8 +85,8 @@ jobs:
         fi
         echo "ADDITIONAL_CMAKE_ARGUMENTS=${ADDITIONAL_CMAKE_ARGUMENTS}"
         
-        echo "cmake ${ADDITIONAL_CONFIGURE_ARGS} -DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING=\"${WZ_DISTRIBUTOR}\" -DADDITIONAL_CMAKE_ARGUMENTS=\"${ADDITIONAL_CMAKE_ARGUMENTS}\" -P ../configure_mac.cmake"
-        cmake ${ADDITIONAL_CONFIGURE_ARGS} -DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING="${WZ_DISTRIBUTOR}" -DADDITIONAL_CMAKE_ARGUMENTS="${ADDITIONAL_CMAKE_ARGUMENTS}" -P ../src/configure_mac.cmake
+        echo "-DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING=\"${WZ_DISTRIBUTOR}\" -DADDITIONAL_CMAKE_ARGUMENTS=\"${ADDITIONAL_CMAKE_ARGUMENTS}\" -P ../configure_mac.cmake"
+        cmake -DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING="${WZ_DISTRIBUTOR}" -DADDITIONAL_CMAKE_ARGUMENTS="${ADDITIONAL_CMAKE_ARGUMENTS}" -P ../src/configure_mac.cmake
         result=${?}
         if [ $result -ne 0 ]; then
         	echo "ERROR: configure_mac.cmake failed"
