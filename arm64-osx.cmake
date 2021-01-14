@@ -5,4 +5,4 @@ set(VCPKG_LIBRARY_LINKAGE static)
 set(VCPKG_CMAKE_SYSTEM_NAME Darwin)
 set(VCPKG_OSX_ARCHITECTURES arm64)
 
-set(VCPKG_MAKE_BUILD_TRIPLET "--target=arm64")
+set(VCPKG_MAKE_BUILD_TRIPLET "--target=arm64-apple-macos11")
