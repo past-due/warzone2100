@@ -209,6 +209,7 @@ endif()
 ## Temp patch vcpkg physfs port for arm64
 file(REMOVE "vcpkg/ports/physfs/CONTROL")
 execute_process(COMMAND ${CMAKE_COMMAND} -E copy "${_repoBase}/physfs-vcpkg.json" "vcpkg/ports/physfs/vcpkg.json")
+execute_process(COMMAND ${CMAKE_COMMAND} -E copy "${_repoBase}/physfs-portfile.cmake" "vcpkg/ports/physfs/portfile.cmake")
 
 ########################################################
 ## 1-d.) Build vcpkg
