@@ -22,6 +22,7 @@ jobs:
             xcode_dev_dir: "/Applications/Xcode_10.3.app"
             include_videos: true
             artifact_suffix: "x64"
+            publish_artifact: false
           - name: "Xcode 12.3 (x64)"
             image: "macos-latest"
             osx_target_arch: "x86_64"
@@ -29,6 +30,7 @@ jobs:
             xcode_dev_dir: "/Applications/Xcode_12.3.app"
             include_videos: true
             artifact_suffix: "x64"
+            publish_artifact: true
           - name: "Xcode 12.3 (ARM64)"
             image: "macos-latest"
             osx_target_arch: "arm64"
@@ -36,6 +38,7 @@ jobs:
             xcode_dev_dir: "/Applications/Xcode_12.3.app"
             include_videos: false
             artifact_suffix: "arm64"
+            publish_artifact: true
       fail-fast: false
     name: '${{ matrix.name }}'
     runs-on: '${{ matrix.image }}'
@@ -189,7 +192,7 @@ jobs:
         echo "WZ_FULL_OUTPUT_ZIP_PATH=${OUTPUT_DIR}/${DESIRED_ZIP_NAME}" >> $GITHUB_ENV
         exit 0
     - uses: actions/upload-artifact@v2
-      if: success()
+      if: success() && (matrix.publish_artifact == 'true')
       with:
         name: "warzone2100_macOS_${{ matrix.artifact_suffix }}"
         path: ${{ env.OUTPUT_DIR }}
