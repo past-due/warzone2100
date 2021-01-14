@@ -142,55 +142,51 @@ endif()
 ########################################################
 ## 1-b.) Detect which version of AppleClang will be used (if --allowAppleClang is specified)
 
-# # Make a new temp directory
-# execute_process(
-#     COMMAND ${CMAKE_COMMAND} -E make_directory temp_compiler_detection
-#     WORKING_DIRECTORY .
-# )
-#
-# # Generate a basic CMake project file that just outputs the desired variables
-# file(WRITE "temp_compiler_detection/CMakeLists.txt" "\
-# cmake_minimum_required(VERSION 3.12)
-# project(detect_compiler CXX)
-# cmake_policy(SET CMP0025 NEW)
-#
-# message(STATUS \"CMAKE_CXX_COMPILER_ID=\${CMAKE_CXX_COMPILER_ID}\")
-# message(STATUS \"CMAKE_CXX_COMPILER_VERSION=\${CMAKE_CXX_COMPILER_VERSION}\")
-# ")
-#
-# set(_old_env_CXX "$ENV{CXX}")
-# set(_old_env_CXXFLAGS "$ENV{CXXFLAGS}")
-# set(ENV{CXX} "clang++") # matching behavior of --allowAppleClang in vcpkg's scripts/bootstrap.sh
-# set(ENV{CXXFLAGS} "-stdlib=libc++")
-#
-# # Run a simple CMake configure, which will output according to the script above
-# execute_process(
-#     COMMAND ${CMAKE_COMMAND} .
-#     OUTPUT_VARIABLE _detection_output
-#     OUTPUT_STRIP_TRAILING_WHITESPACE
-#     WORKING_DIRECTORY temp_compiler_detection
-# )
-#
-# set(ENV{CXX} "${_old_env_CXX}")
-# set(ENV{CXXFLAGS} "${_old_env_CXXFLAGS}")
-# unset(_old_env_CXX)
-# unset(_old_env_CXXFLAGS)
-#
-# # Remove the temp directory
-# execute_process(
-#     COMMAND ${CMAKE_COMMAND} -E remove_directory temp_compiler_detection
-#     WORKING_DIRECTORY .
-# )
-#
-# if(_detection_output MATCHES "CMAKE_CXX_COMPILER_ID=([^\n]*)\n")
-#   set(_detected_cxx_compiler_id "${CMAKE_MATCH_1}")
-# endif()
-#
-# if(_detection_output MATCHES "CMAKE_CXX_COMPILER_VERSION=([^\n]*)\n")
-#   set(_detected_cxx_compiler_version "${CMAKE_MATCH_1}")
-# endif()
-#
-# unset(_detection_output)
+# Make a new temp directory
+execute_process(
+    COMMAND ${CMAKE_COMMAND} -E make_directory temp_compiler_detection
+    WORKING_DIRECTORY .
+)
+
+# Generate a basic CMake project file that just outputs the desired variables
+file(WRITE "temp_compiler_detection/CMakeLists.txt" "\
+cmake_minimum_required(VERSION 3.12)
+project(detect_compiler CXX)
+cmake_policy(SET CMP0025 NEW)
+
+message(STATUS \"CMAKE_CXX_COMPILER_ID=\${CMAKE_CXX_COMPILER_ID}\")
+message(STATUS \"CMAKE_CXX_COMPILER_VERSION=\${CMAKE_CXX_COMPILER_VERSION}\")
+")
+
+set(_old_env_CXX "$ENV{CXX}")
+set(ENV{CXX} "clang++") # matching behavior of --allowAppleClang in vcpkg's scripts/bootstrap.sh
+
+# Run a simple CMake configure, which will output according to the script above
+execute_process(
+    COMMAND ${CMAKE_COMMAND} .
+    OUTPUT_VARIABLE _detection_output
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    WORKING_DIRECTORY temp_compiler_detection
+)
+
+set(ENV{CXX} "${_old_env_CXX}")
+unset(_old_env_CXX)
+
+# Remove the temp directory
+execute_process(
+    COMMAND ${CMAKE_COMMAND} -E remove_directory temp_compiler_detection
+    WORKING_DIRECTORY .
+)
+
+if(_detection_output MATCHES "CMAKE_CXX_COMPILER_ID=([^\n]*)\n")
+  set(_detected_cxx_compiler_id "${CMAKE_MATCH_1}")
+endif()
+
+if(_detection_output MATCHES "CMAKE_CXX_COMPILER_VERSION=([^\n]*)\n")
+  set(_detected_cxx_compiler_version "${CMAKE_MATCH_1}")
+endif()
+
+unset(_detection_output)
 
 ########################################################
 ## 1-c.) Determine if --allowAppleClang can be specified
