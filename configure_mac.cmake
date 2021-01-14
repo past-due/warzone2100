@@ -206,6 +206,11 @@ if(_vcpkg_useAppleClang)
 endif()
 
 ########################################################
+## Temp patch vcpkg physfs port for arm64
+file(REMOVE "vcpkg/ports/physfs/CONTROL")
+execute_process(COMMAND ${CMAKE_COMMAND} -E copy "${_repoBase}/physfs-vcpkg.json" "vcpkg/ports/physfs/vcpkg.json")
+
+########################################################
 ## 1-d.) Build vcpkg
 
 execute_process(COMMAND ${CMAKE_COMMAND} -E echo "++ Build vcpkg...")
