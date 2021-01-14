@@ -16,12 +16,14 @@ jobs:
       matrix:
         include:
           - name: "Xcode 12.3 (x64)"
+            image: "macos-11.0"
             osx_target_arch: "x86_64"
             vcpkg_triplet: "x64-osx"
             xcode_dev_dir: "/Applications/Xcode_12.3.app"
             include_videos: true
             artifact_suffix: "x64"
           - name: "Xcode 12.3 (ARM64)"
+            image: "macos-11.0"
             osx_target_arch: "arm64"
             vcpkg_triplet: "arm64-osx"
             xcode_dev_dir: "/Applications/Xcode_12.3.app"
