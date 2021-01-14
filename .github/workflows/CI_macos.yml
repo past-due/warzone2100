@@ -15,11 +15,11 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: "Xcode 10.3 (x64)"
+          - name: "Xcode 11.7 (x64)"
             image: "macos-10.15"
             osx_target_arch: "x86_64"
             vcpkg_triplet: "x64-osx"
-            xcode_dev_dir: "/Applications/Xcode_10.3.app"
+            xcode_dev_dir: "/Applications/Xcode_11.7.app"
             include_videos: true
             artifact_suffix: "x64"
             publish_artifact: false
