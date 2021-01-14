@@ -88,7 +88,8 @@ jobs:
         echo "ADDITIONAL_CMAKE_ARGUMENTS=${ADDITIONAL_CMAKE_ARGUMENTS}"
         
         echo "-DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING=\"${WZ_DISTRIBUTOR}\" -DADDITIONAL_CMAKE_ARGUMENTS=\"${ADDITIONAL_CMAKE_ARGUMENTS}\" -P ../src/configure_mac.cmake"
-        cmake -DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING="${WZ_DISTRIBUTOR}" -DADDITIONAL_CMAKE_ARGUMENTS="${ADDITIONAL_CMAKE_ARGUMENTS}" -P ../src/configure_mac.cmake
+        #cmake -DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING="${WZ_DISTRIBUTOR}" -DADDITIONAL_CMAKE_ARGUMENTS="${ADDITIONAL_CMAKE_ARGUMENTS}" -P ../src/configure_mac.cmake
+        cmake -DWZ_DISTRIBUTOR:STRING="${WZ_DISTRIBUTOR}" -DADDITIONAL_CMAKE_ARGUMENTS="${ADDITIONAL_CMAKE_ARGUMENTS}" -P ../src/configure_mac.cmake
         result=${?}
         if [ $result -ne 0 ]; then
         	echo "ERROR: configure_mac.cmake failed"
