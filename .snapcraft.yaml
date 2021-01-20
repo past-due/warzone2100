@@ -167,6 +167,7 @@ parts:
       # This needs to happen post-build or the build versioning will show as "modified locally"
       sed -i -E 's|Icon=(.*)|Icon=/usr/share/icons/\1.png|' $SNAPCRAFT_PART_INSTALL/usr/share/applications/warzone2100.desktop
     build-packages:
+      - apt-src
       - asciidoctor
       - g++
       - gettext
