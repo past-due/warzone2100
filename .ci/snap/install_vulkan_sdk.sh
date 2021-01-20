@@ -29,6 +29,7 @@ else
   echo "Fetching shaderc"
   git clone https://github.com/google/shaderc shaderc
   cd shaderc
+  git checkout tags/v2020.4 -b v2020.4
   ./utils/git-sync-deps
   cd ..
 
