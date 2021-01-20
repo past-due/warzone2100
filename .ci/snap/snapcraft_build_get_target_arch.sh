@@ -5,7 +5,7 @@
 echoerr() { echo "$@" 1>&2; }
 
 BUILDTIME_TARGET_ARCH=""
-if [ -n "${SNAPCRAFT_TARGET_ARCH_DISABLED}" ]; then
+if [ -n "${SNAPCRAFT_TARGET_ARCH}" ]; then
   # SNAPCRAFT_TARGET_ARCH is available - use it!
   BUILDTIME_TARGET_ARCH="${SNAPCRAFT_TARGET_ARCH}"
 else
