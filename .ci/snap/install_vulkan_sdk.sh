@@ -1,6 +1,6 @@
 #!/bin/bash
 
-TARGET_ARCH="$1"
+TARGET_BUILD_ARCH="$("${SNAPCRAFT_PART_SRC}/.ci/snap/snapcraft_build_get_target_arch.sh")"
 
 echo "[install_vulkan_sdk.sh]"
 echo "Target Arch: $TARGET_ARCH"
@@ -23,7 +23,7 @@ else
   cd "tmp_vulkan_sdk_build"
 
   # glslc
-  DEBIAN_FRONTEND=noninteractive apt-get -y cmake python3 lcov
+  DEBIAN_FRONTEND=noninteractive apt-get -y install cmake python3 lcov
 
   # glslc - clone
   echo "Fetching shaderc"
@@ -41,6 +41,23 @@ else
   echo "Compiling shaderc"
   cmake --build . --target install
   cd ..
+  
+  # vulkan headers (only needed until CMake >= 3.11)
+  git clone https://github.com/KhronosGroup/Vulkan-Headers.git vulkan_headers
+  cd vulkan_headers
+  git checkout tags/sdk-1.2.148.0 -b sdk-1.2.148.0
+  cd ..
+  mkdir vulkan_headers_build
+  mkdir -p "${SNAPCRAFT_PART_SRC}/build/_vulkan/_vulkan_headers/"
+  cd vulkan_headers_build
+  echo "Configuring vulkan-headers"
+  cmake -GNinja -DCMAKE_INSTALL_PREFIX="${SNAPCRAFT_PART_SRC}/build/_vulkan/_vulkan_headers/" -DCMAKE_BUILD_TYPE=Release ../vulkan_headers/
+  echo "Installing vulkan-headers"
+  cmake --build . --target install
+  cd ..
+  
+  # export VULKAN_SDK for custom headers path
+  export VULKAN_SDK="${SNAPCRAFT_PART_SRC}/build/_vulkan/_vulkan_headers/"
 
   rm -rf "tmp_vulkan_sdk_build"
 fi

@@ -151,11 +151,8 @@ parts:
       snapcraftctl set-version "$(git describe --always)"
       git submodule update --init
     override-build: |
-      TARGET_BUILD_ARCH="$("${SNAPCRAFT_PART_SRC}/.ci/snap/snapcraft_build_get_target_arch.sh")"
-      echo "TARGET_BUILD_ARCH=${TARGET_BUILD_ARCH}"
-      
       # Install Vulkan SDK
-      "${SNAPCRAFT_PART_SRC}/.ci/snap/install_vulkan_sdk.sh" "${TARGET_BUILD_ARCH}"
+      . "${SNAPCRAFT_PART_SRC}/.ci/snap/install_vulkan_sdk.sh"
       
       if [ -f ".snapenv" ]; then set -a; source .snapenv; set +a; fi
       if [ -z "$WZ_DISTRIBUTOR" ]; then export WZ_DISTRIBUTOR="UNKNOWN"; fi
