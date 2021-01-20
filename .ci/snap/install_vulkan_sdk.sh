@@ -28,3 +28,5 @@ else
   cd ..
   rm -rf "tmp_vulkan_sdk_build"
 fi
+
+echo "Installing Vulkan SDK - done"
