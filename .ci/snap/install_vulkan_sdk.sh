@@ -42,6 +42,7 @@ else
   cmake --build . --target install
   cd ..
 
+  cd ..
   rm -rf "tmp_vulkan_sdk_build"
 fi
 
