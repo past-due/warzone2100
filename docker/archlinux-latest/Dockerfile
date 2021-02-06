@@ -1,4 +1,4 @@
-FROM archlinux:latest
+FROM archlinux/archlinux:latest
 
 RUN mkdir -p /scripts
 COPY get-dependencies_linux.sh /scripts
