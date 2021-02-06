@@ -103,11 +103,11 @@ if [ "${DISTRO}" == "archlinux" ]; then
 
   if [ "${MODE}" == "build-all" ]; then
     echo "Installing build-all for ArchLinux"
-    pacman -S --noconfirm base-devel ninja gdb
+    pacman -Syu --noconfirm base-devel ninja gdb
   fi
 
   echo "Installing build-dependencies for ArchLinux"
-  pacman -S --noconfirm cmake git p7zip gettext asciidoctor sdl2 physfs libpng openal libvorbis libogg libtheora xorg-xrandr freetype2 harfbuzz curl libsodium sqlite
+  pacman -Syu --noconfirm cmake git p7zip gettext asciidoctor sdl2 physfs libpng openal libvorbis libogg libtheora xorg-xrandr freetype2 harfbuzz curl libsodium sqlite
 fi
 
 ##################
