@@ -4,7 +4,7 @@ RUN mkdir -p /scripts
 COPY get-dependencies_linux.sh /scripts
 RUN chmod +x /scripts/get-dependencies_linux.sh
 
-RUN pacman -Syyu --noconfirm lsb-release git base-devel clang cmake ninja gdb p7zip gettext asciidoctor \
+RUN pacman -Syu --noconfirm lsb-release git base-devel clang cmake ninja gdb p7zip gettext asciidoctor \
  && pacman --sync --clean --clean --noconfirm
 
 # Install WZ dependencies
