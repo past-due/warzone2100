@@ -173,12 +173,16 @@ jobs:
         # For debugging purposes, output some information about the generated "Warzone 2100.app" (inside the .zip)
         echo "Generated \"Warzone 2100.app\""
         generated_infoplist_location="Warzone 2100.app/Contents/Info.plist"
+        generated_executable_location="Warzone 2100.app/Contents/MacOS/Warzone 2100"
         generated_versionnumber=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "${generated_infoplist_location}")
         echo "  -> Version Number (CFBundleShortVersionString): ${generated_versionnumber}"
         generated_buildnumber=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "${generated_infoplist_location}")
         echo "  -> Build Number (CFBundleVersion): ${generated_buildnumber}"
         generated_minimumsystemversion=$(/usr/libexec/PlistBuddy -c "Print LSMinimumSystemVersion" "${generated_infoplist_location}")
         echo "  -> Minimum macOS (LSMinimumSystemVersion): ${generated_minimumsystemversion}"
+        generated_exe_arch="$(lipo -info "${generated_executable_location}")"
+        echo "  -> lipo -info \"${generated_executable_location}\")"
+        echo "     ${generated_exe_arch}"
         codesign_verify_result=$(codesign --verify --deep --strict --verbose=2 "Warzone 2100.app" 2>&1)
         echo "  -> codesign --verify --deep --strict --verbose=2 \"Warzone 2100.app\""
         if [ -n "${codesign_verify_result}" ]; then
