@@ -1,0 +1,243 @@
+name: macOS
+
+on:
+  push:
+    branches-ignore:
+      - 'l10n_**' # Push events to translation service branches (that begin with "l10n_")
+    # Sequence of patterns matched against refs/tags
+    tags:
+      - '*'
+  pull_request:
+    # Match all pull requests
+
+jobs:
+  macos-build:
+    strategy:
+      matrix:
+        include:
+          - name: "Xcode 11.7 (x64)"
+            image: "macos-10.15"
+            osx_target_arch: "x86_64"
+            vcpkg_triplet: "x64-osx"
+            xcode_dev_dir: "/Applications/Xcode_11.7.app"
+            include_videos: false
+            artifact_suffix: "x64"
+            publish_artifact: false
+          - name: "Xcode 12.4 (x64)"
+            image: "macos-latest"
+            osx_target_arch: "x86_64"
+            vcpkg_triplet: "x64-osx"
+            xcode_dev_dir: "/Applications/Xcode_12.4.app"
+            include_videos: true
+            artifact_suffix: "x64"
+            publish_artifact: true
+          - name: "Xcode 12.4 (ARM64)"
+            image: "macos-latest"
+            osx_target_arch: "arm64"
+            vcpkg_triplet: "arm64-osx"
+            xcode_dev_dir: "/Applications/Xcode_12.4.app"
+            include_videos: false
+            artifact_suffix: "arm64"
+            publish_artifact: true
+      fail-fast: false
+    name: '${{ matrix.name }}'
+    runs-on: '${{ matrix.image }}'
+    if: "!contains(github.event.head_commit.message, '[ci skip]')"
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '10.10'
+      VSCMD_SKIP_SENDTELEMETRY: 1
+      DESIRED_XCODE_DEV_DIR: '${{ matrix.xcode_dev_dir }}'
+      WZ_INCLUDE_VIDEOS: '${{ matrix.include_videos }}'
+      WZ_OSX_TARGET_ARCH: '${{ matrix.osx_target_arch }}'
+      VCPKG_DEFAULT_TRIPLET: '${{ matrix.vcpkg_triplet }}'
+      ARCHS: '${{ matrix.osx_target_arch }}'
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        path: 'src'
+    - name: Prepare Git Repo for autorevision
+      working-directory: ./src
+      run: cmake -P .ci/githubactions/prepare_git_repo.cmake
+    - name: Init Git Submodules
+      working-directory: ./src
+      run: git submodule update --init --recursive
+    - name: Install Pre-reqs
+      run: |
+        brew install gettext
+        # NOTE: Specify an explicit Asciidoctor version to help ensure reproducible builds
+        gem install asciidoctor -v 2.0.10 --no-document
+
+        #brew update
+        #if (brew outdated | grep cmake > /dev/null); then echo "upgrading CMake"; brew upgrade cmake; fi
+        cmake --version
+    - name: Prep Environment
+      run: |
+        mkdir build
+        mkdir output
+        
+        echo "OUTPUT_DIR=output" >> $GITHUB_ENV
+        
+        WZ_DISTRIBUTOR="UNKNOWN"
+        if [ "${GITHUB_REPOSITORY}" == "Warzone2100/warzone2100" ]; then
+          WZ_DISTRIBUTOR="wz2100.net"
+        fi
+        echo "WZ_DISTRIBUTOR=${WZ_DISTRIBUTOR}"
+        echo "WZ_DISTRIBUTOR=${WZ_DISTRIBUTOR}" >> $GITHUB_ENV
+        
+        echo "Setting Xcode: ${DESIRED_XCODE_DEV_DIR}"
+        sudo xcode-select -s "${DESIRED_XCODE_DEV_DIR}"
+        
+        echo "MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}"
+    - name: configure_mac.cmake
+      working-directory: ./build
+      run: |
+        ADDITIONAL_CMAKE_ARGUMENTS="-DCMAKE_OSX_ARCHITECTURES=${WZ_OSX_TARGET_ARCH};-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY=-;-DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO"
+        echo "WZ_INCLUDE_VIDEOS=${WZ_INCLUDE_VIDEOS}"
+        if [ "${WZ_INCLUDE_VIDEOS}" == "true" ]; then
+          ADDITIONAL_CMAKE_ARGUMENTS="${ADDITIONAL_CMAKE_ARGUMENTS};-DWZ_INCLUDE_VIDEOS:BOOL=ON"
+        else
+          ADDITIONAL_CMAKE_ARGUMENTS="${ADDITIONAL_CMAKE_ARGUMENTS};-DWZ_INCLUDE_VIDEOS:BOOL=OFF"
+        fi
+        echo "ADDITIONAL_CMAKE_ARGUMENTS=${ADDITIONAL_CMAKE_ARGUMENTS}"
+        
+        echo "-DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING=\"${WZ_DISTRIBUTOR}\" -DADDITIONAL_CMAKE_ARGUMENTS=\"${ADDITIONAL_CMAKE_ARGUMENTS}\" -P ../src/configure_mac.cmake"
+        #cmake -DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING="${WZ_DISTRIBUTOR}" -DADDITIONAL_CMAKE_ARGUMENTS="${ADDITIONAL_CMAKE_ARGUMENTS}" -P ../src/configure_mac.cmake
+        cmake -DADDITIONAL_VCPKG_FLAGS=--no-binarycaching -DVCPKG_BUILD_TYPE=release -DWZ_DISTRIBUTOR:STRING="${WZ_DISTRIBUTOR}" -DADDITIONAL_CMAKE_ARGUMENTS="${ADDITIONAL_CMAKE_ARGUMENTS}" -P ../src/configure_mac.cmake
+        result=${?}
+        if [ $result -ne 0 ]; then
+        	echo "ERROR: configure_mac.cmake failed"
+        	exit ${result}
+        fi
+    - name: (TEMP) Output failure logs
+      if: failure()
+      run: |
+        if [ -f "build/vcpkg/buildtrees/detect_compiler/config-x64-osx-rel-out.log" ]; then
+          echo "****************************************"
+          cat "build/vcpkg/buildtrees/detect_compiler/config-x64-osx-rel-out.log"
+        fi
+        if [ -f "build/vcpkg/buildtrees/detect_compiler/config-x64-osx-rel-err.log" ]; then
+          echo "****************************************"
+          cat "build/vcpkg/buildtrees/detect_compiler/config-x64-osx-rel-err.log"
+        fi
+        echo "****************************************"
+        cat "build/vcpkg/buildtrees/openal-soft/install-arm64-osx-rel-out.log"
+    - name: Build Xcode project
+      working-directory: ./build
+      run: |
+        # Build Xcode project, and package "warzone2100.zip"
+        set -o pipefail && \
+        xcodebuild  \
+         -project warzone2100.xcodeproj \
+         -target "package" \
+         -configuration "Release" \
+         -destination "platform=macOS" \
+         -PBXBuildsContinueAfterErrors=NO \
+        | tee "xcodebuild.log" | xcpretty -c
+        result=${?}
+        if [ $result -ne 0 ]; then
+        	echo "ERROR: xcodebuild failed"
+        	exit ${result}
+        fi
+    - name: Output Build Info
+      shell: sh {0}
+      run: |
+        echo "OUTPUT_DIR=${OUTPUT_DIR}"
+      
+        echo "[autorevision.h]:"
+        cat "build/build_tools/autorevision.h"
+        echo "==============================="
+
+        echo "[netplay_config.h]:"
+        cat "build/lib/netplay/netplay_config.h"
+        echo "==============================="
+      
+        # Verify "warzone2100.zip" was created
+        BUILT_WARZONE_ZIP="build/warzone2100.zip"
+        if [ ! -f "${BUILT_WARZONE_ZIP}" ]; then
+          echo "ERROR: Something went wrong, and \"${BUILT_WARZONE_ZIP}\" does not exist"
+          exit 1
+        fi
+        # Extract & verify the .zip contents
+        TMP_PKG_EXTRACT_DIR="build/tmp/_wzextract"
+        rm -rf "${TMP_PKG_EXTRACT_DIR}"
+        if [ ! -d "${TMP_PKG_EXTRACT_DIR}" ]; then
+          mkdir -p "${TMP_PKG_EXTRACT_DIR}"
+        fi
+        unzip -qq "${BUILT_WARZONE_ZIP}" -d "${TMP_PKG_EXTRACT_DIR}"
+        cd "${TMP_PKG_EXTRACT_DIR}"
+        if [ ! -d "Warzone 2100.app" ]; then
+          echo "ERROR: \"Warzone 2100.app\" was not extracted from \"${BUILT_WARZONE_ZIP}\""
+          exit 1
+        fi
+        # For debugging purposes, output some information about the generated "Warzone 2100.app" (inside the .zip)
+        echo "Generated \"Warzone 2100.app\""
+        generated_infoplist_location="Warzone 2100.app/Contents/Info.plist"
+        generated_versionnumber=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "${generated_infoplist_location}")
+        echo "  -> Version Number (CFBundleShortVersionString): ${generated_versionnumber}"
+        generated_buildnumber=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "${generated_infoplist_location}")
+        echo "  -> Build Number (CFBundleVersion): ${generated_buildnumber}"
+        generated_minimumsystemversion=$(/usr/libexec/PlistBuddy -c "Print LSMinimumSystemVersion" "${generated_infoplist_location}")
+        echo "  -> Minimum macOS (LSMinimumSystemVersion): ${generated_minimumsystemversion}"
+        codesign_verify_result=$(codesign --verify --deep --strict --verbose=2 "Warzone 2100.app" 2>&1)
+        echo "  -> codesign --verify --deep --strict --verbose=2 \"Warzone 2100.app\""
+        if [ -n "${codesign_verify_result}" ]; then
+          while read -r line; do
+            echo "     $line"
+          done <<< "$codesign_verify_result"
+        else
+          echo "     (No output?)"
+        fi
+        cd - > /dev/null
+
+        # Move warzone2100.zip to the output directory, renaming it
+        DESIRED_ZIP_NAME="warzone2100_macOS_${{ matrix.artifact_suffix }}.zip"
+        mv "$BUILT_WARZONE_ZIP" "${OUTPUT_DIR}/${DESIRED_ZIP_NAME}"
+        result=${?}
+        if [ $result -ne 0 ]; then
+          echo "ERROR: Failed to move zip file"
+          exit ${result}
+        fi
+        echo "Generated warzone2100.zip: \"${OUTPUT_DIR}/${DESIRED_ZIP_NAME}\""
+        ZIP_HASH="$(shasum -a 512 "${OUTPUT_DIR}/${DESIRED_ZIP_NAME}")"
+        ZIP_SIZE="$(stat -f '%z' "${OUTPUT_DIR}/${DESIRED_ZIP_NAME}")"
+        echo "  -> SHA512: ${ZIP_HASH}"
+        echo "  -> Size (bytes): ${ZIP_SIZE}"
+        
+        echo "WZ_FULL_OUTPUT_ZIP_PATH=${OUTPUT_DIR}/${DESIRED_ZIP_NAME}" >> $GITHUB_ENV
+        exit 0
+    - uses: actions/upload-artifact@v2
+      if: success() && (matrix.publish_artifact == true)
+      with:
+        name: "warzone2100_macOS_${{ matrix.artifact_suffix }}"
+        path: ${{ env.OUTPUT_DIR }}
+        if-no-files-found: 'error'
+    # - name: Upload artifact to release
+    #   if: success() && startsWith(github.ref, 'refs/tags/')
+    #   uses: past-due/action-gh-release@master
+    #   with:
+    #     # Do not explicitly specify a tag_name, so this action takes the github.ref and parses it for just the tag
+    #     files: ${{ env.WZ_FULL_OUTPUT_ZIP_PATH }}
+    #     draft: true
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # upload_release_artifacts:
+  #   if: startsWith(github.ref, 'refs/tags/')
+  #   name: Upload Release Artifacts
+  #   needs: package-source
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Download source tarball
+  #       uses: actions/download-artifact@v2
+  #       with:
+  #         name: warzone2100_src
+  #         path: warzone2100_src
+  #     - name: Upload source tarball to release
+  #       uses: past-due/action-gh-release@master
+  #       with:
+  #         # Do not explicitly specify a tag_name, so this action takes the github.ref and parses it for just the tag
+  #         files: ./warzone2100_src/warzone2100_src.tar.xz
+  #         draft: true
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
