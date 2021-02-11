@@ -226,6 +226,120 @@ jobs:
     #   env:
     #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  macos_universal_combine:
+    name: 'Package Universal Binary'
+    needs: macos-build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          path: 'src'
+      - name: Prep Environment
+        run: |
+          mkdir dl-artifacts
+          mkdir build
+          mkdir output
+        
+          echo "OUTPUT_DIR=output" >> $GITHUB_ENV
+      - name: Download Artifacts
+        uses: actions/download-artifact@v2
+        with:
+          path: ./dl-artifacts
+      - name: Display structure of downloaded files
+        working-directory: ./dl-artifacts
+        run: ls -R
+      - name: Extract each .zip
+        working-directory: ./dl-artifacts
+        run: |
+          for i in ./*/*.zip; do
+              folder=${i::-4}
+              mkdir "$folder"
+              unzip -o "$i" -d "$folder" && rm "$i"
+          done
+      - name: Display structure of extracted files
+        working-directory: ./dl-artifacts
+        run: ls -R
+      - name: Create Universal Binary
+        working-directory: ./dl-artifacts
+        run: |
+          echo "Make universal binary + app package"
+          ../src/macosx/BuildBot/make_universal.sh "warzone2100_macOS_x64/Warzone 2100.app/" "warzone2100_macOS_arm64/Warzone 2100.app/"
+          # Rename the "base" app package directory
+          mv "warzone2100_macOS_x64" "warzone2100_macOS_universal"
+          echo "Re-code-sign"
+          codesign --force --deep -s - "warzone2100_macOS_universal/Warzone 2100.app"
+          # Zip and copy to build dir
+          zip -vr "../build/warzone2100.zip" "warzone2100_macOS_universal/"
+      - name: Output Build Info
+        shell: sh {0}
+        run: |
+          echo "OUTPUT_DIR=${OUTPUT_DIR}"
+      
+          # Verify "warzone2100.zip" was created
+          BUILT_WARZONE_ZIP="build/warzone2100.zip"
+          if [ ! -f "${BUILT_WARZONE_ZIP}" ]; then
+            echo "ERROR: Something went wrong, and \"${BUILT_WARZONE_ZIP}\" does not exist"
+            exit 1
+          fi
+          # Extract & verify the .zip contents
+          TMP_PKG_EXTRACT_DIR="build/tmp/_wzextract"
+          rm -rf "${TMP_PKG_EXTRACT_DIR}"
+          if [ ! -d "${TMP_PKG_EXTRACT_DIR}" ]; then
+            mkdir -p "${TMP_PKG_EXTRACT_DIR}"
+          fi
+          unzip -qq "${BUILT_WARZONE_ZIP}" -d "${TMP_PKG_EXTRACT_DIR}"
+          cd "${TMP_PKG_EXTRACT_DIR}"
+          if [ ! -d "Warzone 2100.app" ]; then
+            echo "ERROR: \"Warzone 2100.app\" was not extracted from \"${BUILT_WARZONE_ZIP}\""
+            exit 1
+          fi
+          # For debugging purposes, output some information about the generated "Warzone 2100.app" (inside the .zip)
+          echo "Generated \"Warzone 2100.app\""
+          generated_infoplist_location="Warzone 2100.app/Contents/Info.plist"
+          generated_executable_location="Warzone 2100.app/Contents/MacOS/Warzone 2100"
+          generated_versionnumber=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "${generated_infoplist_location}")
+          echo "  -> Version Number (CFBundleShortVersionString): ${generated_versionnumber}"
+          generated_buildnumber=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "${generated_infoplist_location}")
+          echo "  -> Build Number (CFBundleVersion): ${generated_buildnumber}"
+          generated_minimumsystemversion=$(/usr/libexec/PlistBuddy -c "Print LSMinimumSystemVersion" "${generated_infoplist_location}")
+          echo "  -> Minimum macOS (LSMinimumSystemVersion): ${generated_minimumsystemversion}"
+          generated_exe_arch="$(lipo -info "${generated_executable_location}")"
+          echo "  -> lipo -info \"${generated_executable_location}\""
+          echo "     ${generated_exe_arch}"
+          codesign_verify_result=$(codesign --verify --deep --strict --verbose=2 "Warzone 2100.app" 2>&1)
+          echo "  -> codesign --verify --deep --strict --verbose=2 \"Warzone 2100.app\""
+          if [ -n "${codesign_verify_result}" ]; then
+            while read -r line; do
+              echo "     $line"
+            done <<< "$codesign_verify_result"
+          else
+            echo "     (No output?)"
+          fi
+          cd - > /dev/null
+
+          # Move warzone2100.zip to the output directory, renaming it
+          DESIRED_ZIP_NAME="warzone2100_macOS_universal.zip"
+          mv "$BUILT_WARZONE_ZIP" "${OUTPUT_DIR}/${DESIRED_ZIP_NAME}"
+          result=${?}
+          if [ $result -ne 0 ]; then
+            echo "ERROR: Failed to move zip file"
+            exit ${result}
+          fi
+          echo "Generated warzone2100.zip: \"${OUTPUT_DIR}/${DESIRED_ZIP_NAME}\""
+          ZIP_HASH="$(shasum -a 512 "${OUTPUT_DIR}/${DESIRED_ZIP_NAME}")"
+          ZIP_SIZE="$(stat -f '%z' "${OUTPUT_DIR}/${DESIRED_ZIP_NAME}")"
+          echo "  -> SHA512: ${ZIP_HASH}"
+          echo "  -> Size (bytes): ${ZIP_SIZE}"
+        
+          echo "WZ_FULL_OUTPUT_ZIP_PATH=${OUTPUT_DIR}/${DESIRED_ZIP_NAME}" >> $GITHUB_ENV
+          exit 0
+      - uses: actions/upload-artifact@v2
+        if: success() && (matrix.publish_artifact == true)
+        with:
+          name: "warzone2100_macOS_universal"
+          path: ${{ env.OUTPUT_DIR }}
+          if-no-files-found: 'error'
+
   # upload_release_artifacts:
   #   if: startsWith(github.ref, 'refs/tags/')
   #   name: Upload Release Artifacts
