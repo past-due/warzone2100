@@ -181,7 +181,7 @@ jobs:
         generated_minimumsystemversion=$(/usr/libexec/PlistBuddy -c "Print LSMinimumSystemVersion" "${generated_infoplist_location}")
         echo "  -> Minimum macOS (LSMinimumSystemVersion): ${generated_minimumsystemversion}"
         generated_exe_arch="$(lipo -info "${generated_executable_location}")"
-        echo "  -> lipo -info \"${generated_executable_location}\")"
+        echo "  -> lipo -info \"${generated_executable_location}\""
         echo "     ${generated_exe_arch}"
         codesign_verify_result=$(codesign --verify --deep --strict --verbose=2 "Warzone 2100.app" 2>&1)
         echo "  -> codesign --verify --deep --strict --verbose=2 \"Warzone 2100.app\""
