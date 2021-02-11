@@ -16,7 +16,7 @@ jobs:
       matrix:
         include:
           - name: "Xcode 11.7 (x64)"
-            image: "macos-10.15"
+            image: "macos-latest"
             osx_target_arch: "x86_64"
             vcpkg_triplet: "x64-osx"
             xcode_dev_dir: "/Applications/Xcode_11.7.app"
