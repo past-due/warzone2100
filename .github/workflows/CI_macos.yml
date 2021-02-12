@@ -272,7 +272,9 @@ jobs:
           echo "Re-code-sign"
           codesign --force --options runtime --entitlements "entitlements.plist" --deep -s - "warzone2100_macOS_universal/Warzone 2100.app"
           # Zip and copy to build dir
-          zip -vr "../build/warzone2100.zip" "warzone2100_macOS_universal/"
+          echo "Compress .zip"
+          cd "warzone2100_macOS_universal"
+          zip -vr "../../build/warzone2100.zip" "Warzone 2100.app/"
       - name: Output Build Info
         shell: sh {0}
         run: |
