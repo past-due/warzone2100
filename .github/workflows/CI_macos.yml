@@ -252,8 +252,8 @@ jobs:
         working-directory: ./dl-artifacts
         run: |
           for i in ./*/*.zip; do
-              folder=${i::-4}
-              mkdir "$folder"
+              folder=${i%.zip}
+              folder="$(dirname $folder)"
               unzip -o "$i" -d "$folder" && rm "$i"
           done
       - name: Display structure of extracted files
