@@ -10,7 +10,7 @@
 
 set -e
 
-WZ_APP_EXE_PATHS=""
+WZ_APP_EXE_PATHS=()
 
 if [ "$#" -le 1 ]; then
   echo "Requires 2 or more arguments"
@@ -26,14 +26,14 @@ for WZ_APP_PATH in "$@" ; do
     echo "\"${WZ_APP_EXECUTABLE_PATH}\" does not exist"
     exit 1
   fi
-  WZ_APP_EXE_PATHS="${WZ_APP_EXE_PATHS} \"${WZ_APP_EXECUTABLE_PATH}\""
+  WZ_APP_EXE_PATHS+=("${WZ_APP_EXECUTABLE_PATH}")
 done
 
-echo "WZ_APP_EXE_PATHS=${WZ_APP_EXE_PATHS}"
+echo "WZ_APP_EXE_PATHS=${WZ_APP_EXE_PATHS[@]}"
 
 # lipo together all of the single-arch binaries
-echo "lipo -create -output \"Warzone 2100-universal\" ${WZ_APP_EXE_PATHS}"
-lipo -create -output "Warzone 2100-universal" ${WZ_APP_EXE_PATHS}
+echo "lipo -create -output \"Warzone 2100-universal\" ${WZ_APP_EXE_PATHS[@]}"
+lipo -create -output "Warzone 2100-universal" "${WZ_APP_EXE_PATHS[@]}"
 
 # Remove the first app bundle's single-arch binary
 BASE_WZ_APP_PATH="$1"
