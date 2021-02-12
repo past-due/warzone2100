@@ -262,7 +262,7 @@ jobs:
           BASE_APP_BUNDLE="warzone2100_macOS_x64/Warzone 2100.app"
           # extract entitlements plist from the "base" app bundle binary
           echo "Extract entitlements.plist"
-          codesign -d --entitlements - "${BASE_APP_BUNDLE}/Contents/MacOS/Warzone 2100" > "entitlements.plist"
+          codesign -d --entitlements :- "${BASE_APP_BUNDLE}/Contents/MacOS/Warzone 2100" > "entitlements.plist"
           cat "entitlements.plist"
           echo "-----------------------------------"
           echo "Make universal binary + app package"
