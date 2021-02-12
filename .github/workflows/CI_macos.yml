@@ -256,9 +256,6 @@ jobs:
               folder="$(dirname $folder)"
               unzip -o "$i" -d "$folder" && rm "$i"
           done
-      - name: Display structure of extracted files
-        working-directory: ./dl-artifacts
-        run: ls -R
       - name: Create Universal Binary
         working-directory: ./dl-artifacts
         run: |
@@ -269,7 +266,7 @@ jobs:
           cat "entitlements.plist"
           echo "-----------------------------------"
           echo "Make universal binary + app package"
-          ../src/macosx/BuildBot/make_universal.sh "${BASE_APP_BUNDLE}/" "warzone2100_macOS_arm64/Warzone 2100.app/"
+          ../src/macosx/BuildBot/make_universal.sh "${BASE_APP_BUNDLE}" "warzone2100_macOS_arm64/Warzone 2100.app"
           # Rename the "base" app package directory
           mv "warzone2100_macOS_x64" "warzone2100_macOS_universal"
           echo "Re-code-sign"
