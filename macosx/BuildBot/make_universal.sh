@@ -11,9 +11,13 @@
 set -e
 
 WZ_APP_EXE_PATHS=()
+WZ_APP_DSYM_PATHS=()
+
+PROJECT_NAME="Warzone 2100"
 
 if [ "$#" -le 1 ]; then
   echo "Requires 2 or more arguments"
+  exit 1
 fi
 
 for WZ_APP_PATH in "$@" ; do
@@ -21,25 +25,49 @@ for WZ_APP_PATH in "$@" ; do
     echo "\"${WZ_APP_PATH}\" is not a directory"
     exit 1
   fi
-  WZ_APP_EXECUTABLE_PATH="${WZ_APP_PATH}/Contents/MacOS/Warzone 2100"
+
+  WZ_APP_EXECUTABLE_PATH="${WZ_APP_PATH}/Contents/MacOS/${PROJECT_NAME}"
   if [ ! -f "${WZ_APP_EXECUTABLE_PATH}" ]; then
     echo "\"${WZ_APP_EXECUTABLE_PATH}\" does not exist"
     exit 1
   fi
   WZ_APP_EXE_PATHS+=("${WZ_APP_EXECUTABLE_PATH}")
+
+  WZ_APP_DSYM_PATH="${WZ_APP_PATH}/Contents/MacOS/${PROJECT_NAME}.dSYM/Contents/Resources/DWARF/${PROJECT_NAME}"
+  if [ -f "${WZ_APP_DSYM_PATH}" ]; then
+    WZ_APP_DSYM_PATHS+=("${WZ_APP_DSYM_PATH}")
+  else
+    echo "Missing expected dSYM path: ${WZ_APP_DSYM_PATH}"
+  fi
 done
 
 echo "WZ_APP_EXE_PATHS=${WZ_APP_EXE_PATHS[@]}"
 
 # lipo together all of the single-arch binaries
-echo "lipo -create -output \"Warzone 2100-universal\" ${WZ_APP_EXE_PATHS[@]}"
-lipo -create -output "Warzone 2100-universal" "${WZ_APP_EXE_PATHS[@]}"
+echo "lipo -create -output \"${PROJECT_NAME}-universal\" ${WZ_APP_EXE_PATHS[@]}"
+lipo -create -output "${PROJECT_NAME}-universal" "${WZ_APP_EXE_PATHS[@]}"
 
-# Remove the first app bundle's single-arch binary
+# lipo together all of the dSYMs
+if [ "${#WZ_APP_DSYM_PATHS[@]}" -gt 0 ]; then
+  mkdir -p "${PROJECT_NAME}-universal.dSYM/Contents/Resources/DWARF/"
+  echo "lipo -create -output \"${PROJECT_NAME}-universal.dSYM\" ${WZ_APP_DSYM_PATHS[@]}"
+  lipo -create -output "${PROJECT_NAME}-universal.dSYM/Contents/Resources/DWARF/${PROJECT_NAME}" "${WZ_APP_DSYM_PATHS[@]}"
+fi
+
+# Replace the first app bundle's single-arch binary with the universal binary
 BASE_WZ_APP_PATH="$1"
-BASE_WZ_APP_EXECUTABLE_PATH="${BASE_WZ_APP_PATH}/Contents/MacOS/Warzone 2100"
+BASE_WZ_APP_EXECUTABLE_PATH="${BASE_WZ_APP_PATH}/Contents/MacOS/${PROJECT_NAME}"
 rm "${BASE_WZ_APP_EXECUTABLE_PATH}"
-echo "mv \"Warzone 2100-universal\" \"${BASE_WZ_APP_EXECUTABLE_PATH}\""
-mv "Warzone 2100-universal" "${BASE_WZ_APP_EXECUTABLE_PATH}"
+echo "mv \"${PROJECT_NAME}-universal\" \"${BASE_WZ_APP_EXECUTABLE_PATH}\""
+mv "${PROJECT_NAME}-universal" "${BASE_WZ_APP_EXECUTABLE_PATH}"
+
+# Replace the first app bundle's dSYM with the universal dSYM
+if [ "${#WZ_APP_DSYM_PATHS[@]}" -gt 0 ]; then
+  BASE_WZ_APP_DSYM_PATH="${BASE_WZ_APP_PATH}/Contents/MacOS/${PROJECT_NAME}.dSYM/Contents/Resources/DWARF/${PROJECT_NAME}"
+  rm "${BASE_WZ_APP_DSYM_PATH}"
+  echo "mv universal dSYM"
+  mv "${PROJECT_NAME}-universal.dSYM/Contents/Resources/DWARF/${PROJECT_NAME}" "${BASE_WZ_APP_DSYM_PATH}"
+  rm -rf "${PROJECT_NAME}-universal.dSYM/"
+fi
 
 echo "Done."
