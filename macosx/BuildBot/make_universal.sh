@@ -21,7 +21,7 @@ for WZ_APP_PATH in "$@" ; do
     echo "\"${WZ_APP_PATH}\" is not a directory"
     exit 1
   fi
-  WZ_APP_EXECUTABLE_PATH="${WZ_APP_PATH}\Contents\MacOS\Warzone 2100"
+  WZ_APP_EXECUTABLE_PATH="${WZ_APP_PATH}/Contents/MacOS/Warzone 2100"
   if [ ! -f "${WZ_APP_EXECUTABLE_PATH}" ]; then
     echo "\"${WZ_APP_EXECUTABLE_PATH}\" does not exist"
     exit 1
@@ -37,7 +37,7 @@ lipo -create -output "Warzone 2100-universal" ${WZ_APP_EXE_PATHS}
 
 # Remove the first app bundle's single-arch binary
 BASE_WZ_APP_PATH="$1"
-BASE_WZ_APP_EXECUTABLE_PATH="${BASE_WZ_APP_PATH}\Contents\MacOS\Warzone 2100"
+BASE_WZ_APP_EXECUTABLE_PATH="${BASE_WZ_APP_PATH}/Contents/MacOS/Warzone 2100"
 rm "${BASE_WZ_APP_EXECUTABLE_PATH}"
 echo "mv \"Warzone 2100-universal\" \"${BASE_WZ_APP_EXECUTABLE_PATH}\""
 mv "Warzone 2100-universal" "${BASE_WZ_APP_EXECUTABLE_PATH}"
