@@ -274,7 +274,7 @@ jobs:
           # Zip and copy to build dir
           echo "Compress .zip"
           cd "warzone2100_macOS_universal"
-          zip -vr "../../build/warzone2100.zip" "Warzone 2100.app/"
+          zip -vr --symlinks "../../build/warzone2100.zip" "Warzone 2100.app/"
       - name: Output Build Info
         shell: sh {0}
         run: |
