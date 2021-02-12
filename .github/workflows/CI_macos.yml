@@ -339,7 +339,6 @@ jobs:
           echo "WZ_FULL_OUTPUT_ZIP_PATH=${OUTPUT_DIR}/${DESIRED_ZIP_NAME}" >> $GITHUB_ENV
           exit 0
       - uses: actions/upload-artifact@v2
-        if: success() && (matrix.publish_artifact == true)
         with:
           name: "warzone2100_macOS_universal"
           path: ${{ env.OUTPUT_DIR }}
