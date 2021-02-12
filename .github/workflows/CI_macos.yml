@@ -270,7 +270,7 @@ jobs:
           # Rename the "base" app package directory
           mv "warzone2100_macOS_x64" "warzone2100_macOS_universal"
           echo "Re-code-sign"
-          codesign --force --options runtime --entitlements "entitlements.plist" --deep -s - "warzone2100_macOS_universal/Warzone 2100.app"
+          codesign --force --options runtime --entitlements "entitlements.plist" -s - "warzone2100_macOS_universal/Warzone 2100.app"
           # Zip and copy to build dir
           echo "Compress .zip"
           cd "warzone2100_macOS_universal"
