@@ -23,7 +23,7 @@ freebsd_build_task:
 #  build_debug_script: cmake --build build/debug
 #  clear_debug_build_script: rm -rf build/debug
 
-  configure_release_script: cmake '-H.' -Bbuild/release -DCMAKE_BUILD_TYPE=RelWithDebInfo -G"Ninja"
+  configure_release_script: cmake '-H.' -Bbuild/release -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWZ_USE_ZLIB_NG=OFF -G"Ninja"
   build_release_script: cmake --build build/release
 
 
