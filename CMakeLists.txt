@@ -213,6 +213,30 @@ if (HAS_CXXFLAG_FSTACK_CLASH_PROTECTION)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-clash-protection")
 endif()
 
+###########################
+# 3rdparty subdirectory
+
+# Attempt to find Miniupnpc (minimum supported API version = 9)
+# NOTE: This is not available on every platform / distro
+find_package(Miniupnpc 9)
+if(MINIUPNPC_FOUND)
+	set(WZ_USE_IMPORTED_MINIUPNPC ON)
+else()
+	message(STATUS "Using in-tree Miniupnpc")
+	set(WZ_USE_IMPORTED_MINIUPNPC OFF)
+	SET(UPNPC_BUILD_STATIC ON CACHE BOOL "miniupnpc - Build static library" FORCE)
+	SET(UPNPC_BUILD_SHARED OFF CACHE BOOL "miniupnpc - Build shared library" FORCE)
+	SET(UPNPC_BUILD_TESTS OFF CACHE BOOL "miniupnpc - Build tests" FORCE)
+	SET(UPNPC_BUILD_SAMPLE OFF CACHE BOOL "miniupnpc - Build samples" FORCE)
+	SET(UPNPC_NO_INSTALL TRUE CACHE BOOL "miniupnpc - Disable installation" FORCE)
+	add_subdirectory(3rdparty/miniupnp/miniupnpc)
+	set_property(TARGET libminiupnpc-static PROPERTY FOLDER "3rdparty")
+endif()
+
+add_subdirectory(3rdparty)
+
+###########################
+
 include(CheckCompilerFlagsOutput)
 
 set(WZ_TARGET_ADDITIONAL_PROPERTIES) # Set below to any additional properties that should be added to Warzone targets (src/, lib/*/)
@@ -710,25 +734,6 @@ endfunction()
 CHECK_IS_ABSOLUTE_PATH(WZ_DATADIR WZ_DATADIR_ISABSOLUTE)
 CHECK_IS_ABSOLUTE_PATH(WZ_LOCALEDIR WZ_LOCALEDIR_ISABSOLUTE)
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/src/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
-
-# Attempt to find Miniupnpc (minimum supported API version = 9)
-# NOTE: This is not available on every platform / distro
-find_package(Miniupnpc 9)
-if(MINIUPNPC_FOUND)
-	set(WZ_USE_IMPORTED_MINIUPNPC ON)
-else()
-	message(STATUS "Using in-tree Miniupnpc")
-	set(WZ_USE_IMPORTED_MINIUPNPC OFF)
-	SET(UPNPC_BUILD_STATIC ON CACHE BOOL "miniupnpc - Build static library" FORCE)
-	SET(UPNPC_BUILD_SHARED OFF CACHE BOOL "miniupnpc - Build shared library" FORCE)
-	SET(UPNPC_BUILD_TESTS OFF CACHE BOOL "miniupnpc - Build tests" FORCE)
-	SET(UPNPC_BUILD_SAMPLE OFF CACHE BOOL "miniupnpc - Build samples" FORCE)
-	SET(UPNPC_NO_INSTALL TRUE CACHE BOOL "miniupnpc - Disable installation" FORCE)
-	add_subdirectory(3rdparty/miniupnp/miniupnpc)
-	set_property(TARGET libminiupnpc-static PROPERTY FOLDER "3rdparty")
-endif()
-
-add_subdirectory(3rdparty)
 
 # Determine distribution license
 set(WZ_DIST_LICENSE "${CMAKE_CURRENT_BINARY_DIR}/dist/COPYING")
