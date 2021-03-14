@@ -37,3 +37,6 @@
 [submodule "3rdparty/SQLiteCpp"]
 	path = 3rdparty/SQLiteCpp
 	url = https://github.com/SRombauts/SQLiteCpp.git
+[submodule "3rdparty/zlib-ng"]
+	path = 3rdparty/zlib-ng
+	url = https://github.com/zlib-ng/zlib-ng.git
