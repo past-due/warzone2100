@@ -166,6 +166,10 @@ Files: 3rdparty/utfcpp/*
 Copyright: 2006-2018 Nemanja Trifunovic
 License: BSL-1.0
 
+Files: 3rdparty/zlib-ng/*
+Copyright: 1995-2013 Jean-loup Gailly and Mark Adler
+License: Zlib
+
 Files: pkg/nsis/*.nsi
        pkg/nsis/NSIS.template.in
 Copyright: 2006 Dennis Schridde

@@ -49,6 +49,10 @@ if("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU")
 	target_link_libraries(netplay PRIVATE pthread)
 endif()
 target_link_libraries(netplay PRIVATE Threads::Threads)
+if(WZ_USE_ZLIB_NG AND TARGET zlib)
+	target_link_libraries(netplay PRIVATE zlib) # loaded from 3rdparty folder
+	target_compile_definitions(netplay PRIVATE WZ_USE_ZLIB_NG)
+endif()
 if(MSVC)
 	# C4267: 'conversion': conversion from 'type1' to 'type2', possible loss of data // FIXME!!
 	target_compile_options(netplay PRIVATE "/wd4267")

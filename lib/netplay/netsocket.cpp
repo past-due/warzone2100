@@ -31,10 +31,16 @@
 #include <algorithm>
 #include <map>
 
+#if defined(WZ_USE_ZLIB_NG)
+// Use zlib-ng
+#include <zlib-ng/zlib-ng.h>
+#else
+// Use zlib
 #if !defined(ZLIB_CONST)
 #  define ZLIB_CONST
 #endif
 #include <zlib.h>
+#endif
 
 enum
 {
@@ -67,9 +73,15 @@ struct Socket
 
 	bool isCompressed;
 	bool readDisconnected;  ///< True iff a call to recv() returned 0.
+#if defined(WZ_USE_ZLIB_NG)
+	zng_stream zDeflate;
+	zng_stream zInflate;
+	uint32_t zDeflateInSize;
+#else
 	z_stream zDeflate;
 	z_stream zInflate;
 	unsigned zDeflateInSize;
+#endif
 	bool zInflateNeedInput;
 	std::vector<uint8_t> zDeflateOutBuf;
 	std::vector<uint8_t> zInflateInBuf;
@@ -553,7 +565,11 @@ ssize_t readNoInt(Socket *sock, void *buf, size_t max_size, size_t *rawByteCount
 
 		sock->zInflate.next_out = (Bytef *)buf;
 		sock->zInflate.avail_out = max_size;
+#if defined(WZ_USE_ZLIB_NG)
+		int ret = zng_inflate(&sock->zInflate, Z_NO_FLUSH);
+#else
 		int ret = inflate(&sock->zInflate, Z_NO_FLUSH);
+#endif
 		ASSERT(ret != Z_STREAM_ERROR, "zlib inflate not working!");
 		char const *err = nullptr;
 		switch (ret)
@@ -639,7 +655,7 @@ ssize_t writeAll(Socket *sock, const void *buf, size_t size, size_t *rawByteCoun
 		}
 		else
 		{
-		#if ZLIB_VERNUM < 0x1252
+		#if !defined(WZ_USE_ZLIB_NG) && ZLIB_VERNUM < 0x1252
 			// zlib < 1.2.5.2 does not support `#define ZLIB_CONST`
 			// Unfortunately, some OSes (ex. OpenBSD) ship with zlib < 1.2.5.2
 			// Workaround: cast away the const of the input, and disable the resulting -Wcast-qual warning
@@ -659,9 +675,11 @@ ssize_t writeAll(Socket *sock, const void *buf, size_t size, size_t *rawByteCoun
 			#elif defined(__GNUC__)
 			#  pragma GCC diagnostic pop
 			#endif
-		#else
+		#elif !defined(WZ_USE_ZLIB_NG)
 			// zlib >= 1.2.5.2 supports ZLIB_CONST
 			sock->zDeflate.next_in = (const Bytef *)buf;
+		#else // defined(WZ_USE_ZLIB_NG)
+			sock->zDeflate.next_in = (const uint8_t *)buf;
 		#endif
 
 			sock->zDeflate.avail_in = size;
@@ -673,7 +691,11 @@ ssize_t writeAll(Socket *sock, const void *buf, size_t size, size_t *rawByteCoun
 				sock->zDeflate.next_out = (Bytef *)&sock->zDeflateOutBuf[alreadyHave];
 				sock->zDeflate.avail_out = sock->zDeflateOutBuf.size() - alreadyHave;
 
+#if defined(WZ_USE_ZLIB_NG)
+				int ret = zng_deflate(&sock->zDeflate, Z_NO_FLUSH);
+#else
 				int ret = deflate(&sock->zDeflate, Z_NO_FLUSH);
+#endif
 				ASSERT(ret != Z_STREAM_ERROR, "zlib compression failed!");
 
 				// Remove unused part of buffer.
@@ -709,7 +731,11 @@ void socketFlush(Socket *sock, size_t *rawByteCount)
 		sock->zDeflate.next_out = (Bytef *)&sock->zDeflateOutBuf[alreadyHave];
 		sock->zDeflate.avail_out = sock->zDeflateOutBuf.size() - alreadyHave;
 
+#if defined(WZ_USE_ZLIB_NG)
+		int ret = zng_deflate(&sock->zDeflate, Z_PARTIAL_FLUSH);
+#else
 		int ret = deflate(&sock->zDeflate, Z_PARTIAL_FLUSH);
+#endif
 		ASSERT(ret != Z_STREAM_ERROR, "zlib compression failed!");
 
 		// Remove unused part of buffer.
@@ -755,7 +781,11 @@ void socketBeginCompression(Socket *sock)
 	sock->zDeflate.zalloc = Z_NULL;
 	sock->zDeflate.zfree = Z_NULL;
 	sock->zDeflate.opaque = Z_NULL;
+#if defined(WZ_USE_ZLIB_NG)
+	int ret = zng_deflateInit(&sock->zDeflate, 6);
+#else
 	int ret = deflateInit(&sock->zDeflate, 6);
+#endif
 	ASSERT(ret == Z_OK, "deflateInit failed! Sockets won't work.");
 
 	sock->zInflate.zalloc = Z_NULL;
@@ -763,7 +793,11 @@ void socketBeginCompression(Socket *sock)
 	sock->zInflate.opaque = Z_NULL;
 	sock->zInflate.avail_in = 0;
 	sock->zInflate.next_in = Z_NULL;
+#if defined(WZ_USE_ZLIB_NG)
+	ret = zng_inflateInit(&sock->zInflate);
+#else
 	ret = inflateInit(&sock->zInflate);
+#endif
 	ASSERT(ret == Z_OK, "deflateInit failed! Sockets won't work.");
 
 	sock->zInflateNeedInput = true;
@@ -776,8 +810,13 @@ Socket::~Socket()
 {
 	if (isCompressed)
 	{
+#if defined(WZ_USE_ZLIB_NG)
+		zng_deflateEnd(&zDeflate);
+		zng_deflateEnd(&zInflate);
+#else
 		deflateEnd(&zDeflate);
 		deflateEnd(&zInflate);
+#endif
 	}
 }
 
