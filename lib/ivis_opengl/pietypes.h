@@ -51,7 +51,6 @@
 #define pie_RAISE               0x20
 #define pie_BUTTON              0x40
 #define pie_SHADOW              0x80
-#define pie_STATIC_SHADOW       0x100
 #define pie_PREMULTIPLIED       0x200
 
 #define pie_RAISE_SCALE			256

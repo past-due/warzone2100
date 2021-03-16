@@ -128,9 +128,6 @@ struct iIMDShape
 	unsigned int nconnectors = 0;
 	Vector3i *connectors = 0;
 
-	EDGE *shadowEdgeList = nullptr;
-	size_t nShadowEdges = 0;
-
 	// The old rendering data
 	std::vector<Vector3f> points;
 	std::vector<iIMDPoly> polys;
