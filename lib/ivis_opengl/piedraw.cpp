@@ -554,52 +554,36 @@ static inline DrawShadowResult pie_DrawShadow(ShadowCache &shadowCache, iIMDShap
 	if (pCached == nullptr)
 	{
 		const Vector3f *pVertices = shape->pShadowPoints->data();
-		if (flag & pie_STATIC_SHADOW && shape->shadowEdgeList)
+		edgelist.clear();
+		glm::vec3 p[3];
+		for (const iIMDPoly &poly : *(shape->pShadowPolys))
 		{
-			drawlist = shape->shadowEdgeList;
-			edge_count = shape->nShadowEdges;
-		}
-		else
-		{
-			edgelist.clear();
-			glm::vec3 p[3];
-			for (const iIMDPoly &poly : *(shape->pShadowPolys))
+			for (int j = 0; j < 3; ++j)
 			{
-				for (int j = 0; j < 3; ++j)
+				uint32_t current = poly.pindex[j];
+				p[j] = glm::vec3(pVertices[current].x, scale_y(pVertices[current].y, flag, flag_data), pVertices[current].z);
+			}
+			if (glm::dot(glm::cross(p[2] - p[0], p[1] - p[0]), glm::vec3(light)) > 0.0f)
+			{
+				for (int n = 0; n < 3; ++n)
 				{
-					uint32_t current = poly.pindex[j];
-					p[j] = glm::vec3(pVertices[current].x, scale_y(pVertices[current].y, flag, flag_data), pVertices[current].z);
-				}
-				if (glm::dot(glm::cross(p[2] - p[0], p[1] - p[0]), glm::vec3(light)) > 0.0f)
-				{
-					for (int n = 0; n < 3; ++n)
-					{
-						// Add the edges
-						edgelist.push_back({poly.pindex[n], poly.pindex[(n + 1)%3]});
-					}
+					// Add the edges
+					edgelist.push_back({poly.pindex[n], poly.pindex[(n + 1)%3]});
 				}
 			}
-
-			// Remove duplicate pairs from the edge list. For example, in the list ((1 2), (2 6), (6 2), (3, 4)), remove (2 6) and (6 2).
-			edgelistFlipped = edgelist;
-			std::for_each(edgelistFlipped.begin(), edgelistFlipped.end(), flipEdge);
-			std::sort(edgelist.begin(), edgelist.end(), edgeLessThan);
-			std::sort(edgelistFlipped.begin(), edgelistFlipped.end(), edgeLessThan);
-			edgelistFiltered.resize(edgelist.size());
-			edgelistFiltered.erase(std::set_difference(edgelist.begin(), edgelist.end(), edgelistFlipped.begin(), edgelistFlipped.end(), edgelistFiltered.begin(), edgeLessThan), edgelistFiltered.end());
-
-			drawlist = &edgelistFiltered[0];
-			edge_count = edgelistFiltered.size();
-			//debug(LOG_WARNING, "we have %i edges", edge_count);
-
-			if (flag & pie_STATIC_SHADOW)
-			{
-				// then store it in the imd
-				shape->nShadowEdges = edge_count;
-				shape->shadowEdgeList = (EDGE *)realloc(shape->shadowEdgeList, sizeof(EDGE) * shape->nShadowEdges);
-				std::copy(drawlist, drawlist + edge_count, shape->shadowEdgeList);
-			}
 		}
+
+		// Remove duplicate pairs from the edge list. For example, in the list ((1 2), (2 6), (6 2), (3, 4)), remove (2 6) and (6 2).
+		edgelistFlipped = edgelist;
+		std::for_each(edgelistFlipped.begin(), edgelistFlipped.end(), flipEdge);
+		std::sort(edgelist.begin(), edgelist.end(), edgeLessThan);
+		std::sort(edgelistFlipped.begin(), edgelistFlipped.end(), edgeLessThan);
+		edgelistFiltered.resize(edgelist.size());
+		edgelistFiltered.erase(std::set_difference(edgelist.begin(), edgelist.end(), edgelistFlipped.begin(), edgelistFlipped.end(), edgelistFiltered.begin(), edgeLessThan), edgelistFiltered.end());
+
+		drawlist = &edgelistFiltered[0];
+		edge_count = edgelistFiltered.size();
+		//debug(LOG_WARNING, "we have %i edges", edge_count);
 
 		std::vector<Vector3f> vertexes;
 		vertexes.reserve(edge_count * 6);
@@ -686,7 +670,7 @@ bool pie_Draw3DShape(iIMDShape *shape, int frame, int team, PIELIGHT colour, int
 		}
 		else
 		{
-			if (shadows && (pieFlag & pie_SHADOW || pieFlag & pie_STATIC_SHADOW))
+			if (shadows && (pieFlag & pie_SHADOW))
 			{
 				float distance;
 

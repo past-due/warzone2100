@@ -54,7 +54,6 @@ static void iV_ProcessIMD(const WzString &filename, const char **ppFileData, con
 iIMDShape::~iIMDShape()
 {
 	free(connectors);
-	free(shadowEdgeList);
 	for (auto* buffer : buffers)
 	{
 		delete buffer;
