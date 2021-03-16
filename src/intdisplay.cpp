@@ -81,7 +81,7 @@
 //the loop default value
 #define DEFAULT_LOOP		1
 
-static void StatGetResearchImage(BASE_STATS *psStat, Image *image, iIMDShape **Shape, BASE_STATS **ppGraphicData, bool drawTechIcon);
+static void StatGetResearchImage(BASE_STATS *psStat, Image *image, const iIMDShape **Shape, BASE_STATS **ppGraphicData, bool drawTechIcon);
 
 
 static int FormOpenAudioID;	// ID of sfx to play when form opens.
@@ -452,7 +452,7 @@ void IntStatusButton::display(int xOffset, int yOffset)
 			case REF_RESEARCH:
 				if (structureIsResearchingPending(Structure))
 				{
-					iIMDShape *shape;
+					const iIMDShape *shape;
 					Stats = theStats;
 					if (!Stats)
 					{
@@ -600,7 +600,7 @@ void IntStatsButton::display(int xOffset, int yOffset)
 			}
 			else if (StatIsResearch(Stat))
 			{
-				iIMDShape *shape;
+				const iIMDShape *shape;
 				StatGetResearchImage(Stat, &image, &shape, &psResGraphic, true);
 				if (psResGraphic)
 				{
@@ -963,7 +963,7 @@ void IntFancyButton::displayIMD(Image image, ImdObject imdObject, int xOffset, i
 	}
 
 	ImdType IMDType = imdObject.type;
-	void *Object = imdObject.ptr;
+	void *Object = const_cast<void *>(imdObject.ptr); // TODO: Get rid of this const_cast
 	if (IMDType == IMDTYPE_DROID || IMDType == IMDTYPE_DROIDTEMPLATE)
 	{
 		// The case where we have to render a composite droid.
@@ -1002,11 +1002,11 @@ void IntFancyButton::displayIMD(Image image, ImdObject imdObject, int xOffset, i
 
 		if (IMDType == IMDTYPE_DROID)
 		{
-			Radius = getComponentDroidRadius((DROID *)Object);
+			Radius = getComponentDroidRadius((const DROID *)Object);
 		}
 		else
 		{
-			Radius = getComponentDroidTemplateRadius((DROID_TEMPLATE *)Object);
+			Radius = getComponentDroidTemplateRadius((const DROID_TEMPLATE *)Object);
 		}
 
 		model.scale = DROID_BUT_SCALE;
@@ -1016,9 +1016,9 @@ void IntFancyButton::displayIMD(Image image, ImdObject imdObject, int xOffset, i
 
 		if (IMDType == IMDTYPE_DROID)
 		{
-			if (isTransporter((DROID *)Object))
+			if (isTransporter((const DROID *)Object))
 			{
-				if (((DROID *)Object)->droidType == DROID_TRANSPORTER)
+				if (((const DROID *)Object)->droidType == DROID_TRANSPORTER)
 				{
 					model.scale = DROID_BUT_SCALE / 2;
 				}
@@ -1030,9 +1030,9 @@ void IntFancyButton::displayIMD(Image image, ImdObject imdObject, int xOffset, i
 		}
 		else//(IMDType == IMDTYPE_DROIDTEMPLATE)
 		{
-			if (isTransporter((DROID_TEMPLATE *)Object))
+			if (isTransporter((const DROID_TEMPLATE *)Object))
 			{
-				if (((DROID_TEMPLATE *)Object)->droidType == DROID_TRANSPORTER)
+				if (((const DROID_TEMPLATE *)Object)->droidType == DROID_TRANSPORTER)
 				{
 					model.scale = DROID_BUT_SCALE / 2;
 				}
@@ -1050,7 +1050,7 @@ void IntFancyButton::displayIMD(Image image, ImdObject imdObject, int xOffset, i
 		}
 		else
 		{
-			displayComponentButtonTemplate((DROID_TEMPLATE *)Object, &model.rotation, &model.position, model.scale);
+			displayComponentButtonTemplate((const DROID_TEMPLATE *)Object, &model.rotation, &model.position, model.scale);
 		}
 	}
 	else
@@ -1091,10 +1091,10 @@ void IntFancyButton::displayIMD(Image image, ImdObject imdObject, int xOffset, i
 		// Decide which button grid size to use.
 		if (IMDType == IMDTYPE_COMPONENT)
 		{
-			Radius = getComponentRadius((BASE_STATS *)Object);
+			Radius = getComponentRadius((const BASE_STATS *)Object);
 			model.scale = rescaleButtonObject(Radius, COMP_BUT_SCALE, COMPONENT_RADIUS);
 			// NOTE: The Super transport is huge, and is considered a component type, so refit it to inside the button.
-			BASE_STATS *psStats = (BASE_STATS *)Object;
+			const BASE_STATS *psStats = (const BASE_STATS *)Object;
 			if (psStats->id.compare("SuperTransportBody") == 0)
 			{
 				model.scale *= .4;
@@ -1106,7 +1106,7 @@ void IntFancyButton::displayIMD(Image image, ImdObject imdObject, int xOffset, i
 		}
 		else if (IMDType == IMDTYPE_RESEARCH)
 		{
-			Radius = getResearchRadius((BASE_STATS *)Object);
+			Radius = getResearchRadius((const BASE_STATS *)Object);
 			if (Radius <= 100)
 			{
 				model.scale = rescaleButtonObject(Radius, COMP_BUT_SCALE, COMPONENT_RADIUS);
@@ -1126,7 +1126,7 @@ void IntFancyButton::displayIMD(Image image, ImdObject imdObject, int xOffset, i
 		}
 		else if (IMDType == IMDTYPE_STRUCTURE)
 		{
-			basePlateSize = getStructureSizeMax((STRUCTURE *)Object);
+			basePlateSize = getStructureSizeMax((const STRUCTURE *)Object);
 			if (basePlateSize == 1)
 			{
 				model.scale = SMALL_STRUCT_SCALE;
@@ -1142,7 +1142,7 @@ void IntFancyButton::displayIMD(Image image, ImdObject imdObject, int xOffset, i
 		}
 		else if (IMDType == IMDTYPE_STRUCTURESTAT)
 		{
-			basePlateSize = getStructureStatSizeMax((STRUCTURE_STATS *)Object);
+			basePlateSize = getStructureStatSizeMax((const STRUCTURE_STATS *)Object);
 			if (basePlateSize == 1)
 			{
 				model.scale = SMALL_STRUCT_SCALE;
@@ -1158,7 +1158,7 @@ void IntFancyButton::displayIMD(Image image, ImdObject imdObject, int xOffset, i
 		}
 		else if (IMDType == IMDTYPE_FEATURE)
 		{
-			int imdRadius = ((iIMDShape *)Object)->radius;
+			int imdRadius = ((const iIMDShape *)Object)->radius;
 
 			if (imdRadius <= 40)
 			{
@@ -1183,7 +1183,7 @@ void IntFancyButton::displayIMD(Image image, ImdObject imdObject, int xOffset, i
 		}
 		else
 		{
-			Radius = ((iIMDShape *)Object)->sradius;
+			Radius = ((const iIMDShape *)Object)->sradius;
 
 			if (Radius <= 128)
 			{
@@ -1209,27 +1209,27 @@ void IntFancyButton::displayIMD(Image image, ImdObject imdObject, int xOffset, i
 		/* all non droid buttons */
 		if (IMDType == IMDTYPE_COMPONENT)
 		{
-			displayComponentButton((BASE_STATS *)Object, &model.rotation, &model.position, model.scale);
+			displayComponentButton((const BASE_STATS *)Object, &model.rotation, &model.position, model.scale);
 		}
 		else if (IMDType == IMDTYPE_RESEARCH)
 		{
-			displayResearchButton((BASE_STATS *)Object, &model.rotation, &model.position, model.scale);
+			displayResearchButton((const BASE_STATS *)Object, &model.rotation, &model.position, model.scale);
 		}
 		else if (IMDType == IMDTYPE_STRUCTURE)
 		{
-			displayStructureButton((STRUCTURE *)Object, &model.rotation, &model.position, model.scale);
+			displayStructureButton((const STRUCTURE *)Object, &model.rotation, &model.position, model.scale);
 		}
 		else if (IMDType == IMDTYPE_STRUCTURESTAT)
 		{
-			displayStructureStatButton((STRUCTURE_STATS *)Object, &model.rotation, &model.position, model.scale);
+			displayStructureStatButton((const STRUCTURE_STATS *)Object, &model.rotation, &model.position, model.scale);
 		}
 		else if (IMDType == IMDTYPE_FEATURE)
 		{
-			displayIMDButton((iIMDShape *)Object, &model.rotation, &model.position, model.scale);
+			displayIMDButton((const iIMDShape *)Object, &model.rotation, &model.position, model.scale);
 		}
 		else
 		{
-			displayIMDButton((iIMDShape *)Object, &model.rotation, &model.position, model.scale);
+			displayIMDButton((const iIMDShape *)Object, &model.rotation, &model.position, model.scale);
 		}
 	}
 }
@@ -1397,7 +1397,7 @@ BASE_STATS *DroidGetBuildStats(DROID *Droid)
 	return nullptr;
 }
 
-iIMDShape *DroidGetIMD(DROID *Droid)
+const iIMDShape *DroidGetIMD(DROID *Droid)
 {
 	return Droid->sDisplay.imd;
 }
@@ -1494,7 +1494,7 @@ bool StatIsFeature(BASE_STATS const *Stat)
 	return Stat->hasType(STAT_FEATURE);
 }
 
-iIMDShape *StatGetStructureIMD(BASE_STATS *Stat, UDWORD Player)
+const iIMDShape *StatGetStructureIMD(BASE_STATS *Stat, UDWORD Player)
 {
 	(void)Player;
 	return ((STRUCTURE_STATS *)Stat)->pIMD[0];
@@ -1505,7 +1505,7 @@ bool StatIsTemplate(BASE_STATS *Stat)
 	return Stat->hasType(STAT_TEMPLATE);
 }
 
-COMPONENT_TYPE StatIsComponent(BASE_STATS *Stat)
+COMPONENT_TYPE StatIsComponent(const BASE_STATS *Stat)
 {
 	switch (StatType(Stat->ref & STAT_MASK))
 	{
@@ -1521,9 +1521,9 @@ COMPONENT_TYPE StatIsComponent(BASE_STATS *Stat)
 	}
 }
 
-bool StatGetComponentIMD(BASE_STATS *Stat, SDWORD compID, iIMDShape **CompIMD, iIMDShape **MountIMD)
+bool StatGetComponentIMD(const BASE_STATS *Stat, SDWORD compID, const iIMDShape **CompIMD, const iIMDShape **MountIMD)
 {
-	WEAPON_STATS		*psWStat;
+	const WEAPON_STATS		*psWStat;
 
 	*CompIMD = nullptr;
 	*MountIMD = nullptr;
@@ -1531,42 +1531,42 @@ bool StatGetComponentIMD(BASE_STATS *Stat, SDWORD compID, iIMDShape **CompIMD, i
 	switch (compID)
 	{
 	case COMP_BODY:
-		*CompIMD = ((COMPONENT_STATS *)Stat)->pIMD;
+		*CompIMD = ((const COMPONENT_STATS *)Stat)->pIMD;
 		return true;
 
 	case COMP_BRAIN:
-		psWStat = ((BRAIN_STATS *)Stat)->psWeaponStat;
+		psWStat = ((const BRAIN_STATS *)Stat)->psWeaponStat;
 		*MountIMD = psWStat->pMountGraphic;
 		*CompIMD = psWStat->pIMD;
 		return true;
 
 	case COMP_WEAPON:
-		*MountIMD = ((WEAPON_STATS *)Stat)->pMountGraphic;
-		*CompIMD = ((COMPONENT_STATS *)Stat)->pIMD;
+		*MountIMD = ((const WEAPON_STATS *)Stat)->pMountGraphic;
+		*CompIMD = ((const COMPONENT_STATS *)Stat)->pIMD;
 		return true;
 
 	case COMP_SENSOR:
-		*MountIMD = ((SENSOR_STATS *)Stat)->pMountGraphic;
-		*CompIMD = ((COMPONENT_STATS *)Stat)->pIMD;
+		*MountIMD = ((const SENSOR_STATS *)Stat)->pMountGraphic;
+		*CompIMD = ((const COMPONENT_STATS *)Stat)->pIMD;
 		return true;
 
 	case COMP_ECM:
-		*MountIMD = ((ECM_STATS *)Stat)->pMountGraphic;
-		*CompIMD = ((COMPONENT_STATS *)Stat)->pIMD;
+		*MountIMD = ((const ECM_STATS *)Stat)->pMountGraphic;
+		*CompIMD = ((const COMPONENT_STATS *)Stat)->pIMD;
 		return true;
 
 	case COMP_CONSTRUCT:
-		*MountIMD = ((CONSTRUCT_STATS *)Stat)->pMountGraphic;
-		*CompIMD = ((COMPONENT_STATS *)Stat)->pIMD;
+		*MountIMD = ((const CONSTRUCT_STATS *)Stat)->pMountGraphic;
+		*CompIMD = ((const COMPONENT_STATS *)Stat)->pIMD;
 		return true;
 
 	case COMP_PROPULSION:
-		*CompIMD = ((COMPONENT_STATS *)Stat)->pIMD;
+		*CompIMD = ((const COMPONENT_STATS *)Stat)->pIMD;
 		return true;
 
 	case COMP_REPAIRUNIT:
-		*MountIMD = ((REPAIR_STATS *)Stat)->pMountGraphic;
-		*CompIMD = ((COMPONENT_STATS *)Stat)->pIMD;
+		*MountIMD = ((const REPAIR_STATS *)Stat)->pMountGraphic;
+		*CompIMD = ((const COMPONENT_STATS *)Stat)->pIMD;
 		return true;
 
 	case COMP_NUMCOMPONENTS:
@@ -1577,12 +1577,12 @@ bool StatGetComponentIMD(BASE_STATS *Stat, SDWORD compID, iIMDShape **CompIMD, i
 }
 
 
-bool StatIsResearch(BASE_STATS *Stat)
+bool StatIsResearch(const BASE_STATS *Stat)
 {
 	return Stat->hasType(STAT_RESEARCH);
 }
 
-static void StatGetResearchImage(BASE_STATS *psStat, Image *image, iIMDShape **Shape, BASE_STATS **ppGraphicData, bool drawTechIcon)
+static void StatGetResearchImage(BASE_STATS *psStat, Image *image, const iIMDShape **Shape, BASE_STATS **ppGraphicData, bool drawTechIcon)
 {
 	if (drawTechIcon && ((RESEARCH *)psStat)->iconID != NO_RESEARCH_ICON)
 	{

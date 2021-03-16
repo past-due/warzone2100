@@ -306,7 +306,7 @@ struct COMPONENT_STATS : public BASE_STATS
 	virtual UPGRADE const &getUpgrade(unsigned player) const = 0;
 	UPGRADE &getBase() { return const_cast<UPGRADE &>(const_cast<COMPONENT_STATS const *>(this)->getBase()); }
 
-	iIMDShape *pIMD = nullptr;				/**< The IMD to draw for this component */
+	const iIMDShape *pIMD = nullptr;				/**< The IMD to draw for this component */
 	unsigned buildPower = 0;			/**< Power required to build the component */
 	unsigned buildPoints = 0;		/**< Time required to build the component */
 	unsigned weight = 0;				/**< Component's weight */
@@ -341,7 +341,7 @@ struct SENSOR_STATS : public COMPONENT_STATS
 	UPGRADE const &getBase() const override { return base; }
 	UPGRADE const &getUpgrade(unsigned player) const override { return upgrade[player]; }
 
-	iIMDShape *pMountGraphic = nullptr;     ///< The turret mount to use
+	const iIMDShape *pMountGraphic = nullptr;     ///< The turret mount to use
 	unsigned location = 0;                  ///< specifies whether the Sensor is default or for the Turret
 	SENSOR_TYPE type = STANDARD_SENSOR;     ///< used for combat
 
@@ -356,7 +356,7 @@ struct ECM_STATS : public COMPONENT_STATS
 	UPGRADE const &getBase() const override { return base; }
 	UPGRADE const &getUpgrade(unsigned player) const override { return upgrade[player]; }
 
-	iIMDShape *pMountGraphic = nullptr;   ///< The turret mount to use
+	const iIMDShape *pMountGraphic = nullptr;   ///< The turret mount to use
 	unsigned location = 0;                ///< Specifies whether the ECM is default or for the Turret
 
 	struct : UPGRADE
@@ -370,7 +370,7 @@ struct REPAIR_STATS : public COMPONENT_STATS
 	UPGRADE const &getBase() const override { return base; }
 	UPGRADE const &getUpgrade(unsigned player) const override { return upgrade[player]; }
 
-	iIMDShape *pMountGraphic = nullptr;	///< The turret mount to use
+	const iIMDShape *pMountGraphic = nullptr;	///< The turret mount to use
 	unsigned location = 0;			///< Specifies whether the Repair is default or for the Turret
 	unsigned time = 0;			///< Time delay for repair cycle
 
@@ -435,13 +435,13 @@ struct WEAPON_STATS : public COMPONENT_STATS
 	unsigned numExplosions = 0;			///< The number of explosions per shot
 
 	/* Graphics used for the weapon */
-	iIMDShape *pMountGraphic = nullptr;		///< The turret mount to use
-	iIMDShape *pMuzzleGraphic = nullptr;		///< The muzzle flash
-	iIMDShape *pInFlightGraphic = nullptr;		///< The ammo in flight
-	iIMDShape *pTargetHitGraphic = nullptr;		///< The ammo hitting a target
-	iIMDShape *pTargetMissGraphic = nullptr;	///< The ammo missing a target
-	iIMDShape *pWaterHitGraphic = nullptr;		///< The ammo hitting water
-	iIMDShape *pTrailGraphic = nullptr;		///< The trail used for in flight
+	const iIMDShape *pMountGraphic = nullptr;		///< The turret mount to use
+	const iIMDShape *pMuzzleGraphic = nullptr;		///< The muzzle flash
+	const iIMDShape *pInFlightGraphic = nullptr;		///< The ammo in flight
+	const iIMDShape *pTargetHitGraphic = nullptr;		///< The ammo hitting a target
+	const iIMDShape *pTargetMissGraphic = nullptr;	///< The ammo missing a target
+	const iIMDShape *pWaterHitGraphic = nullptr;		///< The ammo hitting water
+	const iIMDShape *pTrailGraphic = nullptr;		///< The trail used for in flight
 
 	/* Audio */
 	int iAudioFireID = 0;
@@ -453,7 +453,7 @@ struct CONSTRUCT_STATS : public COMPONENT_STATS
 	UPGRADE const &getBase() const override { return base; }
 	UPGRADE const &getUpgrade(unsigned player) const override { return upgrade[player]; }
 
-	iIMDShape *pMountGraphic = nullptr;      ///< The turret mount to use
+	const iIMDShape *pMountGraphic = nullptr;      ///< The turret mount to use
 
 	struct : UPGRADE
 	{
@@ -491,9 +491,9 @@ struct BODY_STATS : public COMPONENT_STATS
 	BODY_SIZE size = SIZE_NUM;      ///< How big the body is - affects how hit
 	unsigned weaponSlots = 0;       ///< The number of weapon slots on the body
 
-	std::vector<iIMDShape *> ppIMDList;	///< list of IMDs to use for propulsion unit - up to numPropulsionStats
-	std::vector<iIMDShape *> ppMoveIMDList;	///< list of IMDs to use when droid is moving - up to numPropulsionStats
-	std::vector<iIMDShape *> ppStillIMDList;///< list of IMDs to use when droid is still - up to numPropulsionStats
+	std::vector<const iIMDShape *> ppIMDList;	///< list of IMDs to use for propulsion unit - up to numPropulsionStats
+	std::vector<const iIMDShape *> ppMoveIMDList;	///< list of IMDs to use when droid is moving - up to numPropulsionStats
+	std::vector<const iIMDShape *> ppStillIMDList;///< list of IMDs to use when droid is still - up to numPropulsionStats
 	WzString         bodyClass;		///< rules hint to script about its classification
 
 	struct UPGRADE : COMPONENT_STATS::UPGRADE

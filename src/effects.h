@@ -138,7 +138,7 @@ struct EFFECT
 	uint16_t          frameDelay;  // how many game ticks between each frame?
 	uint16_t          lifeSpan;    // what is it's life expectancy?
 	uint16_t          radius;      // Used for area effects
-	iIMDShape         *imd;        // pointer to the imd the effect uses.
+	const iIMDShape   *imd;        // pointer to the imd the effect uses.
 	EFFECT *prev, *next; // Previous and next element in linked list
 
 	EFFECT() : player(MAX_PLAYERS), control(0), group(EFFECT_FREED), type(EXPLOSION_TYPE_SMALL), frameNumber(0), size(0),
@@ -154,14 +154,14 @@ void	effectGiveAuxVarSec(UDWORD var);	// and so's this
 void	initEffectsSystem();
 void	shutdownEffectsSystem();
 void	processEffects(const glm::mat4 &viewMatrix);
-void 	addEffect(const Vector3i *pos, EFFECT_GROUP group, EFFECT_TYPE type, bool specified, iIMDShape *imd, int lit);
-void    addEffect(const Vector3i *pos, EFFECT_GROUP group, EFFECT_TYPE type, bool specified, iIMDShape *imd, int lit, unsigned effectTime);
-void    addMultiEffect(const Vector3i *basePos, Vector3i *scatter, EFFECT_GROUP group, EFFECT_TYPE type, bool specified, iIMDShape *imd, unsigned int number, bool lit, unsigned int size, unsigned effectTime);
+void 	addEffect(const Vector3i *pos, EFFECT_GROUP group, EFFECT_TYPE type, bool specified, const iIMDShape *imd, int lit);
+void    addEffect(const Vector3i *pos, EFFECT_GROUP group, EFFECT_TYPE type, bool specified, const iIMDShape *imd, int lit, unsigned effectTime);
+void    addMultiEffect(const Vector3i *basePos, Vector3i *scatter, EFFECT_GROUP group, EFFECT_TYPE type, bool specified, const iIMDShape *imd, unsigned int number, bool lit, unsigned int size, unsigned effectTime);
 
 void	renderEffect(const EFFECT *psEffect, const glm::mat4 &viewMatrix);
 void	effectResetUpdates();
 
-void	initPerimeterSmoke(iIMDShape *pImd, Vector3i base);
+void	initPerimeterSmoke(const iIMDShape *pImd, Vector3i base);
 
 bool	readFXData(const char *fileName);
 bool	writeFXData(const char *fileName);

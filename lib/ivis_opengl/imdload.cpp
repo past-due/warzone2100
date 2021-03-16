@@ -93,7 +93,7 @@ static bool tryLoad(const WzString &path, const WzString &filename)
 	return false;
 }
 
-const std::string &modelName(iIMDShape *model)
+const std::string &modelName(const iIMDShape *model)
 {
 	for (const auto &pair : models)
 	{
@@ -107,7 +107,7 @@ const std::string &modelName(iIMDShape *model)
 	return error;
 }
 
-iIMDShape *modelGet(const WzString &filename)
+const iIMDShape *modelGet(const WzString &filename)
 {
 	WzString name(filename.toLower());
 	auto it = models.find(name.toStdString());
@@ -1009,7 +1009,7 @@ static void iV_ProcessIMD(const WzString &filename, const char **ppFileData, con
 	uint32_t imd_flags;
 	bool bTextured = false;
 	bool readInterpolate = false;
-	iIMDShape *objanimpie[ANIM_EVENT_COUNT];
+	const iIMDShape *objanimpie[ANIM_EVENT_COUNT];
 
 	memset(normalfile, 0, sizeof(normalfile));
 	memset(specfile, 0, sizeof(specfile));

@@ -104,7 +104,7 @@ void pie_BeginLighting(const Vector3f &light)
 struct ShadowcastingShape
 {
 	glm::mat4	matrix;
-	iIMDShape	*shape;
+	const iIMDShape	*shape;
 	int		flag;
 	int		flag_data;
 	glm::vec4	light;
@@ -113,7 +113,7 @@ struct ShadowcastingShape
 struct SHAPE
 {
 	glm::mat4	matrix;
-	iIMDShape	*shape;
+	const iIMDShape	*shape;
 	int		frame;
 	PIELIGHT	colour;
 	PIELIGHT	teamcolour;
@@ -144,7 +144,7 @@ static gfx_api::buffer* getZeroedVertexBuffer(size_t size)
 	return pZeroedVertexBuffer;
 }
 
-static void pie_Draw3DButton(iIMDShape *shape, PIELIGHT teamcolour, const glm::mat4 &matrix)
+static void pie_Draw3DButton(const iIMDShape *shape, PIELIGHT teamcolour, const glm::mat4 &matrix)
 {
 	auto* tcmask = shape->tcmaskpage != iV_TEX_INVALID ? &pie_Texture(shape->tcmaskpage) : nullptr;
 	auto* normalmap = shape->normalpage != iV_TEX_INVALID ? &pie_Texture(shape->normalpage) : nullptr;
@@ -422,9 +422,9 @@ struct ShadowCache {
 	};
 
 	typedef std::unordered_map<ShadowDrawParameters, CachedShadowData> ShadowDrawParametersToCachedDataMap;
-	typedef std::unordered_map<iIMDShape *, ShadowDrawParametersToCachedDataMap, std::hash<iIMDShape *>> ShapeMap;
+	typedef std::unordered_map<const iIMDShape *, ShadowDrawParametersToCachedDataMap, std::hash<const iIMDShape *>> ShapeMap;
 
-	const CachedShadowData* findCacheForShadowDraw(iIMDShape *shape, int flag, int flag_data, const glm::vec4 &light)
+	const CachedShadowData* findCacheForShadowDraw(const iIMDShape *shape, int flag, int flag_data, const glm::vec4 &light)
 	{
 		auto it = shapeMap.find(shape);
 		if (it == shapeMap.end()) {
@@ -439,7 +439,7 @@ struct ShadowCache {
 		return &(it_cachedData->second);
 	}
 
-	CachedShadowData& createCacheForShadowDraw(iIMDShape *shape, int flag, int flag_data, const glm::vec4 &light)
+	CachedShadowData& createCacheForShadowDraw(const iIMDShape *shape, int flag, int flag_data, const glm::vec4 &light)
 	{
 		auto result = shapeMap[shape].emplace(ShadowDrawParameters(flag, flag_data, light), CachedShadowData());
 		result.first->second.lastQueriedFrameCount = _currentFrame;
@@ -538,7 +538,7 @@ enum DrawShadowResult {
 ///			glDisableVertexAttribArray(program.locVertex);
 ///			pie_DeactivateShader();
 ///		The only place this is currently called is pie_ShadowDrawLoop(), which handles this properly.
-static inline DrawShadowResult pie_DrawShadow(ShadowCache &shadowCache, iIMDShape *shape, int flag, int flag_data, const glm::vec4 &light, const glm::mat4 &modelViewMatrix)
+static inline DrawShadowResult pie_DrawShadow(ShadowCache &shadowCache, const iIMDShape *shape, int flag, int flag_data, const glm::vec4 &light, const glm::mat4 &modelViewMatrix)
 {
 	static std::vector<EDGE> edgelist;  // Static, to save allocations.
 	static std::vector<EDGE> edgelistFlipped;  // Static, to save allocations.
@@ -631,7 +631,7 @@ void pie_CleanUp()
 	}
 }
 
-bool pie_Draw3DShape(iIMDShape *shape, int frame, int team, PIELIGHT colour, int pieFlag, int pieFlagData, const glm::mat4 &modelView)
+bool pie_Draw3DShape(const iIMDShape *shape, int frame, int team, PIELIGHT colour, int pieFlag, int pieFlagData, const glm::mat4 &modelView)
 {
 	pieCount++;
 
