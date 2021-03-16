@@ -767,7 +767,7 @@ bool levLoadData(char const *name, Sha256 const *hash, char *pSaveName, GAME_TYP
 				auto factionModel = getFactionModelName(faction, WzString::fromUtf8(modelName));
 				if (factionModel.has_value())
 				{
-					iIMDShape *retval = modelGet(factionModel.value());
+					const iIMDShape *retval = modelGet(factionModel.value());
 					ASSERT(retval != nullptr, "Cannot find the faction PIE model %s (for normal model: %s)",
 						   factionModel.value().toUtf8().c_str(), modelName.c_str());
 				}

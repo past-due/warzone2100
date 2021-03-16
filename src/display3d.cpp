@@ -398,7 +398,7 @@ float interpolateAngleDegrees(int a, int b, float t)
 	return a + d * t;
 }
 
-bool drawShape(BASE_OBJECT *psObj, iIMDShape *strImd, int colour, PIELIGHT buildingBrightness, int pieFlag, int pieFlagData, const glm::mat4& viewMatrix)
+bool drawShape(const BASE_OBJECT *psObj, const iIMDShape *strImd, int colour, PIELIGHT buildingBrightness, int pieFlag, int pieFlagData, const glm::mat4& viewMatrix)
 {
 	glm::mat4 modelMatrix(1.f);
 	int animFrame = 0; // for texture animation
@@ -1505,7 +1505,7 @@ void	renderProjectile(PROJECTILE *psCurr, const glm::mat4 &viewMatrix)
 {
 	WEAPON_STATS	*psStats;
 	Vector3i			dv;
-	iIMDShape		*pIMD;
+	const iIMDShape	*pIMD;
 	Spacetime       st;
 
 	psStats = psCurr->psWStats;
@@ -2072,7 +2072,7 @@ void	renderFeature(FEATURE *psFeature, const glm::mat4 &viewMatrix)
 		/* these cast a shadow */
 		pieFlags = pie_SHADOW;
 	}
-	iIMDShape *imd = psFeature->sDisplay.imd;
+	const iIMDShape *imd = psFeature->sDisplay.imd;
 	while (imd)
 	{
 		/* Translate the feature  - N.B. We can also do rotations here should we require
@@ -2090,7 +2090,7 @@ void renderProximityMsg(PROXIMITY_DISPLAY *psProxDisp, const glm::mat4& viewMatr
 	Vector3i                dv(0, 0, 0);
 	VIEW_PROXIMITY	*pViewProximity = nullptr;
 	SDWORD			x, y, r;
-	iIMDShape		*proxImd = nullptr;
+	const iIMDShape *proxImd = nullptr;
 
 	//store the frame number for when deciding what has been clicked on
 	psProxDisp->frameNumber = currentGameFrame;
@@ -2211,12 +2211,12 @@ static PIELIGHT getBlueprintColour(STRUCT_STATES state)
 	}
 }
 
-static void renderStructureTurrets(STRUCTURE *psStructure, iIMDShape *strImd, PIELIGHT buildingBrightness, int pieFlag, int pieFlagData, int ecmFlag,
+static void renderStructureTurrets(const STRUCTURE *psStructure, const iIMDShape *strImd, PIELIGHT buildingBrightness, int pieFlag, int pieFlagData, int ecmFlag,
 	const glm::mat4 &modelViewMatrix)
 {
-	iIMDShape *mountImd[MAX_WEAPONS] = { nullptr };
-	iIMDShape *weaponImd[MAX_WEAPONS] = { nullptr };
-	iIMDShape *flashImd[MAX_WEAPONS] = { nullptr };
+	const iIMDShape *mountImd[MAX_WEAPONS] = { nullptr };
+	const iIMDShape *weaponImd[MAX_WEAPONS] = { nullptr };
+	const iIMDShape *flashImd[MAX_WEAPONS] = { nullptr };
 
 	int colour = getPlayerColour(psStructure->player);
 
@@ -2306,7 +2306,7 @@ static void renderStructureTurrets(STRUCTURE *psStructure, iIMDShape *strImd, PI
 						ydiff = (SDWORD)psDroid->pos.y - (SDWORD)psStructure->pos.y;
 						if (xdiff * xdiff + ydiff * ydiff <= (TILE_UNITS * 5 / 2) * (TILE_UNITS * 5 / 2))
 						{
-							iIMDShape	*pRepImd;
+							const iIMDShape	*pRepImd;
 							pRepImd = getImdFromIndex(MI_FLAME);
 
 
@@ -2378,7 +2378,7 @@ static void renderStructureTurrets(STRUCTURE *psStructure, iIMDShape *strImd, PI
 		{
 			for (i = 0; i < psStructure->sDisplay.imd->nconnectors; i++)
 			{
-				iIMDShape *lImd;
+				const iIMDShape *lImd;
 				lImd = getImdFromIndex(MI_LANDING);
 				pie_Draw3DShape(lImd, getModularScaledGraphicsTime(lImd->animInterval, lImd->numFrames), colour, buildingBrightness, 0, 0,
 				                modelViewMatrix * glm::translate(glm::vec3(psStructure->sDisplay.imd->connectors->xzy())));
@@ -2395,7 +2395,7 @@ void renderStructure(STRUCTURE *psStructure, const glm::mat4 &viewMatrix)
 	const Vector3i dv = Vector3i(psStructure->pos.x - playerPos.p.x, psStructure->pos.z, -(psStructure->pos.y - playerPos.p.z));
 	bool bHitByElectronic = false;
 	bool defensive = false;
-	iIMDShape *strImd = psStructure->sDisplay.imd;
+	const iIMDShape *strImd = psStructure->sDisplay.imd;
 	MAPTILE *psTile = worldTile(psStructure->pos.x, psStructure->pos.y);
 	const FACTION *faction = getPlayerFaction(psStructure->player);
 
@@ -2624,7 +2624,7 @@ static bool renderWallSection(STRUCTURE *psStructure, const glm::mat4 &viewMatri
 			pieFlag = pie_SHADOW;
 			pieFlagData = 0;
 		}
-		iIMDShape *imd = psStructure->sDisplay.imd;
+		const iIMDShape *imd = psStructure->sDisplay.imd;
 		while (imd)
 		{
 			pie_Draw3DShape(getFactionIMD(faction, imd), 0, getPlayerColour(psStructure->player), brightness, pieFlag | ecmFlag, pieFlagData, viewMatrix * modelMatrix);

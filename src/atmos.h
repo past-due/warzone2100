@@ -31,7 +31,7 @@ struct ATPART
 	UDWORD		size;
 	Vector3f	position;
 	Vector3f	velocity;
-	iIMDShape	*imd;
+	const iIMDShape	*imd;
 };
 
 enum WT_CLASS

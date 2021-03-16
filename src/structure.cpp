@@ -526,7 +526,7 @@ bool loadStructureStats(WzConfig &ini)
 		std::vector<WzString> models = ini.value("structureModel").toWzStringList();
 		for (size_t j = 0; j < models.size(); j++)
 		{
-			iIMDShape *imd = modelGet(models[j].trimmed());
+			const iIMDShape *imd = modelGet(models[j].trimmed());
 			ASSERT(imd != nullptr, "Cannot find the PIE structureModel '%s' for structure '%s'", models[j].toUtf8().c_str(), getID(psStats));
 			psStats->pIMD.push_back(imd);
 		}
@@ -535,7 +535,7 @@ bool loadStructureStats(WzConfig &ini)
 		WzString baseModel = ini.value("baseModel", "").toWzString();
 		if (baseModel.compare("") != 0)
 		{
-			iIMDShape *imd = modelGet(baseModel);
+			const iIMDShape *imd = modelGet(baseModel);
 			ASSERT(imd != nullptr, "Cannot find the PIE baseModel '%s' for structure '%s'", baseModel.toUtf8().c_str(), getID(psStats));
 			psStats->pBaseIMD = imd;
 		}
@@ -1267,7 +1267,7 @@ void alignStructure(STRUCTURE *psBuilding)
 	else
 	{
 		// Sample points around the structure to find a good depth for the foundation
-		iIMDShape *s = psBuilding->sDisplay.imd;
+		const iIMDShape *s = psBuilding->sDisplay.imd;
 
 		psBuilding->pos.z = TILE_MIN_HEIGHT;
 		psBuilding->foundationDepth = TILE_MAX_HEIGHT;
@@ -1702,7 +1702,7 @@ STRUCTURE *buildStructureDir(STRUCTURE_STATS *pStructureType, UDWORD x, UDWORD y
 		}
 		if (bUpgraded)
 		{
-			std::vector<iIMDShape *> &IMDs = psBuilding->pStructureType->pIMD;
+			std::vector<const iIMDShape *> &IMDs = psBuilding->pStructureType->pIMD;
 			int imdIndex = std::min<int>(psBuilding->capacity * 2, IMDs.size() - 1) - 1;  // *2-1 because even-numbered IMDs are structures, odd-numbered IMDs are just the modules, and we want just the module since we cache the fully-built part of the building in psBuilding->prebuiltImd.
 			if (imdIndex < 0)
 			{
@@ -1756,7 +1756,7 @@ STRUCTURE *buildBlueprint(STRUCTURE_STATS const *psStats, Vector3i pos, uint16_t
 	Rotation rot(direction, 0, 0);
 
 	int moduleNumber = 0;
-	std::vector<iIMDShape *> const *pIMD = &psStats->pIMD;
+	std::vector<const iIMDShape *> const *pIMD = &psStats->pIMD;
 	if (IsStatExpansionModule(psStats))
 	{
 		STRUCTURE *baseStruct = castStructure(worldTile(pos.xy())->psObject);
@@ -1767,7 +1767,7 @@ STRUCTURE *buildBlueprint(STRUCTURE_STATS const *psStats, Vector3i pos, uint16_t
 				moduleIndex = nextModuleToBuild(baseStruct, 0);
 			}
 			int baseModuleNumber = moduleIndex * 2 - 1; // *2-1 because even-numbered IMDs are structures, odd-numbered IMDs are just the modules.
-			std::vector<iIMDShape *> const *basepIMD = &baseStruct->pStructureType->pIMD;
+			std::vector<const iIMDShape *> const *basepIMD = &baseStruct->pStructureType->pIMD;
 			if ((unsigned)baseModuleNumber < basepIMD->size())
 			{
 				// Draw the module.
@@ -3611,10 +3611,10 @@ void structureUpdate(STRUCTURE *psBuilding, bool bMission)
 		{
 			psBuilding->animationEvent = ANIM_EVENT_ACTIVE;
 
-			iIMDShape *strFirstImd = psBuilding->sDisplay.imd->objanimpie[psBuilding->animationEvent];
+			const iIMDShape *strFirstImd = psBuilding->sDisplay.imd->objanimpie[psBuilding->animationEvent];
 			if (strFirstImd != nullptr && strFirstImd->next != nullptr)
 			{
-				iIMDShape *strImd = strFirstImd->next; // first imd isn't animated
+				const iIMDShape *strImd = strFirstImd->next; // first imd isn't animated
 				psBuilding->timeAnimationStarted = gameTime + (rand() % (strImd->objanimframes * strImd->objanimtime)); // vary animation start time
 			}
 			else
@@ -3767,7 +3767,7 @@ void structureUpdate(STRUCTURE *psBuilding, bool bMission)
 			if (bMultiPlayer && ONEINTEN && !bMission)
 			{
 				Vector3i position;
-				Vector3f *point;
+				const Vector3f *point;
 				SDWORD	realY;
 				UDWORD	pointIndex;
 
@@ -5112,7 +5112,7 @@ void buildingComplete(STRUCTURE *psBuilding)
 	if (psBuilding->prebuiltImd != nullptr)
 	{
 		// We finished building a module, now use the combined IMD.
-		std::vector<iIMDShape *> &IMDs = psBuilding->pStructureType->pIMD;
+		std::vector<const iIMDShape *> &IMDs = psBuilding->pStructureType->pIMD;
 		int imdIndex = std::min<int>(numStructureModules(psBuilding) * 2, IMDs.size() - 1); // *2 because even-numbered IMDs are structures, odd-numbered IMDs are just the modules.
 		psBuilding->prebuiltImd = nullptr;
 		psBuilding->sDisplay.imd = IMDs[imdIndex];

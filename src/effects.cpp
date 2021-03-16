@@ -252,7 +252,7 @@ void effectSetSize(UDWORD size)
 }
 
 void addMultiEffect(const Vector3i *basePos, Vector3i *scatter, EFFECT_GROUP group,
-                    EFFECT_TYPE type, bool specified, iIMDShape *imd, unsigned int number, bool lit, unsigned int size, unsigned effectTime)
+                    EFFECT_TYPE type, bool specified, const iIMDShape *imd, unsigned int number, bool lit, unsigned int size, unsigned effectTime)
 {
 	if (number == 0)
 	{
@@ -295,12 +295,12 @@ void SetEffectForPlayer(uint8_t player)
 	EffectForPlayer = getPlayerColour(player);
 }
 
-void addEffect(const Vector3i *pos, EFFECT_GROUP group, EFFECT_TYPE type, bool specified, iIMDShape *imd, int lit)
+void addEffect(const Vector3i *pos, EFFECT_GROUP group, EFFECT_TYPE type, bool specified, const iIMDShape *imd, int lit)
 {
 	return addEffect(pos, group, type, specified, imd, lit, graphicsTime);
 }
 
-void addEffect(const Vector3i *pos, EFFECT_GROUP group, EFFECT_TYPE type, bool specified, iIMDShape *imd, int lit, unsigned effectTime)
+void addEffect(const Vector3i *pos, EFFECT_GROUP group, EFFECT_TYPE type, bool specified, const iIMDShape *imd, int lit, unsigned effectTime)
 {
 	if (gamePaused())
 	{
@@ -2048,7 +2048,7 @@ static void effectSetupDestruction(EFFECT *psEffect)
 
 
 #define SMOKE_SHIFT (16 - (rand()%32))
-void initPerimeterSmoke(iIMDShape *pImd, Vector3i base)
+void initPerimeterSmoke(const iIMDShape *pImd, Vector3i base)
 {
 	int i;
 	int shift = SMOKE_SHIFT;

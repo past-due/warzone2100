@@ -26,8 +26,8 @@
 #include "messagedef.h"
 
 bool initMiscImds();
-iIMDShape *getImdFromIndex(UDWORD index);
-iIMDShape *getRandomDebrisImd();
+const iIMDShape *getImdFromIndex(UDWORD index);
+const iIMDShape *getRandomDebrisImd();
 
 #define	MAX_DEBRIS		5
 #define	MAX_WRECKAGE	5
@@ -49,7 +49,7 @@ extern iIMDShape	*droidDamageImd;
 extern iIMDShape	*smallSteamImd;
 extern iIMDShape	*plasmaImd;
 #define MAX_FACTORY_FLAG_IMDS 32
-extern iIMDShape	*pAssemblyPointIMDs[NUM_FLAG_TYPES][MAX_FACTORY_FLAG_IMDS];
+extern const iIMDShape	*pAssemblyPointIMDs[NUM_FLAG_TYPES][MAX_FACTORY_FLAG_IMDS];
 extern iIMDShape	*blipImd;
 extern iIMDShape	*shadowImd;
 extern iIMDShape	*transporterShadowImd;
@@ -72,7 +72,7 @@ extern iIMDShape	*shockImd;
 /* An imd entry */
 struct MISC_IMD
 {
-	iIMDShape	*pImd;
+	const iIMDShape	*pImd;
 	const char	*pName;
 };
 

@@ -87,11 +87,11 @@ struct ImdObject
 		return ptr == nullptr;
 	}
 
-	void *ptr;
+	const void *ptr;
 	ImdType type;
 
 private:
-	ImdObject(void *ptr, ImdType type) : ptr(ptr), type(type) {}
+	ImdObject(const void *ptr, ImdType type) : ptr(ptr), type(type) {}
 };
 
 // Set audio IDs for form opening/closing anims.
@@ -240,7 +240,7 @@ bool DroidIsBuilding(DROID *Droid);
 STRUCTURE *DroidGetBuildStructure(DROID *Droid);
 bool DroidGoingToBuild(DROID *Droid);
 BASE_STATS *DroidGetBuildStats(DROID *Droid);
-iIMDShape *DroidGetIMD(DROID *Droid);
+const iIMDShape *DroidGetIMD(DROID *Droid);
 
 bool StructureIsManufacturingPending(STRUCTURE *structure);   ///< Returns true iff the structure is either manufacturing or on hold (even if not yet synchronised). (But ignores research.)
 bool structureIsResearchingPending(STRUCTURE *structure);     ///< Returns true iff the structure is either researching or on hold (even if not yet synchronised). (But ignores manufacturing.)
@@ -251,14 +251,14 @@ RESEARCH_FACILITY *StructureGetResearch(STRUCTURE *Structure);
 FACTORY *StructureGetFactory(STRUCTURE *Structure);
 
 bool StatIsStructure(BASE_STATS const *Stat);
-iIMDShape *StatGetStructureIMD(BASE_STATS *Stat, UDWORD Player);
+const iIMDShape *StatGetStructureIMD(BASE_STATS *Stat, UDWORD Player);
 bool StatIsTemplate(BASE_STATS *Stat);
 bool StatIsFeature(BASE_STATS const *Stat);
 
-COMPONENT_TYPE StatIsComponent(BASE_STATS *Stat);
-bool StatGetComponentIMD(BASE_STATS *Stat, SDWORD compID, iIMDShape **CompIMD, iIMDShape **MountIMD);
+COMPONENT_TYPE StatIsComponent(const BASE_STATS *Stat);
+bool StatGetComponentIMD(const BASE_STATS *Stat, SDWORD compID, const iIMDShape **CompIMD, const iIMDShape **MountIMD);
 
-bool StatIsResearch(BASE_STATS *Stat);
+bool StatIsResearch(const BASE_STATS *Stat);
 
 /* The cache (pUserData) expected by both intDisplayStatsBar and intDisplayDesignPowerBar */
 struct DisplayBarCache {

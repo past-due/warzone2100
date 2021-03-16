@@ -144,7 +144,7 @@ struct iIMDShape
 	// more object animation, but these are only set for the first level
 	int objanimtime = 0; ///< total time to render all animation frames
 	int objanimcycles = 0; ///< Number of cycles to render, zero means infinitely many
-	iIMDShape *objanimpie[ANIM_EVENT_COUNT] = { nullptr };
+	const iIMDShape *objanimpie[ANIM_EVENT_COUNT] = { nullptr };
 
 	int interpolate = 1; // if the model wants to be interpolated
 

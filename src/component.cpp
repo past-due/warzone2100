@@ -81,22 +81,22 @@ static glm::mat4 setMatrix(const Vector3i *Position, const Vector3i *Rotation, i
 		glm::scale(glm::vec3(scale / 100.f));
 }
 
-UDWORD getComponentDroidRadius(DROID *)
+UDWORD getComponentDroidRadius(const DROID *)
 {
 	return 100;
 }
 
 
-UDWORD getComponentDroidTemplateRadius(DROID_TEMPLATE *)
+UDWORD getComponentDroidTemplateRadius(const DROID_TEMPLATE *)
 {
 	return 100;
 }
 
 
-UDWORD getComponentRadius(BASE_STATS *psComponent)
+UDWORD getComponentRadius(const BASE_STATS *psComponent)
 {
-	iIMDShape *ComponentIMD = nullptr;
-	iIMDShape *MountIMD = nullptr;
+	const iIMDShape *ComponentIMD = nullptr;
+	const iIMDShape *MountIMD = nullptr;
 	SDWORD compID;
 
 	compID = StatIsComponent(psComponent);
@@ -111,8 +111,8 @@ UDWORD getComponentRadius(BASE_STATS *psComponent)
 
 	/* VTOL bombs are only stats allowed to have NULL ComponentIMD */
 	if (StatIsComponent(psComponent) != COMP_WEAPON
-	    || (((WEAPON_STATS *)psComponent)->weaponSubClass != WSC_BOMB
-	        && ((WEAPON_STATS *)psComponent)->weaponSubClass != WSC_EMP))
+	    || (((const WEAPON_STATS *)psComponent)->weaponSubClass != WSC_BOMB
+	        && ((const WEAPON_STATS *)psComponent)->weaponSubClass != WSC_EMP))
 	{
 		ASSERT(ComponentIMD, "No ComponentIMD!");
 	}
@@ -121,9 +121,9 @@ UDWORD getComponentRadius(BASE_STATS *psComponent)
 }
 
 
-UDWORD getResearchRadius(BASE_STATS *Stat)
+UDWORD getResearchRadius(const BASE_STATS *Stat)
 {
-	iIMDShape *ResearchIMD = ((RESEARCH *)Stat)->pIMD;
+	const iIMDShape *ResearchIMD = ((const RESEARCH *)Stat)->pIMD;
 
 	if (ResearchIMD)
 	{
@@ -136,19 +136,19 @@ UDWORD getResearchRadius(BASE_STATS *Stat)
 }
 
 
-UDWORD getStructureSizeMax(STRUCTURE *psStructure)
+UDWORD getStructureSizeMax(const STRUCTURE *psStructure)
 {
 	//radius based on base plate size
 	return MAX(psStructure->pStructureType->baseWidth, psStructure->pStructureType->baseBreadth);
 }
 
-UDWORD getStructureStatSizeMax(STRUCTURE_STATS *Stats)
+UDWORD getStructureStatSizeMax(const STRUCTURE_STATS *Stats)
 {
 	//radius based on base plate size
 	return MAX(Stats->baseWidth, Stats->baseBreadth);
 }
 
-UDWORD getStructureStatHeight(STRUCTURE_STATS *psStat)
+UDWORD getStructureStatHeight(const STRUCTURE_STATS *psStat)
 {
 	if (psStat->pIMD[0])
 	{
@@ -158,14 +158,14 @@ UDWORD getStructureStatHeight(STRUCTURE_STATS *psStat)
 	return 0;
 }
 
-void displayIMDButton(iIMDShape *IMDShape, const Vector3i *Rotation, const Vector3i *Position, int scale)
+void displayIMDButton(const iIMDShape *IMDShape, const Vector3i *Rotation, const Vector3i *Position, int scale)
 {
 	pie_Draw3DShape(IMDShape, 0, getPlayerColour(selectedPlayer), WZCOL_WHITE, pie_BUTTON, 0, setMatrix(Position, Rotation, scale));
 }
 
-static void sharedStructureButton(STRUCTURE_STATS *Stats, iIMDShape *strImd, const Vector3i *Rotation, const Vector3i *Position, int scale)
+static void sharedStructureButton(const STRUCTURE_STATS *Stats, const iIMDShape *strImd, const Vector3i *Rotation, const Vector3i *Position, int scale)
 {
-	iIMDShape *baseImd, *mountImd[MAX_WEAPONS], *weaponImd[MAX_WEAPONS];
+	const iIMDShape *baseImd, *mountImd[MAX_WEAPONS], *weaponImd[MAX_WEAPONS];
 	Vector3i pos = *Position;
 
 	/* HACK HACK HACK!
@@ -250,22 +250,22 @@ static void sharedStructureButton(STRUCTURE_STATS *Stats, iIMDShape *strImd, con
 	}
 }
 
-void displayStructureButton(STRUCTURE *psStructure, const Vector3i *rotation, const Vector3i *Position, int scale)
+void displayStructureButton(const STRUCTURE *psStructure, const Vector3i *rotation, const Vector3i *Position, int scale)
 {
 	sharedStructureButton(psStructure->pStructureType, psStructure->sDisplay.imd, rotation, Position, scale);
 }
 
-void displayStructureStatButton(STRUCTURE_STATS *Stats, const Vector3i *rotation, const Vector3i *Position, int scale)
+void displayStructureStatButton(const STRUCTURE_STATS *Stats, const Vector3i *rotation, const Vector3i *Position, int scale)
 {
 	sharedStructureButton(Stats, Stats->pIMD[0], rotation, Position, scale);
 }
 
 // Render a component given a BASE_STATS structure.
 //
-void displayComponentButton(BASE_STATS *Stat, const Vector3i *Rotation, const Vector3i *Position, int scale)
+void displayComponentButton(const BASE_STATS *Stat, const Vector3i *Rotation, const Vector3i *Position, int scale)
 {
-	iIMDShape *ComponentIMD = nullptr;
-	iIMDShape *MountIMD = nullptr;
+	const iIMDShape *ComponentIMD = nullptr;
+	const iIMDShape *MountIMD = nullptr;
 	int compID = StatIsComponent(Stat);
 
 	if (compID >= 0)
@@ -280,8 +280,8 @@ void displayComponentButton(BASE_STATS *Stat, const Vector3i *Rotation, const Ve
 
 	/* VTOL bombs are only stats allowed to have NULL ComponentIMD */
 	if (StatIsComponent(Stat) != COMP_WEAPON
-	    || (((WEAPON_STATS *)Stat)->weaponSubClass != WSC_BOMB
-	        && ((WEAPON_STATS *)Stat)->weaponSubClass != WSC_EMP))
+	    || (((const WEAPON_STATS *)Stat)->weaponSubClass != WSC_BOMB
+	        && ((const WEAPON_STATS *)Stat)->weaponSubClass != WSC_EMP))
 	{
 		ASSERT(ComponentIMD, "No ComponentIMD");
 	}
@@ -305,10 +305,10 @@ void displayComponentButton(BASE_STATS *Stat, const Vector3i *Rotation, const Ve
 
 // Render a research item given a BASE_STATS structure.
 //
-void displayResearchButton(BASE_STATS *Stat, const Vector3i *Rotation, const Vector3i *Position, int scale)
+void displayResearchButton(const BASE_STATS *Stat, const Vector3i *Rotation, const Vector3i *Position, int scale)
 {
-	iIMDShape *ResearchIMD = ((RESEARCH *)Stat)->pIMD;
-	iIMDShape *MountIMD = ((RESEARCH *)Stat)->pIMD2;
+	const iIMDShape *ResearchIMD = ((const RESEARCH *)Stat)->pIMD;
+	const iIMDShape *MountIMD = ((const RESEARCH *)Stat)->pIMD2;
 
 	ASSERT(ResearchIMD, "ResearchIMD is NULL");
 	if (ResearchIMD)
@@ -324,21 +324,21 @@ void displayResearchButton(BASE_STATS *Stat, const Vector3i *Rotation, const Vec
 }
 
 
-static inline iIMDShape *getLeftPropulsionIMD(DROID *psDroid)
+static inline const iIMDShape *getLeftPropulsionIMD(const DROID *psDroid)
 {
 	int bodyStat = psDroid->asBits[COMP_BODY];
 	int propStat = psDroid->asBits[COMP_PROPULSION];
 	return asBodyStats[bodyStat].ppIMDList[propStat * NUM_PROP_SIDES + LEFT_PROP];
 }
 
-static inline iIMDShape *getRightPropulsionIMD(DROID *psDroid)
+static inline const iIMDShape *getRightPropulsionIMD(const DROID *psDroid)
 {
 	int bodyStat = psDroid->asBits[COMP_BODY];
 	int propStat = psDroid->asBits[COMP_PROPULSION];
 	return asBodyStats[bodyStat].ppIMDList[propStat * NUM_PROP_SIDES + RIGHT_PROP];
 }
 
-void drawMuzzleFlash(WEAPON sWeap, iIMDShape *weaponImd, iIMDShape *flashImd, PIELIGHT buildingBrightness, int pieFlag, int iPieData, const glm::mat4 &viewMatrix, UBYTE colour)
+void drawMuzzleFlash(WEAPON sWeap, const iIMDShape *weaponImd, const iIMDShape *flashImd, PIELIGHT buildingBrightness, int pieFlag, int iPieData, const glm::mat4 &viewMatrix, UBYTE colour)
 {
 	if (!weaponImd || !flashImd || !weaponImd->nconnectors || graphicsTime < sWeap.lastFired)
 	{
@@ -382,7 +382,7 @@ void drawMuzzleFlash(WEAPON sWeap, iIMDShape *weaponImd, iIMDShape *flashImd, PI
 // removed mountRotation,they get such stuff from psObj directly now
 static bool displayCompObj(DROID *psDroid, bool bButton, const glm::mat4 &viewMatrix)
 {
-	iIMDShape *psMoveAnim, *psStillAnim;
+	const iIMDShape *psMoveAnim, *psStillAnim;
 	SDWORD				iConnector;
 	PROPULSION_STATS	*psPropStats;
 	SDWORD				pieFlag, iPieData;
@@ -444,7 +444,7 @@ static bool displayCompObj(DROID *psDroid, bool bButton, const glm::mat4 &viewMa
 		modelMatrix *= glm::translate(glm::vec3(0.f, -world_coord(1) / 2.3f, 0.f));
 	}
 
-	iIMDShape *psShapeProp = (leftFirst ? getLeftPropulsionIMD(psDroid) : getRightPropulsionIMD(psDroid));
+	const iIMDShape *psShapeProp = (leftFirst ? getLeftPropulsionIMD(psDroid) : getRightPropulsionIMD(psDroid));
 	if (psShapeProp)
 	{
 		if (pie_Draw3DShape(psShapeProp, 0, colour, brightness, pieFlag, iPieData, viewMatrix * modelMatrix))
@@ -466,10 +466,10 @@ static bool displayCompObj(DROID *psDroid, bool bButton, const glm::mat4 &viewMa
 	}
 
 	/* Get the body graphic now*/
-	iIMDShape *psShapeBody = BODY_IMD(psDroid, psDroid->player);
+	const iIMDShape *psShapeBody = BODY_IMD(psDroid, psDroid->player);
 	if (psShapeBody)
 	{
-		iIMDShape *strImd = psShapeBody;
+		const iIMDShape *strImd = psShapeBody;
 		if (psDroid->droidType == DROID_PERSON)
 		{
 			modelMatrix *= glm::scale(glm::vec3(.75f)); // FIXME - hideous....!!!!
@@ -588,7 +588,7 @@ static bool displayCompObj(DROID *psDroid, bool bButton, const glm::mat4 &viewMa
 					}
 
 					/* Get the mount graphic */
-					iIMDShape *psShape = WEAPON_MOUNT_IMD(psDroid, i);
+					const iIMDShape *psShape = WEAPON_MOUNT_IMD(psDroid, i);
 
 					int recoilValue = getRecoil(psDroid->asWeaps[i]);
 					localModelMatrix *= glm::translate(glm::vec3(0.f, 0.f, recoilValue / 3.f));
@@ -646,8 +646,8 @@ static bool displayCompObj(DROID *psDroid, bool bButton, const glm::mat4 &viewMa
 		case DROID_CYBORG_REPAIR:
 			{
 				Rotation rot = getInterpolatedWeaponRotation(psDroid, 0, graphicsTime);
-				iIMDShape *psShape = nullptr;
-				iIMDShape *psMountShape = nullptr;
+				const iIMDShape *psShape = nullptr;
+				const iIMDShape *psMountShape = nullptr;
 
 				switch (psDroid->droidType)
 				{
@@ -784,7 +784,7 @@ static bool displayCompObj(DROID *psDroid, bool bButton, const glm::mat4 &viewMa
 
 // Render a composite droid given a DROID_TEMPLATE structure.
 //
-void displayComponentButtonTemplate(DROID_TEMPLATE *psTemplate, const Vector3i *Rotation, const Vector3i *Position, int scale)
+void displayComponentButtonTemplate(const DROID_TEMPLATE *psTemplate, const Vector3i *Rotation, const Vector3i *Position, int scale)
 {
 	const glm::mat4 matrix = setMatrix(Position, Rotation, scale);
 
@@ -900,7 +900,7 @@ void destroyFXDroid(DROID *psDroid, unsigned impactTime)
 {
 	for (int i = 0; i < 5; ++i)
 	{
-		iIMDShape *psImd = nullptr;
+		const iIMDShape *psImd = nullptr;
 
 		int maxHorizontalScatter = TILE_UNITS / 4;
 		int heightScatter = TILE_UNITS / 5;
@@ -966,7 +966,7 @@ void destroyFXDroid(DROID *psDroid, unsigned impactTime)
 void	compPersonToBits(DROID *psDroid)
 {
 	Vector3i position;	//,rotation,velocity;
-	iIMDShape	*headImd, *legsImd, *armImd, *bodyImd;
+	const iIMDShape	*headImd, *legsImd, *armImd, *bodyImd;
 	UDWORD		col;
 
 	if (!psDroid->visible[selectedPlayer])

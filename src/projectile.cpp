@@ -957,7 +957,7 @@ static void proj_ImpactFunc(PROJECTILE *psObj)
 	SDWORD          iAudioImpactID;
 	int32_t         relativeDamage;
 	Vector3i        position, scatter;
-	iIMDShape       *imd;
+	const iIMDShape *imd;
 	BASE_OBJECT     *temp;
 
 	ASSERT_OR_RETURN(, psObj != nullptr, "Invalid pointer");

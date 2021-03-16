@@ -237,9 +237,9 @@ bool statsAllocConstruct(UDWORD	numStats)
 *		Load stats functions
 *******************************************************************************/
 
-static iIMDShape *statsGetIMD(WzConfig &json, BASE_STATS *psStats, const WzString& key, const WzString& key2 = WzString())
+static const iIMDShape *statsGetIMD(WzConfig &json, BASE_STATS *psStats, const WzString& key, const WzString& key2 = WzString())
 {
-	iIMDShape *retval = nullptr;
+	const iIMDShape *retval = nullptr;
 	if (json.contains(key))
 	{
 		auto value = json.json(key);
