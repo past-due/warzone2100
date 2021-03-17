@@ -43,6 +43,8 @@
 #endif
 #include <glm/gtx/transform.hpp>
 
+#include <algorithm>
+
 #define GetRadius(x) ((x)->sradius)
 
 #define	DEFAULT_COMPONENT_TRANSLUCENCY	128
@@ -191,7 +193,7 @@ static void sharedStructureButton(const STRUCTURE_STATS *Stats, const iIMDShape 
 	{
 		weaponImd[0] = nullptr;
 		mountImd[0] = nullptr;
-		for (int i = 0; i < Stats->numWeaps; i++)
+		for (uint32_t i = 0; i < Stats->numWeaps; i++)
 		{
 			weaponImd[i] = nullptr;//weapon is gun ecm or sensor
 			mountImd[i] = nullptr;
@@ -199,7 +201,7 @@ static void sharedStructureButton(const STRUCTURE_STATS *Stats, const iIMDShape 
 		//get an imd to draw on the connector priority is weapon, ECM, sensor
 		//check for weapon
 		//can only have the MAX_WEAPONS
-		for (int i = 0; i < MAX(1, Stats->numWeaps); i++)
+		for (uint32_t i = 0; i < std::max<uint32_t>(1, Stats->numWeaps); i++)
 		{
 			//can only have the one
 			if (Stats->psWeapStat[i] != nullptr)
