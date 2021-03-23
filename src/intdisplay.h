@@ -60,7 +60,7 @@ struct ImdObject
 	{
 		return ImdObject(p, IMDTYPE_DROIDTEMPLATE);
 	}
-	static ImdObject Component(BASE_STATS *p)
+	static ImdObject Component(const BASE_STATS *p)
 	{
 		return ImdObject(p, IMDTYPE_COMPONENT);
 	}
@@ -68,11 +68,11 @@ struct ImdObject
 	{
 		return ImdObject(p, IMDTYPE_STRUCTURE);
 	}
-	static ImdObject Research(BASE_STATS *p)
+	static ImdObject Research(const BASE_STATS *p)
 	{
 		return ImdObject(p, IMDTYPE_RESEARCH);
 	}
-	static ImdObject StructureStat(BASE_STATS *p)
+	static ImdObject StructureStat(const BASE_STATS *p)
 	{
 		return ImdObject(p, IMDTYPE_STRUCTURESTAT);
 	}

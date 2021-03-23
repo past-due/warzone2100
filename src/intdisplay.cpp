@@ -81,7 +81,7 @@
 //the loop default value
 #define DEFAULT_LOOP		1
 
-static void StatGetResearchImage(BASE_STATS *psStat, Image *image, const iIMDShape **Shape, BASE_STATS **ppGraphicData, bool drawTechIcon);
+static void StatGetResearchImage(const BASE_STATS *psStat, Image *image, const iIMDShape **Shape, const BASE_STATS **ppGraphicData, bool drawTechIcon);
 
 
 static int FormOpenAudioID;	// ID of sfx to play when form opens.
@@ -381,7 +381,7 @@ void IntStatusButton::display(int xOffset, int yOffset)
 {
 	STRUCTURE           *Structure;
 	DROID               *Droid;
-	BASE_STATS          *Stats, *psResGraphic;
+	const BASE_STATS    *Stats, *psResGraphic;
 	UDWORD              compID;
 	bool	            bOnHold = false;
 	ImdObject object;
@@ -569,8 +569,8 @@ IntStatsButton::IntStatsButton()
 //
 void IntStatsButton::display(int xOffset, int yOffset)
 {
-	BASE_STATS     *psResGraphic;
-	SDWORD          compID;
+	const BASE_STATS     *psResGraphic;
+	SDWORD               compID;
 
 	initDisplay();
 
@@ -1582,23 +1582,23 @@ bool StatIsResearch(const BASE_STATS *Stat)
 	return Stat->hasType(STAT_RESEARCH);
 }
 
-static void StatGetResearchImage(BASE_STATS *psStat, Image *image, const iIMDShape **Shape, BASE_STATS **ppGraphicData, bool drawTechIcon)
+static void StatGetResearchImage(const BASE_STATS *psStat, Image *image, const iIMDShape **Shape, const BASE_STATS **ppGraphicData, bool drawTechIcon)
 {
-	if (drawTechIcon && ((RESEARCH *)psStat)->iconID != NO_RESEARCH_ICON)
+	if (drawTechIcon && ((const RESEARCH *)psStat)->iconID != NO_RESEARCH_ICON)
 	{
-		*image = Image(IntImages, ((RESEARCH *)psStat)->iconID);
+		*image = Image(IntImages, ((const RESEARCH *)psStat)->iconID);
 	}
 	//if the research has a Stat associated with it - use this as display in the button
-	if (((RESEARCH *)psStat)->psStat)
+	if (((const RESEARCH *)psStat)->psStat)
 	{
-		*ppGraphicData = ((RESEARCH *)psStat)->psStat;
+		*ppGraphicData = ((const RESEARCH *)psStat)->psStat;
 		//make sure the IMDShape is initialised
 		*Shape = nullptr;
 	}
 	else
 	{
 		//no stat so just just the IMD associated with the research
-		*Shape = ((RESEARCH *)psStat)->pIMD;
+		*Shape = ((const RESEARCH *)psStat)->pIMD;
 		//make sure the stat is initialised
 		*ppGraphicData = nullptr;
 	}
