@@ -25,6 +25,7 @@
 #include <string.h>
 
 #include "lib/framework/frame.h"
+#include "lib/framework/wzapp.h"
 #include "lib/ivis_opengl/ivisdef.h"
 #include "lib/ivis_opengl/imd.h"
 #include "lib/ivis_opengl/piefunc.h"
@@ -44,6 +45,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <readerwriterqueue/readerwriterqueue.h>
+
 #define BUFFER_OFFSET(i) (reinterpret_cast<char *>(i))
 #define SHADOW_END_DISTANCE (8000*8000) // Keep in sync with lighting.c:FOG_END
 
@@ -54,11 +57,16 @@
 static size_t pieCount = 0;
 static size_t polyCount = 0;
 static bool shadows = false;
+static bool multiThreadedShadows = true;
 static gfx_api::gfxFloat lighting0[LIGHT_MAX][4];
+
+#define MAX_SHADOW_THREADS 2
 
 /*
  *	Source
  */
+
+static void initShadowThreads(); // forward-declare
 
 void pie_InitLighting()
 {
@@ -71,6 +79,12 @@ void pie_InitLighting()
 		{1.0f, 1.0f, 1.0f, 1.0f}  // LIGHT_SPECULAR
 	};
 	memcpy(lighting0, defaultLight, sizeof(lighting0));
+
+	if (multiThreadedShadows)
+	{
+		// start shadow computation threads (if needed)
+		initShadowThreads();
+	}
 }
 
 void pie_Lighting0(LIGHTING_TYPE entry, const float value[4])
@@ -122,10 +136,24 @@ struct SHAPE
 	float		stretch;
 };
 
+struct ShadowComputeResponse {
+	ShadowcastingShape request;
+	std::vector<Vector3f> result;
+};
+
+struct BackgroundShadowComputeChannels {
+	moodycamel::BlockingReaderWriterQueue<ShadowcastingShape> requestChannel;
+	moodycamel::BlockingReaderWriterQueue<ShadowComputeResponse> responseChannel;
+	std::atomic<bool> shouldQuit;
+};
+
 static std::vector<ShadowcastingShape> scshapes;
 static std::vector<SHAPE> tshapes;
 static std::vector<SHAPE> shapes;
 static gfx_api::buffer* pZeroedVertexBuffer = nullptr;
+static WZ_THREAD *shadowThread[MAX_SHADOW_THREADS] = {nullptr};
+static uint64_t kPolysSentPerThreadThisFrame[MAX_SHADOW_THREADS] = {0};
+static BackgroundShadowComputeChannels background_shadowcompute_queue[MAX_SHADOW_THREADS];
 
 static gfx_api::buffer* getZeroedVertexBuffer(size_t size)
 {
@@ -518,6 +546,11 @@ struct ShadowCache {
 		}
 		return oldItemsRemoved;
 	}
+
+	void removeAll()
+	{
+		shapeMap.clear();
+	}
 private:
 	uint64_t _currentFrame = 0;
 	ShapeMap shapeMap;
@@ -525,6 +558,7 @@ private:
 };
 
 static ShadowCache mainShadowCache;
+static ShadowCache pendingBackgroundShadowCache;
 
 // *NOT* thread-safe - one should exist per thread used to call pie_ComputeCachedShadowData
 struct ShadowComputationBuffers
@@ -596,6 +630,13 @@ static inline std::vector<Vector3f> pie_ComputeCachedShadowData(ShadowComputatio
 	return vertexes;
 }
 
+static void pie_sendBackgroundShadowThreadNoOp(size_t threadIdx)
+{
+	ShadowcastingShape noOpRequest;
+	noOpRequest.shape = nullptr;
+	background_shadowcompute_queue[threadIdx].requestChannel.enqueue(std::move(noOpRequest));
+}
+
 void pie_CleanUp()
 {
 	tshapes.clear();
@@ -606,6 +647,49 @@ void pie_CleanUp()
 		delete pZeroedVertexBuffer;
 		pZeroedVertexBuffer = nullptr;
 	}
+	mainShadowCache.removeAll();
+	pendingBackgroundShadowCache.removeAll();
+	if (multiThreadedShadows)
+	{
+		// shut down shadow computation threads
+		for (size_t threadIdx = 0; threadIdx < MAX_SHADOW_THREADS; threadIdx++)
+		{
+			if (!shadowThread[threadIdx])
+			{
+				continue;
+			}
+			background_shadowcompute_queue[threadIdx].shouldQuit.store(true);
+			pie_sendBackgroundShadowThreadNoOp(threadIdx);
+			wzThreadJoin(shadowThread[threadIdx]);
+			shadowThread[threadIdx] = nullptr;
+		}
+	}
+}
+
+static size_t GetTargetBackgroundShadowThread(size_t polys)
+{
+	size_t retThreadIdx = 0;
+#if MAX_SHADOW_THREADS > 2
+	for (size_t compareThreadIdx = 1; compareThreadIdx < MAX_SHADOW_THREADS; compareThreadIdx++)
+	{
+		if (kPolysSentPerThreadThisFrame[compareThreadIdx] < kPolysSentPerThreadThisFrame[retThreadIdx])
+		{
+			retThreadIdx = compareThreadIdx;
+		}
+	}
+#elif MAX_SHADOW_THREADS == 2
+	if (kPolysSentPerThreadThisFrame[0] < kPolysSentPerThreadThisFrame[1])
+	{
+		retThreadIdx = 0;
+	}
+	else
+	{
+		retThreadIdx = 1;
+	}
+#endif
+	kPolysSentPerThreadThisFrame[retThreadIdx] += static_cast<uint64_t>(polys);
+	kPolysSentPerThreadThisFrame[retThreadIdx] = std::max<uint64_t>(kPolysSentPerThreadThisFrame[retThreadIdx], 1);
+	return retThreadIdx;
 }
 
 static inline void pie_AddShadow(ShadowcastingShape&& scshape)
@@ -615,15 +699,40 @@ static inline void pie_AddShadow(ShadowcastingShape&& scshape)
 	const ShadowCache::CachedShadowData *pCached = mainShadowCache.findCacheForShadowDraw(scshape.shape, scshape.flag, scshape.flag_data, scshape.light);
 	if (pCached == nullptr)
 	{
-		static ShadowComputationBuffers compCache; // Static, to save allocations.
-		auto vertexes = pie_ComputeCachedShadowData(compCache, scshape);
+		// need to perform calculations
+		if (multiThreadedShadows)
+		{
+			if (!pendingBackgroundShadowCache.findCacheForShadowDraw(scshape.shape, scshape.flag, scshape.flag_data, scshape.light))
+			{
+				// dispatch computation to background thread(s)
+				// needs to receive a copy of ShadowcastingShape
+				size_t targetThread = GetTargetBackgroundShadowThread(scshape.shape->polys.size());
+				background_shadowcompute_queue[targetThread].requestChannel.enqueue(scshape);
 
-		ShadowCache::CachedShadowData& cache = mainShadowCache.createCacheForShadowDraw(scshape.shape, scshape.flag, scshape.flag_data, scshape.light);
-		cache.vertexes = std::move(vertexes);
-		pCached = &cache;
+				// record that this computation has been submitted to a background thread this frame
+				pendingBackgroundShadowCache.createCacheForShadowDraw(scshape.shape, scshape.flag, scshape.flag_data, scshape.light);
+			}
+
+			// store the shape
+			scshapes.push_back(std::move(scshape));
+
+			// then return immediately (as we'll handle results later after the heavy computation results are returned)
+			return;
+		}
+		else
+		{
+			// process on main thread now
+			static ShadowComputationBuffers compCache; // Static, to save allocations.
+			auto vertexes = pie_ComputeCachedShadowData(compCache, scshape);
+
+			ShadowCache::CachedShadowData& cache = mainShadowCache.createCacheForShadowDraw(scshape.shape, scshape.flag, scshape.flag_data, scshape.light);
+			cache.vertexes = std::move(vertexes);
+			pCached = &cache;
+		}
 	}
 
 	// Aggregate the vertexes (pre-computed with the modelViewMatrix)
+	// Just do this on the main thread because it isn't the bulk of computations
 	mainShadowCache.addPremultipliedVertexes(*pCached, scshape.matrix);
 }
 
@@ -706,8 +815,111 @@ bool pie_Draw3DShape(const iIMDShape *shape, int frame, int team, PIELIGHT colou
 	return true;
 }
 
+/** This runs in a separate thread */
+static int shadowThreadFunc(void *pInput)
+{
+	if (!pInput)
+	{
+		return 1;
+	}
+	BackgroundShadowComputeChannels* pChannels = static_cast<BackgroundShadowComputeChannels*>(pInput);
+	ShadowComputationBuffers compCache;
+
+	while (!pChannels->shouldQuit.load())
+	{
+		bool receivedEndOfFrameSignal = false;
+		while (!receivedEndOfFrameSignal)
+		{
+			ShadowComputeResponse response;
+			pChannels->requestChannel.wait_dequeue(response.request);
+			if (response.request.shape != nullptr)
+			{
+				// process the request
+				response.result = pie_ComputeCachedShadowData(compCache, response.request);
+			}
+			else
+			{
+				// the special "end of frame" signal
+				receivedEndOfFrameSignal = true;
+			}
+
+			// send the response
+			pChannels->responseChannel.enqueue(std::move(response));
+		}
+	}
+
+	return 0;
+}
+
+static void initShadowThreads()
+{
+	if (!multiThreadedShadows)
+	{
+		return;
+	}
+	// start shadow computation threads (if needed)
+	for (size_t threadIdx = 0; threadIdx < MAX_SHADOW_THREADS; threadIdx++)
+	{
+		if (shadowThread[threadIdx])
+		{
+			continue;
+		}
+		background_shadowcompute_queue[threadIdx].shouldQuit.store(false);
+		shadowThread[threadIdx] = wzThreadCreate(shadowThreadFunc, &background_shadowcompute_queue[threadIdx]);
+		wzThreadStart(shadowThread[threadIdx]);
+	}
+}
+
+static void pie_DrainBackgroundShadowComputeResponseQueue(ShadowCache &shadowCache, BackgroundShadowComputeChannels &backgroundChannels)
+{
+	bool receivedEndOfResponsesMsg = false;
+	ShadowComputeResponse response;
+	while (!receivedEndOfResponsesMsg)
+	{
+		backgroundChannels.responseChannel.wait_dequeue(response);
+		if (response.request.shape == nullptr)
+		{
+			receivedEndOfResponsesMsg = true;
+			break;
+		}
+
+		ShadowcastingShape &scshape = response.request;
+
+		ShadowCache::CachedShadowData& cache = shadowCache.createCacheForShadowDraw(scshape.shape, scshape.flag, scshape.flag_data, scshape.light);
+		cache.vertexes = std::move(response.result);
+	}
+}
+
 static void pie_ShadowDrawLoop(ShadowCache &shadowCache)
 {
+	if (multiThreadedShadows)
+	{
+		// Obtain the results from the background computation threads and populate the shadow cache
+		for (size_t threadIdx = 0; threadIdx < 2; threadIdx++)
+		{
+			if (kPolysSentPerThreadThisFrame[threadIdx] == 0)
+			{
+				continue;
+			}
+			pie_DrainBackgroundShadowComputeResponseQueue(shadowCache, background_shadowcompute_queue[threadIdx]);
+		}
+
+		// Then for each shape where a calculation was sent to a background thread...
+		for (size_t i = 0; i < scshapes.size(); i++)
+		{
+			const ShadowCache::CachedShadowData *pCached = shadowCache.findCacheForShadowDraw(scshapes[i].shape, scshapes[i].flag, scshapes[i].flag_data, scshapes[i].light);
+			if (pCached == nullptr)
+			{
+				ASSERT(pCached != nullptr, "Did not receive shadow calculation from background thread");
+				continue;
+			}
+
+			// Aggregate the vertexes (pre-computed with the modelViewMatrix)
+			// Just do this on the main thread because it isn't the bulk of computations
+			shadowCache.addPremultipliedVertexes(*pCached, scshapes[i].matrix);
+		}
+	}
+
 	const auto &premultipliedVertexes = shadowCache.getPremultipliedVertexes();
 	if (premultipliedVertexes.size() > 0)
 	{
@@ -747,6 +959,7 @@ static void pie_DrawShadows(uint64_t currentGameFrame)
 
 	scshapes.resize(0);
 	mainShadowCache.removeUnused();
+	pendingBackgroundShadowCache.removeAll();
 }
 
 struct less_than_shape
@@ -760,10 +973,28 @@ struct less_than_shape
 void pie_StartFrameShadows(uint64_t currentGameFrame)
 {
 	mainShadowCache.setCurrentFrame(currentGameFrame);
+	pendingBackgroundShadowCache.setCurrentFrame(currentGameFrame);
+	for (size_t threadIdx = 0; threadIdx < MAX_SHADOW_THREADS; threadIdx++)
+	{
+		kPolysSentPerThreadThisFrame[threadIdx] = 0;
+	}
 }
 
 void pie_RemainingPasses(uint64_t currentGameFrame)
 {
+	if (shadows && multiThreadedShadows)
+	{
+		// nothing can draw shadows after this point, so signal to the background threads that they are done with work for this frame
+		for (size_t threadIdx = 0; threadIdx < 2; threadIdx++)
+		{
+			if (kPolysSentPerThreadThisFrame[threadIdx] == 0)
+			{
+				continue;
+			}
+			pie_sendBackgroundShadowThreadNoOp(threadIdx);
+		}
+	}
+
 	// Draw models
 	// sort list to reduce state changes
 	std::sort(shapes.begin(), shapes.end(), less_than_shape());
