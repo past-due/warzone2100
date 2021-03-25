@@ -524,99 +524,76 @@ private:
 	std::vector<Vector3f> vertexes;
 };
 
-enum DrawShadowResult {
-	DRAW_SUCCESS_CACHED,
-	DRAW_SUCCESS_UNCACHED
+static ShadowCache mainShadowCache;
+
+// *NOT* thread-safe - one should exist per thread used to call pie_ComputeCachedShadowData
+struct ShadowComputationBuffers
+{
+	std::vector<EDGE> edgelist;
+	std::vector<EDGE> edgelistFlipped;
+	std::vector<EDGE> edgelistFiltered;
 };
 
-/// Draw the shadow for a shape
-/// Prequisite:
-///		Caller must call the following before all calls to pie_DrawShadow():
-///			const auto &program = pie_ActivateShader(SHADER_GENERIC_COLOR, pie_PerspectiveGet(), glm::vec4());
-///			glEnableVertexAttribArray(program.locVertex);
-///		and must call the following after all calls to pie_DrawShadow():
-///			glDisableVertexAttribArray(program.locVertex);
-///			pie_DeactivateShader();
-///		The only place this is currently called is pie_ShadowDrawLoop(), which handles this properly.
-static inline DrawShadowResult pie_DrawShadow(ShadowCache &shadowCache, const iIMDShape *shape, int flag, int flag_data, const glm::vec4 &light, const glm::mat4 &modelViewMatrix)
+static inline std::vector<Vector3f> pie_ComputeCachedShadowData(ShadowComputationBuffers& compCache, const ShadowcastingShape& scshape)
 {
-	static std::vector<EDGE> edgelist;  // Static, to save allocations.
-	static std::vector<EDGE> edgelistFlipped;  // Static, to save allocations.
-	static std::vector<EDGE> edgelistFiltered;  // Static, to save allocations.
+	std::vector<EDGE>& edgelist = compCache.edgelist;  // Reuse, to save allocations.
+	std::vector<EDGE>& edgelistFlipped = compCache.edgelistFlipped;  // Reuse, to save allocations.
+	std::vector<EDGE>& edgelistFiltered = compCache.edgelistFiltered;  // Reuse, to save allocations.
+
 	EDGE *drawlist = nullptr;
-
 	size_t edge_count;
-	DrawShadowResult result;
 
-	// Find cached data (if available)
-	// Note: The modelViewMatrix is not used for calculating the sorted / filtered vertices, so it's not included
-	const ShadowCache::CachedShadowData *pCached = shadowCache.findCacheForShadowDraw(shape, flag, flag_data, light);
-	if (pCached == nullptr)
+	const Vector3f *pVertices = scshape.shape->pShadowPoints->data();
+	edgelist.clear();
+	glm::vec3 p[3];
+	for (const iIMDPoly &poly : *(scshape.shape->pShadowPolys))
 	{
-		const Vector3f *pVertices = shape->pShadowPoints->data();
-		edgelist.clear();
-		glm::vec3 p[3];
-		for (const iIMDPoly &poly : *(shape->pShadowPolys))
+		for (int j = 0; j < 3; ++j)
 		{
-			for (int j = 0; j < 3; ++j)
+			uint32_t current = poly.pindex[j];
+			p[j] = glm::vec3(pVertices[current].x, scale_y(pVertices[current].y, scshape.flag, scshape.flag_data), pVertices[current].z);
+		}
+		if (glm::dot(glm::cross(p[2] - p[0], p[1] - p[0]), glm::vec3(scshape.light)) > 0.0f)
+		{
+			for (int n = 0; n < 3; ++n)
 			{
-				uint32_t current = poly.pindex[j];
-				p[j] = glm::vec3(pVertices[current].x, scale_y(pVertices[current].y, flag, flag_data), pVertices[current].z);
-			}
-			if (glm::dot(glm::cross(p[2] - p[0], p[1] - p[0]), glm::vec3(light)) > 0.0f)
-			{
-				for (int n = 0; n < 3; ++n)
-				{
-					// Add the edges
-					edgelist.push_back({poly.pindex[n], poly.pindex[(n + 1)%3]});
-				}
+				// Add the edges
+				edgelist.push_back({poly.pindex[n], poly.pindex[(n + 1)%3]});
 			}
 		}
-
-		// Remove duplicate pairs from the edge list. For example, in the list ((1 2), (2 6), (6 2), (3, 4)), remove (2 6) and (6 2).
-		edgelistFlipped = edgelist;
-		std::for_each(edgelistFlipped.begin(), edgelistFlipped.end(), flipEdge);
-		std::sort(edgelist.begin(), edgelist.end(), edgeLessThan);
-		std::sort(edgelistFlipped.begin(), edgelistFlipped.end(), edgeLessThan);
-		edgelistFiltered.resize(edgelist.size());
-		edgelistFiltered.erase(std::set_difference(edgelist.begin(), edgelist.end(), edgelistFlipped.begin(), edgelistFlipped.end(), edgelistFiltered.begin(), edgeLessThan), edgelistFiltered.end());
-
-		drawlist = &edgelistFiltered[0];
-		edge_count = edgelistFiltered.size();
-		//debug(LOG_WARNING, "we have %i edges", edge_count);
-
-		std::vector<Vector3f> vertexes;
-		vertexes.reserve(edge_count * 6);
-		for (size_t i = 0; i < edge_count; i++)
-		{
-			int a = drawlist[i].from, b = drawlist[i].to;
-
-			glm::vec3 v1(pVertices[b].x, scale_y(pVertices[b].y, flag, flag_data), pVertices[b].z);
-			glm::vec3 v3(pVertices[a].x + light[0], scale_y(pVertices[a].y, flag, flag_data) + light[1], pVertices[a].z + light[2]);
-
-			vertexes.push_back(v1);
-			vertexes.push_back(glm::vec3(pVertices[b].x + light[0], scale_y(pVertices[b].y, flag, flag_data) + light[1], pVertices[b].z + light[2])); //v2
-			vertexes.push_back(v3);
-
-			vertexes.push_back(v3);
-			vertexes.push_back(glm::vec3(pVertices[a].x, scale_y(pVertices[a].y, flag, flag_data), pVertices[a].z)); //v4
-			vertexes.push_back(v1);
-		}
-
-		ShadowCache::CachedShadowData& cache = shadowCache.createCacheForShadowDraw(shape, flag, flag_data, light);
-		cache.vertexes = std::move(vertexes);
-		result = DRAW_SUCCESS_UNCACHED;
-		pCached = &cache;
 	}
-	else
+
+	// Remove duplicate pairs from the edge list. For example, in the list ((1 2), (2 6), (6 2), (3, 4)), remove (2 6) and (6 2).
+	edgelistFlipped = edgelist;
+	std::for_each(edgelistFlipped.begin(), edgelistFlipped.end(), flipEdge);
+	std::sort(edgelist.begin(), edgelist.end(), edgeLessThan);
+	std::sort(edgelistFlipped.begin(), edgelistFlipped.end(), edgeLessThan);
+	edgelistFiltered.resize(edgelist.size());
+	edgelistFiltered.erase(std::set_difference(edgelist.begin(), edgelist.end(), edgelistFlipped.begin(), edgelistFlipped.end(), edgelistFiltered.begin(), edgeLessThan), edgelistFiltered.end());
+
+	drawlist = &edgelistFiltered[0];
+	edge_count = edgelistFiltered.size();
+	//debug(LOG_WARNING, "we have %i edges", edge_count);
+
+	std::vector<Vector3f> vertexes;
+	vertexes.reserve(edge_count * 6);
+	for (size_t i = 0; i < edge_count; i++)
 	{
-		result = DRAW_SUCCESS_CACHED;
+		int a = drawlist[i].from, b = drawlist[i].to;
+
+		glm::vec3 v1(pVertices[b].x, scale_y(pVertices[b].y, scshape.flag, scshape.flag_data), pVertices[b].z);
+		glm::vec3 v3(pVertices[a].x + scshape.light[0], scale_y(pVertices[a].y, scshape.flag, scshape.flag_data) + scshape.light[1], pVertices[a].z + scshape.light[2]);
+
+		vertexes.push_back(v1);
+		vertexes.push_back(glm::vec3(pVertices[b].x + scshape.light[0], scale_y(pVertices[b].y, scshape.flag, scshape.flag_data) + scshape.light[1], pVertices[b].z + scshape.light[2])); //v2
+		vertexes.push_back(v3);
+
+		vertexes.push_back(v3);
+		vertexes.push_back(glm::vec3(pVertices[a].x, scale_y(pVertices[a].y, scshape.flag, scshape.flag_data), pVertices[a].z)); //v4
+		vertexes.push_back(v1);
 	}
 
-	// Aggregate the vertexes (pre-computed with the modelViewMatrix)
-	shadowCache.addPremultipliedVertexes(*pCached, modelViewMatrix);
-
-	return result;
+	return vertexes;
 }
 
 void pie_CleanUp()
@@ -629,6 +606,54 @@ void pie_CleanUp()
 		delete pZeroedVertexBuffer;
 		pZeroedVertexBuffer = nullptr;
 	}
+}
+
+static inline void pie_AddShadow(ShadowcastingShape&& scshape)
+{
+	// Find cached data (if available)
+	// Note: The modelViewMatrix is not used for calculating the sorted / filtered vertices, so it's not included
+	const ShadowCache::CachedShadowData *pCached = mainShadowCache.findCacheForShadowDraw(scshape.shape, scshape.flag, scshape.flag_data, scshape.light);
+	if (pCached == nullptr)
+	{
+		static ShadowComputationBuffers compCache; // Static, to save allocations.
+		auto vertexes = pie_ComputeCachedShadowData(compCache, scshape);
+
+		ShadowCache::CachedShadowData& cache = mainShadowCache.createCacheForShadowDraw(scshape.shape, scshape.flag, scshape.flag_data, scshape.light);
+		cache.vertexes = std::move(vertexes);
+		pCached = &cache;
+	}
+
+	// Aggregate the vertexes (pre-computed with the modelViewMatrix)
+	mainShadowCache.addPremultipliedVertexes(*pCached, scshape.matrix);
+}
+
+static bool pie_AddShadow(const iIMDShape *shape, int pieFlag, int pieFlagData, const glm::mat4 &modelView)
+{
+	float distance;
+
+	// draw a shadow
+	ShadowcastingShape scshape;
+	scshape.matrix = modelView;
+	distance = scshape.matrix[3][0] * scshape.matrix[3][0];
+	distance += scshape.matrix[3][1] * scshape.matrix[3][1];
+	distance += scshape.matrix[3][2] * scshape.matrix[3][2];
+
+	// if object is too far in the fog don't generate a shadow.
+	if (distance < SHADOW_END_DISTANCE)
+	{
+		// Calculate the light position relative to the object
+		glm::vec4 pos_light0 = glm::vec4(currentSunPosition, 0.f);
+		glm::mat4 invmat = glm::inverse(scshape.matrix);
+
+		scshape.light = invmat * pos_light0;
+		scshape.shape = shape;
+		scshape.flag = pieFlag;
+		scshape.flag_data = pieFlagData;
+
+		pie_AddShadow(std::move(scshape));
+		return true;
+	}
+	return false;
 }
 
 bool pie_Draw3DShape(const iIMDShape *shape, int frame, int team, PIELIGHT colour, int pieFlag, int pieFlagData, const glm::mat4 &modelView)
@@ -672,29 +697,7 @@ bool pie_Draw3DShape(const iIMDShape *shape, int frame, int team, PIELIGHT colou
 		{
 			if (shadows && (pieFlag & pie_SHADOW))
 			{
-				float distance;
-
-				// draw a shadow
-				ShadowcastingShape scshape;
-				scshape.matrix = modelView;
-				distance = scshape.matrix[3][0] * scshape.matrix[3][0];
-				distance += scshape.matrix[3][1] * scshape.matrix[3][1];
-				distance += scshape.matrix[3][2] * scshape.matrix[3][2];
-
-				// if object is too far in the fog don't generate a shadow.
-				if (distance < SHADOW_END_DISTANCE)
-				{
-					// Calculate the light position relative to the object
-					glm::vec4 pos_light0 = glm::vec4(currentSunPosition, 0.f);
-					glm::mat4 invmat = glm::inverse(scshape.matrix);
-
-					scshape.light = invmat * pos_light0;
-					scshape.shape = shape;
-					scshape.flag = pieFlag;
-					scshape.flag_data = pieFlagData;
-
-					scshapes.push_back(scshape);
-				}
+				pie_AddShadow(shape, pieFlag, pieFlagData, modelView);
 			}
 			shapes.push_back(tshape);
 		}
@@ -705,21 +708,6 @@ bool pie_Draw3DShape(const iIMDShape *shape, int frame, int team, PIELIGHT colou
 
 static void pie_ShadowDrawLoop(ShadowCache &shadowCache)
 {
-	size_t cachedShadowDraws = 0;
-	size_t uncachedShadowDraws = 0;
-	for (unsigned i = 0; i < scshapes.size(); i++)
-	{
-		DrawShadowResult result = pie_DrawShadow(shadowCache, scshapes[i].shape, scshapes[i].flag, scshapes[i].flag_data, scshapes[i].light, scshapes[i].matrix);
-		if (result == DRAW_SUCCESS_CACHED)
-		{
-			++cachedShadowDraws;
-		}
-		else
-		{
-			++uncachedShadowDraws;
-		}
-	}
-
 	const auto &premultipliedVertexes = shadowCache.getPremultipliedVertexes();
 	if (premultipliedVertexes.size() > 0)
 	{
@@ -746,22 +734,19 @@ static void pie_ShadowDrawLoop(ShadowCache &shadowCache)
 //	debug(LOG_INFO, "Cached shadow draws: %lu, uncached shadow draws: %lu", cachedShadowDraws, uncachedShadowDraws);
 }
 
-static ShadowCache shadowCache;
-
 static void pie_DrawShadows(uint64_t currentGameFrame)
 {
 	const float width = pie_GetVideoBufferWidth();
 	const float height = pie_GetVideoBufferHeight();
-	shadowCache.setCurrentFrame(currentGameFrame);
 
-	pie_ShadowDrawLoop(shadowCache);
+	pie_ShadowDrawLoop(mainShadowCache);
 
 	PIELIGHT grey;
 	grey.byte = { 0, 0, 0, 128 };
 	pie_BoxFill_alpha(0, 0, width, height, grey);
 
 	scshapes.resize(0);
-	shadowCache.removeUnused();
+	mainShadowCache.removeUnused();
 }
 
 struct less_than_shape
@@ -771,6 +756,11 @@ struct less_than_shape
 		return (shape1.shape < shape2.shape);
 	}
 };
+
+void pie_StartFrameShadows(uint64_t currentGameFrame)
+{
+	mainShadowCache.setCurrentFrame(currentGameFrame);
+}
 
 void pie_RemainingPasses(uint64_t currentGameFrame)
 {

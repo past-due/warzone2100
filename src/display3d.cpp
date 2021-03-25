@@ -1172,6 +1172,8 @@ static void drawTiles(iView *player)
 
 	wzPerfEnd(PERF_START_FRAME);
 
+	pie_StartFrameShadows(currentGameFrame);
+
 	/* This is done here as effects can light the terrain - pause mode problems though */
 	wzPerfBegin(PERF_EFFECTS, "3D scene - effects");
 	processEffects(viewMatrix);
