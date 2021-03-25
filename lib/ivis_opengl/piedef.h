@@ -55,6 +55,7 @@ void pie_setShadows(bool drawShadows);
 void pie_InitLighting();
 void pie_Lighting0(LIGHTING_TYPE entry, const float value[4]);
 
+void pie_StartFrameShadows(uint64_t currentGameFrame);
 void pie_RemainingPasses(uint64_t currentGameFrame);
 
 void pie_CleanUp();
