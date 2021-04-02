@@ -629,12 +629,13 @@ namespace gfx_api
 	using TerrainLayer = typename gfx_api::pipeline_state_helper<rasterizer_state<REND_ADDITIVE, DEPTH_CMP_LEQ_WRT_OFF, 255, polygon_offset::disabled, stencil_mode::stencil_disabled, cull_mode::back>, primitive_type::triangles, index_type::u32,
 	std::tuple<
 	vertex_buffer_description<12, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>>,
-	vertex_buffer_description<4, vertex_attribute_description<color, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
+	vertex_buffer_description<4, vertex_attribute_description<color, gfx_api::vertex_attribute_type::u8x4_norm, 0>>,
+	vertex_buffer_description<12, vertex_attribute_description<normal, gfx_api::vertex_attribute_type::float3, 0>>
 	>, std::tuple<
 	texture_description<0, sampler_type::anisotropic_repeat>,
 	texture_description<1, sampler_type::bilinear>,
-	texture_description<2, sampler_type::anisotropic>, // normal map
-	texture_description<3, sampler_type::anisotropic> // specular map
+	texture_description<2, sampler_type::anisotropic_repeat>, // normal map
+	texture_description<3, sampler_type::anisotropic_repeat> // specular map
 	>, SHADER_TERRAIN>;
 
 	template<>
