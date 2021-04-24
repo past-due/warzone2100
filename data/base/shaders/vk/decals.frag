@@ -5,9 +5,9 @@ layout(set = 1, binding = 1) uniform sampler2D lightmap_tex;
 
 layout(std140, set = 0, binding = 0) uniform cbuffer {
 	mat4 ModelViewProjectionMatrix;
+	mat4 lightTextureMatrix;
 	vec4 paramxlight;
 	vec4 paramylight;
-	mat4 lightTextureMatrix;
 	vec4 fogColor;
 	int fogEnabled; // whether fog is enabled
 	float fogEnd;
@@ -23,6 +23,7 @@ layout(location = 0) out vec4 FragColor;
 void main()
 {
 	vec4 fragColor = texture(tex, uv_tex) * texture(lightmap_tex, uv_lightmap);
+	
 	if (fogEnabled > 0)
 	{
 		// Calculate linear fog
@@ -30,7 +31,8 @@ void main()
 		fogFactor = clamp(fogFactor, 0.0, 1.0);
 
 		// Return fragment color
-		fragColor = mix(fogColor, fragColor, fogFactor);
+		fragColor = mix(fragColor, vec4(fogColor.xyz, fragColor.w), fogFactor);
 	}
+	
 	FragColor = fragColor;
 }

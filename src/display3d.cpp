@@ -800,6 +800,8 @@ void draw3DScene()
 	/* Set 3D world origins */
 	pie_SetGeometricOffset(rendSurface.width / 2, geoOffset);
 
+	updateFogDistance(distance);
+
 	/* Now, draw the terrain */
 	drawTiles(&playerPos);
 
@@ -1262,14 +1264,46 @@ bool init3DView()
 
 	atmosInitSystem();
 
-	// Set the initial fog distance
-	UpdateFogDistance(distance);
-
 	// default skybox, will override in script if not satisfactory
 	setSkyBox("texpages/page-25-sky-arizona.png", 0.0f, 10000.0f);
 
 	// distance is not saved, so initialise it now
 	distance = war_GetMapZoom(); // distance
+
+	if(pie_GetFogEnabled()){
+		pie_SetFogStatus(true);
+	}
+
+	// Set the initial fog distance
+	updateFogDistance(distance);
+
+	if (strcmp(tilesetDir, "texpages/tertilesc2hw") == 0) // Urban = 0x101040 (or, 0xc9920f)
+	{
+		PIELIGHT WZCOL_FOG_URBAN;
+		WZCOL_FOG_URBAN.vector[0] = 0x10;
+		WZCOL_FOG_URBAN.vector[1] = 0x10;
+		WZCOL_FOG_URBAN.vector[2] = 0x40;
+		WZCOL_FOG_URBAN.vector[3] = 0xff;
+		pie_SetFogColour(WZCOL_FOG_URBAN);
+	}
+	else if (strcmp(tilesetDir, "texpages/tertilesc3hw") == 0) // Rockies = 0xb6e1ec
+	{
+		PIELIGHT WZCOL_FOG_ROCKIE;
+		WZCOL_FOG_ROCKIE.vector[0] = 0xb6;
+		WZCOL_FOG_ROCKIE.vector[1] = 0xe1;
+		WZCOL_FOG_ROCKIE.vector[2] = 0xec;
+		WZCOL_FOG_ROCKIE.vector[3] = 0xff;
+		pie_SetFogColour(WZCOL_FOG_ROCKIE);
+	}
+	else // Arizona, eg. strcmp(tilesetDir, "texpages/tertilesc1hw") == 0, and default. = b08f5f (or, 0x78684f)
+	{
+		PIELIGHT WZCOL_FOG_ARIZONA;
+		WZCOL_FOG_ARIZONA.vector[0] = 0xb0;
+		WZCOL_FOG_ARIZONA.vector[1] = 0x8f;
+		WZCOL_FOG_ARIZONA.vector[2] = 0x5f;
+		WZCOL_FOG_ARIZONA.vector[3] = 0xff;
+		pie_SetFogColour(WZCOL_FOG_ARIZONA);
+	}
 
 	playerPos.r.z = 0; // roll
 	playerPos.r.y = 0; // rotation
@@ -2201,9 +2235,9 @@ static PIELIGHT getBlueprintColour(STRUCT_STATES state)
 	switch (state)
 	{
 	case SS_BLUEPRINT_VALID:
-		return WZCOL_BLUEPRINT_VALID;
+		return WZCOL_LGREEN;
 	case SS_BLUEPRINT_INVALID:
-		return WZCOL_BLUEPRINT_INVALID;
+		return WZCOL_LRED;
 	case SS_BLUEPRINT_PLANNED:
 		return WZCOL_BLUEPRINT_PLANNED;
 	case SS_BLUEPRINT_PLANNED_BY_ALLY:
@@ -2554,7 +2588,7 @@ void renderDeliveryPoint(FLAG_POSITION *psPosition, bool blueprint, const glm::m
 
 	if (blueprint)
 	{
-		colour = deliveryReposValid() ? WZCOL_BLUEPRINT_VALID : WZCOL_BLUEPRINT_INVALID;
+		colour = deliveryReposValid() ? WZCOL_LGREEN : WZCOL_LRED;
 	}
 	else
 	{
@@ -3482,7 +3516,9 @@ static void renderSurroundings(const glm::mat4 &viewMatrix)
 	{
 		wind = std::remainder(wind + graphicsTimeAdjustedIncrement(windSpeed), 360.0f);
 	}
-	pie_DrawSkybox(skybox_scale, viewMatrix * glm::translate(glm::vec3(0.f, playerPos.p.y - skybox_scale / 8.f, 0.f)) * glm::rotate(RADIANS(wind), glm::vec3(0.f, 1.f, 0.f)));
+
+	// TODO: skybox needs to be just below lowest point on map (because we have a bottom cap now). Hardcoding for now.
+	pie_DrawSkybox(skybox_scale, viewMatrix * glm::translate(glm::vec3(0.f, -500, 0.f)) * glm::rotate(RADIANS(wind), glm::vec3(0.f, 1.f, 0.f)));
 }
 
 static int calculateCameraHeight(int _mapHeight)

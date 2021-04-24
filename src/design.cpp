@@ -28,6 +28,7 @@
 #include "lib/framework/frame.h"
 #include "lib/framework/input.h"
 #include "lib/widget/widget.h"
+#include "lib/widget/bar.h"
 
 #include "objects.h"
 #include "loop.h"
@@ -41,6 +42,7 @@
 #include "lib/ivis_opengl/piematrix.h"//matrix code
 #include "lib/ivis_opengl/screen.h"
 #include "lib/ivis_opengl/piemode.h"
+#include "lib/ivis_opengl/textdraw.h"
 #include "lib/ivis_opengl/ivisdef.h"
 
 #include "objmem.h"
@@ -65,6 +67,7 @@
 #include "template.h"
 #include "multiplay.h"
 #include "qtscript.h"
+#include "animation.h"
 
 #if defined(__clang__)
 #pragma clang diagnostic ignored "-Wcast-align"	// TODO: FIXME!
@@ -235,6 +238,8 @@ static void resetDesignPauseState();
 static bool intAddTemplateButtons(ListTabWidget *templList, DROID_TEMPLATE *psSelected);
 static void intDisplayDesignForm(WIDGET *psWidget, UDWORD xOffset, UDWORD yOffset);
 
+typedef std::function<bool(std::function<bool(COMPONENT_STATS &, size_t)>)> ComponentIterator;
+
 /* Set the current mode of the design screen, and display the appropriate component lists */
 static void intSetDesignMode(DES_COMPMODE newCompMode, bool forceRefresh = false);
 /* Set all the design bar graphs from a design template */
@@ -250,7 +255,9 @@ static bool intAddTemplateForm(DROID_TEMPLATE *psSelected);
 /* Add the system buttons (weapons, command droid, etc) to the design screen */
 static bool intAddSystemButtons(DES_COMPMODE mode);
 /* Add the component buttons to the main tab of the system or component form */
-static bool intAddComponentButtons(ListTabWidget *compList, COMPONENT_STATS *psStats, unsigned size, const UBYTE *aAvailable, unsigned numEntries, unsigned compID);
+static bool intAddComponentButtons(ListTabWidget *compList, ComponentIterator iterator, unsigned compID, bool bWeapon);
+static uint32_t intCalcSpeed(TYPE_OF_TERRAIN type, PROPULSION_STATS *psProp);
+static uint32_t calculatePropulsionWeight(COMPONENT_STATS &propulsionStats);
 /* Add the component buttons to the main tab of the component form */
 static bool intAddExtraSystemButtons(ListTabWidget *compList, unsigned sensorIndex, unsigned ecmIndex, unsigned constIndex, unsigned repairIndex, unsigned brainIndex);
 /* Set the bar graphs for the system clickable */
@@ -308,6 +315,8 @@ static bool saveTemplate();
 
 static void desCreateDefaultTemplate();
 
+static void setTemplateStat(DROID_TEMPLATE *psTemplate, COMPONENT_STATS *psStats);
+
 /**
  * Updates the status of the stored template toggle button.
  *
@@ -337,6 +346,270 @@ static DROID_TEMPLATE sShadowDesign;
 
 static void intDisplayStatForm(WIDGET *psWidget, UDWORD xOffset, UDWORD yOffset);
 static void intDisplayViewForm(WIDGET *psWidget, UDWORD xOffset, UDWORD yOffset);
+
+class DesignStatsBar: public W_BARGRAPH
+{
+public:
+	DesignStatsBar(W_BARINIT *init): W_BARGRAPH(init) {}
+
+	static std::shared_ptr<DesignStatsBar> makeLessIsBetter(W_BARINIT *init)
+	{
+		auto widget = std::make_shared<DesignStatsBar>(init);
+		widget->lessIsBetter = true;
+		return widget;
+	}
+
+protected:
+	void display(int xOffset, int yOffset) override
+	{
+		auto x0 = xOffset + x() + PADDING;
+		auto y0 = yOffset + y() + PADDING;
+
+		/* indent to allow text value */
+		auto iX = x0 + maxValueTextWidth;
+		auto iY = y0 + (iV_GetImageHeight(IntImages, IMAGE_DES_STATSCURR) - iV_GetTextLineSize(font_regular)) / 2 - iV_GetTextAboveBase(font_regular);
+
+		//draw current value section
+		int barWidth = width() - maxValueTextWidth - 2 * PADDING;
+		auto filledWidth = MIN(majorSize * barWidth / 100, barWidth);
+		iV_DrawImageRepeatX(IntImages, IMAGE_DES_STATSCURR, iX, y0, filledWidth, defaultProjectionMatrix(), true);
+
+		if (minorValue == 0)
+		{
+			return;
+		}
+
+		valueText.setText(astringf("%.*f", precision, majorValue / (float)denominator), font_regular);
+		valueText.render(x0, iY, WZCOL_TEXT_BRIGHT);
+
+		//draw the comparison value - only if not zero
+		updateAnimation();
+		filledWidth = MIN(minorAnimation.getCurrent() * barWidth / 100, barWidth);
+		iV_DrawImage(IntImages, IMAGE_DES_STATSCOMP, iX + filledWidth, y0 - 1);
+
+		auto delta = minorValue - majorValue;
+		if (delta != 0)
+		{
+			deltaText.setText(astringf("%+.*f", precision, delta / (float)denominator), font_small);
+			auto xDeltaText = xOffset + x() + width() - iV_GetTextWidth(deltaText.getText().c_str(), font_small) - PADDING;
+			deltaText.renderOutlined(xDeltaText, iY - 1, (delta < 0) == lessIsBetter ? WZCOL_LGREEN : WZCOL_LRED, {0, 0, 0, 192});
+		}
+	}
+
+	void updateAnimation()
+	{
+		if (minorSize != minorAnimation.getFinalData())
+		{
+			minorAnimation
+				.setInitialData(minorAnimation.getCurrent())
+				.setFinalData(minorSize)
+				.start();
+		}
+
+		minorAnimation.update();
+	}
+
+	WzText valueText;
+	WzText deltaText;
+	uint32_t maxValueTextWidth = iV_GetTextWidth("00000", font_regular);
+	Animation<float> minorAnimation = Animation<float>(realTime, EASE_IN, 200).setInitialData(0).setFinalData(0);
+	const uint32_t PADDING = 3;
+	bool lessIsBetter = false;
+};
+
+class DesignPowerBar: public DesignStatsBar
+{
+public:
+	DesignPowerBar(W_BARINIT *init): DesignStatsBar(init) {}
+
+	static std::shared_ptr<DesignPowerBar> makeLessIsBetter(W_BARINIT *init)
+	{
+		auto widget = std::make_shared<DesignPowerBar>(init);
+		widget->lessIsBetter = true;
+		return widget;
+	}
+
+protected:
+	void display(int xOffset, int yOffset) override
+	{
+		auto x0 = xOffset + x();
+		auto y0 = yOffset + y();
+		iV_DrawImage(IntImages, IMAGE_DES_POWERBAR_LEFT, x0, y0);
+		iV_DrawImage(IntImages, IMAGE_DES_POWERBAR_RIGHT, x0 + width() - iV_GetImageWidth(IntImages, IMAGE_DES_POWERBAR_RIGHT), y0);
+		DesignStatsBar::display(xOffset, yOffset);
+	}
+};
+
+static ComponentIterator componentIterator(COMPONENT_STATS *psStats, unsigned size, const UBYTE *aAvailable, unsigned numEntries)
+{
+	return [=](std::function<bool(COMPONENT_STATS &, size_t index)> callback)
+	{
+		for (unsigned i = 0; i < numEntries; ++i)
+		{
+			COMPONENT_STATS *psCurrStats = (COMPONENT_STATS *)(((UBYTE *)psStats) + size * i);
+
+			/* Skip unavailable entries and non-design ones*/
+			if (!(aAvailable[i] == AVAILABLE || (includeRedundantDesigns && aAvailable[i] == REDUNDANT)) || !psCurrStats->designable)
+			{
+				continue;
+			}
+
+			if (!callback(*psCurrStats, i))
+			{
+				return false;
+			}
+		}
+
+		return true;
+	};
+}
+
+static ComponentIterator bodyIterator()
+{
+	return componentIterator(asBodyStats, sizeof(*asBodyStats), apCompLists[selectedPlayer][COMP_BODY], numBodyStats);
+}
+
+static ComponentIterator weaponIterator()
+{
+	return componentIterator(asWeaponStats, sizeof(*asWeaponStats), apCompLists[selectedPlayer][COMP_WEAPON], numWeaponStats);
+}
+
+static ComponentIterator propulsionIterator()
+{
+	return componentIterator(asPropulsionStats, sizeof(*asPropulsionStats), apCompLists[selectedPlayer][COMP_PROPULSION], numPropulsionStats);
+}
+
+static ComponentIterator sensorIterator()
+{
+	return componentIterator(asSensorStats, sizeof(SENSOR_STATS), apCompLists[selectedPlayer][COMP_SENSOR], numSensorStats);
+}
+
+static ComponentIterator ecmIterator()
+{
+	return componentIterator(asECMStats, sizeof(ECM_STATS), apCompLists[selectedPlayer][COMP_ECM], numECMStats);
+}
+
+static ComponentIterator constructorIterator()
+{
+	return componentIterator(asConstructStats, sizeof(CONSTRUCT_STATS), apCompLists[selectedPlayer][COMP_CONSTRUCT], numConstructStats);
+}
+
+static ComponentIterator repairIterator()
+{
+	return componentIterator(asRepairStats, sizeof(REPAIR_STATS), apCompLists[selectedPlayer][COMP_REPAIRUNIT], numRepairStats);
+}
+
+static ComponentIterator brainIterator()
+{
+	return componentIterator(asBrainStats, sizeof(BRAIN_STATS), apCompLists[selectedPlayer][COMP_BRAIN], numBrainStats);
+}
+
+static ComponentIterator concatIterators(std::vector<ComponentIterator> iterators)
+{
+	return [=](std::function<bool(COMPONENT_STATS &, size_t index)> callback) {
+		for (const auto &iterator: iterators)
+		{
+			if (!iterator(callback))
+			{
+				return false;
+			}
+		}
+
+		return true;
+	};
+}
+
+static ComponentIterator extraSystemIterator()
+{
+	return concatIterators({sensorIterator(), ecmIterator(), constructorIterator(), repairIterator(), brainIterator()});
+}
+
+static uint32_t findMax(ComponentIterator componentIterator, std::function<uint32_t(COMPONENT_STATS &)> value)
+{
+	uint32_t max = 0;
+
+	componentIterator([&](COMPONENT_STATS &bodyStats, size_t index) {
+		max = std::max(max, value(bodyStats));
+		return true;
+	});
+
+	return max;
+}
+
+static uint32_t findMaxWeight(ComponentIterator componentIterator)
+{
+	return findMax(componentIterator, [](COMPONENT_STATS &stats) { return stats.weight; });
+}
+
+static uint32_t findMaxPropulsionSpeed(TYPE_OF_TERRAIN terrainType)
+{
+	return findMax(
+		propulsionIterator(),
+		[=](COMPONENT_STATS &stats) { return intCalcSpeed(terrainType, (PROPULSION_STATS *)&stats); }
+	);
+}
+
+static uint32_t findMaxWeaponAttribute(std::function<uint32_t(WEAPON_STATS *, int)> attributeGetter)
+{
+	return findMax(
+		weaponIterator(),
+		[=](COMPONENT_STATS &stats) { return attributeGetter((WEAPON_STATS *)&stats, selectedPlayer); }
+	);
+}
+
+static uint32_t getDesignMaxBodyArmour(WEAPON_CLASS weaponClass)
+{
+	return findMax(
+		bodyIterator(),
+		[=](COMPONENT_STATS &stats) { return bodyArmour((BODY_STATS *)&stats, selectedPlayer, weaponClass); }
+	);
+}
+
+static uint32_t getDesignMaxEngineOutput()
+{
+	return findMax(
+		bodyIterator(),
+		[=](COMPONENT_STATS &stats) { return bodyPower((BODY_STATS *)&stats, selectedPlayer); }
+	);
+}
+
+static uint32_t calcShadowBodyPoints(COMPONENT_STATS &psStats)
+{
+	auto designCopy = sCurrDesign;
+	setTemplateStat(&designCopy, &psStats);
+	return calcTemplateBody(&designCopy, selectedPlayer);
+}
+
+static uint32_t calcShadowPower(COMPONENT_STATS &psStats)
+{
+	auto designCopy = sCurrDesign;
+	setTemplateStat(&designCopy, &psStats);
+	return calcTemplatePower(&designCopy);
+}
+
+static uint32_t getDesignMaxSensorRange()
+{
+	return findMax(
+		sensorIterator(),
+		[=](COMPONENT_STATS &stats) { return sensorRange((SENSOR_STATS *)&stats, selectedPlayer); }
+	);
+}
+
+static uint32_t getDesignMaxEcmRange()
+{
+	return findMax(
+		ecmIterator(),
+		[=](COMPONENT_STATS &stats) { return ecmRange((ECM_STATS *)&stats, selectedPlayer); }
+	);
+}
+
+static uint32_t getDesignMaxBuildPoints()
+{
+	return findMax(
+		constructorIterator(),
+		[=](COMPONENT_STATS &stats) { return constructorPoints((CONSTRUCT_STATS *)&stats, selectedPlayer); }
+	);
+}
 
 /* Add the design widgets to the widget screen */
 bool intAddDesign(bool bShowCentreScreen)
@@ -568,7 +841,8 @@ bool intAddDesign(bool bShowCentreScreen)
 	sFormInit.x = DES_BARFORMX;
 	sFormInit.y = DES_BARFORMY;
 	sFormInit.pDisplay = intDisplayStatForm;
-	if (!widgAddForm(psWScreen, &sFormInit))
+	auto bodyForm = widgAddForm(psWScreen, &sFormInit);
+	if (!bodyForm)
 	{
 		return false;
 	}
@@ -587,45 +861,27 @@ bool intAddDesign(bool bShowCentreScreen)
 	sBarInit.sMinorCol.byte.r = DES_CLICKBARMINORRED;
 	sBarInit.sMinorCol.byte.g = DES_CLICKBARMINORGREEN;
 	sBarInit.sMinorCol.byte.b = DES_CLICKBARMINORBLUE;
-	sBarInit.pDisplay = intDisplayStatsBar;
-	sBarInit.initPUserDataFunc = []() -> void * { return new DisplayBarCache(); };
-	sBarInit.onDelete = [](WIDGET *psWidget) {
-		assert(psWidget->pUserData != nullptr);
-		delete static_cast<DisplayBarCache *>(psWidget->pUserData);
-		psWidget->pUserData = nullptr;
-	};
 	sBarInit.pTip = _("Kinetic Armour");
-	sBarInit.iRange = getMaxBodyArmour();
-	if (!widgAddBarGraph(psWScreen, &sBarInit))
-	{
-		return true;
-	}
+	sBarInit.iRange = getDesignMaxBodyArmour(WC_KINETIC);
+	bodyForm->attach(std::make_shared<DesignStatsBar>(&sBarInit));
 
 	sBarInit.id = IDDES_BODYARMOUR_H;
 	sBarInit.y  = DES_STATBAR_Y2;	//+= DES_CLICKBARHEIGHT + DES_CLICKGAP;
 	sBarInit.pTip = _("Thermal Armour");
-	sBarInit.iRange = getMaxBodyArmour();
-	if (!widgAddBarGraph(psWScreen, &sBarInit))
-	{
-		return true;
-	}
+	sBarInit.iRange = getDesignMaxBodyArmour(WC_HEAT);
+	bodyForm->attach(std::make_shared<DesignStatsBar>(&sBarInit));
 
 	sBarInit.id = IDDES_BODYPOWER;
 	sBarInit.y = DES_STATBAR_Y3;	//+= DES_CLICKBARHEIGHT + DES_CLICKGAP;
 	sBarInit.pTip = _("Engine Output");
-	sBarInit.iRange = (UWORD)getMaxBodyPower();//DBAR_BODYMAXPOWER;
-	if (!widgAddBarGraph(psWScreen, &sBarInit))
-	{
-		return true;
-	}
+	sBarInit.iRange = getDesignMaxEngineOutput();
+	bodyForm->attach(std::make_shared<DesignStatsBar>(&sBarInit));
+
 	sBarInit.id = IDDES_BODYWEIGHT;
 	sBarInit.y = DES_STATBAR_Y4;	//+= DES_CLICKBARHEIGHT + DES_CLICKGAP;
 	sBarInit.pTip = _("Weight");
-	sBarInit.iRange = (UWORD)getMaxComponentWeight();//DBAR_MAXWEIGHT;
-	if (!widgAddBarGraph(psWScreen, &sBarInit))
-	{
-		return true;
-	}
+	sBarInit.iRange = findMaxWeight(bodyIterator());
+	bodyForm->attach(DesignStatsBar::makeLessIsBetter(&sBarInit));
 
 	/* Add the labels for the Body */
 	sLabInit.formID = IDDES_BODYFORM;
@@ -680,7 +936,8 @@ bool intAddDesign(bool bShowCentreScreen)
 	sFormInit.width = DES_POWERFORMWIDTH;
 	sFormInit.height = DES_POWERFORMHEIGHT;
 	sFormInit.pDisplay = intDisplayDesignForm;
-	if (!widgAddForm(psWScreen, &sFormInit))
+	auto powerForm = widgAddForm(psWScreen, &sFormInit);
+	if (!powerForm)
 	{
 		return false;
 	}
@@ -704,19 +961,9 @@ bool intAddDesign(bool bShowCentreScreen)
 	sBarInit.width = (SWORD)(DES_POWERFORMWIDTH - 15 -
 	                         iV_GetImageWidth(IntImages, IMAGE_DES_BODYPOINTS));
 	sBarInit.height = iV_GetImageHeight(IntImages, IMAGE_DES_POWERBACK);
-	sBarInit.pDisplay = intDisplayDesignPowerBar;//intDisplayStatsBar;
-	sBarInit.initPUserDataFunc = []() -> void * { return new DisplayBarCache(); };
-	sBarInit.onDelete = [](WIDGET *psWidget) {
-		assert(psWidget->pUserData != nullptr);
-		delete static_cast<DisplayBarCache *>(psWidget->pUserData);
-		psWidget->pUserData = nullptr;
-	};
 	sBarInit.pTip = _("Total Power Required");
 	sBarInit.iRange = DBAR_TEMPLATEMAXPOWER;//WBAR_SCALE;
-	if (!widgAddBarGraph(psWScreen, &sBarInit))
-	{
-		return false;
-	}
+	powerForm->attach(DesignPowerBar::makeLessIsBetter(&sBarInit));
 
 	/* Add the design template body points bar and label*/
 	sLabInit.formID	= IDDES_POWERFORM;
@@ -739,19 +986,9 @@ bool intAddDesign(bool bShowCentreScreen)
 	sBarInit.width = (SWORD)(DES_POWERFORMWIDTH - 15 -
 	                         iV_GetImageWidth(IntImages, IMAGE_DES_BODYPOINTS));
 	sBarInit.height = iV_GetImageHeight(IntImages, IMAGE_DES_POWERBACK);
-	sBarInit.pDisplay = intDisplayDesignPowerBar;//intDisplayStatsBar;
-	sBarInit.initPUserDataFunc = []() -> void * { return new DisplayBarCache(); };
-	sBarInit.onDelete = [](WIDGET *psWidget) {
-		assert(psWidget->pUserData != nullptr);
-		delete static_cast<DisplayBarCache *>(psWidget->pUserData);
-		psWidget->pUserData = nullptr;
-	};
 	sBarInit.pTip = _("Total Body Points");
-	sBarInit.iRange = DBAR_TEMPLATEMAXPOINTS;//(UWORD)getMaxBodyPoints();//DBAR_BODYMAXPOINTS;
-	if (!widgAddBarGraph(psWScreen, &sBarInit))
-	{
-		return false;
-	}
+	sBarInit.iRange = DBAR_TEMPLATEMAXPOINTS;
+	powerForm->attach(std::make_shared<DesignPowerBar>(&sBarInit));
 
 	/* Add the variable bits of the design screen and set the bar graphs */
 	desCompMode = IDES_NOCOMPONENT;
@@ -953,7 +1190,7 @@ static void intSetDesignMode(DES_COMPMODE newCompMode, bool forceRefresh)
 	case IDES_TURRET:
 		compList = intAddComponentForm();
 		weaponIndex = (sCurrDesign.numWeaps > 0) ? sCurrDesign.asWeaps[0] : 0;
-		intAddComponentButtons(compList, asWeaponStats, sizeof(*asWeaponStats), apCompLists[selectedPlayer][COMP_WEAPON], numWeaponStats, weaponIndex);
+		intAddComponentButtons(compList, weaponIterator(), weaponIndex, true);
 		intAddSystemButtons(IDES_TURRET);
 		widgSetButtonState(psWScreen, IDDES_SYSTEMFORM, WBUT_LOCK);
 		widgSetButtonState(psWScreen, IDDES_SYSTEMBUTTON, WBUT_CLICKLOCK);
@@ -962,22 +1199,23 @@ static void intSetDesignMode(DES_COMPMODE newCompMode, bool forceRefresh)
 		break;
 	case IDES_BODY:
 		compList = intAddComponentForm();
-		intAddComponentButtons(compList, asBodyStats, sizeof(*asBodyStats), apCompLists[selectedPlayer][COMP_BODY], numBodyStats, sCurrDesign.asParts[COMP_BODY]);
+		intAddComponentButtons(compList, bodyIterator(), sCurrDesign.asParts[COMP_BODY], false);
 		widgSetButtonState(psWScreen, IDDES_BODYFORM, WBUT_LOCK);
 		widgSetButtonState(psWScreen, IDDES_BODYBUTTON, WBUT_CLICKLOCK);
 		widgReveal(psWScreen, IDDES_BODYFORM);
 		break;
 	case IDES_PROPULSION:
 		compList = intAddComponentForm();
-		intAddComponentButtons(compList, asPropulsionStats, sizeof(*asPropulsionStats), apCompLists[selectedPlayer][COMP_PROPULSION], numPropulsionStats, sCurrDesign.asParts[COMP_PROPULSION]);
+		intAddComponentButtons(compList, propulsionIterator(), sCurrDesign.asParts[COMP_PROPULSION], false);
 		widgSetButtonState(psWScreen, IDDES_PROPFORM, WBUT_LOCK);
 		widgSetButtonState(psWScreen, IDDES_PROPBUTTON, WBUT_CLICKLOCK);
 		widgReveal(psWScreen, IDDES_PROPFORM);
+		intSetPropulsionForm(asPropulsionStats + sCurrDesign.asParts[COMP_PROPULSION]);
 		break;
 	case IDES_TURRET_A:
 		compList = intAddComponentForm();
 		weaponIndex = (sCurrDesign.numWeaps > 1) ? sCurrDesign.asWeaps[1] : 0;
-		intAddComponentButtons(compList, asWeaponStats, sizeof(*asWeaponStats), apCompLists[selectedPlayer][COMP_WEAPON], numWeaponStats, weaponIndex);
+		intAddComponentButtons(compList, weaponIterator(), weaponIndex, true);
 		intAddSystemButtons(IDES_TURRET_A);
 		widgSetButtonState(psWScreen, IDDES_SYSTEMFORM, WBUT_LOCK);
 		widgSetButtonState(psWScreen, IDDES_WPABUTTON, WBUT_CLICKLOCK);
@@ -989,7 +1227,7 @@ static void intSetDesignMode(DES_COMPMODE newCompMode, bool forceRefresh)
 	case IDES_TURRET_B:
 		compList = intAddComponentForm();
 		weaponIndex = (sCurrDesign.numWeaps > 2) ? sCurrDesign.asWeaps[2] : 0;
-		intAddComponentButtons(compList, asWeaponStats, sizeof(*asWeaponStats), apCompLists[selectedPlayer][COMP_WEAPON], numWeaponStats, weaponIndex);
+		intAddComponentButtons(compList, weaponIterator(), weaponIndex, true);
 		intAddSystemButtons(IDES_TURRET_B);
 		widgSetButtonState(psWScreen, IDDES_SYSTEMFORM, WBUT_LOCK);
 		widgSetButtonState(psWScreen, IDDES_WPBBUTTON, WBUT_CLICKLOCK);
@@ -1236,7 +1474,8 @@ static bool intSetSystemForm(COMPONENT_STATS *psStats)
 	sFormInit.pTip = getStatsName(psStats);  // set form tip to stats string
 	sFormInit.pUserData = psStats;			/* store component stats */
 	sFormInit.pDisplay = intDisplayStatForm;
-	if (!widgAddForm(psWScreen, &sFormInit))
+	auto systemForm = widgAddForm(psWScreen, &sFormInit);
+	if (!systemForm)
 	{
 		return false;
 	}
@@ -1255,13 +1494,6 @@ static bool intSetSystemForm(COMPONENT_STATS *psStats)
 	sBarInit.sMinorCol.byte.r = DES_CLICKBARMINORRED;
 	sBarInit.sMinorCol.byte.g = DES_CLICKBARMINORGREEN;
 	sBarInit.sMinorCol.byte.b = DES_CLICKBARMINORBLUE;
-	sBarInit.pDisplay = intDisplayStatsBar;
-	sBarInit.initPUserDataFunc = []() -> void * { return new DisplayBarCache(); };
-	sBarInit.onDelete = [](WIDGET *psWidget) {
-		assert(psWidget->pUserData != nullptr);
-		delete static_cast<DisplayBarCache *>(psWidget->pUserData);
-		psWidget->pUserData = nullptr;
-	};
 
 	/* Initialise the label struct */
 	W_LABINIT sLabInit;
@@ -1277,24 +1509,19 @@ static bool intSetSystemForm(COMPONENT_STATS *psStats)
 	{
 		/* Add the bar graphs*/
 		sBarInit.id = IDDES_SENSORRANGE;
-		sBarInit.iRange = (UWORD)getMaxSensorRange();//DBAR_SENSORMAXRANGE;
+		sBarInit.iRange = getDesignMaxSensorRange();
 		sBarInit.pTip = _("Sensor Range");
 		sBarInit.denominator = TILE_UNITS;
 		sBarInit.precision = 1;
-		if (!widgAddBarGraph(psWScreen, &sBarInit))
-		{
-			return false;
-		}
+		systemForm->attach(std::make_shared<DesignStatsBar>(&sBarInit));
+
 		sBarInit.denominator = 0;
 		sBarInit.precision = 0;
-		sBarInit.id = IDDES_SENSORWEIGHT;
+		sBarInit.id = IDDES_SYSTEMSWEIGHT;
 		sBarInit.y = DES_STATBAR_Y2;	//+= DES_CLICKBARHEIGHT + DES_CLICKGAP;
-		sBarInit.iRange = (UWORD)getMaxComponentWeight();//DBAR_MAXWEIGHT;
+		sBarInit.iRange = findMaxWeight(extraSystemIterator());
 		sBarInit.pTip = _("Weight");
-		if (!widgAddBarGraph(psWScreen, &sBarInit))
-		{
-			return false;
-		}
+		systemForm->attach(DesignStatsBar::makeLessIsBetter(&sBarInit));
 
 		/* Add the labels */
 		sLabInit.id = IDDES_SENSORRANGELAB;
@@ -1304,7 +1531,7 @@ static bool intSetSystemForm(COMPONENT_STATS *psStats)
 		{
 			return false;
 		}
-		sLabInit.id = IDDES_SENSORWEIGHTLAB;
+		sLabInit.id = IDDES_SYSTEMSWEIGHTLAB;
 		sLabInit.y += DES_CLICKBARHEIGHT + DES_CLICKGAP;
 		sLabInit.pTip = _("Weight");
 		sLabInit.UserData = IMAGE_DES_WEIGHT;
@@ -1317,20 +1544,15 @@ static bool intSetSystemForm(COMPONENT_STATS *psStats)
 	{
 		/* Add the bar graphs */
 		sBarInit.id = IDDES_ECMPOWER;
-		sBarInit.iRange = (UWORD)getMaxECMRange();
+		sBarInit.iRange = getDesignMaxEcmRange();
 		sBarInit.pTip = _("ECM Power");
-		if (!widgAddBarGraph(psWScreen, &sBarInit))
-		{
-			return false;
-		}
-		sBarInit.id = IDDES_ECMWEIGHT;
+		systemForm->attach(std::make_shared<DesignStatsBar>(&sBarInit));
+
+		sBarInit.id = IDDES_SYSTEMSWEIGHT;
 		sBarInit.y = DES_STATBAR_Y2;	//+= DES_CLICKBARHEIGHT + DES_CLICKGAP;
-		sBarInit.iRange = (UWORD)getMaxComponentWeight();//DBAR_MAXWEIGHT;
+		sBarInit.iRange = findMaxWeight(extraSystemIterator());
 		sBarInit.pTip = _("Weight");
-		if (!widgAddBarGraph(psWScreen, &sBarInit))
-		{
-			return false;
-		}
+		systemForm->attach(DesignStatsBar::makeLessIsBetter(&sBarInit));
 
 		/* Add the labels */
 		sLabInit.id = IDDES_ECMPOWERLAB;
@@ -1340,7 +1562,7 @@ static bool intSetSystemForm(COMPONENT_STATS *psStats)
 		{
 			return false;
 		}
-		sLabInit.id = IDDES_ECMWEIGHTLAB;
+		sLabInit.id = IDDES_SYSTEMSWEIGHTLAB;
 		sLabInit.y += DES_CLICKBARHEIGHT + DES_CLICKGAP;
 		sLabInit.pTip = _("Weight");
 		sLabInit.UserData = IMAGE_DES_WEIGHT;
@@ -1354,19 +1576,14 @@ static bool intSetSystemForm(COMPONENT_STATS *psStats)
 		/* Add the bar graphs */
 		sBarInit.id = IDDES_CONSTPOINTS;
 		sBarInit.pTip = _("Build Points");
-		sBarInit.iRange = (UWORD)getMaxConstPoints();//DBAR_CONSTMAXPOINTS;
-		if (!widgAddBarGraph(psWScreen, &sBarInit))
-		{
-			return false;
-		}
-		sBarInit.id = IDDES_CONSTWEIGHT;
+		sBarInit.iRange = getDesignMaxBuildPoints();
+		systemForm->attach(std::make_shared<DesignStatsBar>(&sBarInit));
+
+		sBarInit.id = IDDES_SYSTEMSWEIGHT;
 		sBarInit.y = DES_STATBAR_Y2;	//+= DES_CLICKBARHEIGHT + DES_CLICKGAP;
 		sBarInit.pTip = _("Weight");
-		sBarInit.iRange = (UWORD)getMaxComponentWeight();//DBAR_MAXWEIGHT;
-		if (!widgAddBarGraph(psWScreen, &sBarInit))
-		{
-			return false;
-		}
+		sBarInit.iRange = findMaxWeight(extraSystemIterator());
+		systemForm->attach(DesignStatsBar::makeLessIsBetter(&sBarInit));
 
 		/* Add the labels */
 		sLabInit.id = IDDES_CONSTPOINTSLAB;
@@ -1376,7 +1593,7 @@ static bool intSetSystemForm(COMPONENT_STATS *psStats)
 		{
 			return false;
 		}
-		sLabInit.id = IDDES_CONSTWEIGHTLAB;
+		sLabInit.id = IDDES_SYSTEMSWEIGHTLAB;
 		sLabInit.y += DES_CLICKBARHEIGHT + DES_CLICKGAP;
 		sLabInit.pTip = _("Weight");
 		sLabInit.UserData = IMAGE_DES_WEIGHT;
@@ -1390,19 +1607,17 @@ static bool intSetSystemForm(COMPONENT_STATS *psStats)
 		/* Add the bar graphs */
 		sBarInit.id = IDDES_REPAIRPOINTS;
 		sBarInit.pTip = _("Build Points");
-		sBarInit.iRange = (UWORD)getMaxRepairPoints();//DBAR_REPAIRMAXPOINTS;
-		if (!widgAddBarGraph(psWScreen, &sBarInit))
-		{
-			return false;
-		}
-		sBarInit.id = IDDES_REPAIRWEIGHT;
+		sBarInit.iRange = findMax(
+			repairIterator(),
+			[=](COMPONENT_STATS &stats) { return repairPoints((REPAIR_STATS *)&stats, selectedPlayer); }
+		);
+		systemForm->attach(std::make_shared<DesignStatsBar>(&sBarInit));
+
+		sBarInit.id = IDDES_SYSTEMSWEIGHT;
 		sBarInit.y = DES_STATBAR_Y2;	//+= DES_CLICKBARHEIGHT + DES_CLICKGAP;
 		sBarInit.pTip = _("Weight");
-		sBarInit.iRange = (UWORD)getMaxComponentWeight();//DBAR_MAXWEIGHT;
-		if (!widgAddBarGraph(psWScreen, &sBarInit))
-		{
-			return false;
-		}
+		sBarInit.iRange = findMaxWeight(extraSystemIterator());
+		systemForm->attach(DesignStatsBar::makeLessIsBetter(&sBarInit));
 
 		/* Add the labels */
 		sLabInit.id = IDDES_REPAIRPTLAB;
@@ -1425,40 +1640,31 @@ static bool intSetSystemForm(COMPONENT_STATS *psStats)
 	{
 		/* Add the bar graphs */
 		sBarInit.id = IDDES_WEAPRANGE;
-		sBarInit.iRange = (UWORD)getMaxWeaponRange();//DBAR_WEAPMAXRANGE;
+		sBarInit.iRange = findMaxWeaponAttribute(proj_GetLongRange);
 		sBarInit.pTip = _("Range");
 		sBarInit.denominator = TILE_UNITS;
 		sBarInit.precision = 1;
-		if (!widgAddBarGraph(psWScreen, &sBarInit))
-		{
-			return false;
-		}
+		systemForm->attach(std::make_shared<DesignStatsBar>(&sBarInit));
+
 		sBarInit.denominator = 1;
 		sBarInit.precision = 0;
 		sBarInit.id = IDDES_WEAPDAMAGE;
 		sBarInit.y = DES_STATBAR_Y2;	//+= DES_CLICKBARHEIGHT + DES_CLICKGAP;
-		sBarInit.iRange = (UWORD)getMaxWeaponDamage();//DBAR_WEAPMAXDAMAGE;
+		sBarInit.iRange = findMaxWeaponAttribute(weaponDamage);
 		sBarInit.pTip = _("Damage");
-		if (!widgAddBarGraph(psWScreen, &sBarInit))
-		{
-			return false;
-		}
+		systemForm->attach(std::make_shared<DesignStatsBar>(&sBarInit));
+
 		sBarInit.id = IDDES_WEAPROF;
 		sBarInit.y = DES_STATBAR_Y3;	//+= DES_CLICKBARHEIGHT + DES_CLICKGAP;
-		sBarInit.iRange = getMaxWeaponROF();
+		sBarInit.iRange = findMaxWeaponAttribute(weaponROF);
 		sBarInit.pTip = _("Rate-of-Fire");
-		if (!widgAddBarGraph(psWScreen, &sBarInit))
-		{
-			return false;
-		}
-		sBarInit.id = IDDES_WEAPWEIGHT;
+		systemForm->attach(std::make_shared<DesignStatsBar>(&sBarInit));
+
+		sBarInit.id = IDDES_SYSTEMSWEIGHT;
 		sBarInit.y = DES_STATBAR_Y4;	//+= DES_CLICKBARHEIGHT + DES_CLICKGAP;
-		sBarInit.iRange = (UWORD)getMaxComponentWeight();//DBAR_MAXWEIGHT;
+		sBarInit.iRange = findMaxWeight(weaponIterator());
 		sBarInit.pTip = _("Weight");
-		if (!widgAddBarGraph(psWScreen, &sBarInit))
-		{
-			return false;
-		}
+		systemForm->attach(DesignStatsBar::makeLessIsBetter(&sBarInit));
 
 		/* Add the labels */
 		sLabInit.id = IDDES_WEAPRANGELAB;
@@ -1484,7 +1690,7 @@ static bool intSetSystemForm(COMPONENT_STATS *psStats)
 		{
 			return false;
 		}
-		sLabInit.id = IDDES_WEAPWEIGHTLAB;
+		sLabInit.id = IDDES_SYSTEMSWEIGHTLAB;
 		sLabInit.y += DES_CLICKBARHEIGHT + DES_CLICKGAP;
 		sLabInit.pTip = _("Weight");
 		sLabInit.UserData = IMAGE_DES_WEIGHT;
@@ -1542,13 +1748,6 @@ static bool intSetPropulsionForm(PROPULSION_STATS *psStats)
 		break;
 	}
 
-	/* If the mode hasn't changed, just set the stats */
-	if (desPropMode == newPropMode)
-	{
-		intSetPropulsionStats(psStats);
-		return true;
-	}
-
 	/* Remove the old form if necessary */
 	if (desPropMode != IDES_NOPROPULSION)
 	{
@@ -1569,7 +1768,8 @@ static bool intSetPropulsionForm(PROPULSION_STATS *psStats)
 	sFormInit.height = DES_BARFORMHEIGHT;	//DES_COMPBUTHEIGHT;
 	sFormInit.pTip = getStatsName(psStats);  // set form tip to stats string
 	sFormInit.pDisplay = intDisplayStatForm;
-	if (!widgAddForm(psWScreen, &sFormInit))
+	auto propulsionForm = widgAddForm(psWScreen, &sFormInit);
+	if (!propulsionForm)
 	{
 		return false;
 	}
@@ -1588,13 +1788,6 @@ static bool intSetPropulsionForm(PROPULSION_STATS *psStats)
 	sBarInit.sMinorCol.byte.r = DES_CLICKBARMINORRED;
 	sBarInit.sMinorCol.byte.g = DES_CLICKBARMINORGREEN;
 	sBarInit.sMinorCol.byte.b = DES_CLICKBARMINORBLUE;
-	sBarInit.pDisplay = intDisplayStatsBar;
-	sBarInit.initPUserDataFunc = []() -> void * { return new DisplayBarCache(); };
-	sBarInit.onDelete = [](WIDGET *psWidget) {
-		assert(psWidget->pUserData != nullptr);
-		delete static_cast<DisplayBarCache *>(psWidget->pUserData);
-		psWidget->pUserData = nullptr;
-	};
 
 	/* Initialise the label struct */
 	W_LABINIT sLabInit;
@@ -1611,24 +1804,19 @@ static bool intSetPropulsionForm(PROPULSION_STATS *psStats)
 	case IDES_AIR:
 		/* Add the bar graphs */
 		sBarInit.id = IDDES_PROPAIR;
-		sBarInit.iRange = (UWORD)getMaxPropulsionSpeed();//DBAR_PROPMAXSPEED;
+		sBarInit.iRange = findMaxPropulsionSpeed(TER_ROAD);
 		sBarInit.pTip = _("Air Speed");
 		sBarInit.denominator = TILE_UNITS;
 		sBarInit.precision = 2;
-		if (!widgAddBarGraph(psWScreen, &sBarInit))
-		{
-			return false;
-		}
+		propulsionForm->attach(std::make_shared<DesignStatsBar>(&sBarInit));
+
 		sBarInit.denominator = 1;
 		sBarInit.precision = 0;
 		sBarInit.id = IDDES_PROPWEIGHT;
 		sBarInit.y = DES_STATBAR_Y2;	//+= DES_CLICKBARHEIGHT + DES_CLICKGAP;
-		sBarInit.iRange = (UWORD)getMaxComponentWeight();//DBAR_MAXWEIGHT;
+		sBarInit.iRange = findMax(propulsionIterator(), calculatePropulsionWeight);
 		sBarInit.pTip = _("Weight");
-		if (!widgAddBarGraph(psWScreen, &sBarInit))
-		{
-			return false;
-		}
+		propulsionForm->attach(DesignStatsBar::makeLessIsBetter(&sBarInit));
 
 		/* Add the labels */
 		sLabInit.id = IDDES_PROPAIRLAB;
@@ -1651,39 +1839,30 @@ static bool intSetPropulsionForm(PROPULSION_STATS *psStats)
 		/* Add the bar graphs */
 		sBarInit.id = IDDES_PROPROAD;
 		sBarInit.pTip = _("Road Speed");
-		sBarInit.iRange = (UWORD)getMaxPropulsionSpeed();//DBAR_PROPMAXSPEED;
+		sBarInit.iRange = findMaxPropulsionSpeed(TER_ROAD);
 		sBarInit.denominator = TILE_UNITS;
 		sBarInit.precision = 2;
-		if (!widgAddBarGraph(psWScreen, &sBarInit))
-		{
-			return false;
-		}
+		propulsionForm->attach(std::make_shared<DesignStatsBar>(&sBarInit));
+
 		sBarInit.id = IDDES_PROPCOUNTRY;
 		sBarInit.y = DES_STATBAR_Y2;	//+= DES_CLICKBARHEIGHT + DES_CLICKGAP;
 		sBarInit.pTip = _("Off-Road Speed");
-		sBarInit.iRange = (UWORD)getMaxPropulsionSpeed();//DBAR_PROPMAXSPEED;
-		if (!widgAddBarGraph(psWScreen, &sBarInit))
-		{
-			return false;
-		}
+		sBarInit.iRange = findMaxPropulsionSpeed(TER_SANDYBRUSH);
+		propulsionForm->attach(std::make_shared<DesignStatsBar>(&sBarInit));
+
 		sBarInit.id = IDDES_PROPWATER;
 		sBarInit.y = DES_STATBAR_Y3;	//+= DES_CLICKBARHEIGHT + DES_CLICKGAP;
 		sBarInit.pTip = _("Water Speed");
-		sBarInit.iRange = (UWORD)getMaxPropulsionSpeed();//DBAR_PROPMAXSPEED;
-		if (!widgAddBarGraph(psWScreen, &sBarInit))
-		{
-			return false;
-		}
+		sBarInit.iRange = findMaxPropulsionSpeed(TER_WATER);
+		propulsionForm->attach(std::make_shared<DesignStatsBar>(&sBarInit));
+
 		sBarInit.denominator = 1;
 		sBarInit.precision = 0;
 		sBarInit.id = IDDES_PROPWEIGHT;
 		sBarInit.y = DES_STATBAR_Y4;	//+= DES_CLICKBARHEIGHT + DES_CLICKGAP;
 		sBarInit.pTip = _("Weight");
-		sBarInit.iRange = (UWORD)getMaxComponentWeight();//DBAR_MAXWEIGHT;
-		if (!widgAddBarGraph(psWScreen, &sBarInit))
-		{
-			return false;
-		}
+		sBarInit.iRange = findMax(propulsionIterator(), calculatePropulsionWeight);
+		propulsionForm->attach(DesignStatsBar::makeLessIsBetter(&sBarInit));
 
 		/* Add the labels */
 		sLabInit.id = IDDES_PROPROADLAB;
@@ -1825,16 +2004,13 @@ static bool intAddSystemButtons(DES_COMPMODE mode)
 	return true;
 }
 
-
 /* Add the component buttons to the main tab of the component form */
-static bool intAddComponentButtons(ListTabWidget *compList, COMPONENT_STATS *psStats, unsigned size, const UBYTE *aAvailable, unsigned numEntries, unsigned compID)
+static bool intAddComponentButtons(ListTabWidget *compList, ComponentIterator componentIterator, unsigned compID, bool bWeapon)
 {
 	int bodysize = SIZE_NUM;
 
 	/* Set up the button struct */
 	int nextButtonId = IDDES_COMPSTART;
-
-	bool bWeapon = psStats->hasType(STAT_WEAPON);
 
 	//need to set max number of buttons possible
 	unsigned maxComponents = bWeapon? MAX_SYSTEM_COMPONENTS : MAX_DESIGN_COMPONENTS;
@@ -1861,34 +2037,23 @@ static bool intAddComponentButtons(ListTabWidget *compList, COMPONENT_STATS *psS
 	/* Add each button */
 	desCompID = 0;
 	numComponent = 0;
-	COMPONENT_STATS *psCurrStats = psStats;
-	for (unsigned i = 0; i < numEntries; ++i)
-	{
+
+	componentIterator([&](COMPONENT_STATS &currStats, size_t index) {
 		/* If we are out of space in the list - stop */
 		if (numComponent >= maxComponents)
 		{
-			break;
-		}
-
-		/* Skip unavailable entries and non-design ones*/
-		if (!(aAvailable[i] == AVAILABLE || (includeRedundantDesigns && aAvailable[i] == REDUNDANT)) || !psCurrStats->designable)
-		{
-			/* Update the stats pointer for the next button */
-			psCurrStats = (COMPONENT_STATS *)(((UBYTE *)psCurrStats) + size);
-			continue;
+			return false;
 		}
 
 		/*skip indirect weapons if VTOL propulsion or numVTOLattackRuns for the weapon is zero*/
 		if (bWeapon)
 		{
-			WEAPON_STATS *psWeapon = (WEAPON_STATS *)psCurrStats;
-			if ((psWeapon->vtolAttackRuns > 0) != bVTOL
-			    || (psWeapon->weaponSize == WEAPON_SIZE_LIGHT && bodysize != SIZE_LIGHT)
-			    || (psWeapon->weaponSize == WEAPON_SIZE_HEAVY && bodysize == SIZE_LIGHT))
+			auto &weapon = (WEAPON_STATS &)currStats;
+			if ((weapon.vtolAttackRuns > 0) != bVTOL
+			    || (weapon.weaponSize == WEAPON_SIZE_LIGHT && bodysize != SIZE_LIGHT)
+			    || (weapon.weaponSize == WEAPON_SIZE_HEAVY && bodysize == SIZE_LIGHT))
 			{
-				/* Update the stats pointer for the next button */
-				psCurrStats = (COMPONENT_STATS *)(((UBYTE *)psCurrStats) + size);
-				continue;
+				return true;
 			}
 		}
 
@@ -1896,14 +2061,14 @@ static bool intAddComponentButtons(ListTabWidget *compList, COMPONENT_STATS *psS
 		auto button = std::make_shared<IntStatsButton>();
 		compList->attach(button);
 		button->id = nextButtonId;
-		button->setStatsAndTip(psCurrStats);
+		button->setStatsAndTip(&currStats);
 		compList->addWidgetToLayout(button);
 
 		/* Store the stat pointer in the list */
-		apsComponentList[numComponent++] = psCurrStats;
+		apsComponentList[numComponent++] = &currStats;
 
 		/* If this matches the component ID lock the button */
-		if (i == compID)
+		if (index == compID)
 		{
 			desCompID = nextButtonId;
 			button->setState(WBUT_LOCK);
@@ -1913,9 +2078,11 @@ static bool intAddComponentButtons(ListTabWidget *compList, COMPONENT_STATS *psS
 		/* Update the init struct for the next button */
 		++nextButtonId;
 
-		/* Update the stats pointer for the next button */
-		psCurrStats = (COMPONENT_STATS *)(((UBYTE *)psCurrStats) + size);
-	}
+		return true;
+	});
+
+	widgSetBarRange(psWScreen, IDDES_BODYPOINTS, findMax(componentIterator, calcShadowBodyPoints));
+	widgSetBarRange(psWScreen, IDDES_POWERBAR, findMax(componentIterator, calcShadowPower));
 
 	return true;
 }
@@ -1923,10 +2090,7 @@ static bool intAddComponentButtons(ListTabWidget *compList, COMPONENT_STATS *psS
 /* Add the component buttons to the main tab of the component form */
 static bool intAddExtraSystemButtons(ListTabWidget *compList, unsigned sensorIndex, unsigned ecmIndex, unsigned constIndex, unsigned repairIndex, unsigned brainIndex)
 {
-	UDWORD			i, buttonType, size = 0;
-	UDWORD			compIndex = 0, numStats = 0;
-	COMPONENT_STATS	*psCurrStats = nullptr;
-	UBYTE			*aAvailable = nullptr;
+	UDWORD compIndex = 0;
 
 	// Set up the button struct
 	int nextButtonId = IDDES_EXTRASYSSTART;
@@ -1938,53 +2102,39 @@ static bool intAddExtraSystemButtons(ListTabWidget *compList, unsigned sensorInd
 	// buttonType == 3  -  Repair Buttons
 	// buttonType == 4  -  Brain Buttons
 	numExtraSys = 0;
-	for (buttonType = 0; buttonType < 5; buttonType++)
+	for (auto buttonType = 0; buttonType < 5; buttonType++)
 	{
+		ComponentIterator componentIterator;
 		switch (buttonType)
 		{
 		case 0:
 			// Sensor Buttons
-			psCurrStats = (COMPONENT_STATS *)asSensorStats;
-			size = sizeof(SENSOR_STATS);
-			aAvailable = apCompLists[selectedPlayer][COMP_SENSOR];
-			numStats = numSensorStats;
+			componentIterator = sensorIterator();
 			compIndex = sensorIndex;
 			break;
 		case 1:
 			// ECM Buttons
-			psCurrStats = (COMPONENT_STATS *)asECMStats;
-			size = sizeof(ECM_STATS);
-			aAvailable = apCompLists[selectedPlayer][COMP_ECM];
-			numStats = numECMStats;
+			componentIterator = ecmIterator();
 			compIndex = ecmIndex;
 			break;
 		case 2:
 			// Constructor Buttons
-			psCurrStats = (COMPONENT_STATS *)asConstructStats;
-			size = sizeof(CONSTRUCT_STATS);
-			aAvailable = apCompLists[selectedPlayer][COMP_CONSTRUCT];
-			numStats = numConstructStats;
+			componentIterator = constructorIterator();
 			compIndex = constIndex;
 			break;
 		case 3:
 			// Repair Buttons
-			psCurrStats = (COMPONENT_STATS *)asRepairStats;
-			size = sizeof(REPAIR_STATS);
-			aAvailable = apCompLists[selectedPlayer][COMP_REPAIRUNIT];
-			numStats = numRepairStats;
+			componentIterator = repairIterator();
 			compIndex = repairIndex;
 			break;
 		case 4:
 			// Brain Buttons
-			psCurrStats = (COMPONENT_STATS *)asBrainStats;
-			size = sizeof(BRAIN_STATS);
-			aAvailable = apCompLists[selectedPlayer][COMP_BRAIN];
-			numStats = numBrainStats;
+			componentIterator = brainIterator();
 			compIndex = brainIndex;
 			break;
 		}
-		for (i = 0; i < numStats; i++)
-		{
+
+		componentIterator([&](COMPONENT_STATS &stats, size_t i) {
 			// If we are out of space in the list - stop
 			if (numExtraSys >= MAXEXTRASYS)
 			{
@@ -1992,30 +2142,21 @@ static bool intAddExtraSystemButtons(ListTabWidget *compList, unsigned sensorInd
 				return false;
 			}
 
-			// Skip unavailable entries or non-design ones
-			if (!(aAvailable[i] == AVAILABLE || (includeRedundantDesigns && aAvailable[i] == REDUNDANT)) || !psCurrStats->designable)
-			{
-				// Update the stats pointer for the next button
-				psCurrStats = (COMPONENT_STATS *)(((UBYTE *)psCurrStats) + size);
-
-				continue;
-			}
-
 			// Set the tip and add the button
 			auto button = std::make_shared<IntStatsButton>();
 			compList->attach(button);
 			button->id = nextButtonId;
-			button->setStatsAndTip(psCurrStats);
+			button->setStatsAndTip(&stats);
 			compList->addWidgetToLayout(button);
 
 			//just use one set of buffers for mixed system form
-			if (psCurrStats->compType == COMP_BRAIN)
+			if (stats.compType == COMP_BRAIN)
 			{
-				button->setStats(((BRAIN_STATS *)psCurrStats)->psWeaponStat);
+				button->setStats(((BRAIN_STATS *)&stats)->psWeaponStat);
 			}
 
 			// Store the stat pointer in the list
-			apsExtraSysList[numExtraSys++] = psCurrStats;
+			apsExtraSysList[numExtraSys++] = &stats;
 
 			// If this matches the sensorIndex note the form and button
 			if (i == compIndex)
@@ -2027,11 +2168,12 @@ static bool intAddExtraSystemButtons(ListTabWidget *compList, unsigned sensorInd
 
 			// Update the init struct for the next button
 			++nextButtonId;
-
-			// Update the stats pointer for the next button
-			psCurrStats = (COMPONENT_STATS *)(((UBYTE *)psCurrStats) + size);
-		}
+			return true;
+		});
 	}
+
+	widgSetBarRange(psWScreen, IDDES_BODYPOINTS, findMax(extraSystemIterator(), calcShadowBodyPoints));
+	widgSetBarRange(psWScreen, IDDES_POWERBAR, findMax(extraSystemIterator(), calcShadowPower));
 
 	return true;
 }
@@ -2083,93 +2225,28 @@ static void intSetSystemStats(COMPONENT_STATS *psStats)
 /* Set the shadow bar graphs for the system clickable */
 static void intSetSystemShadowStats(COMPONENT_STATS *psStats)
 {
-	/* Set the correct system stats - psStats can be set to NULL if
-	 * desSysMode does not match the type of the stats.
-	 */
-	if (psStats)
+	switch (desSysMode)
 	{
-		switch (psStats->compType)
-		{
-		case COMP_SENSOR:
-			if (desSysMode == IDES_SENSOR)
-			{
-				intSetSensorShadowStats((SENSOR_STATS *)psStats);
-			}
-			else
-			{
-				psStats = nullptr;
-			}
-			break;
-		case COMP_ECM:
-			if (desSysMode == IDES_ECM)
-			{
-				intSetECMShadowStats((ECM_STATS *)psStats);
-			}
-			else
-			{
-				psStats = nullptr;
-			}
-			break;
-		case COMP_WEAPON:
-			if (desSysMode == IDES_WEAPON)
-			{
-				intSetWeaponShadowStats((WEAPON_STATS *)psStats);
-			}
-			else
-			{
-				psStats = nullptr;
-			}
-			break;
-		case COMP_CONSTRUCT:
-			if (desSysMode == IDES_CONSTRUCT)
-			{
-				intSetConstructShadowStats((CONSTRUCT_STATS *)psStats);
-			}
-			else
-			{
-				psStats = nullptr;
-			}
-			break;
-		case COMP_BRAIN:
-			psStats = nullptr;
-			break;
-		case COMP_REPAIRUNIT:
-			if (desSysMode == IDES_REPAIR)
-			{
-				intSetRepairShadowStats((REPAIR_STATS *)psStats);
-			}
-			else
-			{
-				psStats = nullptr;
-			}
-			break;
-		default:
-			ASSERT(false, "Bad choice");
-		}
+	case IDES_WEAPON:
+		intSetWeaponShadowStats(psStats && psStats->compType == COMP_WEAPON ? (WEAPON_STATS *)psStats: nullptr);
+		return;
+	case IDES_SENSOR:
+		intSetSensorShadowStats(psStats && psStats->compType == COMP_SENSOR ? (SENSOR_STATS *)psStats: nullptr);
+		break;
+	case IDES_ECM:
+		intSetECMShadowStats(psStats && psStats->compType == COMP_ECM ? (ECM_STATS *)psStats: nullptr);
+		break;
+	case IDES_CONSTRUCT:
+		intSetConstructShadowStats(psStats && psStats->compType == COMP_CONSTRUCT ? (CONSTRUCT_STATS *)psStats: nullptr);
+		break;
+	case IDES_REPAIR:
+		intSetRepairShadowStats(psStats && psStats->compType == COMP_REPAIRUNIT ? (REPAIR_STATS *)psStats: nullptr);
+		break;
+	default:
+		return;
 	}
-	else // if !psStats
-	{
-		switch (desSysMode)
-		{
-		case IDES_SENSOR:
-			intSetSensorShadowStats(nullptr);
-			break;
-		case IDES_ECM:
-			intSetECMShadowStats(nullptr);
-			break;
-		case IDES_WEAPON:
-			intSetWeaponShadowStats(nullptr);
-			break;
-		case IDES_CONSTRUCT:
-			intSetConstructShadowStats(nullptr);
-			break;
-		case IDES_REPAIR:
-			intSetRepairShadowStats(nullptr);
-			break;
-		default:
-			break;
-		}
-	}
+
+	widgSetMinorBarSize(psWScreen, IDDES_SYSTEMSWEIGHT, psStats ? psStats->weight: 0);
 }
 
 /* Set the bar graphs for the sensor stats */
@@ -2181,7 +2258,7 @@ static void intSetSensorStats(SENSOR_STATS *psStats)
 	/* range */
 	widgSetBarSize(psWScreen, IDDES_SENSORRANGE, sensorRange(psStats, selectedPlayer));
 	/* weight */
-	widgSetBarSize(psWScreen, IDDES_SENSORWEIGHT, psStats->weight);
+	widgSetBarSize(psWScreen, IDDES_SYSTEMSWEIGHT, psStats->weight);
 }
 
 /* Set the shadow bar graphs for the sensor stats */
@@ -2194,14 +2271,14 @@ static void intSetSensorShadowStats(SENSOR_STATS *psStats)
 		/* range */
 		widgSetMinorBarSize(psWScreen, IDDES_SENSORRANGE,
 		                    sensorRange(psStats, (UBYTE)selectedPlayer));
-		/* weight */
-		widgSetMinorBarSize(psWScreen, IDDES_SENSORWEIGHT, psStats->weight);
+
+		widgSetMinorBarSize(psWScreen, IDDES_SYSTEMSWEIGHT, psStats->weight);
 	}
 	else
 	{
 		/* Remove the shadow bars */
 		widgSetMinorBarSize(psWScreen, IDDES_SENSORRANGE, 0);
-		widgSetMinorBarSize(psWScreen, IDDES_SENSORWEIGHT, 0);
+		widgSetMinorBarSize(psWScreen, IDDES_SYSTEMSWEIGHT, 0);
 	}
 }
 
@@ -2215,7 +2292,7 @@ static void intSetECMStats(ECM_STATS *psStats)
 	/* range */
 	widgSetBarSize(psWScreen, IDDES_ECMPOWER, ecmRange(psStats, selectedPlayer));
 	/* weight */
-	widgSetBarSize(psWScreen, IDDES_ECMWEIGHT, psStats->weight);
+	widgSetBarSize(psWScreen, IDDES_SYSTEMSWEIGHT, psStats->weight);
 }
 
 /* Set the shadow bar graphs for the ECM stats */
@@ -2228,13 +2305,13 @@ static void intSetECMShadowStats(ECM_STATS *psStats)
 		/* power */
 		widgSetMinorBarSize(psWScreen, IDDES_ECMPOWER, ecmRange(psStats, (UBYTE)selectedPlayer));
 		/* weight */
-		widgSetMinorBarSize(psWScreen, IDDES_ECMWEIGHT, psStats->weight);
+		widgSetMinorBarSize(psWScreen, IDDES_SYSTEMSWEIGHT, psStats->weight);
 	}
 	else
 	{
 		/* Remove the shadow bars */
 		widgSetMinorBarSize(psWScreen, IDDES_ECMPOWER, 0);
-		widgSetMinorBarSize(psWScreen, IDDES_ECMWEIGHT, 0);
+		widgSetMinorBarSize(psWScreen, IDDES_SYSTEMSWEIGHT, 0);
 	}
 }
 
@@ -2249,7 +2326,7 @@ static void intSetConstructStats(CONSTRUCT_STATS *psStats)
 	widgSetBarSize(psWScreen, IDDES_CONSTPOINTS,
 	               constructorPoints(psStats, (UBYTE)selectedPlayer));
 	/* weight */
-	widgSetBarSize(psWScreen, IDDES_CONSTWEIGHT, psStats->weight);
+	widgSetBarSize(psWScreen, IDDES_SYSTEMSWEIGHT, psStats->weight);
 }
 
 
@@ -2264,13 +2341,13 @@ static void intSetConstructShadowStats(CONSTRUCT_STATS *psStats)
 		widgSetMinorBarSize(psWScreen, IDDES_CONSTPOINTS,
 		                    constructorPoints(psStats, (UBYTE)selectedPlayer));
 		/* weight */
-		widgSetMinorBarSize(psWScreen, IDDES_CONSTWEIGHT, psStats->weight);
+		widgSetMinorBarSize(psWScreen, IDDES_SYSTEMSWEIGHT, psStats->weight);
 	}
 	else
 	{
 		/* reset the shadow bars */
 		widgSetMinorBarSize(psWScreen, IDDES_CONSTPOINTS, 0);
-		widgSetMinorBarSize(psWScreen, IDDES_CONSTWEIGHT, 0);
+		widgSetMinorBarSize(psWScreen, IDDES_SYSTEMSWEIGHT, 0);
 	}
 }
 
@@ -2284,7 +2361,7 @@ static void intSetRepairStats(REPAIR_STATS *psStats)
 	widgSetBarSize(psWScreen, IDDES_REPAIRPOINTS,
 	               repairPoints(psStats, (UBYTE)selectedPlayer));
 	/* weight */
-	widgSetBarSize(psWScreen, IDDES_REPAIRWEIGHT, psStats->weight);
+	widgSetBarSize(psWScreen, IDDES_SYSTEMSWEIGHT, psStats->weight);
 }
 
 
@@ -2299,13 +2376,13 @@ static void intSetRepairShadowStats(REPAIR_STATS *psStats)
 		widgSetMinorBarSize(psWScreen, IDDES_REPAIRPOINTS,
 		                    repairPoints(psStats, (UBYTE)selectedPlayer));
 		/* weight */
-		widgSetMinorBarSize(psWScreen, IDDES_REPAIRWEIGHT, psStats->weight);
+		widgSetMinorBarSize(psWScreen, IDDES_SYSTEMSWEIGHT, psStats->weight);
 	}
 	else
 	{
 		/* reset the shadow bars */
 		widgSetMinorBarSize(psWScreen, IDDES_REPAIRPOINTS, 0);
-		widgSetMinorBarSize(psWScreen, IDDES_REPAIRWEIGHT, 0);
+		widgSetMinorBarSize(psWScreen, IDDES_SYSTEMSWEIGHT, 0);
 	}
 }
 
@@ -2324,7 +2401,7 @@ static void intSetWeaponStats(WEAPON_STATS *psStats)
 	widgSetBarSize(psWScreen, IDDES_WEAPDAMAGE, (UWORD)weaponDamage(psStats,
 	               (UBYTE)selectedPlayer));
 	/* weight */
-	widgSetBarSize(psWScreen, IDDES_WEAPWEIGHT, psStats->weight);
+	widgSetBarSize(psWScreen, IDDES_SYSTEMSWEIGHT, psStats->weight);
 }
 
 /* Set the shadow bar graphs for the Weapon stats */
@@ -2342,7 +2419,7 @@ static void intSetWeaponShadowStats(WEAPON_STATS *psStats)
 		widgSetMinorBarSize(psWScreen, IDDES_WEAPDAMAGE, (UWORD)weaponDamage(
 		                        psStats, (UBYTE)selectedPlayer));
 		/* weight */
-		widgSetMinorBarSize(psWScreen, IDDES_WEAPWEIGHT, psStats->weight);
+		widgSetMinorBarSize(psWScreen, IDDES_SYSTEMSWEIGHT, psStats->weight);
 	}
 	else
 	{
@@ -2350,7 +2427,7 @@ static void intSetWeaponShadowStats(WEAPON_STATS *psStats)
 		widgSetMinorBarSize(psWScreen, IDDES_WEAPRANGE, 0);
 		widgSetMinorBarSize(psWScreen, IDDES_WEAPROF, 0);
 		widgSetMinorBarSize(psWScreen, IDDES_WEAPDAMAGE, 0);
-		widgSetMinorBarSize(psWScreen, IDDES_WEAPWEIGHT, 0);
+		widgSetMinorBarSize(psWScreen, IDDES_SYSTEMSWEIGHT, 0);
 	}
 }
 
@@ -2515,9 +2592,7 @@ static void intSetTemplatePowerShadowStats(COMPONENT_STATS *psStats)
 		return;
 	}
 
-	sShadowDesign = sCurrDesign;
-	setTemplateStat(&sShadowDesign, psStats);
-	widgSetMinorBarSize(psWScreen, IDDES_POWERBAR, calcTemplatePower(&sShadowDesign));
+	widgSetMinorBarSize(psWScreen, IDDES_POWERBAR, calcShadowPower(*psStats));
 }
 
 /* Sets the Body Points Bar for a given Template */
@@ -2537,9 +2612,7 @@ static void intSetTemplateBodyShadowStats(COMPONENT_STATS *psStats)
 		return;
 	}
 
-	sShadowDesign = sCurrDesign;
-	setTemplateStat(&sShadowDesign, psStats);
-	widgSetMinorBarSize(psWScreen, IDDES_BODYPOINTS, calcTemplateBody(&sShadowDesign, selectedPlayer));
+	widgSetMinorBarSize(psWScreen, IDDES_BODYPOINTS, calcShadowBodyPoints(*psStats));
 }
 
 
@@ -2574,7 +2647,6 @@ static UDWORD intCalcSpeed(TYPE_OF_TERRAIN type, PROPULSION_STATS *psProp)
 static void intSetPropulsionStats(PROPULSION_STATS *psStats)
 {
 	W_FORM	    *psForm;
-	UDWORD      weight;
 
 	ASSERT_OR_RETURN(, psStats != nullptr, "Invalid stats pointer");
 	ASSERT_OR_RETURN(, psStats->hasType(STAT_PROPULSION), "stats have wrong type");
@@ -2607,28 +2679,22 @@ static void intSetPropulsionStats(PROPULSION_STATS *psStats)
 		break;
 	}
 
-	/* weight */
-	//widgSetBarSize(psWScreen, IDDES_PROPWEIGHT, psStats->weight);
-
-	/* propulsion weight is a percentage of the body weight */
-	if (sCurrDesign.asParts[COMP_BODY] != 0)
-	{
-		weight = psStats->weight * asBodyStats[sCurrDesign.asParts[COMP_BODY]].weight / 100;
-	}
-	else
-	{
-		//if haven't got a body - can't calculate a value
-		weight = 0;
-	}
-	widgSetBarSize(psWScreen, IDDES_PROPWEIGHT, weight);
+	widgSetBarSize(psWScreen, IDDES_PROPWEIGHT, calculatePropulsionWeight(*psStats));
 }
 
+static uint32_t calculatePropulsionWeight(COMPONENT_STATS &propulsionStats)
+{
+	if (sCurrDesign.asParts[COMP_BODY] == 0)
+	{
+		return 0;
+	}
+
+	return propulsionStats.weight *asBodyStats[sCurrDesign.asParts[COMP_BODY]].weight / 100;
+}
 
 /* Set the shadow bar graphs for the Propulsion stats */
 static void intSetPropulsionShadowStats(PROPULSION_STATS *psStats)
 {
-	UDWORD      weight;
-
 	ASSERT(psStats == nullptr || psStats->hasType(STAT_PROPULSION), "stats have wrong type");
 
 	/* Only set the shadow stats if they are the right type */
@@ -2654,7 +2720,7 @@ static void intSetPropulsionShadowStats(PROPULSION_STATS *psStats)
 		}
 		if (sCurrDesign.asParts[COMP_BODY] != 0)
 		{
-			widgSetMinorBarSize(psWScreen, IDDES_PROPWEIGHT, psStats->weight * asBodyStats[sCurrDesign.asParts[COMP_BODY]].weight / 100);
+			widgSetMinorBarSize(psWScreen, IDDES_PROPWEIGHT, calculatePropulsionWeight(*psStats));
 		}
 		return;
 	}
@@ -2701,20 +2767,7 @@ static void intSetPropulsionShadowStats(PROPULSION_STATS *psStats)
 
 	if (psStats)
 	{
-		/* weight */
-		//widgSetMinorBarSize(psWScreen, IDDES_PROPWEIGHT, psStats->weight);
-
-		/* propulsion weight is a percentage of the body weight */
-		if (sCurrDesign.asParts[COMP_BODY] != 0)
-		{
-			weight = psStats->weight * asBodyStats[sCurrDesign.asParts[COMP_BODY]].weight / 100;
-		}
-		else
-		{
-			//if haven't got a body - can't calculate a value
-			weight = 0;
-		}
-		widgSetMinorBarSize(psWScreen, IDDES_PROPWEIGHT, weight);
+		widgSetMinorBarSize(psWScreen, IDDES_PROPWEIGHT, calculatePropulsionWeight(*psStats));
 	}
 	else
 	{

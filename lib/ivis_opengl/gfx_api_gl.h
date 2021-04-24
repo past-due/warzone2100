@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <typeindex>
 
 namespace gfx_api
 {
@@ -95,14 +96,19 @@ struct gl_pipeline_state_object final : public gfx_api::pipeline_state_object
 	std::vector<GLint> locations;
 	std::vector<GLint> duplicateFragmentUniformLocations;
 
-	std::function<void(const void*)> uniform_bind_function;
+	std::vector<std::function<void(const void*, size_t)>> uniform_bind_functions;
 
 	template<SHADER_MODE shader>
-	typename std::pair<SHADER_MODE, std::function<void(const void*)>> uniform_binding_entry();
+	typename std::pair<std::type_index, std::function<void(const void*, size_t)>> uniform_binding_entry();
 
-	gl_pipeline_state_object(bool gles, bool fragmentHighpFloatAvailable, bool fragmentHighpIntAvailable, const gfx_api::state_description& _desc, const SHADER_MODE& shader, const std::vector<gfx_api::vertex_buffer>& vertex_buffer_desc);
+	template<typename T>
+	typename std::pair<std::type_index, std::function<void(const void*, size_t)>> uniform_setting_func();
+
+	gl_pipeline_state_object(bool gles, bool fragmentHighpFloatAvailable, bool fragmentHighpIntAvailable, const gfx_api::state_description& _desc, const SHADER_MODE& shader, const std::vector<std::type_index>& uniform_blocks, const std::vector<gfx_api::vertex_buffer>& vertex_buffer_desc);
 	~gl_pipeline_state_object();
-	void set_constants(const void* buffer);
+
+	void set_constants(const void* buffer, const size_t& size);
+	void set_uniforms(const size_t& first, const std::vector<std::tuple<const void*, size_t>>& uniform_blocks);
 
 	void bind();
 
@@ -142,36 +148,10 @@ private:
 
 
 	// Wish there was static reflection in C++...
-	template<typename T>
-	void set_constants_for_component(const T& cbuf)
-	{
-		setUniforms(0, cbuf.colour);
-		setUniforms(1, cbuf.teamcolour);
-		setUniforms(2, cbuf.shaderStretch);
-		setUniforms(3, cbuf.tcmask);
-		setUniforms(4, cbuf.fogEnabled);
-		setUniforms(5, cbuf.normalMap);
-		setUniforms(6, cbuf.specularMap);
-		setUniforms(7, cbuf.ecmState);
-		setUniforms(8, cbuf.alphaTest);
-		setUniforms(9, cbuf.timeState);
-		setUniforms(10, cbuf.ModelViewMatrix);
-		setUniforms(11, cbuf.ModelViewProjectionMatrix);
-		setUniforms(12, cbuf.NormalMatrix);
-		setUniforms(13, cbuf.sunPos);
-		setUniforms(14, cbuf.sceneColor);
-		setUniforms(15, cbuf.ambient);
-		setUniforms(16, cbuf.diffuse);
-		setUniforms(17, cbuf.specular);
-		setUniforms(18, cbuf.fogColour);
-		setUniforms(19, cbuf.fogEnd);
-		setUniforms(20, cbuf.fogBegin);
-		setUniforms(21, cbuf.hasTangents);
-	}
+	void set_constants(const gfx_api::Draw3DShapeGlobalUniforms& cbuf);
+	void set_constants(const gfx_api::Draw3DShapePerMeshUniforms& cbuf);
+	void set_constants(const gfx_api::Draw3DShapePerInstanceUniforms& cbuf);
 
-	void set_constants(const gfx_api::constant_buffer_type<SHADER_BUTTON>& cbuf);
-	void set_constants(const gfx_api::constant_buffer_type<SHADER_COMPONENT>& cbuf);
-	void set_constants(const gfx_api::constant_buffer_type<SHADER_NOLIGHT>& cbuf);
 	void set_constants(const gfx_api::constant_buffer_type<SHADER_TERRAIN>& cbuf);
 	void set_constants(const gfx_api::constant_buffer_type<SHADER_TERRAIN_DEPTH>& cbuf);
 	void set_constants(const gfx_api::constant_buffer_type<SHADER_DECALS>& cbuf);
@@ -180,6 +160,7 @@ private:
 	void set_constants(const gfx_api::constant_buffer_type<SHADER_TEXRECT>& cbuf);
 	void set_constants(const gfx_api::constant_buffer_type<SHADER_GFX_COLOUR>& cbuf);
 	void set_constants(const gfx_api::constant_buffer_type<SHADER_GFX_TEXT>& cbuf);
+	void set_constants(const gfx_api::constant_buffer_type<SHADER_SKYBOX>& cbuf);
 	void set_constants(const gfx_api::constant_buffer_type<SHADER_GENERIC_COLOR>& cbuf);
 	void set_constants(const gfx_api::constant_buffer_type<SHADER_LINE>& cbuf);
 	void set_constants(const gfx_api::constant_buffer_type<SHADER_TEXT>& cbuf);
@@ -207,6 +188,7 @@ struct gl_context final : public gfx_api::context
 	virtual gfx_api::pipeline_state_object * build_pipeline(const gfx_api::state_description &state_desc,
 															const SHADER_MODE& shader_mode,
 															const gfx_api::primitive_type& primitive,
+															const std::vector<std::type_index>& uniform_blocks,
 															const std::vector<gfx_api::texture_input>& texture_desc,
 															const std::vector<gfx_api::vertex_buffer>& attribute_descriptions) override;
 	virtual void bind_pipeline(gfx_api::pipeline_state_object* pso, bool notextures) override;
@@ -218,6 +200,7 @@ struct gl_context final : public gfx_api::context
 	virtual void bind_streamed_vertex_buffers(const void* data, const std::size_t size) override;
 	virtual void bind_textures(const std::vector<gfx_api::texture_input>& texture_descriptions, const std::vector<gfx_api::texture*>& textures) override;
 	virtual void set_constants(const void* buffer, const size_t& size) override;
+	virtual void set_uniforms(const size_t& first, const std::vector<std::tuple<const void*, size_t>>& uniform_blocks) override;
 	virtual void draw(const size_t& offset, const size_t &count, const gfx_api::primitive_type &primitive) override;
 	virtual void draw_elements(const size_t& offset, const size_t &count, const gfx_api::primitive_type &primitive, const gfx_api::index_type& index) override;
 	virtual void set_polygon_offset(const float& offset, const float& slope) override;

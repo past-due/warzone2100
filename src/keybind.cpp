@@ -767,31 +767,16 @@ void	kf_TileInfo()
 /* Toggles fog on/off */
 void	kf_ToggleFog()
 {
-	static bool fogEnabled = false;
-
-#ifndef DEBUG
-	// Bail out if we're running a _true_ multiplayer game (to prevent MP cheating)
-	if (runningMultiplayer())
+	if (pie_GetFogEnabled())
 	{
-		noMPCheatMsg();
-		return;
-	}
-#endif
-
-	if (fogEnabled)
-	{
-		fogEnabled = false;
 		pie_SetFogStatus(false);
-		pie_EnableFog(fogEnabled);
+		pie_EnableFog(false);
 	}
 	else
 	{
-		fogEnabled = true;
-		pie_EnableFog(fogEnabled);
+		pie_EnableFog(true);
 	}
-
-	std::string cmsg = astringf(_("(Player %u) is using cheat :%s"),
-	          selectedPlayer, fogEnabled ? _("Fog on") : _("Fog off"));
+	std::string cmsg = pie_GetFogEnabled() ? _("Fog on") : _("Fog off");
 	sendInGameSystemMessage(cmsg.c_str());
 }
 
