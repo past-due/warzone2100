@@ -49,7 +49,8 @@ W_BARGRAPH::W_BARGRAPH(W_BARINIT const *init)
 	, majorSize(init->size)
 	, minorSize(init->minorSize)
 	, iRange(init->iRange)
-	, majorValue(0)
+	, majorValue(majorSize * iRange / WBAR_SCALE)
+	, minorValue(minorSize * iRange / WBAR_SCALE)
 	, denominator(MAX(init->denominator, 1))
 	, precision(init->precision)
 	, majorCol(init->sCol)
@@ -87,7 +88,7 @@ void widgSetBarSize(const std::shared_ptr<W_SCREEN> &psScreen, UDWORD id, UDWORD
 	if (auto psBGraph = getBarGraph(psScreen, id))
 	{
 		psBGraph->majorValue = iValue;
-		psBGraph->dirty = true;
+		psBGraph->sizesDirty = true;
 	}
 }
 
@@ -98,7 +99,7 @@ void widgSetMinorBarSize(const std::shared_ptr<W_SCREEN> &psScreen, UDWORD id, U
 	if (auto psBGraph = getBarGraph(psScreen, id))
 	{
 		psBGraph->minorValue = iValue;
-		psBGraph->dirty = true;
+		psBGraph->sizesDirty = true;
 	}
 }
 
@@ -109,36 +110,17 @@ void widgSetBarRange(const std::shared_ptr<W_SCREEN> &psScreen, UDWORD id, UDWOR
 	if (auto psBGraph = getBarGraph(psScreen, id))
 	{
 		psBGraph->iRange = iValue;
-		psBGraph->dirty = true;
+		psBGraph->sizesDirty = true;
 	}
-}
-
-
-/* Respond to a mouse moving over a barGraph */
-void W_BARGRAPH::highlight(W_CONTEXT *psContext)
-{
-	if (!pTip.empty())
-	{
-		if (auto lockedScreen = screenPointer.lock())
-		{
-			tipStart(this, pTip, lockedScreen->TipFontID, x() + psContext->xOffset, y() + psContext->yOffset, width(), height());
-		}
-	}
-}
-
-
-/* Respond to the mouse moving off a barGraph */
-void W_BARGRAPH::highlightLost()
-{
-	tipStop(this);
 }
 
 void W_BARGRAPH::run(W_CONTEXT *context)
 {
-	if (dirty)
+	if (sizesDirty)
 	{
 		majorSize = WBAR_SCALE * MIN(majorValue, iRange) / MAX(iRange, 1);
 		minorSize = MIN(WBAR_SCALE * minorValue / MAX(iRange, 1), WBAR_SCALE);
+		sizesDirty = false;
 	}
 }
 

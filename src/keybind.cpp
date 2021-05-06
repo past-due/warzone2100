@@ -1031,10 +1031,16 @@ void	kf_SelectPlayer()
 	}
 #endif
 
+	const auto lastKey = getLastInput().asKeyCode();
+	if (!lastKey.has_value())
+	{
+		return;
+	}
+
 	//store the current player
 	prevPlayer = selectedPlayer;
 
-	playerNumber = (getLastSubKey() - KEY_F1);
+	playerNumber = ((*lastKey) - KEY_CODE::KEY_F1);
 	if (playerNumber >= 10)
 	{
 		selectedPlayer = 0;
@@ -1126,10 +1132,13 @@ DEFINE_NUMED_KF(9)
 // --------------------------------------------------------------------------
 void	kf_SelectMoveGrouping()
 {
-	UDWORD	groupNumber;
+	const auto lastKey = getLastInput().asKeyCode();
+	if (!lastKey.has_value())
+	{
+		return;
+	}
 
-
-	groupNumber = (getLastSubKey() - KEY_1) + 1;
+	const UDWORD groupNumber = ((*lastKey) - KEY_CODE::KEY_1) + 1;
 
 	activateGroupAndMove(selectedPlayer, groupNumber);
 }
@@ -1162,11 +1171,15 @@ void	kf_addMultiMenu()
 
 void	kf_JumpToMapMarker()
 {
+	const auto lastKey = getLastInput().asKeyCode();
+	if (!lastKey.has_value())
+	{
+		return;
+	}
 
-	KEY_CODE	entry;
 	if (!getRadarTrackingStatus())
 	{
-		entry = getLastSubKey();
+		const KEY_CODE entry = *lastKey;
 //		CONPRINTF("Restoring map position %d:%d",getMarkerX(entry),getMarkerY(entry));
 		playerPos.p.x = getMarkerX(entry);
 		playerPos.p.z = getMarkerY(entry);
