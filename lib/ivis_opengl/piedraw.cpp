@@ -844,8 +844,8 @@ static ShadowCache shadowCache;
 
 static void pie_DrawShadows(uint64_t currentGameFrame)
 {
-	const float width = pie_GetVideoBufferWidth();
-	const float height = pie_GetVideoBufferHeight();
+	const int width = pie_GetVideoBufferWidth();
+	const int height = pie_GetVideoBufferHeight();
 	shadowCache.setCurrentFrame(currentGameFrame);
 
 	pie_ShadowDrawLoop(shadowCache);

@@ -1,14 +1,31 @@
-// Framework
-#include "maplib.h"
+/*
+	This file is part of Warzone 2100.
+	Copyright (C) 1999-2004  Eidos Interactive
+	Copyright (C) 2005-2021  Warzone 2100 Project
 
-#if defined(__MACOSX__)
-# include <Png/png.h>
-#else
-# include <png.h>
-#endif
+	Warzone 2100 is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 2 of the License, or
+	(at your option) any later version.
+
+	Warzone 2100 is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with Warzone 2100; if not, write to the Free Software
+	Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+*/
 
 #include "pngsave.h"
+#include "lib/maplib/map_debug.h"
+#include <png.h>
+#include <cstdlib>
+#include <cstdarg>
 
+template <unsigned N>
+static inline int vssprintf(char (&dest)[N], char const *format, va_list params) { return vsnprintf(dest, N, format, params); }
 
 static inline void PNGWriteCleanup(png_infop *info_ptr, png_structp *png_ptr, FILE* fileHandle)
 {
@@ -20,7 +37,17 @@ static inline void PNGWriteCleanup(png_infop *info_ptr, png_structp *png_ptr, FI
 		fclose(fileHandle);
 }
 
-static bool savePngInternal(const char *fileName, uint8_t *pixels, int w, int h, int bitdepth, int color_type)
+#define debug_error(...) do { \
+	fprintf(stderr, __VA_ARGS__); \
+} while(0)
+
+#if defined(_MSC_VER)
+// FIXME?: disable MSVC warning C4611: interaction between '_setjmp' and C++ object destruction is non-portable
+__pragma(warning( push )) // see matching "pop" below
+__pragma(warning( disable : 4611 ))
+#endif
+
+static bool savePngInternal(const char *fileName, uint8_t *pixels, unsigned w, unsigned h, int bitdepth, int color_type)
 {
 	uint8_t **scanlines = NULL;
 	png_infop info_ptr = NULL;
@@ -33,24 +60,24 @@ static bool savePngInternal(const char *fileName, uint8_t *pixels, int w, int h,
 	}
 	if (w <= 0 || h <= 0)
 	{
-		debug(LOG_ERROR, "Unsupported image dimensions: %d x %d", w, h);
+		debug_error("savePng: Unsupported image dimensions: %d x %d", w, h);
 		return false;
 	}
 	if (bitdepth <= 0)
 	{
-		debug(LOG_ERROR, "Unsupported bit depth: %d", bitdepth);
+		debug_error("savePng: Unsupported bit depth: %d", bitdepth);
 		return false;
 	}
 	if (!(fp = fopen(fileName, "wb")))
 	{
-		debug(LOG_ERROR, "%s won't open for writing!", fileName);
+		debug_error("savePng: %s won't open for writing!", fileName);
 		return false;
 	}
 
 	png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
 	if (png_ptr == NULL)
 	{
-		debug(LOG_ERROR, "savePng: Unable to create png struct\n");
+		debug_error("savePng: Unable to create png struct\n");
 		PNGWriteCleanup(&info_ptr, &png_ptr, fp);
 		return false;
 	}
@@ -58,7 +85,7 @@ static bool savePngInternal(const char *fileName, uint8_t *pixels, int w, int h,
 	info_ptr = png_create_info_struct(png_ptr);
 	if (info_ptr == NULL)
 	{
-		debug(LOG_ERROR, "savePng: Unable to create png info struct\n");
+		debug_error("savePng: Unable to create png info struct\n");
 		PNGWriteCleanup(&info_ptr, &png_ptr, fp);
 		return false;
 	}
@@ -66,7 +93,7 @@ static bool savePngInternal(const char *fileName, uint8_t *pixels, int w, int h,
 	// If libpng encounters an error, it will jump into this if-branch
 	if (setjmp(png_jmpbuf(png_ptr)))
 	{
-		debug(LOG_ERROR, "savePng: Error encoding PNG data\n");
+		debug_error("savePng: Error encoding PNG data\n");
 		PNGWriteCleanup(&info_ptr, &png_ptr, fp);
 		return false;
 	}
@@ -87,7 +114,7 @@ static bool savePngInternal(const char *fileName, uint8_t *pixels, int w, int h,
 				channelsPerPixel = 4;
 				break;
 			default:
-				debug(LOG_ERROR, "Unsupported pixel format.\n");
+				debug_error("savePng: Unsupported pixel format.\n");
 				PNGWriteCleanup(&info_ptr, &png_ptr, fp);
 				return false;
 		}
@@ -97,7 +124,7 @@ static bool savePngInternal(const char *fileName, uint8_t *pixels, int w, int h,
 		scanlines = (uint8_t **)malloc(sizeof(uint8_t *) * h);
 		if (scanlines == NULL)
 		{
-			debug(LOG_ERROR, "Couldn't allocate memory\n");
+			debug_error("savePng: Couldn't allocate memory\n");
 			PNGWriteCleanup(&info_ptr, &png_ptr, fp);
 			return false;
 		}
@@ -130,10 +157,9 @@ static bool savePngInternal(const char *fileName, uint8_t *pixels, int w, int h,
 
 		// Not calling this function is equal to using the default
 		// so to spare some CPU cycles we comment this out.
-		// png_set_compression_level(png_ptr, Z_DEFAULT_COMPRESSION);
+		png_set_compression_level(png_ptr, 9);
 		png_set_IHDR(png_ptr, info_ptr, w, h, bitdepth,
 					 color_type, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
-		png_write_info(png_ptr, info_ptr);
 
 		// Create an array of scanlines
 		for (currentRow = 0; currentRow < h; ++currentRow)
@@ -141,13 +167,12 @@ static bool savePngInternal(const char *fileName, uint8_t *pixels, int w, int h,
 			// png scanlines are ordered from top-to-bottom
 			// so we fill the scanline from the top to the bottom here
 			// otherwise we'd have a vertically mirrored image.
-			scanlines[currentRow] = pixels + row_stride * (h - currentRow - 1);
+			scanlines[currentRow] = pixels + (row_stride * (h - currentRow - 1));
 		}
 
-		png_write_image(png_ptr, (png_bytepp)scanlines);
+		png_set_rows(png_ptr, info_ptr, (png_bytepp)scanlines);
 
 		png_write_png(png_ptr, info_ptr, PNG_TRANSFORM_IDENTITY, NULL);
-		png_write_end(png_ptr, NULL);
 	}
 
 	free(scanlines);
@@ -156,10 +181,14 @@ static bool savePngInternal(const char *fileName, uint8_t *pixels, int w, int h,
 	return true;
 }
 
+#if defined(_MSC_VER)
+__pragma(warning( pop )) // FIXME?: re-enable MSVC warning C4611: interaction between '_setjmp' and C++ object destruction is non-portable
+#endif
+
 /**************************************************************************
   Save an RGB888 image buffer to a PNG file.
 **************************************************************************/
-bool savePng(const char *filename, uint8_t *pixels, int w, int h)
+bool savePng(const char *filename, uint8_t *pixels, unsigned w, unsigned h)
 {
 	return savePngInternal(filename, pixels, w, h, 8, PNG_COLOR_TYPE_RGB);
 }
@@ -167,7 +196,7 @@ bool savePng(const char *filename, uint8_t *pixels, int w, int h)
 /**************************************************************************
   Save an ARGB8888 image buffer to a PNG file.
 **************************************************************************/
-bool savePngARGB32(const char *filename, uint8_t *pixels, int w, int h)
+bool savePngARGB32(const char *filename, uint8_t *pixels, unsigned w, unsigned h)
 {
 	return savePngInternal(filename, pixels, w, h, 8, PNG_COLOR_TYPE_RGBA);
 }
@@ -175,7 +204,7 @@ bool savePngARGB32(const char *filename, uint8_t *pixels, int w, int h)
 /**************************************************************************
   Save an I16 image buffer to a PNG file.
 **************************************************************************/
-bool savePngI16(const char *filename, uint16_t *pixels, int w, int h)
+bool savePngI16(const char *filename, uint16_t *pixels, unsigned w, unsigned h)
 {
 	return savePngInternal(filename, (uint8_t *)pixels, w, h, 16, PNG_COLOR_TYPE_GRAY);
 }
