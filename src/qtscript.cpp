@@ -489,52 +489,6 @@ bool scripting_engine::updateScripts()
 	return true;
 }
 
-uint32_t ScriptMapData::crcSumStructures(uint32_t crc) const
-{
-	for (auto &o : structures)
-	{
-		crc = crcSum(crc, o.name.toUtf8().data(), o.name.toUtf8().length());
-		crc = crcSumVector2i(crc, &o.position, 1);
-		crc = crcSumU16(crc, &o.direction, 1);
-		crc = crcSum(crc, &o.modules, 1);
-		crc = crcSum(crc, &o.player, 1);
-	}
-	return crc;
-}
-
-uint32_t ScriptMapData::crcSumDroids(uint32_t crc) const
-{
-	for (auto &o : droids)
-	{
-		crc = crcSum(crc, o.name.toUtf8().data(), o.name.toUtf8().length());
-		crc = crcSumVector2i(crc, &o.position, 1);
-		crc = crcSumU16(crc, &o.direction, 1);
-		crc = crcSum(crc, &o.player, 1);
-	}
-	return crc;
-}
-
-uint32_t ScriptMapData::crcSumFeatures(uint32_t crc) const
-{
-	for (auto &o : features)
-	{
-		crc = crcSum(crc, o.name.toUtf8().data(), o.name.toUtf8().length());
-		crc = crcSumVector2i(crc, &o.position, 1);
-		crc = crcSumU16(crc, &o.direction, 1);
-	}
-	return crc;
-}
-
-ScriptMapData runMapScript(WzString const &path, uint64_t seed, bool preview)
-{
-	return scripting_engine::instance().runMapScript(path, seed, preview);
-}
-
-ScriptMapData scripting_engine::runMapScript(WzString const &path, uint64_t seed, bool preview)
-{
-	return runMapScript_QuickJS(path, seed, preview);
-}
-
 wzapi::scripting_instance* loadPlayerScript(const WzString& path, int player, AIDifficulty difficulty)
 {
 	return scripting_engine::instance().loadPlayerScript(path, player, difficulty);
@@ -2002,9 +1956,9 @@ bool scripting_engine::loadLabels(const char *filename)
 			p.type = SCRIPT_POSITION;
 			p.player = ALL_PLAYERS;
 			p.id = -1;
-			p.triggered = -1; // always deactivated
-			labels[label] = p;
 			p.triggered = ini.value("triggered", -1).toInt(); // deactivated by default
+			p.subscriber = ALL_PLAYERS;
+			labels[label] = p;
 		}
 		else if (list[i].startsWith("area"))
 		{
@@ -2028,16 +1982,15 @@ bool scripting_engine::loadLabels(const char *filename)
 			p.subscriber = ini.value("subscriber", ALL_PLAYERS).toInt();
 			p.id = -1;
 			labels[label] = p;
-			p.triggered = ini.value("triggered", -1).toInt(); // deactivated by default
 		}
 		else if (list[i].startsWith("object"))
 		{
 			p.id = ini.value("id").toInt();
 			p.type = ini.value("type").toInt();
 			p.player = ini.value("player").toInt();
-			labels[label] = p;
 			p.triggered = ini.value("triggered", -1).toInt(); // deactivated by default
 			p.subscriber = ini.value("subscriber", ALL_PLAYERS).toInt();
+			labels[label] = p;
 		}
 		else if (list[i].startsWith("group"))
 		{
@@ -2053,8 +2006,9 @@ bool scripting_engine::loadLabels(const char *filename)
 				       id, p.player, list[i].toUtf8().c_str());
 				p.idlist.push_back(id);
 			}
-			labels[label] = p;
 			p.triggered = ini.value("triggered", -1).toInt(); // deactivated by default
+			p.subscriber = ini.value("subscriber", ALL_PLAYERS).toInt();
+			labels[label] = p;
 		}
 		else
 		{

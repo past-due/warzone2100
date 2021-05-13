@@ -412,6 +412,29 @@ void kf_CloneSelected(int limit)
 	}
 }
 
+void kf_MakeMeHero()
+{
+#ifndef DEBUG
+	// Bail out if we're running a _true_ multiplayer game (to prevent MP cheating)
+	if (runningMultiplayer())
+	{
+		noMPCheatMsg();
+		return;
+	}
+#endif
+	for (DROID *psDroid = apsDroidLists[selectedPlayer]; psDroid; psDroid = psDroid->psNext)
+	{
+		if (psDroid->selected && psDroid->droidType == DROID_COMMAND)
+		{
+			psDroid->experience = 8 * 65536 * 128;
+		} 
+		else if (psDroid->selected)
+		{
+			psDroid->experience = 4 * 65536 * 128;
+		}
+	}
+}
+
 void kf_TeachSelected()
 {
 #ifndef DEBUG
@@ -936,7 +959,7 @@ void	kf_ExpandScreen( void )
 /* Spins the world round left */
 void	kf_RotateLeft()
 {
-	float rotAmount = realTimeAdjustedIncrement(MAP_SPIN_RATE);
+	int rotAmount = static_cast<int>(realTimeAdjustedIncrement(MAP_SPIN_RATE));
 
 	playerPos.r.y += rotAmount;
 }
@@ -945,7 +968,7 @@ void	kf_RotateLeft()
 /* Spins the world right */
 void	kf_RotateRight()
 {
-	float rotAmount = realTimeAdjustedIncrement(MAP_SPIN_RATE);
+	int rotAmount = static_cast<int>(realTimeAdjustedIncrement(MAP_SPIN_RATE));
 
 	playerPos.r.y -= rotAmount;
 	if (playerPos.r.y < 0)
@@ -972,7 +995,7 @@ void kf_RotateBuildingACW()
 /* Pitches camera back */
 void	kf_PitchBack()
 {
-	float pitchAmount = realTimeAdjustedIncrement(MAP_PITCH_RATE);
+	int pitchAmount = static_cast<int>(realTimeAdjustedIncrement(MAP_PITCH_RATE));
 
 	playerPos.r.x += pitchAmount;
 
@@ -986,7 +1009,7 @@ void	kf_PitchBack()
 /* Pitches camera forward */
 void	kf_PitchForward()
 {
-	float pitchAmount = realTimeAdjustedIncrement(MAP_PITCH_RATE);
+	int pitchAmount = static_cast<int>(realTimeAdjustedIncrement(MAP_PITCH_RATE));
 
 	playerPos.r.x -= pitchAmount;
 	if (playerPos.r.x < DEG(360 + MIN_PLAYER_X_ANGLE))

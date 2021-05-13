@@ -426,7 +426,7 @@ bool drawShape(BASE_OBJECT *psObj, iIMDShape *strImd, int colour, PIELIGHT build
 
 		if (strImd->interpolate == 1)
 		{
-			const float frameFraction = fmod(elapsed / (float)strImd->objanimtime, strImd->objanimframes) - frame;
+			const float frameFraction = static_cast<float>(fmod(elapsed / (float)strImd->objanimtime, strImd->objanimframes) - frame);
 			const int nextFrame = (frame + 1) % strImd->objanimframes;
 			const ANIMFRAME &nextState = strImd->objanimdata.at(nextFrame);
 
@@ -559,7 +559,7 @@ static PIELIGHT structureBrightness(STRUCTURE *psStructure)
 	}
 	else
 	{
-		buildingBrightness = pal_SetBrightness(200 - 100 / 65536.f * getStructureDamage(psStructure));
+		buildingBrightness = pal_SetBrightness(static_cast<UBYTE>(200 - 100 / 65536.f * getStructureDamage(psStructure)));
 
 		/* If it's selected, then it's brighter */
 		if (psStructure->selected)
@@ -1105,10 +1105,10 @@ static void drawTiles(iView *player)
 	actualCameraPosition = Vector3i(0, 0, 0);
 
 	/* Set the camera position */
-	actualCameraPosition.z -= distance;
+	actualCameraPosition.z -= static_cast<int>(distance);
 
 	// Now, scale the world according to what resolution we're running in
-	actualCameraPosition.z /= pie_GetResScalingFactor() / 100.f;
+	actualCameraPosition.z /= static_cast<int>(pie_GetResScalingFactor() / 100.f);
 
 	/* Rotate for the player */
 	rotateSomething(actualCameraPosition.x, actualCameraPosition.y, -player->r.z);
@@ -1143,7 +1143,7 @@ static void drawTiles(iView *player)
 				MAPTILE *psTile = mapTile(playerXTile + j, playerZTile + i);
 
 				pos.y = map_TileHeight(playerXTile + j, playerZTile + i);
-				setTileColour(playerXTile + j, playerZTile + i, pal_SetBrightness(psTile->level));
+				setTileColour(playerXTile + j, playerZTile + i, pal_SetBrightness(static_cast<UBYTE>(psTile->level)));
 			}
 			tileScreenInfo[idx][jdx].z = pie_RotateProject(&pos, viewMatrix, &screen);
 			tileScreenInfo[idx][jdx].x = screen.x;
@@ -1432,7 +1432,7 @@ bool clipShapeOnScreen(const iIMDShape *pIMD, const glm::mat4& viewModelMatrix, 
 	origin = Vector3i(0, wsRadius, 0); // take the center of the object
 
 	/* get the screen coordinates */
-	const float cZ = pie_RotateProject(&origin, viewModelMatrix, &center) * 0.1;
+	const float cZ = pie_RotateProject(&origin, viewModelMatrix, &center) * 0.1f;
 
 	// avoid division by zero
 	if (cZ > 0)
@@ -2523,7 +2523,7 @@ void renderStructure(STRUCTURE *psStructure, const glm::mat4 &viewMatrix)
 			pie_Draw3DShape(getFactionIMD(faction, psStructure->prebuiltImd), 0, colour, buildingBrightness, pie_SHADOW, 0,
 				viewModelMatrix);
 		}
-		pie_Draw3DShape(getFactionIMD(faction, strImd), 0, colour, buildingBrightness, pie_HEIGHT_SCALED | pie_SHADOW, structHeightScale(psStructure) * pie_RAISE_SCALE, viewModelMatrix);
+		pie_Draw3DShape(getFactionIMD(faction, strImd), 0, colour, buildingBrightness, pie_HEIGHT_SCALED | pie_SHADOW, static_cast<int>(structHeightScale(psStructure) * pie_RAISE_SCALE), viewModelMatrix);
 		setScreenDisp(&psStructure->sDisplay, viewModelMatrix);
 		return;
 	}
@@ -2646,7 +2646,7 @@ static bool renderWallSection(STRUCTURE *psStructure, const glm::mat4 &viewMatri
 	if (psStructure->status == SS_BEING_BUILT)
 	{
 		pie_Draw3DShape(getFactionIMD(faction, psStructure->sDisplay.imd), 0, getPlayerColour(psStructure->player),
-		                brightness, pie_HEIGHT_SCALED | pie_SHADOW | ecmFlag, structHeightScale(psStructure) * pie_RAISE_SCALE, viewMatrix * modelMatrix);
+		                brightness, pie_HEIGHT_SCALED | pie_SHADOW | ecmFlag, static_cast<int>(structHeightScale(psStructure) * pie_RAISE_SCALE), viewMatrix * modelMatrix);
 	}
 	else
 	{
@@ -2701,7 +2701,7 @@ static void	drawDragBox()
 
 	PIELIGHT color = WZCOL_UNIT_SELECT_BOX;
 
-	color.byte.a = (float)color.byte.a * (1 - (dragBox3D.pulse / BOX_PULSE_SIZE)); // alpha relative to max pulse size
+	color.byte.a = static_cast<uint8_t>((float)color.byte.a * (1 - (dragBox3D.pulse / BOX_PULSE_SIZE))); // alpha relative to max pulse size
 
 	pie_UniTransBoxFill(X2, Y1, X2 + dragBox3D.pulse, Y2 + dragBox3D.pulse, color); // east side + south-east corner
 	pie_UniTransBoxFill(X1 - dragBox3D.pulse, Y2, X2, Y2 + dragBox3D.pulse, color); // south side + south-west corner
@@ -2739,7 +2739,7 @@ static void drawWeaponReloadBar(BASE_OBJECT *psObj, WEAPON *psWeap, int weapon_s
 		{
 			mulH = 100.f;
 		}
-		firingStage = mulH;
+		firingStage = static_cast<int>(mulH);
 		firingStage = ((((2 * scrR) * 10000) / 100) * firingStage) / 10000;
 		if (firingStage >= (UDWORD)(2 * scrR))
 		{
@@ -2831,15 +2831,14 @@ static void drawStructureTargetOriginIcon(STRUCTURE *psStruct, int weapon_slot)
 /// draw the health bar for the specified structure
 static void drawStructureHealth(STRUCTURE *psStruct)
 {
-	SDWORD		scrX, scrY, scrR;
+	int32_t		scrX, scrY, scrR;
 	PIELIGHT	powerCol = WZCOL_BLACK, powerColShadow = WZCOL_BLACK;
-	UDWORD		health, width;
-	UDWORD		scale;
+	int32_t		health, width;
 
-	scale = MAX(psStruct->pStructureType->baseWidth, psStruct->pStructureType->baseBreadth);
+	int32_t scale = static_cast<int32_t>(MAX(psStruct->pStructureType->baseWidth, psStruct->pStructureType->baseBreadth));
 	width = scale * 20;
 	scrX = psStruct->sDisplay.screenX;
-	scrY = psStruct->sDisplay.screenY + (scale * 10);
+	scrY = static_cast<int32_t>(psStruct->sDisplay.screenY) + (scale * 10);
 	scrR = width;
 	//health = PERCENT(psStruct->body, psStruct->baseBodyPoints);
 	if (ctrlShiftDown())
@@ -2849,7 +2848,7 @@ static void drawStructureHealth(STRUCTURE *psStruct)
 		                         psStruct->pStructureType, psStruct->player);
 		if (resistance)
 		{
-			health = PERCENT(MAX(0, psStruct->resistance), resistance);
+			health = static_cast<int32_t>(PERCENT(MAX(0, psStruct->resistance), resistance));
 		}
 		else
 		{
@@ -2859,7 +2858,7 @@ static void drawStructureHealth(STRUCTURE *psStruct)
 	else
 	{
 		//show body points
-		health = (1. - getStructureDamage(psStruct) / 65536.f) * 100;
+		health = static_cast<int32_t>((1. - getStructureDamage(psStruct) / 65536.f) * 100);
 
 		// If structure is incomplete, make bar correspondingly thinner.
 		int maxBody = structureBody(psStruct);
@@ -2883,22 +2882,22 @@ static void drawStructureHealth(STRUCTURE *psStruct)
 	}
 	health = (((width * 10000) / 100) * health) / 10000;
 	health *= 2;
-	pie_BoxFill(scrX - scrR - 1, scrY - 1, scrX - scrR + 2 * width + 1, scrY + 3, WZCOL_RELOAD_BACKGROUND);
-	pie_BoxFill(scrX - scrR, scrY, scrX - scrR + health, scrY + 1, powerCol);
-	pie_BoxFill(scrX - scrR, scrY + 1, scrX - scrR + health, scrY + 2, powerColShadow);
+	pie_BoxFillf(scrX - scrR - 1, scrY - 1, scrX - scrR + 2 * width + 1, scrY + 3, WZCOL_RELOAD_BACKGROUND);
+	pie_BoxFillf(scrX - scrR, scrY, scrX - scrR + health, scrY + 1, powerCol);
+	pie_BoxFillf(scrX - scrR, scrY + 1, scrX - scrR + health, scrY + 2, powerColShadow);
 }
 
 /// draw the construction bar for the specified structure
 static void drawStructureBuildProgress(STRUCTURE *psStruct)
 {
-	auto scale = MAX(psStruct->pStructureType->baseWidth, psStruct->pStructureType->baseBreadth);
-	auto scrX = psStruct->sDisplay.screenX;
-	auto scrY = psStruct->sDisplay.screenY + (scale * 10);
-	auto scrR = scale * 20;
+	int32_t scale = static_cast<int32_t>(MAX(psStruct->pStructureType->baseWidth, psStruct->pStructureType->baseBreadth));
+	int32_t scrX = static_cast<int32_t>(psStruct->sDisplay.screenX);
+	int32_t scrY = static_cast<int32_t>(psStruct->sDisplay.screenY) + (scale * 10);
+	int32_t scrR = scale * 20;
 	auto progress = scale * 40 * structureCompletionProgress(*psStruct);
-	pie_BoxFill(scrX - scrR - 1, scrY - 1 + 5, scrX + scrR + 1, scrY + 3 + 5, WZCOL_RELOAD_BACKGROUND);
-	pie_BoxFill(scrX - scrR, scrY + 5, scrX - scrR + progress, scrY + 1 + 5, WZCOL_HEALTH_MEDIUM_SHADOW);
-	pie_BoxFill(scrX - scrR, scrY + 1 + 5, scrX - scrR + progress, scrY + 2 + 5, WZCOL_HEALTH_MEDIUM);
+	pie_BoxFillf(scrX - scrR - 1, scrY - 1 + 5, scrX + scrR + 1, scrY + 3 + 5, WZCOL_RELOAD_BACKGROUND);
+	pie_BoxFillf(scrX - scrR, scrY + 5, scrX - scrR + progress, scrY + 1 + 5, WZCOL_HEALTH_MEDIUM_SHADOW);
+	pie_BoxFillf(scrX - scrR, scrY + 1 + 5, scrX - scrR + progress, scrY + 2 + 5, WZCOL_HEALTH_MEDIUM);
 }
 
 /// Draw the health of structures and show enemy structures being targetted
@@ -3058,7 +3057,7 @@ void drawDroidSelection(DROID *psDroid, bool drawBox){
 		powerColShadow = WZCOL_HEALTH_LOW_SHADOW;
 	}
 
-	damage = (float)psDroid->body / (float)psDroid->originalBody * (float)psDroid->sDisplay.screenR;
+	damage = static_cast<UDWORD>((float)psDroid->body / (float)psDroid->originalBody * (float)psDroid->sDisplay.screenR);
 	if (damage > psDroid->sDisplay.screenR)
 	{
 		damage = psDroid->sDisplay.screenR;
@@ -3194,7 +3193,7 @@ static void	drawDroidSelections()
 				{
 					mulH = (float)psDroid->body / (float)psDroid->originalBody;
 				}
-				damage = mulH * (float)psDroid->sDisplay.screenR;// (((psDroid->sDisplay.screenR*10000)/100)*damage)/10000;
+				damage = static_cast<UDWORD>(mulH * (float)psDroid->sDisplay.screenR);// (((psDroid->sDisplay.screenR*10000)/100)*damage)/10000;
 				if (damage > psDroid->sDisplay.screenR)
 				{
 					damage = psDroid->sDisplay.screenR;
@@ -3406,7 +3405,7 @@ void calcScreenCoords(DROID *psDroid, const glm::mat4 &viewMatrix)
 	origin = Vector3i(0, wsRadius, 0); // take the center of the object
 
 	/* get the screen coordinates */
-	const float cZ = pie_RotateProject(&origin, viewMatrix, &center) * 0.1;
+	const float cZ = pie_RotateProject(&origin, viewMatrix, &center) * 0.1f;
 
 	// avoid division by zero
 	if (cZ > 0)
@@ -3435,7 +3434,7 @@ void calcScreenCoords(DROID *psDroid, const glm::mat4 &viewMatrix)
 	/* Store away the screen coordinates so we can select the droids without doing a transform */
 	psDroid->sDisplay.screenX = center.x;
 	psDroid->sDisplay.screenY = center.y;
-	psDroid->sDisplay.screenR = radius;
+	psDroid->sDisplay.screenR = static_cast<UDWORD>(radius);
 }
 
 /**

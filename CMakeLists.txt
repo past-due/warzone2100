@@ -585,6 +585,14 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 		check_compiler_flags_output("-Werror -Wstringop-truncation -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Wstringop-truncation" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
 		check_compiler_flags_output("-Werror -Wstringop-truncation -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "-Wstringop-truncation" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
 
+		# Enable -Wlogical-op (GCC 4.3+)
+		check_compiler_flags_output("-Werror -Wlogical-op -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Wlogical-op" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
+		check_compiler_flags_output("-Werror -Wlogical-op -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "-Wlogical-op" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
+
+		# Enable -Wuninitialized (GCC, Clang)
+		check_compiler_flags_output("-Werror -Wuninitialized -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Wuninitialized" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
+		check_compiler_flags_output("-Werror -Wuninitialized -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "-Wuninitialized" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
+
 		if (WZ_ENABLE_WARNINGS_AS_ERRORS)
 			# Enable -Werror (if supported)
 			check_compiler_flags_output("-Werror" COMPILER_TYPE C   OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
@@ -593,17 +601,13 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 			message( STATUS "WZ will *NOT* enable -Werror" )
 		endif()
 
-		# Enable -Wlogical-op (if supported) (warning-only for now)
-		check_compiler_flags_output("-Werror ${WZ_Wno_}logical-op -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "${WZ_Wno_}logical-op" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
-		check_compiler_flags_output("-Werror ${WZ_Wno_}logical-op -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "${WZ_Wno_}logical-op" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
-
 		# Handle -Wfloat-conversion	(warning-only for now)
 		check_compiler_flags_output("-Werror ${WZ_Wno_}float-conversion -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "${WZ_Wno_}float-conversion" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
 		check_compiler_flags_output("-Werror ${WZ_Wno_}float-conversion -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "${WZ_Wno_}float-conversion" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
 
-		# Handle "sign-compare" (warning-only for now)
-		check_compiler_flags_output("-Werror ${WZ_Wno_}sign-compare -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "${WZ_Wno_}sign-compare" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
-		check_compiler_flags_output("-Werror ${WZ_Wno_}sign-compare -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "${WZ_Wno_}sign-compare" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
+		# Disable -Wsign-compare (FIXME)
+		check_compiler_flags_output("-Werror -Wno-sign-compare -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Wno-sign-compare" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
+		check_compiler_flags_output("-Werror -Wno-sign-compare -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "-Wno-sign-compare" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
 
 		# Disable -Wunused-parameter (FIXME)
 		check_compiler_flags_output("-Werror -Wno-unused-parameter -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Wno-unused-parameter" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
@@ -753,6 +757,7 @@ add_subdirectory(icons)
 add_subdirectory(po)
 add_subdirectory(src)
 add_subdirectory(pkg)
+add_subdirectory(tools/map)
 
 # Install base text / info files
 if(CMAKE_SYSTEM_NAME MATCHES "Windows")

@@ -31,6 +31,7 @@
 #include "lib/framework/physfs_ext.h"
 #include "lib/ivis_opengl/tex.h"
 #include "lib/netplay/netplay.h"  // For syncDebug
+#include "lib/maplib/map.h"
 
 #include "map.h"
 #include "hci.h"
@@ -309,7 +310,7 @@ static void mapLoadTertiles(bool preview, unsigned int tileSet, const char* tert
 
 		int textureTypeIdx = getTextureType(textureType);
 		groundTypes[textureTypeIdx].textureName = textureName;
-		groundTypes[textureTypeIdx].textureSize = textureSize;
+		groundTypes[textureTypeIdx].textureSize = static_cast<float>(textureSize);
 		groundTypes[textureTypeIdx].normalMapTextureName = getTextureVariant(textureName, "_nm");
 		groundTypes[textureTypeIdx].specularMapTextureName = getTextureVariant(textureName, "_sm");
 		groundTypes[textureTypeIdx].heightMapTextureName = getTextureVariant(textureName, "_hm");
@@ -716,51 +717,145 @@ static void generateRiverbed()
 
 static bool afterMapLoad();
 
-/* Initialise the map structure */
-bool mapLoad(char const *filename, bool preview)
+class WzMapBinaryPhysFSStream : public WzMap::BinaryIOStream
 {
-	UDWORD		numGw, width, height;
-	char		aFileType[4];
-	UDWORD		version;
-	PHYSFS_file	*fp = PHYSFS_openRead(filename);
-
-	if (!fp)
+public:
+	WzMapBinaryPhysFSStream(const char* pFilename, WzMap::BinaryIOStream::OpenMode mode)
 	{
-		debug(LOG_ERROR, "%s not found", filename);
+		switch (mode)
+		{
+			case WzMap::BinaryIOStream::OpenMode::READ:
+				pFile = PHYSFS_openRead(pFilename);
+				break;
+			case WzMap::BinaryIOStream::OpenMode::WRITE:
+				pFile = PHYSFS_openWrite(pFilename);
+				break;
+		}
+		if (pFile)
+		{
+			WZ_PHYSFS_SETBUFFER(pFile, 4096)//;
+		}
+	}
+	virtual ~WzMapBinaryPhysFSStream()
+	{
+		if (pFile)
+		{
+			PHYSFS_close(pFile);
+			pFile = nullptr;
+		}
+	};
+
+	bool openedFile() const { return pFile != nullptr; }
+
+	virtual optional<size_t> readBytes(void *buffer, size_t len) override
+	{
+		if (!pFile) { return nullopt; }
+		PHYSFS_sint64 result = WZ_PHYSFS_readBytes(pFile, buffer, static_cast<uint32_t>(len));
+		if (result < 0)
+		{
+			// failed
+			return nullopt;
+		}
+		return static_cast<size_t>(result);
+	}
+
+	virtual optional<size_t> writeBytes(const void *buffer, size_t len) override
+	{
+		if (!pFile) { return nullopt; }
+		PHYSFS_sint64 result = WZ_PHYSFS_writeBytes(pFile, buffer, static_cast<uint32_t>(len));
+		if (result < 0)
+		{
+			// failed
+			return nullopt;
+		}
+		return static_cast<size_t>(result);
+	}
+
+	virtual bool endOfStream() override
+	{
+		if (!pFile) { return false; }
+		return PHYSFS_eof(pFile);
+	}
+private:
+	PHYSFS_File *pFile = nullptr;
+};
+
+std::unique_ptr<WzMap::BinaryIOStream> WzMapPhysFSIO::openBinaryStream(const std::string& filename, WzMap::BinaryIOStream::OpenMode mode)
+{
+	WzMapBinaryPhysFSStream* pStream = new WzMapBinaryPhysFSStream(filename.c_str(), mode);
+	if (!pStream->openedFile())
+	{
+		delete pStream;
+		return nullptr;
+	}
+	return std::unique_ptr<WzMap::BinaryIOStream>(pStream);
+}
+
+bool WzMapPhysFSIO::loadFullFile(const std::string& filename, std::vector<char>& fileData)
+{
+	if (!PHYSFS_exists(filename.c_str()))
+	{
 		return false;
 	}
-	else if (WZ_PHYSFS_readBytes(fp, aFileType, 4) != 4
-	         || !PHYSFS_readULE32(fp, &version)
-	         || !PHYSFS_readULE32(fp, &width)
-	         || !PHYSFS_readULE32(fp, &height)
-	         || aFileType[0] != 'm'
-	         || aFileType[1] != 'a'
-	         || aFileType[2] != 'p')
+	return loadFileToBufferVector(filename.c_str(), fileData, true, true);
+}
+
+bool WzMapPhysFSIO::writeFullFile(const std::string& filename, const char *ppFileData, uint32_t fileSize)
+{
+	return saveFile(filename.c_str(), ppFileData, fileSize);
+}
+
+WzMapDebugLogger::~WzMapDebugLogger()
+{ }
+
+void WzMapDebugLogger::printLog(WzMap::LoggingProtocol::LogLevel level, const char *function, int line, const char *str)
+{
+	code_part logPart = LOG_INFO;
+	switch (level)
 	{
-		debug(LOG_ERROR, "Bad header in %s", filename);
-		goto failure;
+		case WzMap::LoggingProtocol::LogLevel::Info_Verbose:
+			logPart = LOG_NEVER;
+			break;
+		case WzMap::LoggingProtocol::LogLevel::Info:
+			logPart = LOG_MAP;
+			break;
+		case WzMap::LoggingProtocol::LogLevel::Warning:
+			logPart = LOG_WARNING;
+			break;
+		case WzMap::LoggingProtocol::LogLevel::Error:
+			logPart = LOG_ERROR;
+			break;
 	}
-	else if (version <= VERSION_9)
+	if (enabled_debug[logPart])
 	{
-		debug(LOG_ERROR, "%s: Unsupported save format version %u", filename, version);
-		goto failure;
+		_debug(line, logPart, function, "%s", str);
 	}
-	else if (version > CURRENT_VERSION_NUM)
+}
+
+/* Initialise the map structure */
+bool mapLoad(char const *filename)
+{
+	WzMapPhysFSIO mapIO;
+	WzMapDebugLogger debugLoggerInstance;
+
+	std::shared_ptr<WzMap::MapData> loadedMap = loadMapData(filename, mapIO, &debugLoggerInstance);
+	if (!loadedMap)
 	{
-		debug(LOG_ERROR, "%s: Undefined save format version %u", filename, version);
-		goto failure;
-	}
-	else if ((uint64_t)width * height > MAP_MAXAREA)
-	{
-		debug(LOG_ERROR, "Map %s too large : %d %d", filename, width, height);
-		goto failure;
+		// loadMapData call handles logging errors
+		return false;
 	}
 
-	if (width <= 1 || height <= 1)
-	{
-		debug(LOG_ERROR, "Map is too small : %u, %u", width, height);
-		goto failure;
-	}
+	return mapLoadFromWzMapData(*(loadedMap.get()));
+}
+
+///* Initialise the map structure */
+bool mapLoadFromWzMapData(WzMap::MapData& loadedMap)
+{
+	uint32_t		width, height;
+	const bool		preview = false;
+
+	width = loadedMap.width;
+	height = loadedMap.height;
 
 	/* See if this is the first time a map has been loaded */
 	ASSERT(psMapTiles == nullptr, "Map has not been cleared before calling mapLoad()!");
@@ -781,110 +876,6 @@ bool mapLoad(char const *filename, bool preview)
 	// load the ground types
 	if (!mapLoadGroundTypes(preview))
 	{
-		goto failure;
-	}
-
-	if (!preview)
-	{
-		//preload the terrain textures
-		loadTerrainTextures();
-	}
-
-	//load in the map data itself
-
-	/* Load in the map data */
-	for (int i = 0; i < mapWidth * mapHeight; ++i)
-	{
-		UWORD	tileTexture;
-		UBYTE	tileHeight;
-
-		if (!PHYSFS_readULE16(fp, &tileTexture) || !PHYSFS_readULE8(fp, &tileHeight))
-		{
-			debug(LOG_ERROR, "%s: Error during savegame load", filename);
-			goto failure;
-		}
-
-		psMapTiles[i].texture = tileTexture;
-		psMapTiles[i].height = tileHeight * ELEVATION_SCALE;
-
-		// Visibility stuff
-		memset(psMapTiles[i].watchers, 0, sizeof(psMapTiles[i].watchers));
-		memset(psMapTiles[i].sensors, 0, sizeof(psMapTiles[i].sensors));
-		memset(psMapTiles[i].jammers, 0, sizeof(psMapTiles[i].jammers));
-		psMapTiles[i].sensorBits = 0;
-		psMapTiles[i].jammerBits = 0;
-		psMapTiles[i].tileExploredBits = 0;
-	}
-
-	if (preview)
-	{
-		// no need to do anything else for the map preview
-		goto ok;
-	}
-
-	if (!PHYSFS_readULE32(fp, &version) || !PHYSFS_readULE32(fp, &numGw) || version != 1)
-	{
-		debug(LOG_ERROR, "Bad gateway in %s", filename);
-		goto failure;
-	}
-
-	for (unsigned i = 0; i < numGw; i++)
-	{
-		UBYTE	x0, y0, x1, y1;
-
-		if (!PHYSFS_readULE8(fp, &x0) || !PHYSFS_readULE8(fp, &y0) || !PHYSFS_readULE8(fp, &x1) || !PHYSFS_readULE8(fp, &y1))
-		{
-			debug(LOG_ERROR, "%s: Failed to read gateway info", filename);
-			goto failure;
-		}
-		if (!gwNewGateway(x0, y0, x1, y1))
-		{
-			debug(LOG_ERROR, "%s: Unable to add gateway %d - dropping it", filename, i);
-		}
-	}
-
-	if (!afterMapLoad())
-	{
-		goto failure;
-	}
-
-ok:
-	PHYSFS_close(fp);
-	return true;
-
-failure:
-	PHYSFS_close(fp);
-	return false;
-}
-
-/* Initialise the map structure */
-bool mapLoadFromScriptData(ScriptMapData const &data, bool preview)
-{
-	if (!data.valid)
-	{
-		debug(LOG_ERROR, "Data not found");
-		return false;
-	}
-
-	/* See if this is the first time a map has been loaded */
-	ASSERT(psMapTiles == nullptr, "Map has not been cleared before calling mapLoadFromScriptData()!");
-
-	/* Allocate the memory for the map */
-	psMapTiles = (MAPTILE *)calloc((size_t)data.mapWidth * data.mapHeight, sizeof(MAPTILE));
-	ASSERT(psMapTiles != nullptr, "Out of memory");
-
-	mapWidth = data.mapWidth;
-	mapHeight = data.mapHeight;
-
-	// FIXME: the map preview code loads the map without setting the tileset
-	if (!tilesetDir)
-	{
-		tilesetDir = strdup("texpages/tertilesc1hw");
-	}
-
-	// load the ground types
-	if (!mapLoadGroundTypes(preview))
-	{
 		return false;
 	}
 
@@ -899,8 +890,9 @@ bool mapLoadFromScriptData(ScriptMapData const &data, bool preview)
 	/* Load in the map data */
 	for (int i = 0; i < mapWidth * mapHeight; ++i)
 	{
-		psMapTiles[i].texture = data.texture[i];
-		psMapTiles[i].height = data.height[i];
+		ASSERT(loadedMap.mMapTiles[i].height <= TILE_MAX_HEIGHT, "Tile height (%" PRIu16 ") exceeds TILE_MAX_HEIGHT (%zu)", loadedMap.mMapTiles[i].height, static_cast<size_t>(TILE_MAX_HEIGHT));
+		psMapTiles[i].texture = loadedMap.mMapTiles[i].texture;
+		psMapTiles[i].height = loadedMap.mMapTiles[i].height;
 
 		// Visibility stuff
 		memset(psMapTiles[i].watchers, 0, sizeof(psMapTiles[i].watchers));
@@ -917,9 +909,22 @@ bool mapLoadFromScriptData(ScriptMapData const &data, bool preview)
 		return true;
 	}
 
-	// Skip gateways, not adding any.
+	size_t gwIdx = 0;
+	for (const auto gateway : loadedMap.mGateways)
+	{
+		if (!gwNewGateway(gateway.x1, gateway.y1, gateway.x2, gateway.y2))
+		{
+			debug(LOG_ERROR, "Unable to add gateway %zu - dropping it", gwIdx);
+		}
+		gwIdx++;
+	}
 
-	return afterMapLoad();
+	if (!afterMapLoad())
+	{
+		return false;
+	}
+
+	return true;
 }
 
 static bool afterMapLoad()
@@ -992,96 +997,47 @@ static bool afterMapLoad()
 }
 
 /* Save the map data */
-bool mapSave(char **ppFileData, UDWORD *pFileSize)
+bool mapSaveToWzMapData(WzMap::MapData& output)
 {
-	UDWORD	numGateways = gwNumGateways();
+	output.width = mapWidth;
+	output.height = mapHeight;
 
-	/* Allocate the data buffer */
-	static_assert(SAVE_HEADER_SIZE == (sizeof(char) * 4) + (sizeof(UDWORD) * 3), "SAVE_HEADER_SIZE doesn't match?");
-	static_assert(SAVE_TILE_SIZE == sizeof(UWORD) + sizeof(UBYTE), "SAVE_TILE_SIZE doesn't match?");
-	*pFileSize = SAVE_HEADER_SIZE + mapWidth * mapHeight * SAVE_TILE_SIZE;
-	// Add on the size of the gateway data.
-	*pFileSize += (sizeof(UDWORD) * 2) + ((sizeof(UBYTE) * 4) * numGateways);
-
-	*ppFileData = (char *)malloc(*pFileSize);
-	if (*ppFileData == nullptr)
-	{
-		debug(LOG_FATAL, "Out of memory");
-		abort();
-		return false;
-	}
-	char *pCurrFileData = *ppFileData;
-
-	auto push_uword = [&](UWORD value) {
-		endian_uword(&value);
-		memcpy(pCurrFileData, &value, sizeof(value));
-		pCurrFileData += sizeof(value);
-		ASSERT(pCurrFileData - *ppFileData <= *pFileSize, "Buffer overrun (buffer size: %" PRIu32") (writing to: %" PRIu32")", *pFileSize, static_cast<uint32_t>(pCurrFileData - *ppFileData));
-	};
-	auto push_udword = [&](UDWORD value) {
-		endian_udword(&value);
-		memcpy(pCurrFileData, &value, sizeof(value));
-		pCurrFileData += sizeof(value);
-		ASSERT(pCurrFileData - *ppFileData <= *pFileSize, "Buffer overrun (buffer size: %" PRIu32") (writing to: %" PRIu32")", *pFileSize, static_cast<uint32_t>(pCurrFileData - *ppFileData));
-	};
-
-	/* Put the file header on the file */
-	char aFileType[4];
-	aFileType[0] = 'm';
-	aFileType[1] = 'a';
-	aFileType[2] = 'p';
-	aFileType[3] = ' ';
-	memcpy(pCurrFileData, aFileType, sizeof(aFileType));
-	pCurrFileData += sizeof(aFileType);
-
-	push_udword(CURRENT_VERSION_NUM);
-	push_udword(mapWidth);
-	push_udword(mapHeight);
-
-	/* Put the map data into the buffer */
+	// Write out the map tile data
 	MAPTILE	*psTile = psMapTiles;
-	for (int i = 0; i < mapWidth * mapHeight; i++)
+	uint32_t numMapTiles = output.width * output.height;
+	output.mMapTiles.clear();
+	output.mMapTiles.reserve(numMapTiles);
+	for (uint32_t i = 0; i < numMapTiles; i++)
 	{
-		UWORD	texture;
-		UBYTE	height;
-
-		texture = psTile->texture;
+		WzMap::MapData::MapTile mapDataTile = {};
+		mapDataTile.texture = psTile->texture;
 		if (terrainType(psTile) == TER_WATER)
 		{
-			height = (psTile->waterLevel + world_coord(1) / 3) / ELEVATION_SCALE;
+			mapDataTile.height = (psTile->waterLevel + world_coord(1) / 3); // this magic number stuff should match afterMapLoad()'s handling of water tiles (??)
 		}
 		else
 		{
-			height = psTile->height / ELEVATION_SCALE;
+			mapDataTile.height = psTile->height;
 		}
-
-		push_uword(texture);
-		memcpy(pCurrFileData, &height, sizeof(height)); pCurrFileData += sizeof(height);
-
+		output.mMapTiles.push_back(std::move(mapDataTile));
 		psTile++;
 	}
 
-	// Put the gateway header.
-	UDWORD version = 1;
-	push_udword(version);
-	push_udword(numGateways);
-
-	// Put the gateway data.
-	UBYTE	x0, y0, x1, y1;
+	// Write out the gateway data
+	output.mGateways.clear();
+	output.mGateways.reserve(gwNumGateways());
 	for (auto psCurrGate : gwGetGateways())
 	{
-		x0 = psCurrGate->x1;
-		y0 = psCurrGate->y1;
-		x1 = psCurrGate->x2;
-		y1 = psCurrGate->y2;
-		ASSERT(x0 == x1 || y0 == y1, "Invalid gateway coordinates (%d, %d, %d, %d)",
-		       x0, y0, x1, y1);
-		ASSERT(x0 < mapWidth && y0 < mapHeight && x1 < mapWidth && y1 < mapHeight,
-		       "Bad gateway dimensions for savegame");
-		memcpy(pCurrFileData, &x0, sizeof(x0)); pCurrFileData += sizeof(x0);
-		memcpy(pCurrFileData, &y0, sizeof(y0)); pCurrFileData += sizeof(y0);
-		memcpy(pCurrFileData, &x1, sizeof(x1)); pCurrFileData += sizeof(x1);
-		memcpy(pCurrFileData, &y1, sizeof(y1)); pCurrFileData += sizeof(y1);
+		WzMap::MapData::Gateway gw = {};
+		gw.x1 = psCurrGate->x1;
+		gw.y1 = psCurrGate->y1;
+		gw.x2 = psCurrGate->x2;
+		gw.y2 = psCurrGate->y2;
+		ASSERT(gw.x1 == gw.x2 || gw.y1 == gw.y2, "Invalid gateway coordinates (%d, %d, %d, %d)",
+			   gw.x1, gw.y1, gw.x2, gw.y2);
+		ASSERT(gw.x1 < mapWidth && gw.y1 < mapHeight && gw.x2 < mapWidth && gw.y2 < mapHeight,
+			   "Bad gateway dimensions for savegame");
+		output.mGateways.push_back(std::move(gw));
 	}
 
 	return true;
