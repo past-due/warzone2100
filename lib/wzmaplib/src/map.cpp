@@ -18,7 +18,7 @@
 	Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include "map.h"
+#include "../include/wzmaplib/map.h"
 #include "map_crc.h"
 #include "map_script.h"
 #include "map_internal.h"
@@ -1929,6 +1929,7 @@ Map::Map()
 	m_structures = std::make_shared<std::vector<Structure>>();
 	m_droids = std::make_shared<std::vector<Droid>>();
 	m_features = std::make_shared<std::vector<Feature>>();
+	m_terrainTypes = std::make_shared<TerrainTypeData>();
 }
 
 Map::Map(const std::string& mapFolderPath, MapType mapType, uint32_t mapMaxPlayers, std::unique_ptr<LoggingProtocol> logger, std::unique_ptr<IOProvider> mapIO)
