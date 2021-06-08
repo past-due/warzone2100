@@ -94,6 +94,8 @@ jobs:
         $WZ_FULL_POWERSHELL_PATH = (Get-Command powershell.exe).Path
         $WZ_FULL_GIT_PATH = Split-Path -Path ((Get-Command git.exe).Path)
         echo "WZ_FULL_GIT_PATH=${WZ_FULL_GIT_PATH}"
+        $WZ_FULL_CMAKE_PATH = Split-Path -Path ((Get-Command cmake.exe).Path)
+        echo "WZ_FULL_CMAKE_PATH=${WZ_FULL_CMAKE_PATH}"
 
         # ------------------------------
         # MSVC version / generator info
@@ -159,6 +161,7 @@ jobs:
         echo "::set-output name=WZ_USING_MINGW::${WZ_USING_MINGW}"
         echo "::set-output name=WZ_FULL_POWERSHELL_PATH::${WZ_FULL_POWERSHELL_PATH}"
         echo "::set-output name=WZ_FULL_GIT_PATH::${WZ_FULL_GIT_PATH}"
+        echo "::set-output name=WZ_FULL_CMAKE_PATH::${WZ_FULL_CMAKE_PATH}"
         echo "::set-output name=MSYSTEM::${MSYSTEM}"
         echo "::set-output name=WZ_REPO_PATH::${WZ_REPO_PATH}"
         echo "WZ_REPO_PATH=${WZ_REPO_PATH}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
@@ -307,8 +310,10 @@ jobs:
       run: |
         # Use CMake to configure with the appropriate Visual Studio (MSBUILD) generator, toolchain, and target platform (portable build)
         echo "PATH=${PATH}"
+        WZ_FULL_GIT_PATH="$(cygpath '${{ steps.settings.outputs.WZ_FULL_GIT_PATH }}')"
+        WZ_FULL_CMAKE_PATH="$(cygpath '${{ steps.settings.outputs.WZ_FULL_CMAKE_PATH }}')"
         echo "::add-matcher::${{ github.workspace }}\src\.ci\githubactions\pattern_matchers\cmake.json"
-        PATH="${PATH/:\/usr\/bin:\/bin:/:}" cmake -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}\build\vcpkg\scripts\buildsystems\vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release -DWZ_PORTABLE:BOOL=ON -DCPACK_PACKAGE_FILE_NAME:STRING="warzone2100_portable" -DWZ_DISTRIBUTOR:STRING="${env:WZ_DISTRIBUTOR}" -G "Ninja" "${{ steps.settings.outputsWZ_REPO_PATH }}"
+        PATH="${PATH/:\/usr\/bin:\/bin:/:}:${WZ_FULL_GIT_PATH}" ${WZ_FULL_CMAKE_PATH}/cmake.exe -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}\build\vcpkg\scripts\buildsystems\vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release -DWZ_PORTABLE:BOOL=ON -DCPACK_PACKAGE_FILE_NAME:STRING="warzone2100_portable" -DWZ_DISTRIBUTOR:STRING="${env:WZ_DISTRIBUTOR}" -G "Ninja" "${{ steps.settings.outputs.WZ_REPO_PATH }}"
         echo "::remove-matcher owner=cmake::"
     - name: CMake Build (Portable Build)
       working-directory: '${{ github.workspace }}\build'
