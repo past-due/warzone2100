@@ -270,7 +270,9 @@ jobs:
         echo "PATH=${PATH}"
         echo "VCPKG_DEFAULT_TRIPLET=${VCPKG_DEFAULT_TRIPLET}"
         echo "$(cygpath '${{ steps.settings.outputs.WZ_FULL_POWERSHELL_PATH }}')"
+        echo "WZ_REPO_PATH=${WZ_REPO_PATH}"
         WZ_REPO_PATH="$(cygpath '${{ steps.settings.outputs.WZ_REPO_PATH }}')"
+        echo "WZ_REPO_PATH=${WZ_REPO_PATH}"
         PATH="${PATH/:\/usr\/bin:\/bin:/:}" /c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe "${WZ_REPO_PATH}\get-dependencies_win.ps1" -VCPKG_BUILD_TYPE "release"
     - name: Clean vcpkg temp files
       working-directory: '${{ github.workspace }}\build'
