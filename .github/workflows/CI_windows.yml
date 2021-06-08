@@ -66,12 +66,15 @@ jobs:
           $WZ_USING_MINGW = "true"
           if ($env:WZ_TARGET_ARCH -eq "x86") {
             $VCPKG_DEFAULT_TRIPLET = "x86-mingw-dynamic"
+            $MSYSTEM = "CLANG32"
           }
           elseif ($env:WZ_TARGET_ARCH -eq "x64") {
             $VCPKG_DEFAULT_TRIPLET = "x64-mingw-dynamic"
+            $MSYSTEM = "CLANG64"
           }
           elseif ($env:WZ_TARGET_ARCH -eq "arm64") {
             $VCPKG_DEFAULT_TRIPLET = "arm64-mingw-dynamic"
+            $MSYSTEM = "CLANGARM64" # NOTE: Will not work on GitHub Actions CI currently as it requires a native ARM64 runner
           }
         }
         else {
@@ -151,6 +154,7 @@ jobs:
         # Export everything important to environment variables (for future steps)
         echo "::set-output name=WZ_USING_MINGW::${WZ_USING_MINGW}"
         echo "::set-output name=WZ_FULL_POWERSHELL_PATH::${WZ_FULL_POWERSHELL_PATH}"
+        echo "::set-output name=MSYSTEM::${MSYSTEM}"
         echo "::set-output name=WZ_REPO_PATH::${WZ_REPO_PATH}"
         echo "WZ_REPO_PATH=${{ github.workspace }}\src" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "VCPKG_DEFAULT_TRIPLET=${VCPKG_DEFAULT_TRIPLET}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
@@ -228,6 +232,15 @@ jobs:
         New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\output\debugsymbols"
         New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\output\archive"
         New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\output\error_logs"
+    - name: Setup MSYS2 environment
+      if: success() && (steps.settings.outputs.WZ_USING_MINGW == 'true')
+      uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ steps.settings.outputs.MSYSTEM }}
+          update: true
+          install: >-
+            base-devel
+            git
     - name: Cache vcpkg dependencies
       id: vcpkg-cache
       if: success() && !(github.event_name == 'push' && contains(github.ref, 'refs/tags/'))
@@ -256,6 +269,7 @@ jobs:
         PATH="${PATH/:\/usr\/bin:\/bin:/:}" ${{ steps.settings.outputs.WZ_FULL_POWERSHELL_PATH }} ${env:WZ_REPO_PATH}\get-dependencies_win.ps1 -VCPKG_BUILD_TYPE "release"
     - name: Clean vcpkg temp files
       working-directory: '${{ github.workspace }}\build'
+      run: |
         # Remove the vcpkg\buildtrees folder. (Once all dependencies are installed, it isn't needed, and it takes up a lot of space in the cache.)
         if (Test-Path .\vcpkg\buildtrees) { Remove-Item .\vcpkg\buildtrees -Force -Recurse -ErrorAction SilentlyContinue; }
 
