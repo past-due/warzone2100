@@ -239,7 +239,7 @@ jobs:
         msystem: ${{ steps.settings.outputs.MSYSTEM }}
         update: true
         install: >-
-          base-devel
+          mingw-w64-clang-x86_64-toolchain
           git
     - name: Cache vcpkg dependencies
       id: vcpkg-cache
@@ -266,7 +266,7 @@ jobs:
       shell: msys2 {0}
       run: |
         echo "PATH=${PATH}"
-        PATH="${PATH/:\/usr\/bin:\/bin:/:}" ${{ steps.settings.outputs.WZ_FULL_POWERSHELL_PATH }} ${env:WZ_REPO_PATH}\get-dependencies_win.ps1 -VCPKG_BUILD_TYPE "release"
+        PATH="${PATH/:\/usr\/bin:\/bin:/:}" /c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe ${env:WZ_REPO_PATH}\get-dependencies_win.ps1 -VCPKG_BUILD_TYPE "release"
     - name: Clean vcpkg temp files
       working-directory: '${{ github.workspace }}\build'
       run: |
