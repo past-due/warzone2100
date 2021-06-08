@@ -235,12 +235,12 @@ jobs:
     - name: Setup MSYS2 environment
       if: success() && (steps.settings.outputs.WZ_USING_MINGW == 'true')
       uses: msys2/setup-msys2@v2
-        with:
-          msystem: ${{ steps.settings.outputs.MSYSTEM }}
-          update: true
-          install: >-
-            base-devel
-            git
+      with:
+        msystem: ${{ steps.settings.outputs.MSYSTEM }}
+        update: true
+        install: >-
+          base-devel
+          git
     - name: Cache vcpkg dependencies
       id: vcpkg-cache
       if: success() && !(github.event_name == 'push' && contains(github.ref, 'refs/tags/'))
