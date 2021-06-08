@@ -268,6 +268,7 @@ jobs:
       shell: msys2 {0}
       run: |
         echo "PATH=${PATH}"
+        echo "VCPKG_DEFAULT_TRIPLET=${VCPKG_DEFAULT_TRIPLET}"
         PATH="${PATH/:\/usr\/bin:\/bin:/:}" /c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe ${env:WZ_REPO_PATH}\get-dependencies_win.ps1 -VCPKG_BUILD_TYPE "release"
     - name: Clean vcpkg temp files
       working-directory: '${{ github.workspace }}\build'
