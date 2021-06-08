@@ -275,8 +275,10 @@ jobs:
         echo "WZ_REPO_PATH=${WZ_REPO_PATH}"
         WZ_REPO_PATH="$(cygpath '${{ steps.settings.outputs.WZ_REPO_PATH }}')"
         echo "WZ_REPO_PATH=${WZ_REPO_PATH}"
-        WZ_FULL_GIT_PATH="$(cygpath "${WZ_FULL_GIT_PATH}")"
+        WZ_FULL_GIT_PATH="$(cygpath '${{ steps.settings.outputs.WZ_FULL_GIT_PATH }}')"
         echo "WZ_FULL_GIT_PATH=${WZ_FULL_GIT_PATH}"
+        # TODO: Also need asciidoctor path, ninja-build for actual CMake command
+        # TODO: May also need to convert the VULKAN_SDK environment variable?
         echo "PATH=\"${PATH/:\/usr\/bin:\/bin:/:}:${WZ_FULL_GIT_PATH}\""
         PATH="${PATH/:\/usr\/bin:\/bin:/:}:${WZ_FULL_GIT_PATH}" /c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe "${WZ_REPO_PATH}\get-dependencies_win.ps1" -VCPKG_BUILD_TYPE "release"
     - name: Clean vcpkg temp files
