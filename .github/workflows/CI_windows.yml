@@ -92,7 +92,7 @@ jobs:
         }
         
         $WZ_FULL_POWERSHELL_PATH = (Get-Command powershell.exe).Path
-        $WZ_FULL_GIT_PATH = (Get-Command git.exe).Path
+        $WZ_FULL_GIT_PATH = Split-Path -Path ((Get-Command git.exe).Path)
         echo "WZ_FULL_GIT_PATH=${WZ_FULL_GIT_PATH}"
 
         # ------------------------------
@@ -152,6 +152,8 @@ jobs:
 
         # ----------------
         # Export Variables
+        
+        $WZ_REPO_PATH = "${{ github.workspace }}\src"
 
         # Export everything important to environment variables (for future steps)
         echo "::set-output name=WZ_USING_MINGW::${WZ_USING_MINGW}"
@@ -159,7 +161,7 @@ jobs:
         echo "::set-output name=WZ_FULL_GIT_PATH::${WZ_FULL_GIT_PATH}"
         echo "::set-output name=MSYSTEM::${MSYSTEM}"
         echo "::set-output name=WZ_REPO_PATH::${WZ_REPO_PATH}"
-        echo "WZ_REPO_PATH=${{ github.workspace }}\src" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "WZ_REPO_PATH=${WZ_REPO_PATH}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "VCPKG_DEFAULT_TRIPLET=${VCPKG_DEFAULT_TRIPLET}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "WZ_VC_TARGET_PLATFORMNAME=${WZ_VC_TARGET_PLATFORMNAME}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "WZ_BUILD_DESC=${WZ_BUILD_DESC}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
@@ -273,7 +275,10 @@ jobs:
         echo "WZ_REPO_PATH=${WZ_REPO_PATH}"
         WZ_REPO_PATH="$(cygpath '${{ steps.settings.outputs.WZ_REPO_PATH }}')"
         echo "WZ_REPO_PATH=${WZ_REPO_PATH}"
-        PATH="${PATH/:\/usr\/bin:\/bin:/:}" /c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe "${WZ_REPO_PATH}\get-dependencies_win.ps1" -VCPKG_BUILD_TYPE "release"
+        WZ_FULL_GIT_PATH="$(cygpath "${WZ_FULL_GIT_PATH}")"
+        echo "WZ_FULL_GIT_PATH=${WZ_FULL_GIT_PATH}"
+        echo "PATH=\"${PATH/:\/usr\/bin:\/bin:/:}:${WZ_FULL_GIT_PATH}\""
+        PATH="${PATH/:\/usr\/bin:\/bin:/:}:${WZ_FULL_GIT_PATH}" /c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe "${WZ_REPO_PATH}\get-dependencies_win.ps1" -VCPKG_BUILD_TYPE "release"
     - name: Clean vcpkg temp files
       working-directory: '${{ github.workspace }}\build'
       run: |
