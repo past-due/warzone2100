@@ -26,6 +26,10 @@ jobs:
             architecture: "arm64"
             deploy_release: true
           - compiler: "MINGW_CLANG"
+            architecture: "x86"
+            artifact_description: "mingw_x86"
+            deploy_release: false
+          - compiler: "MINGW_CLANG"
             architecture: "x64"
             deploy_release: true
       fail-fast: false
@@ -296,7 +300,7 @@ jobs:
         echo "NINJA_INSTALL_PATH=${NINJA_INSTALL_PATH}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     - name: Setup MSYS2 environment
       if: success() && (steps.settings.outputs.WZ_USING_MINGW == 'true')
-      uses: msys2/setup-msys2@v2
+      uses: past-due/setup-msys2@v2
       with:
         msystem: ${{ steps.settings.outputs.MSYSTEM }}
         path-type: minimal
