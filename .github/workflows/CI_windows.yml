@@ -324,8 +324,10 @@ jobs:
           # need to add clang32 to pacman.conf
           echo "Adding clang32 to pacman.conf"
           printf "\n[clang32]\nInclude = /etc/pacman.d/mirrorlist.clang32\n" >> "/etc/pacman.conf"
-          pacman -Syyu
+          echo "Refresh pacman database"
+          pacman --refresh
         fi
+        echo "Install toolchain packages"
         pacman --noconfirm -S --needed --overwrite * "${{ steps.settings.outputs.WZ_MINGW_PKG_PREFIX }}-toolchain" "${{ steps.settings.outputs.WZ_MINGW_PKG_PREFIX }}-libssp"
     - name: Prep MINGW Environment
       id: mingwsettings
