@@ -328,7 +328,7 @@ jobs:
           pacman -Syy
         fi
         echo "Install toolchain packages"
-        pacman --noconfirm -S --needed --overwrite * "${{ steps.settings.outputs.WZ_MINGW_PKG_PREFIX }}-toolchain" "${{ steps.settings.outputs.WZ_MINGW_PKG_PREFIX }}-libssp"
+        pacman --noconfirm -S --needed "${{ steps.settings.outputs.WZ_MINGW_PKG_PREFIX }}-toolchain" "${{ steps.settings.outputs.WZ_MINGW_PKG_PREFIX }}-libssp"
     - name: Prep MINGW Environment
       id: mingwsettings
       if: success() && (steps.settings.outputs.WZ_USING_MINGW == 'true')
