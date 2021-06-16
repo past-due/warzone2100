@@ -306,9 +306,27 @@ jobs:
         path-type: minimal
         release: true
         update: true
-        install: >-
-          ${{ steps.settings.outputs.WZ_MINGW_PKG_PREFIX }}-toolchain
-          ${{ steps.settings.outputs.WZ_MINGW_PKG_PREFIX }}-libssp
+        ## Can't use the install section until the clang32 repo is properly supported
+        #install: >-
+        #  ${{ steps.settings.outputs.WZ_MINGW_PKG_PREFIX }}-toolchain
+        #  ${{ steps.settings.outputs.WZ_MINGW_PKG_PREFIX }}-libssp
+    - name: Install MSYS2 toolchain
+      if: success() && (steps.settings.outputs.WZ_USING_MINGW == 'true')
+      shell: msys2 {0}
+      run: |
+        if ! grep -q clang32 "/etc/pacman.conf"; then
+          if [ ! -f "/etc/pacman.d/mirrorlist.clang32" ]; then
+            # need to create a copy of clang64 mirrorlist and fix-up to clang32
+            echo "Creating /etc/pacman.d/mirrorlist.clang32"
+            cp "/etc/pacman.d/mirrorlist.clang64" "/etc/pacman.d/mirrorlist.clang32"
+            sed -i 's/clang64/clang32/g' "/etc/pacman.d/mirrorlist.clang32"
+          fi
+          # need to add clang32 to pacman.conf
+          echo "Adding clang32 to pacman.conf"
+          printf "\n[clang32]\nInclude = /etc/pacman.d/mirrorlist.clang32\n" >> "/etc/pacman.conf"
+          pacman -Syyu
+        fi
+        pacman --noconfirm -S --needed --overwrite * "${{ steps.settings.outputs.WZ_MINGW_PKG_PREFIX }}-toolchain" "${{ steps.settings.outputs.WZ_MINGW_PKG_PREFIX }}-libssp"
     - name: Prep MINGW Environment
       id: mingwsettings
       if: success() && (steps.settings.outputs.WZ_USING_MINGW == 'true')
