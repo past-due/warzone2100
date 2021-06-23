@@ -50,5 +50,5 @@ jobs:
           fi
           gh release create "${{ steps.tag_version.outputs.SOURCE_TAG }}" -F ".github/wz/templates/draft_release_body_template.md" -t "${{ steps.tag_version.outputs.SOURCE_TAG }}" --draft ${ADDITIONAL_GH_OPTIONS}
         env:
-          # This token is provided by Actions, you do not need to create your own token
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}

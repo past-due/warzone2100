@@ -152,6 +152,7 @@ jobs:
         gh release upload "${SOURCE_TAG}" "${{ env.WZ_FULL_OUTPUT_DEB_PATH }}"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_REPO: ${{ github.repository }}
         WZ_GITHUB_REF: ${{ github.ref }}
 
   package-source:
@@ -347,4 +348,5 @@ jobs:
           gh release upload "${SOURCE_TAG}" "./warzone2100_src/warzone2100_src.tar.xz"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           WZ_GITHUB_REF: ${{ github.ref }}

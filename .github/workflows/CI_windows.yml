@@ -512,6 +512,7 @@ jobs:
         gh release upload "${SOURCE_TAG}" "${{ github.workspace }}\output\portable\warzone2100_$($env:WZ_BUILD_DESC)_portable.exe" "${{ github.workspace }}\output\installer\warzone2100_$($env:WZ_BUILD_DESC)_installer.exe" "${{ github.workspace }}\output\debugsymbols\warzone2100_$($env:WZ_BUILD_DESC).DEBUGSYMBOLS.7z" "${{ github.workspace }}\output\archive\warzone2100_$($env:WZ_BUILD_DESC)_archive.zip"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_REPO: ${{ github.repository }}
         WZ_GITHUB_REF: ${{ github.ref }}
   trigger-updates-json:
     # For this job to work, the following secrets must be set:
