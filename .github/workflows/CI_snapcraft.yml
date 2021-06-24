@@ -110,7 +110,7 @@ jobs:
         path: '${{ env.WZ_FULL_OUTPUT_SNAP_PATH }}'
         if-no-files-found: 'error'
     - name: Upload artifact to release
-      if: success() && (github.event_name == 'workflow_run' && github.event.workflow_run.name == "Draft Tag Release")
+      if: success() && (github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Draft Tag Release')
       run: |
         SOURCE_TAG="${WZ_GITHUB_REF#refs/tags/}"
         gh release upload "${SOURCE_TAG}" "${{ env.WZ_FULL_OUTPUT_SNAP_PATH }}"
