@@ -31,6 +31,7 @@ jobs:
         fetch-depth: 0
     - name: Configure Repo Checkout
       id: checkout-config
+      working-directory: ./src
       env:
         WORKFLOW_RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
         WORKFLOW_RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}

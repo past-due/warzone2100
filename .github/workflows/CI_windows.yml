@@ -51,6 +51,7 @@ jobs:
         path: 'src'
     - name: Configure Repo Checkout
       id: checkout-config
+      working-directory: '${{ github.workspace }}\src'
       shell: bash
       env:
         WORKFLOW_RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
