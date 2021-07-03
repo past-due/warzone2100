@@ -121,7 +121,7 @@ if(CPACK_GENERATOR STREQUAL "DEB")
 
 	############################################
 	# Support component DEB install
-	set(CPACK_COMPONENTS_GROUPING ONE_PER_GROUP)
+	setDefault(CPACK_COMPONENTS_GROUPING ONE_PER_GROUP)
 
 	# "warzone2100" package ("Core" group)
 	# - members
@@ -158,7 +158,7 @@ if(CPACK_GENERATOR STREQUAL "RPM")
 	############################################
 	# Support component RPM install
 	# - If desired, set the following at configure-time: -D CPACK_RPM_COMPONENT_INSTALL=ON
-	set(CPACK_COMPONENTS_GROUPING ONE_PER_GROUP)
+	setDefault(CPACK_COMPONENTS_GROUPING ONE_PER_GROUP)
 
 	# "warzone2100" package ("Core" group)
 	# - members
