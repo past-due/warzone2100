@@ -19,11 +19,13 @@
 
 #include "urlhelpers.h"
 #include "lib/framework/frame.h"
+#include "lib/framework/wzapp.h"
 
 #if defined(WZ_OS_WIN)
 # include <shellapi.h> /* For ShellExecuteEx  */
 # include <shlwapi.h> /* For UrlCanonicalize */
 # include <objbase.h> /* For CoInitializeEx */
+# include <shlobj.h> /* For SHParseDisplayName, SHOpenFolderAndSelectItems */
 # include <ntverp.h> /* Windows SDK - include for access to VER_PRODUCTBUILD */
 # if VER_PRODUCTBUILD >= 9600
 	// 9600 is the Windows SDK 8.1
@@ -225,15 +227,56 @@ std::string urlEncode(const char* urlFragment)
 	return result;
 }
 
-bool openFolderInDefaultFileManager(const char* path)
-{
 #if defined(WZ_OS_WIN)
-	std::vector<wchar_t> wPath;
-	if (!utf8ToUtf16(path, wPath))
+#if _WIN32_WINNT >= 0x0501
+// SHParseDisplayName must be called in a background thread, so this whole function should be called in a background thread
+void openFolderInDefaultFileManager_WinShellOpen(std::vector<wchar_t> wPath, std::function<void (bool success)> completionHandler)
+{
+	bool openSuccess = false;
+	HRESULT coInitResult = ::CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+
+	// Replace any forward slashes with back slashes
+	std::replace_if(wPath.begin(), wPath.end(), [](wchar_t& c) { c == L'/'; }, L'\\');
+
+	PIDLIST_ABSOLUTE pidl = NULL;
+	SFGAO flags;
+	HRESULT parseDisplayResult = SHParseDisplayName(wPath.data(), NULL, &pidl, 0, &flags);
+	HRESULT openFolderResult = S_OK;
+	if (parseDisplayResult == S_OK)
 	{
-		return false;
+		openFolderResult = SHOpenFolderAndSelectItems(pidl, 0, NULL, 0);
+		if (openFolderResult == S_OK)
+		{
+			openSuccess = true;
+		}
+		CoTaskMemFree(pidl);
 	}
 
+	wzAsyncExecOnMainThread([parseDisplayResult, openFolderResult, openSuccess, completionHandler]{
+		if (parseDisplayResult != S_OK)
+		{
+			// SHParseDisplayName failed
+			debug(LOG_ERROR, "SHParseDisplayName failed with error: %lu", parseDisplayResult);
+		}
+		if (openFolderResult != S_OK)
+		{
+			// SHParseDisplayName failed
+			debug(LOG_ERROR, "SHOpenFolderAndSelectItems failed with error: %lu", openFolderResult);
+		}
+		if (completionHandler)
+		{
+			completionHandler(openSuccess);
+		}
+	});
+
+	if (coInitResult == S_OK || coInitResult == S_FALSE)
+	{
+		::CoUninitialize();
+	}
+}
+#else
+void openFolderInDefaultFileManager_WinShellExec(std::vector<wchar_t> wPath, std::function<void (bool success)> completionHandler)
+{
 	HRESULT coInitResult = ::CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 	SHELLEXECUTEINFOW ShExecInfo = {};
 	ShExecInfo.cbSize = sizeof(ShExecInfo);
@@ -253,11 +296,49 @@ bool openFolderInDefaultFileManager(const char* path)
 	{
 		::CoUninitialize();
 	}
-	return !bShellExecuteFailure;
-#elif defined (WZ_OS_MAC)
-	return cocoaSelectFolderInFinder(path);
-#else
-	return xdg_open(path);
+	if (completionHandler)
+	{
+		completionHandler(!bShellExecuteFailure);
+	}
+}
 #endif
-	return false;
+
+void openFolderInDefaultFileManager_Win(const char* path, std::function<void (bool success)> completionHandler)
+{
+	std::vector<wchar_t> wPath;
+	if (!utf8ToUtf16(path, wPath))
+	{
+		if (completionHandler)
+		{
+			completionHandler(false);
+		}
+		return;
+	}
+
+#if _WIN32_WINNT >= 0x0501
+	std::thread background_shell_thread(openFolderInDefaultFileManager_WinShellOpen, wPath, completionHandler);
+	background_shell_thread.detach();
+#else
+	openFolderInDefaultFileManager_WinShellExec(wPath, completionHandler);
+#endif
+}
+#endif
+
+void openFolderInDefaultFileManager(const char* path, std::function<void (bool success)> completionHandler)
+{
+#if defined(WZ_OS_WIN)
+	openFolderInDefaultFileManager_Win(path, completionHandler);
+	return;
+#else
+	bool result = false;
+# if defined (WZ_OS_MAC)
+	result = cocoaSelectFolderInFinder(path);
+# else
+	result = xdg_open(path);
+# endif
+	if (completionHandler)
+	{
+		completionHandler(result);
+	}
+#endif
 }

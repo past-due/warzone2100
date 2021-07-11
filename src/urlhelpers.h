@@ -21,11 +21,12 @@
 #define __INCLUDED_SRC_URL_HELPERS_H__
 
 #include <string>
+#include <functional>
 
 bool openURLInBrowser(char const *url);
 std::string urlEncode(const char* urlFragment);
 bool urlHasHTTPorHTTPSPrefix(char const *url);
 
-bool openFolderInDefaultFileManager(const char* path);
+void openFolderInDefaultFileManager(const char* path, std::function<void (bool success)> completionHandler);
 
 #endif // __INCLUDED_SRC_URL_HELPERS_H__
