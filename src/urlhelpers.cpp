@@ -58,7 +58,6 @@
 #endif
 
 #include <vector>
-#include <algorithm>
 
 static const std::vector<std::string> validLinkPrefixes = { "http://", "https://" };
 
@@ -237,10 +236,10 @@ void openFolderInDefaultFileManager_WinShellOpen(std::vector<wchar_t> wPath, std
 	HRESULT coInitResult = ::CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 
 	// Replace any forward slashes with back slashes
-	std::replace_if(wPath.begin(), wPath.end(), [](const wchar_t& c) { return c == L'/'; }, L'\\');
+	std::replace_if(wPath.begin(), wPath.end(), [](wchar_t& c) { c == L'/'; }, L'\\');
 
 	PIDLIST_ABSOLUTE pidl = NULL;
-	SFGAOF flags;
+	SFGAO flags;
 	HRESULT parseDisplayResult = SHParseDisplayName(wPath.data(), NULL, &pidl, 0, &flags);
 	HRESULT openFolderResult = S_OK;
 	if (parseDisplayResult == S_OK)
