@@ -53,6 +53,7 @@ if(DEFINED SENTRY_IO_DSN AND NOT SENTRY_IO_DSN STREQUAL "")
 		FetchContent_Populate(sentrynative)
 		add_subdirectory("${sentrynative_SOURCE_DIR}" "${sentrynative_BINARY_DIR}")
 	endif()
+	message(STATUS "Enabling crash-handling backend: sentry-native ($CACHE{SENTRY_BACKEND})")
 
 	# Piggy-back on the exception-handler target to get these libraries / defines over to the main target # TODO: Refactor later?
 	target_link_libraries(exception-handler INTERFACE sentry)
