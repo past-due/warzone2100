@@ -425,7 +425,7 @@ jobs:
       run: |
         ADDITIONAL_CMAKE_PARAMS=""
         if [[ "${WZ_ENABLE_SENTRY}" == "true" ]] && [[ ! -z "${SENTRY_IO_DSN}" ]]; then
-          ADDITIONAL_CMAKE_PARAMS="-DSENTRY_IO_DSN:STRING=\"${SENTRY_IO_DSN}\""
+          ADDITIONAL_CMAKE_PARAMS="-DSENTRY_IO_DSN:STRING=${SENTRY_IO_DSN}"
         fi
         WZ_FULL_CMAKE_PATH="$(cygpath '${{ steps.settings.outputs.WZ_FULL_CMAKE_PATH }}')"
         echo "::add-matcher::${{ github.workspace }}\src\.ci\githubactions\pattern_matchers\cmake.json"
