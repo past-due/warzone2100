@@ -1,3 +1,5 @@
+###############################################
+# WZ core / default exception handler (writes local logs & dumps)
 file(GLOB HEADERS "*.h")
 set(SRC "dumpinfo.cpp" "exceptionhandler.cpp")
 
@@ -26,3 +28,37 @@ if(CMAKE_SYSTEM_NAME MATCHES "Windows")
 endif()
 
 target_link_libraries(exception-handler PRIVATE framework launchinfo)
+
+###############################################
+# WZ Sentry.io crash handling provider support
+# To build, define CMAKE variable SENTRY_IO_DSN
+
+if(DEFINED SENTRY_IO_DSN)
+	include(FetchContent)
+	FetchContent_Declare(
+		sentrynative
+		URL "https://github.com/getsentry/sentry-native/releases/download/0.4.11/sentry-native.zip"
+		URL_HASH SHA512=3d66295526c0cd068a0b7c2180dbeae7594775b3eb3199a74da7efe634cbc19cff6eba8d44b1479037c43c6eb58a9ba4fdaf8da6995767f27c585a0d42582c37
+		PATCH_COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/sentry/CMakeLists.txt" "<SOURCE_DIR>/CMakeLists.txt"
+	)
+	FetchContent_GetProperties(sentrynative)
+	set(SENTRY_BUILD_SHARED_LIBS OFF CACHE BOOL "Sentry build shared libs" FORCE)
+	set(SENTRY_EXPORT_SYMBOLS OFF CACHE BOOL "Export symbols" FORCE)
+	set(SENTRY_BUILD_RUNTIMESTATIC OFF CACHE BOOL "Build sentry-native with static runtime" FORCE)
+	if(CMAKE_SYSTEM_NAME MATCHES "Windows|Darwin|Linux")
+		set(SENTRY_BACKEND "breakpad" CACHE STRING
+  "The sentry backend responsible for reporting crashes, can be either 'none', 'inproc', 'breakpad' or 'crashpad'." FORCE)
+	endif()
+	if(NOT sentrynative_POPULATED)
+		FetchContent_Populate(sentrynative)
+		add_subdirectory("${sentrynative_SOURCE_DIR}" "${sentrynative_BINARY_DIR}")
+	endif()
+
+	# Piggy-back on the exception-handler target to get these libraries / defines over to the main target # TODO: Refactor later?
+	target_link_libraries(exception-handler INTERFACE sentry)
+	target_compile_definitions(exception-handler INTERFACE WZ_CRASHHANDLING_PROVIDER_SENTRY)
+	target_compile_definitions(exception-handler INTERFACE SENTRY_BUILD_STATIC=1)
+	file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/wz-sentry-config")
+	configure_file("3rdparty/sentry/wz-sentry-config.h.in" "${CMAKE_CURRENT_BINARY_DIR}/wz-sentry-config/wz-sentry-config.h" @ONLY)
+	target_include_directories(exception-handler INTERFACE "${CMAKE_CURRENT_BINARY_DIR}/wz-sentry-config")
+endif()

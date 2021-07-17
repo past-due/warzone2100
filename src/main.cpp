@@ -109,6 +109,7 @@
 #include "integrations/wzdiscordrpc.h"
 #endif
 #include "wzpropertyproviders.h"
+#include "3rdparty/gsl_finally.h"
 
 #if defined(WZ_OS_UNIX)
 # include <signal.h>
@@ -129,6 +130,17 @@
 
 #if !defined(WZ_DATADIR)
 #  define WZ_DATADIR "data"
+#endif
+
+/* Crash-handling providers */
+
+#if defined(WZ_CRASHHANDLING_PROVIDER_SENTRY)
+#define WZ_CRASHHANDLING_PROVIDER
+#endif
+
+#if defined(WZ_CRASHHANDLING_PROVIDER_SENTRY)
+#include <sentry.h>
+#include <wz-sentry-config.h>
 #endif
 
 
@@ -599,13 +611,18 @@ bool endsWith (std::string const &fullString, std::string const &endString) {
 	}
 }
 
+static std::string getWzPlatformPrefDir()
+{
+	return getPlatformPrefDir("Warzone 2100 Project", version_getVersionedAppDirFolderName());
+}
+
 static void initialize_ConfigDir()
 {
 	std::string configDir;
 
 	if (strlen(configdir) == 0)
 	{
-		configDir = getPlatformPrefDir("Warzone 2100 Project", version_getVersionedAppDirFolderName());
+		configDir = getWzPlatformPrefDir();
 	}
 	else
 	{
@@ -1446,6 +1463,70 @@ void osSpecificPostInit()
 #endif
 }
 
+static bool initCrashHandlingProvider()
+{
+#if !defined(WZ_CRASHHANDLING_PROVIDER)
+	return false;
+#elif defined(WZ_CRASHHANDLING_PROVIDER_SENTRY)
+	// Sentry crash-handling provider
+	sentry_options_t *options = sentry_options_new();
+	if (!options)
+	{
+		return false;
+	}
+	auto releaseString = version_getBuildIdentifierReleaseString();
+	auto environmentString = version_getBuildIdentifierReleaseEnvironment();
+	sentry_options_set_dsn(options, WZ_CRASHHANDLING_PROVIDER_SENTRY_DSN);
+	sentry_options_set_release(options, releaseString.c_str());
+	sentry_options_set_environment(options, environmentString.c_str());
+	// for the temp path, always use a subdirectory of the default platform pref dir
+	auto platformPrefDir = getWzPlatformPrefDir();
+	// Make sure that we have a directory separator at the end of the string
+	if (!endsWith(platformPrefDir, PHYSFS_getDirSeparator()))
+	{
+		platformPrefDir += PHYSFS_getDirSeparator();
+	}
+	platformPrefDir += ".crash-db";
+	sentry_options_set_database_path(options, platformPrefDir.c_str());
+	int result = sentry_init(options);
+	return result == 0;
+#else
+	#error No available init for crash handling provider
+	return false;
+#endif
+}
+
+static bool shutdownCrashHandlingProvider()
+{
+#if !defined(WZ_CRASHHANDLING_PROVIDER)
+	return false;
+#elif defined(WZ_CRASHHANDLING_PROVIDER_SENTRY)
+	// Sentry crash-handling provider
+	sentry_close();
+	return true;
+#else
+	// No available shutdown for crash handling provider
+	return false;
+#endif
+}
+
+static bool useCrashHandlingProvider(int argc, const char * const *argv)
+{
+#if !defined(WZ_CRASHHANDLING_PROVIDER)
+	return false; // use native crash-handling exception handler
+#else
+	// if compiled with a crash-handling provider, search for "--wz-crash-rpt"
+	for (int i = 0; i < argc; ++i)
+	{
+		if (argv[i] && !strcasecmp(argv[i], "--wz-crash-rpt"))
+		{
+			return false;
+		}
+	}
+	return true;
+#endif
+}
+
 // for backend detection
 extern const char *BACKEND;
 
@@ -1473,6 +1554,15 @@ int realmain(int argc, char *argv[])
 	/*** Initialize PhysicsFS ***/
 	initialize_PhysicsFS(utfargv[0]);
 
+	/** Initialize crash-handling provider, if configured */
+	/** NOTE: Should come as early as possible in process init, but needs to be after initialize_PhysicsFS because we need the platform pref dir for storing temporary crash files... */
+	bool bCrashHandlingProvider = useCrashHandlingProvider(utfargc, utfargv);
+	if (bCrashHandlingProvider)
+	{
+		initCrashHandlingProvider();
+	}
+	auto shutdown_crash_handling_provider_on_return = gsl::finally([bCrashHandlingProvider] { if (bCrashHandlingProvider) { shutdownCrashHandlingProvider(); } });
+
 	/*** Initialize translations ***/
 	/*** NOTE: Should occur before any use of gettext / libintl translation routines. ***/
 	initI18n();
@@ -1480,7 +1570,10 @@ int realmain(int argc, char *argv[])
 	wzMain(argc, argv);		// init Qt integration first
 
 	LaunchInfo::initialize(argc, argv);
-	setupExceptionHandler(utfargc, utfargv, version_getFormattedVersionString(false), version_getVersionedAppDirFolderName(), isPortableMode());
+	if (!bCrashHandlingProvider)
+	{
+		setupExceptionHandler(utfargc, utfargv, version_getFormattedVersionString(false), version_getVersionedAppDirFolderName(), isPortableMode());
+	}
 
 	/*** Initialize sodium library ***/
 	if (sodium_init() < 0) {
