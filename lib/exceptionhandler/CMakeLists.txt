@@ -39,7 +39,7 @@ if(DEFINED SENTRY_IO_DSN AND NOT SENTRY_IO_DSN STREQUAL "")
 		sentrynative
 		URL "https://github.com/getsentry/sentry-native/releases/download/0.4.11/sentry-native.zip"
 		URL_HASH SHA512=3d66295526c0cd068a0b7c2180dbeae7594775b3eb3199a74da7efe634cbc19cff6eba8d44b1479037c43c6eb58a9ba4fdaf8da6995767f27c585a0d42582c37
-		PATCH_COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/sentry/CMakeLists.txt" "<SOURCE_DIR>/CMakeLists.txt"
+		PATCH_COMMAND ${CMAKE_COMMAND} "-DSOURCE_DIR=<SOURCE_DIR>" -P "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/sentry/PatchSentryNative.cmake"
 	)
 	FetchContent_GetProperties(sentrynative)
 	set(SENTRY_BUILD_SHARED_LIBS OFF CACHE BOOL "Sentry build shared libs" FORCE)
