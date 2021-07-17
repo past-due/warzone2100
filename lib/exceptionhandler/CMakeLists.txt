@@ -33,7 +33,7 @@ target_link_libraries(exception-handler PRIVATE framework launchinfo)
 # WZ Sentry.io crash handling provider support
 # To build, define CMAKE variable SENTRY_IO_DSN
 
-if(DEFINED SENTRY_IO_DSN)
+if(DEFINED SENTRY_IO_DSN AND NOT SENTRY_IO_DSN STREQUAL "")
 	include(FetchContent)
 	FetchContent_Declare(
 		sentrynative
