@@ -604,7 +604,7 @@ jobs:
             exit 0
           fi
           docker pull getsentry/sentry-cli
-          docker run --rm -v -e SENTRY_AUTH_TOKEN $(pwd):/work getsentry/sentry-cli upload-dif --no-zips -o warzone2100 -p warzone2100 "${WZ_ARCHIVE_DIR}"
+          docker run --rm -e SENTRY_AUTH_TOKEN -v "$(pwd):/work" getsentry/sentry-cli upload-dif --no-zips -o warzone2100 -p warzone2100 "${WZ_ARCHIVE_DIR}"
   trigger-updates-json:
     name: 'Trigger Info Update'
     runs-on: ubuntu-latest
