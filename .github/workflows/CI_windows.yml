@@ -567,7 +567,7 @@ jobs:
     name: 'Upload Debug Symbols (${{ matrix.architecture }})'
     runs-on: ubuntu-latest
     # Run on push to master branch (development build), or tag release automation build
-    # if: (github.repository == 'Warzone2100/warzone2100') && ((github.event_name == 'push' && github.ref == 'refs/heads/master') || (github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Draft Tag Release'))
+    if: (github.repository == 'Warzone2100/warzone2100') && ((github.event_name == 'push' && github.ref == 'refs/heads/master') || (github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Draft Tag Release'))
     needs: windows-build
     environment: upload_symbols
     # For this job to work, the following secrets must be set in the 'upload_symbols' environment:
