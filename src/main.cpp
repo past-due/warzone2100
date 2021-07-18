@@ -1487,7 +1487,18 @@ static bool initCrashHandlingProvider()
 		platformPrefDir += PHYSFS_getDirSeparator();
 	}
 	platformPrefDir += ".crash-db";
+#if defined(WZ_OS_WIN)
+	// On Windows: Convert UTF-8 path to UTF-16 and call sentry_options_set_database_pathw
+	std::vector<wchar_t> wUtf16Path;
+	if (!win_utf8ToUtf16(platformPrefDir.c_str(), wUtf16Path))
+	{
+		debug(LOG_FATAL, "Unable to convert path string to UTF16 - fatal error");
+		abort();
+	}
+	sentry_options_set_database_pathw(options, wUtf16Path.data());
+#else
 	sentry_options_set_database_path(options, platformPrefDir.c_str());
+#endif
 	int result = sentry_init(options);
 	return result == 0;
 #else
