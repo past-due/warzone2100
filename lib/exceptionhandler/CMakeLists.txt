@@ -34,6 +34,14 @@ target_link_libraries(exception-handler PRIVATE framework launchinfo)
 # To build, define CMAKE variable SENTRY_IO_DSN
 
 if(DEFINED SENTRY_IO_DSN AND NOT SENTRY_IO_DSN STREQUAL "")
+	if(CMAKE_SYSTEM_NAME MATCHES "Windows")
+		# Sentry-native requires CMAKE_SYSTEM_VERSION to be properly set
+		if(CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
+			set(CMAKE_SYSTEM_VERSION "10")
+		else()
+			set(CMAKE_SYSTEM_VERSION "6.0") # Windows Vista+
+		endif()
+	endif()
 	include(FetchContent)
 	FetchContent_Declare(
 		sentrynative
