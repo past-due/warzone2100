@@ -100,6 +100,7 @@
 #include "keybind.h"
 #include "random.h"
 #include "urlrequest.h"
+#include "urlhelpers.h"
 #include <time.h>
 #include <LaunchInfo.h>
 #include <sodium.h>
@@ -1463,6 +1464,25 @@ void osSpecificPostInit()
 #endif
 }
 
+static std::string getDefaultLogFilePath(const char *platformDirSeparator)
+{
+	static std::string defaultLogFileName;
+	if (defaultLogFileName.empty()) // only generate this once per run, so multiple callers get the same value
+	{
+		time_t aclock;
+		struct tm newtime;
+		char buf[PATH_MAX];
+
+		time(&aclock);						// Get time in seconds
+		newtime = getLocalTime(aclock);		// Convert time to struct
+		snprintf(buf, sizeof(buf), "WZlog-%02d%02d_%02d%02d%02d.txt",
+				 newtime.tm_mon + 1, newtime.tm_mday, newtime.tm_hour, newtime.tm_min, newtime.tm_sec);
+		defaultLogFileName = buf;
+	}
+	// log name is logs/(or \)WZlog-MMDD_HHMMSS.txt
+	return std::string("logs") + platformDirSeparator + defaultLogFileName;
+}
+
 static bool initCrashHandlingProvider()
 {
 #if !defined(WZ_CRASHHANDLING_PROVIDER)
@@ -1486,18 +1506,30 @@ static bool initCrashHandlingProvider()
 	{
 		platformPrefDir += PHYSFS_getDirSeparator();
 	}
-	platformPrefDir += ".crash-db";
+	std::string crashDbPath = platformPrefDir + ".crash-db";
 #if defined(WZ_OS_WIN)
 	// On Windows: Convert UTF-8 path to UTF-16 and call sentry_options_set_database_pathw
 	std::vector<wchar_t> wUtf16Path;
-	if (!win_utf8ToUtf16(platformPrefDir.c_str(), wUtf16Path))
+	if (!win_utf8ToUtf16(crashDbPath.c_str(), wUtf16Path))
 	{
 		debug(LOG_FATAL, "Unable to convert path string to UTF16 - fatal error");
 		abort();
 	}
 	sentry_options_set_database_pathw(options, wUtf16Path.data());
 #else
-	sentry_options_set_database_path(options, platformPrefDir.c_str());
+	sentry_options_set_database_path(options, crashDbPath.c_str());
+#endif
+	std::string logFileFullPath = platformPrefDir + getDefaultLogFilePath(PHYSFS_getDirSeparator());
+#if defined(WZ_OS_WIN)
+	// On Windows: Convert UTF-8 path to UTF-16 and call sentry_options_add_attachmentw
+	if (!win_utf8ToUtf16(logFileFullPath.c_str(), wUtf16Path))
+	{
+		debug(LOG_FATAL, "Unable to convert path string (2) to UTF16 - fatal error");
+		abort();
+	}
+	sentry_options_add_attachmentw(options, wUtf16Path.data());
+#else
+	sentry_options_add_attachment(options, logFileFullPath.c_str());
 #endif
 	int result = sentry_init(options);
 	return result == 0;
@@ -1649,20 +1681,11 @@ int realmain(int argc, char *argv[])
 	{
 		// there was no custom debug file specified  (--debug-file=blah)
 		// so we use our write directory to store our logs.
-		time_t aclock;
-		struct tm newtime;
-		char buf[PATH_MAX];
-
-		time(&aclock);					// Get time in seconds
-		newtime = getLocalTime(aclock);		// Convert time to struct
-		// Note: We are using fopen(), and not physfs routines to open the file
-		// log name is logs/(or \)WZlog-MMDD_HHMMSS.txt
-		snprintf(buf, sizeof(buf), "%slogs%sWZlog-%02d%02d_%02d%02d%02d.txt", PHYSFS_getWriteDir(), PHYSFS_getDirSeparator(),
-		         newtime.tm_mon + 1, newtime.tm_mday, newtime.tm_hour, newtime.tm_min, newtime.tm_sec);
-		WzString debug_filename = buf;
+		WzString debug_filename = PHYSFS_getWriteDir();
+		debug_filename.append(WzString::fromUtf8(getDefaultLogFilePath(PHYSFS_getDirSeparator())));
 		debug_register_callback(debug_callback_file, debug_callback_file_init, debug_callback_file_exit, &debug_filename); // note: by the time this function returns, all use of debug_filename has completed
 
-		debug(LOG_WZ, "Using %s debug file", buf);
+		debug(LOG_WZ, "Using %s debug file", debug_filename.toUtf8().c_str());
 	}
 
 	// Initialize random number generators
