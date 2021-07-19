@@ -42,6 +42,12 @@ if(DEFINED SENTRY_IO_DSN AND NOT SENTRY_IO_DSN STREQUAL "")
 			set(CMAKE_SYSTEM_VERSION "6.0") # Windows Vista+
 		endif()
 	endif()
+	if(MINGW AND ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang"))
+		# Sentry-native currently requires uasm when compiling via mingw-clang
+		if(NOT DEFINED CMAKE_ASM_MASM_COMPILER)
+			set(CMAKE_ASM_MASM_COMPILER "uasm")
+		endif()
+	endif()
 	include(FetchContent)
 	FetchContent_Declare(
 		sentrynative
