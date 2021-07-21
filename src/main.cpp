@@ -1519,7 +1519,7 @@ int realmain(int argc, char *argv[])
 	bool bCrashHandlingProvider = useCrashHandlingProvider(utfargc, utfargv);
 	if (bCrashHandlingProvider)
 	{
-		initCrashHandlingProvider(getWzPlatformPrefDir(), getDefaultLogFilePath(PHYSFS_getDirSeparator()));
+		bCrashHandlingProvider = initCrashHandlingProvider(getWzPlatformPrefDir(), getDefaultLogFilePath(PHYSFS_getDirSeparator()));
 	}
 	auto shutdown_crash_handling_provider_on_return = gsl::finally([bCrashHandlingProvider] { if (bCrashHandlingProvider) { shutdownCrashHandlingProvider(); } });
 

@@ -34,12 +34,16 @@
 /* Crash-handling providers */
 
 #if defined(WZ_CRASHHANDLING_PROVIDER_SENTRY)
-#define WZ_CRASHHANDLING_PROVIDER
+# define WZ_CRASHHANDLING_PROVIDER
 #endif
 
 #if defined(WZ_CRASHHANDLING_PROVIDER_SENTRY)
-#include <sentry.h>
-#include <wz-sentry-config.h>
+# include <sentry.h>
+# include <wz-sentry-config.h>
+# if !defined(WZ_CRASHHANDLING_PROVIDER_SENTRY_DSN)
+#  define WZ_CRASHHANDLING_PROVIDER_SENTRY_DSN ""
+# endif
+static bool enabledSentryProvider = false;
 #endif
 
 const size_t tagKeyMaxLength = 32;
@@ -50,6 +54,11 @@ static bool initCrashHandlingProvider_Sentry(const std::string& platformPrefDir_
 {
 	ASSERT_OR_RETURN(false, !platformPrefDir_Input.empty(), "platformPrefDir must not be empty");
 	ASSERT_OR_RETURN(false, !defaultLogFilePath.empty(), "defaultLogFilePath must not be empty");
+	if (strlen(WZ_CRASHHANDLING_PROVIDER_SENTRY_DSN) == 0)
+	{
+		debug(LOG_INFO, "Insufficient configuration to enable - skipping");
+		return false;
+	}
 	sentry_options_t *options = sentry_options_new();
 	if (!options)
 	{
@@ -190,7 +199,9 @@ bool initCrashHandlingProvider(const std::string& platformPrefDir, const std::st
 	return false;
 #elif defined(WZ_CRASHHANDLING_PROVIDER_SENTRY)
 	// Sentry crash-handling provider
-	return initCrashHandlingProvider_Sentry(platformPrefDir, defaultLogFilePath);
+	ASSERT_OR_RETURN(true, !enabledSentryProvider, "Called more than once");
+	enabledSentryProvider = initCrashHandlingProvider_Sentry(platformPrefDir, defaultLogFilePath);
+	return enabledSentryProvider;
 #else
 	#error No available init for crash handling provider
 	return false;
@@ -203,7 +214,10 @@ bool shutdownCrashHandlingProvider()
 	return false;
 #elif defined(WZ_CRASHHANDLING_PROVIDER_SENTRY)
 	// Sentry crash-handling provider
-	return shutdownCrashHandlingProvider_Sentry();
+	ASSERT_OR_RETURN(true, enabledSentryProvider, "Already shut-down");
+	bool result = shutdownCrashHandlingProvider_Sentry();
+	enabledSentryProvider = !result;
+	return result;
 #else
 	// No available shutdown for crash handling provider
 	return false;
@@ -218,6 +232,7 @@ bool crashHandlingProviderSetTag(const std::string& key, const std::string& valu
 	return false;
 #elif defined(WZ_CRASHHANDLING_PROVIDER_SENTRY)
 	// Sentry crash-handling provider
+	if (!enabledSentryProvider) { return false; }
 	return crashHandlingProviderSetTag_Sentry(key, value);
 #else
 	// No available setTag for crash handling provider
@@ -231,6 +246,7 @@ bool crashHandlingProviderSetContext(const std::string& key, const nlohmann::jso
 	return false;
 #elif defined(WZ_CRASHHANDLING_PROVIDER_SENTRY)
 	// Sentry crash-handling provider
+	if (!enabledSentryProvider) { return false; }
 	return crashHandlingProviderSetContext_Sentry(key, contextDictionary);
 #else
 	// No available setTag for crash handling provider

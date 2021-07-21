@@ -31,9 +31,11 @@ target_link_libraries(exception-handler PRIVATE framework launchinfo)
 
 ###############################################
 # WZ Sentry.io crash handling provider support
-# To build, define CMAKE variable SENTRY_IO_DSN
+# To build, define CMAKE variables:
+#  - WZ_BUILD_SENTRY (to build with sentry support)
+#  - SENTRY_IO_DSN (to supply the DSN configuration URL)
 
-if(DEFINED SENTRY_IO_DSN AND NOT SENTRY_IO_DSN STREQUAL "")
+if(DEFINED WZ_BUILD_SENTRY AND WZ_BUILD_SENTRY)
 	if(CMAKE_SYSTEM_NAME MATCHES "Windows")
 		# Sentry-native requires CMAKE_SYSTEM_VERSION to be properly set
 		if(CMAKE_SYSTEM_NAME STREQUAL "WindowsStore")
@@ -74,7 +76,11 @@ if(DEFINED SENTRY_IO_DSN AND NOT SENTRY_IO_DSN STREQUAL "")
 	target_compile_definitions(exception-handler INTERFACE WZ_CRASHHANDLING_PROVIDER_SENTRY)
 	target_compile_definitions(exception-handler INTERFACE SENTRY_BUILD_STATIC=1)
 	file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/wz-sentry-config")
-	set(WZ_CRASHHANDLING_PROVIDER_SENTRY_DSN "${SENTRY_IO_DSN}")
+	if(DEFINED SENTRY_IO_DSN)
+		set(WZ_CRASHHANDLING_PROVIDER_SENTRY_DSN "${SENTRY_IO_DSN}")
+	else()
+		unset(WZ_CRASHHANDLING_PROVIDER_SENTRY_DSN)
+	endif()
 	configure_file("3rdparty/sentry/wz-sentry-config.h.in" "${CMAKE_CURRENT_BINARY_DIR}/wz-sentry-config/wz-sentry-config.h" @ONLY)
 	target_include_directories(exception-handler INTERFACE "${CMAKE_CURRENT_BINARY_DIR}/wz-sentry-config")
 endif()
