@@ -206,6 +206,7 @@ private:
 	void gameStateChange(const std::string& newGameState, nlohmann::json additionalData = nlohmann::json::object())
 	{
 		sentry_value_t crumb = sentry_value_new_breadcrumb("navigation", NULL);
+		sentry_value_set_by_key(crumb, "category", sentry_value_new_string("navigation"));
 		sentry_value_t data;
 		if (additionalData.is_object())
 		{
