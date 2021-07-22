@@ -93,6 +93,8 @@ static CHEAT_ENTRY cheatCodes[] =
 
 };
 
+#include "display3d.h"
+
 bool _attemptCheatCode(const char *cheat_name)
 {
 	const CHEAT_ENTRY *curCheat;
@@ -107,6 +109,11 @@ bool _attemptCheatCode(const char *cheat_name)
 	if (!strcasecmp("showunits", cheat_name))
 	{
 		kf_ToggleUnitCount();
+		return true;
+	}
+	if (!strcasecmp("triggercrash", cheat_name))
+	{
+		CauseCrash = true;
 		return true;
 	}
 

@@ -185,13 +185,8 @@ jobs:
         
         $WZ_ENABLE_SENTRY = "false"
         if ("${env:BUILD_SENTRY_SUPPORT}" -eq "true") {
-          # Fully enable for master branch pushes (development builds) and workflow runs (draft tag release builds)
-          if (("${env:GITHUB_EVENT_NAME}" -eq "push") -and ("${env:GITHUB_REF}" -eq "refs/heads/master")) {
-            $WZ_ENABLE_SENTRY = "true"
-          }
-          elseif (("${env:GITHUB_EVENT_NAME}" -eq "workflow_run")) {
-            $WZ_ENABLE_SENTRY = "true"
-          }
+          # TEMP: Fully enable always
+          $WZ_ENABLE_SENTRY = "true"
         }
 
         # -------------
@@ -561,7 +556,7 @@ jobs:
         if-no-files-found: 'error'
     - name: 'Upload Artifact - (Archive)'
       uses: actions/upload-artifact@v2
-      if: success() && ((github.event_name == 'push' && github.ref == 'refs/heads/master') || (github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Draft Tag Release')) && (matrix.deploy_release == true) && (github.repository == 'Warzone2100/warzone2100')
+      if: success() #&& ((github.event_name == 'push' && github.ref == 'refs/heads/master') || (github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Draft Tag Release')) && (matrix.deploy_release == true) && (github.repository == 'Warzone2100/warzone2100')
       with:
         name: warzone2100_${{ steps.settings.outputs.WZ_BUILD_DESC }}_archive
         path: '${{ github.workspace }}\output\archive'
@@ -588,7 +583,7 @@ jobs:
     name: 'Upload Debug Symbols (${{ matrix.architecture }})'
     runs-on: ubuntu-latest
     # Run on push to master branch (development build), or tag release automation build
-    if: (github.repository == 'Warzone2100/warzone2100') && ((github.event_name == 'push' && github.ref == 'refs/heads/master') || (github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Draft Tag Release'))
+    #if: (github.repository == 'Warzone2100/warzone2100') && ((github.event_name == 'push' && github.ref == 'refs/heads/master') || (github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Draft Tag Release'))
     needs: windows-build
     environment: upload_symbols
     # For this job to work, the following secrets must be set in the 'upload_symbols' environment:
