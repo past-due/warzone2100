@@ -64,3 +64,102 @@ gfx_api::context& gfx_api::context::get()
 {
 	return *current_backend_context;
 }
+
+// MARK: - Image Format runtime conversion
+
+#include <ProcessDxtc.hpp>
+#include <ProcessRGB.hpp>
+
+enum EtcPackFormat
+{
+	etc1,
+	etc2_rgb,
+	etc2_rgba,
+	dxt1,
+	dxt5
+};
+
+static void convertRGBtoRGBA(const void* data, gfx_api::context::ImageSize imageSize, std::unique_ptr<uint8_t[]>& outputData, size_t& outputLen)
+{
+	auto* srcMem = reinterpret_cast<const uint8_t*>(data);
+	const uint32_t inputDataChannels = 3;
+	const uint32_t outputDataChannels = 4;
+	outputLen = imageSize.width * imageSize.height * 4;
+	outputData = std::unique_ptr<uint8_t[]>(new uint8_t[outputLen]);
+	for (uint32_t row = 0; row < imageSize.height; row++)
+	{
+		for (uint32_t col = 0; col < imageSize.width; col++)
+		{
+			uint32_t byte = 0;
+			for (; byte < inputDataChannels; byte++)
+			{
+				const auto& texel = srcMem[(row * imageSize.width + col) * inputDataChannels + byte];
+				outputData[(row * imageSize.width  + col) * inputDataChannels + byte] = texel;
+			}
+			for (; byte < outputDataChannels; byte++)
+			{
+				outputData[(row * imageSize.width  + col) * outputDataChannels + byte] = 255;
+			}
+		}
+	}
+}
+
+bool gfx_api::context::convert2DImageFormat(gfx_api::pixel_format dataFormat, const void* data, size_t dataLen, gfx_api::context::ImageSize imageSize, gfx_api::pixel_format targetFormat, std::unique_ptr<uint8_t[]>& outputData, size_t& outputLen)
+{
+	if (dataFormat != gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8 && dataFormat != gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8)
+	{
+		// input format not currently supported
+		return false;
+	}
+
+	// TODO: ASSERT THAT IMAGE WIDTH AND HEIGHT ARE MULTIPLE OF 4
+
+	EtcPackFormat etcPackFormat = EtcPackFormat::dxt5;
+	switch (targetFormat)
+	{
+		case pixel_format::FORMAT_RGB_S3TC_DXT1:
+			etcPackFormat = EtcPackFormat::dxt1;
+			break;
+		case pixel_format::FORMAT_RGBA_S3TC_DXT5:
+			etcPackFormat = EtcPackFormat::dxt5;
+			break;
+		default:
+			return false;
+	}
+
+	std::unique_ptr<uint8_t[]> convertedRGBAInput;
+	if (dataFormat == gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8)
+	{
+		// Convert input format to RGBA for compression
+		convertRGBtoRGBA(data, imageSize, convertedRGBAInput, dataLen);
+		data = convertedRGBAInput.get();
+	}
+
+	uint32_t linesToProcess = imageSize.height;
+	uint32_t blocks = imageSize.width * linesToProcess / 4;
+
+	size_t outputSize = imageSize.width * imageSize.height / 2;
+	if(etcPackFormat == etc2_rgba || etcPackFormat == dxt5) outputSize *= 2;
+	std::unique_ptr<uint8_t[]> output = std::unique_ptr<uint8_t[]>(new uint8_t[outputSize]);
+
+	switch (etcPackFormat)
+	{
+		case etc1:
+			CompressEtc1RgbDither(reinterpret_cast<const uint32_t*>(data), reinterpret_cast<uint64_t*>(&(output.get()[0])), blocks, imageSize.width);
+			break;
+		case etc2_rgb:
+			CompressEtc2Rgb(reinterpret_cast<const uint32_t*>(data), reinterpret_cast<uint64_t*>(&(output.get()[0])), blocks, imageSize.width);
+			break;
+		case etc2_rgba:
+			CompressEtc2Rgba(reinterpret_cast<const uint32_t*>(data), reinterpret_cast<uint64_t*>(&(output.get()[0])), blocks, imageSize.width);
+			break;
+		case dxt1:
+			CompressDxt1Dither(reinterpret_cast<const uint32_t*>(data), reinterpret_cast<uint64_t*>(&(output.get()[0])), blocks, imageSize.width);
+			break;
+		case dxt5:
+			CompressDxt5(reinterpret_cast<const uint32_t*>(data), reinterpret_cast<uint64_t*>(&(output.get()[0])), blocks, imageSize.width);
+			break;
+	}
+
+	return true;
+}

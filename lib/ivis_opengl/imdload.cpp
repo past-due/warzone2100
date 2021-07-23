@@ -1249,7 +1249,7 @@ static void iV_ProcessIMD(const WzString &filename, const char **ppFileData, con
 	// load texture page if specified
 	if (bTextured)
 	{
-		optional<size_t> texpage = iV_GetTexture(texfile);
+		optional<size_t> texpage = iV_GetTexture(texfile, gfx_api::texture_type::game_texture);
 		optional<size_t> normalpage;
 		optional<size_t> specpage;
 
@@ -1258,14 +1258,14 @@ static void iV_ProcessIMD(const WzString &filename, const char **ppFileData, con
 		if (normalfile[0] != '\0')
 		{
 			debug(LOG_TEXTURE, "Loading normal map %s for %s", normalfile, filename.toUtf8().c_str());
-			normalpage = iV_GetTexture(normalfile, false);
+			normalpage = iV_GetTexture(normalfile, gfx_api::texture_type::normal_map);
 			ASSERT_OR_RETURN(, normalpage.has_value(), "%s could not load tex page %s", filename.toUtf8().c_str(), normalfile);
 		}
 
 		if (specfile[0] != '\0')
 		{
 			debug(LOG_TEXTURE, "Loading specular map %s for %s", specfile, filename.toUtf8().c_str());
-			specpage = iV_GetTexture(specfile, false);
+			specpage = iV_GetTexture(specfile, gfx_api::texture_type::specular_map);
 			ASSERT_OR_RETURN(, specpage.has_value(), "%s could not load tex page %s", filename.toUtf8().c_str(), specfile);
 		}
 
@@ -1284,7 +1284,7 @@ static void iV_ProcessIMD(const WzString &filename, const char **ppFileData, con
 		{
 			std::string tcmask_name = pie_MakeTexPageTCMaskName(texfile);
 			tcmask_name += ".png";
-			optional<size_t> texpage_mask = iV_GetTexture(tcmask_name.c_str());
+			optional<size_t> texpage_mask = iV_GetTexture(tcmask_name.c_str(), gfx_api::texture_type::game_texture);
 
 			ASSERT_OR_RETURN(, texpage_mask.has_value(), "%s could not load tcmask %s", filename.toUtf8().c_str(), tcmask_name.c_str());
 

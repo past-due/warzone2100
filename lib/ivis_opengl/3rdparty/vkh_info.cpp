@@ -566,6 +566,46 @@ void VkhInfo::Output_PhysicalDevices(const vk::Instance& inst, const vk::Applica
 		}
 
 		buf << "\n";
+
+		// Supported formats
+		buf << "Supported VkFormats:\n";
+		buf << "------------------------\n";
+		// Enumerate the first contiguous batch of VkFormats
+		uint32_t startFormat = static_cast<uint32_t>(vk::Format::eR4G4UnormPack8);
+		uint32_t lastFormat = static_cast<uint32_t>(vk::Format::eAstc12x12SrgbBlock);
+		for (uint32_t formatUint32 = startFormat; formatUint32 <= lastFormat; formatUint32++)
+		{
+			vk::Format vulkanFormat = static_cast<vk::Format>(formatUint32);
+			vk::FormatProperties props;
+			physicalDevice.getFormatProperties(vulkanFormat, &props, vkDynLoader);
+			bool formatSupported = props.linearTilingFeatures || props.optimalTilingFeatures || props.bufferFeatures;
+			if (!formatSupported)
+			{
+				continue;
+			}
+			auto blitDstFeature = vk::FormatFeatureFlags(vk::FormatFeatureFlagBits::eBlitDst);
+			bool blitDst_linear = (props.linearTilingFeatures & blitDstFeature) == blitDstFeature;
+			bool blitDst_optimal = (props.optimalTilingFeatures & blitDstFeature) == blitDstFeature;
+			buf << "- " << to_string(vulkanFormat);
+			if (blitDst_linear || blitDst_optimal)
+			{
+				buf << " [blitDst:";
+				if (blitDst_linear)
+				{
+					buf << " linear";
+				}
+				if (blitDst_optimal)
+				{
+					buf << " optimal";
+				}
+				buf << "]";
+			}
+			buf << "\n";
+			buf << "  - linearTilingFeatures = " << to_string(props.linearTilingFeatures) << "\n";
+			buf << "  - optimalTilingFeatures = " << to_string(props.optimalTilingFeatures) << "\n";
+		}
+
+		buf << "\n";
 	}
 
 	if (outputHandler)

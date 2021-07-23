@@ -51,6 +51,101 @@ OPENGL_DATA opengl;
 static GLuint perfpos[PERF_COUNT];
 static bool perfStarted = false;
 
+gfx_api::pixel_format gl_context::bestAvailableGameTextureFormat(gfx_api::pixel_format uncompressedFormat, gfx_api::texture_compression_quality compressionQuality) const
+{
+	switch (uncompressedFormat)
+	{
+		case gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8:
+			// TODO: Support ASTC
+			//	- compressionQuality == high -> ASTC 4x4
+			//	- compressionQuality == normal -> ASTC 6x6
+			//	- compressionQuality == low -> ASTC 8x8
+			// Otherwise, ignore the compressionQuality option and just use the best available algorithm from the remaining options
+			if (!gles && GLAD_GL_ARB_texture_compression_bptc)
+			{
+				return gfx_api::pixel_format::FORMAT_RGBA_BPTC_UNORM;
+			}
+			else if (GLAD_GL_EXT_texture_compression_s3tc) // possibly supported on GLES
+			{
+				return gfx_api::pixel_format::FORMAT_RGBA_S3TC_DXT5;
+			}
+			// TODO: Prefer ETC2 on gles, if available
+			else
+			{
+				return uncompressedFormat;
+			}
+		case gfx_api::pixel_format::FORMAT_BGRA8_UNORM_PACK8:
+			return uncompressedFormat;
+		case gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8:
+			if (GLAD_GL_EXT_texture_compression_s3tc)
+			{
+				return gfx_api::pixel_format::FORMAT_RGB_S3TC_DXT1;
+			}
+//			// TODO: Prefer ETC2 on gles, if available
+//			else if (gles && GLAD_GL_OES_compressed_ETC1_RGB8_texture)
+//			{
+//				return gfx_api::pixel_format::FORMAT_RGB8_ETC1;
+//			}
+			else
+			{
+				return uncompressedFormat;
+			}
+		default:
+			debug(LOG_FATAL, "Unsupported uncompressed pixel format");
+	}
+	return uncompressedFormat; // silence warning
+}
+
+gfx_api::pixel_format gl_context::bestAvailableCompressedFormat(gfx_api::pixel_format uncompressedFormat, gfx_api::texture_type textureType, gfx_api::texture_compression_quality compressionQuality) const
+{
+	switch (textureType)
+	{
+		case gfx_api::texture_type::user_interface:
+			// for user-interface textures, currently just use uncompressed formats
+			return uncompressedFormat;
+		case gfx_api::texture_type::game_texture:
+			// for game textures, find the best compressed format
+			return bestAvailableGameTextureFormat(uncompressedFormat, compressionQuality);
+		case gfx_api::texture_type::normal_map:
+		case gfx_api::texture_type::specular_map:
+			// for now, just use uncompressed formats
+			return uncompressedFormat;
+	}
+	return uncompressedFormat; // silence warning
+}
+
+bool gl_context::supportsRealTimeCompression(gfx_api::pixel_format internal_texture_format) const
+{
+	if (gles)
+	{
+		// OpenGL ES doesn't support realtime compression in the driver
+		return false;
+	}
+	// FIXME: REMOVE THIS TESTING ONLY
+//	return false;
+	// For Desktop OpenGL, some formats may be supported for realtime compression in the driver
+	// TODO: Even though it's deprecated, should we check GL_COMPRESSED_TEXTURE_FORMATS?
+	// For now, just assume that if the context supports DXT1, DXT5, or BC7 that it can real-time compress to them
+	switch (internal_texture_format)
+	{
+		case gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8:
+			return true; // uncompressed
+		case gfx_api::pixel_format::FORMAT_BGRA8_UNORM_PACK8:
+			return true; // uncompressed
+		case gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8:
+			return true; // uncompressed
+		case gfx_api::pixel_format::FORMAT_RGB_S3TC_DXT1:
+		case gfx_api::pixel_format::FORMAT_RGBA_S3TC_DXT3:
+		case gfx_api::pixel_format::FORMAT_RGBA_S3TC_DXT5:
+			return GLAD_GL_EXT_texture_compression_s3tc != 0;
+		case gfx_api::pixel_format::FORMAT_RGBA_BPTC_UNORM:
+			return GLAD_GL_ARB_texture_compression_bptc != 0;
+		default:
+			return false;
+	}
+	return false;
+}
+
 static std::pair<GLenum, GLenum> to_gl(const gfx_api::pixel_format& format)
 {
 	switch (format)
@@ -61,6 +156,58 @@ static std::pair<GLenum, GLenum> to_gl(const gfx_api::pixel_format& format)
 			return std::make_pair(GL_RGBA8, GL_BGRA);
 		case gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8:
 			return std::make_pair(GL_RGB8, GL_RGB);
+		case gfx_api::pixel_format::FORMAT_RGB_S3TC_DXT1:
+			if (GLAD_GL_EXT_texture_compression_s3tc)
+			{
+				return std::make_pair(GL_COMPRESSED_RGB_S3TC_DXT1_EXT, GL_RGB);
+			}
+			else
+			{
+				// this compressed format isn't supported - fall back to uncompressed
+				return std::make_pair(GL_RGB8, GL_RGB);
+			}
+		case gfx_api::pixel_format::FORMAT_RGBA_S3TC_DXT3:
+			if (GLAD_GL_EXT_texture_compression_s3tc)
+			{
+				return std::make_pair(GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, GL_RGBA);
+			}
+			else
+			{
+				// this compressed format isn't supported - fall back to uncompressed
+				return std::make_pair(GL_RGBA8, GL_RGBA);
+			}
+		case gfx_api::pixel_format::FORMAT_RGBA_S3TC_DXT5:
+			if (GLAD_GL_EXT_texture_compression_s3tc)
+			{
+				return std::make_pair(GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, GL_RGBA);
+			}
+			else
+			{
+				// this compressed format isn't supported - fall back to uncompressed
+				return std::make_pair(GL_RGBA8, GL_RGBA);
+			}
+		case gfx_api::pixel_format::FORMAT_RGBA_BPTC_UNORM:
+			if (GLAD_GL_ARB_texture_compression_bptc)
+			{
+				return std::make_pair(GL_COMPRESSED_RGBA_BPTC_UNORM_ARB, GL_RGBA);
+			}
+			else
+			{
+				// this compressed format isn't supported - fall back to uncompressed
+				return std::make_pair(GL_RGBA8, GL_RGBA);
+			}
+//		case gfx_api::pixel_format::FORMAT_RGB8_ETC1:
+//			if (gles && GLAD_GL_OES_compressed_ETC1_RGB8_texture)
+//			{
+//				return std::make_pair(GL_ETC1_RGB8_OES, GL_RGB);
+//			}
+//			else
+//			{
+//				// this compressed format isn't supported - fall back to uncompressed
+//				return std::make_pair(GL_RGB8, GL_RGB);
+//			}
+//		case gfx_api::pixel_format::FORMAT_RGB8_ETC2:
+//		case gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC:
 		default:
 			debug(LOG_FATAL, "Unrecognised pixel format");
 	}
@@ -169,6 +316,32 @@ void gl_texture::unbind()
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+static size_t textureBufferLen(const gfx_api::pixel_format & buffer_format, const size_t & width, const size_t & height)
+{
+	switch (buffer_format)
+	{
+		case gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8:
+		case gfx_api::pixel_format::FORMAT_BGRA8_UNORM_PACK8:
+			return width * height * 4;
+			break;
+		case gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8:
+			return width * height * 3;
+			break;
+		case gfx_api::pixel_format::FORMAT_RGB_S3TC_DXT1:
+			return width * height / 2;
+			break;
+		case gfx_api::pixel_format::FORMAT_RGBA_S3TC_DXT3:
+		case gfx_api::pixel_format::FORMAT_RGBA_S3TC_DXT5:
+		case gfx_api::pixel_format::FORMAT_RGBA_BPTC_UNORM:
+			return width * height;
+			break;
+		default:
+			// TODO: ASSERT
+			return 0;
+	}
+}
+
+
 void gl_texture::upload(const size_t& mip_level, const size_t& offset_x, const size_t& offset_y, const size_t & width, const size_t & height, const gfx_api::pixel_format & buffer_format, const void * data)
 {
 	ASSERT(width > 0 && height > 0, "Attempt to upload texture with width or height of 0 (width: %zu, height: %zu)", width, height);
@@ -178,8 +351,37 @@ void gl_texture::upload(const size_t& mip_level, const size_t& offset_x, const s
 	ASSERT(offset_y <= static_cast<size_t>(std::numeric_limits<GLint>::max()), "offset_y (%zu) exceeds GLint max", offset_y);
 	ASSERT(width <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "width (%zu) exceeds GLsizei max", width);
 	ASSERT(height <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "height (%zu) exceeds GLsizei max", height);
+	if (!canUseDriverCompression)
+	{
+		// For now, compressed types require full image uploads
+		ASSERT_OR_RETURN(, offset_x == 0 && offset_y == 0, "Compressed textures currently require full image uploads");
+	}
 	bind();
-	glTexSubImage2D(GL_TEXTURE_2D, static_cast<GLint>(mip_level), static_cast<GLint>(offset_x), static_cast<GLint>(offset_y), static_cast<GLsizei>(width), static_cast<GLsizei>(height), std::get<1>(to_gl(buffer_format)), GL_UNSIGNED_BYTE, data);
+	if (canUseDriverCompression) // TODO: Also check if it's a valid non-compressed source format
+	{
+		glTexSubImage2D(GL_TEXTURE_2D, static_cast<GLint>(mip_level), static_cast<GLint>(offset_x), static_cast<GLint>(offset_y), static_cast<GLsizei>(width), static_cast<GLsizei>(height), std::get<1>(to_gl(buffer_format)), GL_UNSIGNED_BYTE, data);
+	}
+	else
+	{
+		const void* pConvertedImageData = nullptr;
+		std::unique_ptr<uint8_t[]> convertedImageData;
+		size_t convertedImageDataLen = 0;
+		if (buffer_format == internal_format)
+		{
+			// no conversion needed!
+			pConvertedImageData = data;
+			convertedImageDataLen = textureBufferLen(buffer_format, width, height);
+		}
+		else if(!gfx_api::context::convert2DImageFormat(buffer_format, data, textureBufferLen(buffer_format, width, height), gfx_api::context::ImageSize{static_cast<uint32_t>(width), static_cast<uint32_t>(height)}, internal_format, convertedImageData, convertedImageDataLen))
+		{
+			ASSERT(false, "convert2DImageFormat failed!!");
+			pConvertedImageData = nullptr;
+		}
+		if (pConvertedImageData)
+		{
+			glCompressedTexImage2D(GL_TEXTURE_2D, static_cast<GLint>(mip_level), std::get<0>(to_gl(internal_format)), static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, convertedImageDataLen, pConvertedImageData);
+		}
+	}
 	unbind();
 }
 
@@ -189,6 +391,13 @@ void gl_texture::upload_and_generate_mipmaps(const size_t& offset_x, const size_
 	ASSERT(offset_y <= static_cast<size_t>(std::numeric_limits<GLint>::max()), "offset_y (%zu) exceeds GLint max", offset_y);
 	ASSERT(width <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "width (%zu) exceeds GLsizei max", width);
 	ASSERT(height <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "height (%zu) exceeds GLsizei max", height);
+	if (!canUseDriverCompression)
+	{
+		// For now, compressed types require full image uploads
+		ASSERT_OR_RETURN(, offset_x == 0 && offset_y == 0, "Compressed textures currently require full image uploads");
+		// TODO: Generating mipmaps for compressed texture types must be done manually!
+		// Can't rely on GL_GENERATE_MIPMAP / glGenerateMipmap!!
+	}
 	bind();
 	if(!glGenerateMipmap)
 	{
@@ -1353,6 +1562,8 @@ gfx_api::texture* gl_context::create_texture(const size_t& mipmap_count, const s
 	ASSERT(width <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "width (%zu) exceeds GLsizei max", width);
 	ASSERT(height <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "height (%zu) exceeds GLsizei max", height);
 	auto* new_texture = new gl_texture();
+	new_texture->internal_format = internal_format;
+	new_texture->canUseDriverCompression = supportsRealTimeCompression(internal_format);
 	new_texture->mip_count = mipmap_count;
 	new_texture->bind();
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
@@ -1363,7 +1574,18 @@ gfx_api::texture* gl_context::create_texture(const size_t& mipmap_count, const s
 	}
 	for (GLint i = 0, e = static_cast<GLint>(mipmap_count); i < e; ++i)
 	{
-		glTexImage2D(GL_TEXTURE_2D, i, std::get<0>(to_gl(internal_format)), static_cast<GLsizei>(width >> i), static_cast<GLsizei>(height >> i), 0, std::get<1>(to_gl(internal_format)), GL_UNSIGNED_BYTE, nullptr);
+		if (new_texture->canUseDriverCompression)
+		{
+			// allocate an empty buffer of the full sized
+			glTexImage2D(GL_TEXTURE_2D, i, std::get<0>(to_gl(internal_format)), static_cast<GLsizei>(width >> i), static_cast<GLsizei>(height >> i), 0, std::get<1>(to_gl(internal_format)), GL_UNSIGNED_BYTE, nullptr);
+		}
+		else
+		{
+			// TODO: Consider how to handle this - can't use glCompressedTexImage2D with a null buffer (it's not permitted by the standard)
+			// Could construct a dummy (empty) buffer of the appropriate size, but then we need to calculate the appropriate size...
+			// For now, we don't allocate a buffer and instead assuming that upload* will be called with full images
+//			glCompressedTexImage2D(GL_TEXTURE_2D, i, std::get<0>(to_gl(internal_format)), static_cast<GLsizei>(width >> i), static_cast<GLsizei>(height >> i), 0, 0, nullptr);
+		}
 	}
 	return new_texture;
 }

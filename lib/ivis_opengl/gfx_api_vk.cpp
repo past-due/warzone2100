@@ -1424,6 +1424,12 @@ size_t VkTexture::format_size(const gfx_api::pixel_format& format)
 			return 4;
 		case gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8:
 			return 3;
+		case gfx_api::pixel_format::FORMAT_RGB_S3TC_DXT1:
+			return 3;
+		case gfx_api::pixel_format::FORMAT_RGBA_S3TC_DXT3:
+			return 4;
+		case gfx_api::pixel_format::FORMAT_RGBA_S3TC_DXT5:
+			return 4;
 		default:
 			debug(LOG_FATAL, "Unrecognized pixel format");
 	}
@@ -3180,10 +3186,39 @@ vk::Format VkRoot::get_format(const gfx_api::pixel_format& format)
 		return vk::Format::eR8G8B8A8Unorm;
 	case gfx_api::pixel_format::FORMAT_BGRA8_UNORM_PACK8:
 		return vk::Format::eB8G8R8A8Unorm;
+	case gfx_api::pixel_format::FORMAT_RGB_S3TC_DXT1:
+		// TODO: Implement support for texture format transitions using vkCmdBlitImage
+		// For now, simply use uncompressed
+		return supports_rgb ? vk::Format::eR8G8B8Unorm : vk::Format::eR8G8B8A8Unorm;
+	case gfx_api::pixel_format::FORMAT_RGBA_S3TC_DXT3:
+		// TODO: Implement support for texture format transitions using vkCmdBlitImage
+		// For now, simply use uncompressed
+		return vk::Format::eR8G8B8A8Unorm;
+	case gfx_api::pixel_format::FORMAT_RGBA_S3TC_DXT5:
+		// TODO: Implement support for texture format transitions using vkCmdBlitImage
+		// For now, simply use uncompressed
+		return vk::Format::eR8G8B8A8Unorm;
 	default:
 		debug(LOG_FATAL, "Unsupported format: %d", (int)format);
 	}
 	throw;
+}
+
+gfx_api::pixel_format VkRoot::bestAvailableCompressedFormat(gfx_api::pixel_format uncompressedFormat, gfx_api::texture_type textureType, gfx_api::texture_compression_quality compressionQuality) const
+{
+	// TODO: Actually detect supported formats and then determine the best available option
+	switch (uncompressedFormat)
+	{
+		case gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8:
+			return gfx_api::pixel_format::FORMAT_RGBA_S3TC_DXT5;
+		case gfx_api::pixel_format::FORMAT_BGRA8_UNORM_PACK8:
+			return uncompressedFormat;
+		case gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8:
+			return gfx_api::pixel_format::FORMAT_RGB_S3TC_DXT1;
+		default:
+			debug(LOG_FATAL, "Unsupported uncompressed pixel format");
+	}
+	return uncompressedFormat;
 }
 
 gfx_api::texture* VkRoot::create_texture(const std::size_t& mipmap_count, const std::size_t& width, const std::size_t& height, const gfx_api::pixel_format& internal_format, const std::string& filename)

@@ -80,10 +80,53 @@ namespace gfx_api
 	enum class pixel_format
 	{
 		invalid,
+
+		// [UNCOMPRESSED FORMATS]
 		FORMAT_RGBA8_UNORM_PACK8,
 		FORMAT_BGRA8_UNORM_PACK8,
 		FORMAT_RGB8_UNORM_PACK8,
+
+		// [COMPRESSED FORMATS]
+		// - [for "regular" textures / decals]
+		// - (generally not recommended for normal maps)
+
+		// Desktop platforms only (generally)
+		//	- but widely available:
+		//	- and often support online compression! (at least with OpenGL)
+		FORMAT_RGB_S3TC_DXT1,   // BC1
+		FORMAT_RGBA_S3TC_DXT3,  // BC3
+		FORMAT_RGBA_S3TC_DXT5,  // BC5
+		FORMAT_RGBA_BPTC_UNORM, // BC7 - higher quality, not quite as widely available (not available at all on macOS)
+
+//		// OpenGL ES 2.0+ (with appropriate extension) only:
+//		FORMAT_RGB8_ETC1, // Available on most OpenGL ES 2.0+ - RGB only and not great quality
+//
+//		// OpenGL ES 3.0 (or 2.0 with appropriate extension):
+//		FORMAT_RGB8_ETC2, // Compresses RGB888 data (successor to ETC1)
+//		FORMAT_RGBA8_ETC2_EAC, // Compresses RGBA8888 data with full alpha support
 	};
+
+	enum class texture_type
+	{
+		user_interface,
+		game_texture,
+		normal_map,
+		specular_map
+	};
+
+	enum class texture_compression_quality
+	{
+		high,
+		normal,
+		low
+	};
+
+//	// A structure to encompass image data (for manipulation / being loaded into a texture)
+//	struct image_data
+//	{
+//		void _create_empty(int p_width, int p_height, bool p_use_mipmaps, Format p_format);
+//		
+//	};
 
 	struct texture
 	{
@@ -92,6 +135,10 @@ namespace gfx_api
 		virtual void upload(const size_t& mip_level, const size_t& offset_x, const size_t& offset_y, const size_t& width, const size_t& height, const pixel_format& buffer_format, const void* data) = 0;
 		virtual void upload_and_generate_mipmaps(const size_t& offset_x, const size_t& offset_y, const size_t& width, const size_t& height, const pixel_format& buffer_format, const void* data) = 0;
 		virtual unsigned id() = 0;
+
+		// TODO:
+		// Add:
+		// virtual pixel_format internal_format() const;
 
 		texture( const texture& other ) = delete; // non construction-copyable
 		texture& operator=( const texture& ) = delete; // non copyable
@@ -319,6 +366,15 @@ namespace gfx_api
 		virtual const size_t& current_FrameNum() const = 0;
 		virtual bool setSwapInterval(swap_interval_mode mode) = 0;
 		virtual swap_interval_mode getSwapInterval() const = 0;
+		virtual pixel_format bestAvailableCompressedFormat(pixel_format uncompressedFormat, texture_type textureType, texture_compression_quality compressionQuality) const = 0;
+	public:
+		// static helpers for image conversion
+		struct ImageSize
+		{
+			uint32_t width;
+			uint32_t height;
+		};
+		static bool convert2DImageFormat(pixel_format dataFormat, const void* data, size_t dataLen, ImageSize imageSize, pixel_format targetFormat, std::unique_ptr<uint8_t[]>& outputData, size_t& outputLen);
 	private:
 		virtual bool _initialize(const backend_Impl_Factory& impl, int32_t antialiasing, swap_interval_mode mode) = 0;
 	};

@@ -47,6 +47,9 @@ file(GLOB SRC
 	"3rdparty/stb_image_resize.cpp"
 )
 
+add_subdirectory(3rdparty/etcpak)
+add_subdirectory(3rdparty/godot_min)
+
 find_package(PNG 1.2 REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(Harfbuzz 1.0 REQUIRED)
@@ -60,7 +63,7 @@ if(WZ_TARGET_ADDITIONAL_PROPERTIES)
 endif()
 target_include_directories(ivis-opengl PRIVATE ${HARFBUZZ_INCLUDE_DIRS} ${FREETYPE_INCLUDE_DIR_ft2build})
 target_link_libraries(ivis-opengl PRIVATE framework PNG::PNG ${HARFBUZZ_LIBRARIES} ${FREETYPE_LIBRARIES})
-target_link_libraries(ivis-opengl PUBLIC glad)
+target_link_libraries(ivis-opengl PUBLIC glad godot_min etcpak)
 if(WZ_ENABLE_BACKEND_VULKAN)
 	find_package(VulkanHeaders 148) # minimum supported version of the Vulkan headers is 148
 	set(_vulkanheaders_dl_gittag "sdk-1.2.162.0")

@@ -588,7 +588,7 @@ void loadTerrainTextures()
 	for (int layer = 0; layer < numGroundTypes; layer++)
 	{
 		// pre-load the texture
-		optional<size_t> texPage = iV_GetTexture(psGroundTypes[layer].textureName, true, maxTerrainTextureSize, maxTerrainTextureSize);
+		optional<size_t> texPage = iV_GetTexture(psGroundTypes[layer].textureName, gfx_api::texture_type::game_texture, maxTerrainTextureSize, maxTerrainTextureSize);
 		ASSERT(texPage.has_value(), "Failed to pre-load terrain texture: %s", psGroundTypes[layer].textureName);
 	}
 }
@@ -1164,7 +1164,7 @@ static void drawTerrainLayers(const glm::mat4 &ModelViewProjection, const glm::v
 			fogColor, renderState.fogEnabled, renderState.fogBegin, renderState.fogEnd, 0, 1 });
 
 		// load the texture
-		optional<size_t> texPage = iV_GetTexture(psGroundTypes[layer].textureName, true, maxTerrainTextureSize, maxTerrainTextureSize);
+		optional<size_t> texPage = iV_GetTexture(psGroundTypes[layer].textureName, gfx_api::texture_type::game_texture, maxTerrainTextureSize, maxTerrainTextureSize);
 		ASSERT_OR_RETURN(, texPage.has_value(), "Failed to retrieve terrain texture: %s", psGroundTypes[layer].textureName);
 		gfx_api::TerrainLayer::get().bind_textures(&pie_Texture(texPage.value()), lightmap_tex_num);
 
@@ -1297,8 +1297,8 @@ void drawWater(const glm::mat4 &viewMatrix)
 	int32_t maxGfxTextureSize = gfx_api::context::get().get_context_value(gfx_api::context::context_value::MAX_TEXTURE_SIZE);
 	int maxTerrainTextureSize = std::max(std::min({getTextureSize(), maxGfxTextureSize}), MIN_TERRAIN_TEXTURE_SIZE);
 
-	optional<size_t> water1_texPage = iV_GetTexture("page-80-water-1.png", true, maxTerrainTextureSize, maxTerrainTextureSize);
-	optional<size_t> water2_texPage = iV_GetTexture("page-81-water-2.png", true, maxTerrainTextureSize, maxTerrainTextureSize);
+	optional<size_t> water1_texPage = iV_GetTexture("page-80-water-1.png", gfx_api::texture_type::game_texture, maxTerrainTextureSize, maxTerrainTextureSize);
+	optional<size_t> water2_texPage = iV_GetTexture("page-81-water-2.png", gfx_api::texture_type::game_texture, maxTerrainTextureSize, maxTerrainTextureSize);
 	ASSERT_OR_RETURN(, water1_texPage.has_value() && water2_texPage.has_value(), "Failed to load water texture");
 	gfx_api::WaterPSO::get().bind();
 	gfx_api::WaterPSO::get().bind_textures(&pie_Texture(water1_texPage.value()), &pie_Texture(water2_texPage.value()));

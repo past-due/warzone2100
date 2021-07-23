@@ -57,6 +57,8 @@ private:
 	friend struct gl_context;
 	GLuint _id;
 	size_t mip_count;
+	gfx_api::pixel_format internal_format;
+	bool canUseDriverCompression = false;
 
 	gl_texture();
 	virtual ~gl_texture();
@@ -66,6 +68,8 @@ public:
 	virtual void upload(const size_t& mip_level, const size_t& offset_x, const size_t& offset_y, const size_t & width, const size_t & height, const gfx_api::pixel_format & buffer_format, const void * data) override;
 	virtual void upload_and_generate_mipmaps(const size_t& offset_x, const size_t& offset_y, const size_t& width, const size_t& height, const  gfx_api::pixel_format& buffer_format, const void* data) override;
 	virtual unsigned id() override;
+//private:
+//	virtual void upload_and_generate_mipmaps_internal();
 };
 
 struct gl_buffer final : public gfx_api::buffer
@@ -219,8 +223,11 @@ struct gl_context final : public gfx_api::context
 	virtual const size_t& current_FrameNum() const override;
 	virtual bool setSwapInterval(gfx_api::context::swap_interval_mode mode) override;
 	virtual gfx_api::context::swap_interval_mode getSwapInterval() const override;
+	virtual gfx_api::pixel_format bestAvailableCompressedFormat(gfx_api::pixel_format uncompressedFormat, gfx_api::texture_type textureType, gfx_api::texture_compression_quality compressionQuality) const override;
 private:
 	virtual bool _initialize(const gfx_api::backend_Impl_Factory& impl, int32_t antialiasing, swap_interval_mode mode) override;
+	gfx_api::pixel_format bestAvailableGameTextureFormat(gfx_api::pixel_format uncompressedFormat, gfx_api::texture_compression_quality compressionQuality) const;
+	bool supportsRealTimeCompression(gfx_api::pixel_format internal_texture_format) const;
 private:
 	bool initGLContext();
 	void enableVertexAttribArray(GLuint index);

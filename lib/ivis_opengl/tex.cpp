@@ -56,6 +56,7 @@ struct iTexPage
 {
 	std::string name;
 	gfx_api::texture* id = nullptr;
+	gfx_api::texture_type textureType = gfx_api::texture_type::user_interface;
 
 	iTexPage() = default;
 
@@ -109,23 +110,24 @@ void pie_AssignTexture(size_t page, gfx_api::texture* texture)
 	_TEX_PAGE[page].id = texture;
 }
 
-static size_t pie_AddTexPage_Impl(iV_Image *s, const char *filename, bool gameTexture, size_t page)
+static size_t pie_AddTexPage_Impl(iV_Image *s, const char *filename, gfx_api::texture_type textureType, size_t page)
 {
 	ASSERT(s && filename, "Bad input parameter");
 
 	_NAME_TO_TEX_PAGE_MAP[filename] = page;
 	debug(LOG_TEXTURE, "%s page=%zu", filename, page);
 
-	if (gameTexture) // this is a game texture, use texture compression
+	if (textureType != gfx_api::texture_type::user_interface) // this is a game texture, use texture compression (if available / configured)
 	{
-		gfx_api::pixel_format format = iV_getPixelFormat(s);
+		gfx_api::pixel_format sourceFormat = iV_getPixelFormat(s);
 		if (_TEX_PAGE[page].id)
 			delete _TEX_PAGE[page].id;
 		size_t mip_count = static_cast<size_t>(floor(log(std::max(s->width, s->height)))) + 1;
-		_TEX_PAGE[page].id = gfx_api::context::get().create_texture(mip_count, s->width, s->height, format, filename);
-		pie_Texture(page).upload_and_generate_mipmaps(0u, 0u, s->width, s->height, iV_getPixelFormat(s), s->bmp);
+		auto textureFormat = (wz_texture_compression) ? gfx_api::context::get().bestAvailableCompressedFormat(sourceFormat, textureType, gfx_api::texture_compression_quality::high) : sourceFormat;
+		_TEX_PAGE[page].id = gfx_api::context::get().create_texture(mip_count, s->width, s->height, textureFormat, filename);
+		pie_Texture(page).upload_and_generate_mipmaps(0u, 0u, s->width, s->height, sourceFormat, s->bmp);
 	}
-	else	// this is an interface texture, do not use compression
+	else	// this is an interface texture, do not use compression or mipmaps
 	{
 		if (_TEX_PAGE[page].id)
 			delete _TEX_PAGE[page].id;
@@ -141,7 +143,7 @@ static size_t pie_AddTexPage_Impl(iV_Image *s, const char *filename, bool gameTe
 	return page;
 }
 
-size_t pie_AddTexPage(iV_Image *s, const char *filename, bool gameTexture)
+size_t pie_AddTexPage(iV_Image *s, const char *filename, gfx_api::texture_type textureType)
 {
 	ASSERT(s && filename, "Bad input parameter");
 	ASSERT(_NAME_TO_TEX_PAGE_MAP.count(filename) == 0, "tex page %s already exists", filename);
@@ -150,10 +152,10 @@ size_t pie_AddTexPage(iV_Image *s, const char *filename, bool gameTexture)
 	tex.name = filename;
 	_TEX_PAGE.push_back(std::move(tex));
 
-	return pie_AddTexPage_Impl(s, filename, gameTexture, page);
+	return pie_AddTexPage_Impl(s, filename, textureType, page);
 }
 
-size_t pie_AddTexPage(iV_Image *s, const char *filename, bool gameTexture, size_t page)
+size_t pie_AddTexPage(iV_Image *s, const char *filename, gfx_api::texture_type textureType, size_t page)
 {
 	ASSERT(s && filename, "Bad input parameter");
 
@@ -161,7 +163,7 @@ size_t pie_AddTexPage(iV_Image *s, const char *filename, bool gameTexture, size_
 	_NAME_TO_TEX_PAGE_MAP.erase(_TEX_PAGE[page].name);
 	_TEX_PAGE[page].name = filename;
 
-	return pie_AddTexPage_Impl(s, filename, gameTexture, page);
+	return pie_AddTexPage_Impl(s, filename, textureType, page);
 }
 
 /*!
@@ -248,7 +250,7 @@ bool scaleImageMaxSize(iV_Image *s, int maxWidth, int maxHeight)
  *  @return a non-negative index number for the texture, negative if no texture
  *          with the given filename could be found
  */
-optional<size_t> iV_GetTexture(const char *filename, bool compression, int maxWidth /*= -1*/, int maxHeight /*= -1*/)
+optional<size_t> iV_GetTexture(const char *filename, gfx_api::texture_type textureType, int maxWidth /*= -1*/, int maxHeight /*= -1*/)
 {
 	ASSERT(filename != nullptr, "filename must not be null");
 	iV_Image sSprite;
@@ -270,7 +272,7 @@ optional<size_t> iV_GetTexture(const char *filename, bool compression, int maxWi
 		return nullopt;
 	}
 	scaleImageMaxSize(&sSprite, maxWidth, maxHeight);
-	size_t page = pie_AddTexPage(&sSprite, path.c_str(), compression);
+	size_t page = pie_AddTexPage(&sSprite, path.c_str(), textureType);
 	resDoResLoadCallback(); // ensure loading screen doesn't freeze when loading large images
 	return optional<size_t>(page);
 }
@@ -291,9 +293,10 @@ bool replaceTexture(const WzString &oldfile, const WzString &newfile)
 	{
 		gfx_api::context::get().debugStringMarker("Replacing texture");
 		size_t page = it->second;
+		gfx_api::texture_type exitingTextureType = _TEX_PAGE[page].textureType;
 		debug(LOG_TEXTURE, "Replacing texture %s with %s from index %zu (tex id %u)", it->first.c_str(), newfile.toUtf8().c_str(), page, _TEX_PAGE[page].id->id());
 		tmpname = pie_MakeTexPageName(newfile.toUtf8());
-		pie_AddTexPage(&image, tmpname.c_str(), true, page);
+		pie_AddTexPage(&image, tmpname.c_str(), exitingTextureType, page);
 		iV_unloadImage(&image);
 		return true;
 	}

@@ -371,3 +371,16 @@ gfx_api::context::swap_interval_mode null_context::getSwapInterval() const
 	return backend_impl->getSwapInterval();
 }
 
+gfx_api::pixel_format null_context::bestAvailableCompressedFormat(gfx_api::pixel_format uncompressedFormat, gfx_api::texture_type textureType, gfx_api::texture_compression_quality compressionQuality) const
+{
+	switch (uncompressedFormat)
+	{
+		case gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8:
+		case gfx_api::pixel_format::FORMAT_BGRA8_UNORM_PACK8:
+		case gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8:
+			return uncompressedFormat;
+		default:
+			debug(LOG_FATAL, "Unsupported uncompressed pixel format");
+	}
+	return uncompressedFormat;
+}
