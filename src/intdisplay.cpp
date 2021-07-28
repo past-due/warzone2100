@@ -1810,8 +1810,10 @@ void drawRadarBlips(int radarX, int radarY, float pixSizeH, float pixSizeV, cons
 void intDisplayProximityBlips(WIDGET *psWidget, WZ_DECL_UNUSED UDWORD xOffset, WZ_DECL_UNUSED UDWORD yOffset)
 {
 	W_CLICKFORM			*psButton = (W_CLICKFORM *)psWidget;
+	ASSERT_OR_RETURN(, psButton->pUserData != nullptr, "pUserData must not be null");
 	PROXIMITY_DISPLAY	*psProxDisp = (PROXIMITY_DISPLAY *)psButton->pUserData;
 	MESSAGE				*psMsg = psProxDisp->psMessage;
+	ASSERT_OR_RETURN(, psMsg != nullptr, "psMsg must not be null");
 	SDWORD				x = 0, y = 0;
 
 	ASSERT(psMsg->type == MSG_PROXIMITY, "Invalid message type");
