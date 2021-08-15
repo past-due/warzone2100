@@ -195,4 +195,6 @@ void kf_QuickLoad();
 
 void kf_ToggleFullscreen();
 
+void enableGodMode();
+
 #endif // __INCLUDED_SRC_KEYBIND_H__
