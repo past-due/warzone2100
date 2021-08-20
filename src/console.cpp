@@ -46,7 +46,7 @@
 
 // FIXME: When we switch over to full JS, use class version of this file
 
-#define	DEFAULT_MESSAGE_DURATION	GAME_TICKS_PER_SEC * 4
+#define	DEFAULT_MESSAGE_DURATION	GAME_TICKS_PER_SEC * 5
 // Chat/history "window"
 #define CON_BORDER_WIDTH			4
 #define CON_BORDER_HEIGHT			4
