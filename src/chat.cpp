@@ -176,7 +176,7 @@ void InGameChatMessage::sendToSpectators()
 
 	for (auto receiver: getReceivers())
 	{
-		if (isHumanPlayer(receiver) && NetPlay.players[receiver].isSpectator)
+		if (isHumanPlayer(receiver) && NetPlay.players[receiver].isSpectator && receiver != selectedPlayer)
 		{
 			ASSERT(!myResponsibility(receiver), "Should not be my responsibility...");
 			enqueueSpectatorMessage(NETnetQueue(receiver), formatted);
