@@ -409,6 +409,11 @@ void resetInput()
 
 static bool localPlayerHasSelection()
 {
+	if (selectedPlayer >= MAX_PLAYERS)
+	{
+		return false;
+	}
+
 	for (DROID* psDroid = apsDroidLists[selectedPlayer]; psDroid; psDroid = psDroid->psNext)
 	{
 		if (psDroid->selected)
@@ -731,6 +736,7 @@ void processMouseClickInput()
 		item = itemUnderMouse(&ObjUnderMouse);
 		ASSERT(item < POSSIBLE_TARGETS, "Weirdy target!");
 
+		ASSERT(selectedPlayer < MAX_PLAYERS, "selectedPlayer is too high: %" PRIu32 "", selectedPlayer);
 		ObjAllied = (ObjUnderMouse && selectedPlayer != ObjUnderMouse->player && aiCheckAlliances(selectedPlayer, ObjUnderMouse->player));
 
 		if (item != MT_NOTARGET)
@@ -1314,6 +1320,8 @@ void startDeliveryPosition(FLAG_POSITION *psFlag)
 		return;
 	}
 
+	ASSERT_OR_RETURN(, selectedPlayer < MAX_PLAYERS, "Invalid player (selectedPlayer: %" PRIu32 ")", selectedPlayer);
+
 	//clear the selected delivery point
 	for (psFlagPos = apsFlagPosLists[selectedPlayer]; psFlagPos; psFlagPos = psFlagPos->psNext)
 	{
@@ -1345,6 +1353,9 @@ void finishDeliveryPosition()
 {
 	STRUCTURE *psStruct = nullptr;
 	FLAG_POSITION *psFlagPos;
+
+	ASSERT_OR_RETURN(, selectedPlayer < MAX_PLAYERS, "Invalid player (selectedPlayer: %" PRIu32 ")", selectedPlayer);
+
 	if (flagStructId)
 	{
 		flagReposVarsValid = false;
@@ -1377,6 +1388,8 @@ bool deliveryReposValid()
 	{
 		return false;
 	}
+
+	ASSERT_OR_RETURN(false, selectedPlayer < MAX_PLAYERS, "Invalid player (selectedPlayer: %" PRIu32 ")", selectedPlayer);
 
 	Vector2i map = map_coord(flagPos.coords.xy());
 
@@ -1560,6 +1573,11 @@ static void dealWithLMBDroid(DROID *psDroid, SELECTION_TYPE selection)
 {
 	bool ownDroid; // Not an allied droid
 
+	if (selectedPlayer >= MAX_PLAYERS)
+	{
+		return; // no-op
+	}
+
 	if (!aiCheckAlliances(selectedPlayer, psDroid->player))
 	{
 		memset(DROIDDOING, 0x0 , sizeof(DROIDDOING)); // take over the other players droid by debug menu.
@@ -1721,7 +1739,7 @@ static void dealWithLMBStructure(STRUCTURE *psStructure, SELECTION_TYPE selectio
 {
 	bool ownStruct = (psStructure->player == selectedPlayer);
 
-	if (!aiCheckAlliances(psStructure->player, selectedPlayer))
+	if (selectedPlayer < MAX_PLAYERS && !aiCheckAlliances(psStructure->player, selectedPlayer))
 	{
 		/* We've clicked on an enemy building */
 		const DebugInputManager& dbgInputManager = gInputManager.debugManager();
@@ -1746,6 +1764,11 @@ static void dealWithLMBStructure(STRUCTURE *psStructure, SELECTION_TYPE selectio
 	if (!bRightClickOrders)
 	{
 		printStructureInfo(psStructure);
+	}
+
+	if (selectedPlayer >= MAX_PLAYERS)
+	{
+		return; // do not proceed
 	}
 
 	/* Got to be built. Also, you can't 'select' derricks */
@@ -1827,6 +1850,11 @@ static void dealWithLMBStructure(STRUCTURE *psStructure, SELECTION_TYPE selectio
 
 static void dealWithLMBFeature(FEATURE *psFeature)
 {
+	if (selectedPlayer >= MAX_PLAYERS)
+	{
+		goto debugOuput;
+	}
+
 	//go on to check for
 	if (psFeature->psStats->damageable)
 	{
@@ -1895,6 +1923,8 @@ static void dealWithLMBFeature(FEATURE *psFeature)
 			break;
 		}
 	}
+
+debugOuput:
 	const DebugInputManager& dbgInputManager = gInputManager.debugManager();
 	if (dbgInputManager.debugMappingsAllowed())
 	{
@@ -1946,6 +1976,11 @@ void	dealWithLMB()
 	{
 		dealWithLMBObject(psClickedOn);
 		return;
+	}
+
+	if (selectedPlayer >= MAX_PLAYERS)
+	{
+		return; // shortcut the rest (for now)
 	}
 
 	if (auto deliveryPoint = findMouseDeliveryPoint())
@@ -2049,6 +2084,11 @@ static void dealWithLMBDClick()
  */
 static FLAG_POSITION *findMouseDeliveryPoint()
 {
+	if (selectedPlayer >= MAX_PLAYERS)
+	{
+		return nullptr;
+	}
+
 	for (auto psPoint = apsFlagPosLists[selectedPlayer]; psPoint; psPoint = psPoint->psNext)
 	{
 		if (psPoint->type != POS_DELIVERY) {
@@ -2277,7 +2317,7 @@ static MOUSE_TARGET	itemUnderMouse(BASE_OBJECT **ppObjectUnderMouse)
 				if (mouseInBox(dispX - dispR, dispY - dispR, dispX + dispR, dispY + dispR))
 				{
 					/* We HAVE clicked on droid! */
-					if (aiCheckAlliances(psDroid->player, selectedPlayer))
+					if (selectedPlayer < MAX_PLAYERS && aiCheckAlliances(psDroid->player, selectedPlayer))
 					{
 						*ppObjectUnderMouse = (BASE_OBJECT *)psDroid;
 						// need to check for command droids here as well
@@ -2381,7 +2421,7 @@ static MOUSE_TARGET	itemUnderMouse(BASE_OBJECT **ppObjectUnderMouse)
 		{
 			psStructure = (STRUCTURE *)psNotDroid;
 
-			if (aiCheckAlliances(psNotDroid->player, selectedPlayer))
+			if (selectedPlayer < MAX_PLAYERS && aiCheckAlliances(psNotDroid->player, selectedPlayer))
 			{
 				if (psStructure->status == SS_BEING_BUILT || isBlueprint(psStructure))
 				{
@@ -2480,6 +2520,11 @@ static SELECTION_TYPE	establishSelection(UDWORD _selectedPlayer)
 	UBYTE CurrWeight = UBYTE_MAX;
 	SELECTION_TYPE selectionClass = SC_INVALID;
 
+	if (_selectedPlayer >= MAX_PLAYERS)
+	{
+		return SC_INVALID;
+	}
+
 	for (DROID *psDroid = apsDroidLists[_selectedPlayer]; psDroid; psDroid = psDroid->psNext)
 	{
 		// This works, uses the DroidSelectionWeights[] table to priorities the different
@@ -2568,6 +2613,8 @@ static bool	buildingDamaged(STRUCTURE *psStructure)
 /*Looks through the list of selected players droids to see if one is a repair droid*/
 bool	repairDroidSelected(UDWORD player)
 {
+	ASSERT_OR_RETURN(false, player < MAX_PLAYERS, "Invalid player (%" PRIu32 ")", player);
+
 	DROID	*psCurr;
 
 	for (psCurr = apsDroidLists[player]; psCurr != nullptr; psCurr = psCurr->psNext)
@@ -2587,6 +2634,8 @@ bool	repairDroidSelected(UDWORD player)
 /*Looks through the list of selected players droids to see if one is a VTOL droid*/
 bool	vtolDroidSelected(UDWORD player)
 {
+	ASSERT_OR_RETURN(false, player < MAX_PLAYERS, "player: %" PRIu32 "", player);
+
 	DROID	*psCurr;
 
 	for (psCurr = apsDroidLists[player]; psCurr != nullptr; psCurr = psCurr->psNext)
@@ -2606,6 +2655,8 @@ bool	vtolDroidSelected(UDWORD player)
 /*Looks through the list of selected players droids to see if any is selected*/
 bool	anyDroidSelected(UDWORD player)
 {
+	ASSERT_OR_RETURN(false, player < MAX_PLAYERS, "Invalid player (%" PRIu32 ")", player);
+
 	DROID	*psCurr;
 
 	for (psCurr = apsDroidLists[player]; psCurr != nullptr; psCurr = psCurr->psNext)
@@ -2623,6 +2674,8 @@ bool	anyDroidSelected(UDWORD player)
 /*Looks through the list of selected players droids to see if one is a cyborg droid*/
 bool cyborgDroidSelected(UDWORD player)
 {
+	ASSERT_OR_RETURN(false, player < MAX_PLAYERS, "Invalid player (%" PRIu32 ")", player);
+
 	DROID	*psCurr;
 
 	for (psCurr = apsDroidLists[player]; psCurr != nullptr; psCurr = psCurr->psNext)
@@ -2645,6 +2698,11 @@ void clearSelection()
 	FLAG_POSITION	*psFlagPos;
 
 	memset(DROIDDOING, 0x0 , sizeof(DROIDDOING));	// clear string when deselected
+
+	if (selectedPlayer >= MAX_PLAYERS)
+	{
+		return;
+	}
 
 	for (psCurrDroid = apsDroidLists[selectedPlayer]; psCurrDroid; psCurrDroid = psCurrDroid->psNext)
 	{
