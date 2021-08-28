@@ -527,7 +527,7 @@ void addTransporterTimerInterface()
 	W_CLICKFORM     *psForm;
 
 	//check if reinforcements are allowed
-	if (mission.ETA >= 0)
+	if (mission.ETA >= 0 && selectedPlayer < MAX_PLAYERS)
 	{
 		//check the player has at least one Transporter back at base
 		for (DROID *psDroid = mission.apsDroidLists[selectedPlayer]; psDroid != nullptr; psDroid = psDroid->psNext)
@@ -660,6 +660,8 @@ static void saveMissionData()
 	bool			bRepairExists;
 
 	debug(LOG_SAVE, "called");
+
+	ASSERT(selectedPlayer < MAX_PLAYERS, "selectedPlayer %" PRIu32 " exceeds MAX_PLAYERS", selectedPlayer);
 
 	//clear out the audio
 	audio_StopAll();
@@ -866,6 +868,8 @@ void saveMissionLimboData()
 
 	debug(LOG_SAVE, "called");
 
+	ASSERT(selectedPlayer < MAX_PLAYERS, "selectedPlayer %" PRIu32 " exceeds MAX_PLAYERS", selectedPlayer);
+
 	//clear out the audio
 	audio_StopAll();
 
@@ -906,6 +910,8 @@ void placeLimboDroids()
 	PICKTILE		pickRes;
 
 	debug(LOG_SAVE, "called");
+
+	ASSERT(selectedPlayer < MAX_PLAYERS, "selectedPlayer %" PRIu32 " exceeds MAX_PLAYERS", selectedPlayer);
 
 	// Copy the droids across for the selected Player
 	for (psDroid = apsLimboDroids[selectedPlayer]; psDroid != nullptr; psDroid = psNext)
@@ -955,6 +961,8 @@ void restoreMissionLimboData()
 
 	debug(LOG_SAVE, "called");
 
+	ASSERT(selectedPlayer < MAX_PLAYERS, "selectedPlayer %" PRIu32 " exceeds MAX_PLAYERS", selectedPlayer);
+
 	/*the droids stored in the mission droid list need to be added back
 	into the current droid list*/
 	for (psDroid = mission.apsDroidLists[selectedPlayer]; psDroid; psDroid = psNext)
@@ -979,6 +987,8 @@ void saveCampaignData()
 	DROID		*psDroid, *psNext, *psSafeDroid, *psNextSafe, *psCurr, *psCurrNext;
 
 	debug(LOG_SAVE, "called");
+
+	ASSERT(selectedPlayer < MAX_PLAYERS, "selectedPlayer %" PRIu32 " exceeds MAX_PLAYERS", selectedPlayer);
 
 	// If the droids have been moved to safety then get any Transporters that exist
 	if (getDroidsToSafetyFlag())
@@ -1214,6 +1224,8 @@ static bool startMissionBetween()
 //check no units left with any settings that are invalid
 static void clearCampaignUnits()
 {
+	ASSERT(selectedPlayer < MAX_PLAYERS, "selectedPlayer %" PRIu32 " exceeds MAX_PLAYERS", selectedPlayer);
+
 	for (DROID *psDroid = apsDroidLists[selectedPlayer]; psDroid; psDroid = psDroid->psNext)
 	{
 		orderDroid(psDroid, DORDER_STOP, ModeImmediate);
@@ -1230,6 +1242,8 @@ static void processMission()
 	DROID			*psDroid;
 	UDWORD			droidX, droidY;
 	PICKTILE		pickRes;
+
+	ASSERT(selectedPlayer < MAX_PLAYERS, "selectedPlayer %" PRIu32 " exceeds MAX_PLAYERS", selectedPlayer);
 
 	//and the rest on the mission map  - for now?
 	for (psDroid = apsDroidLists[selectedPlayer]; psDroid != nullptr; psDroid = psNext)
@@ -1274,6 +1288,8 @@ void processMissionLimbo()
 {
 	DROID			*psNext, *psDroid;
 	UDWORD	numDroidsAddedToLimboList = 0;
+
+	ASSERT(selectedPlayer < MAX_PLAYERS, "selectedPlayer %" PRIu32 " exceeds MAX_PLAYERS", selectedPlayer);
 
 	//all droids (for selectedPlayer only) are placed into the limbo list
 	for (psDroid = apsDroidLists[selectedPlayer]; psDroid != nullptr; psDroid = psNext)
@@ -1525,6 +1541,8 @@ void missionDroidUpdate(DROID *psDroid)
 static void missionResetDroids()
 {
 	debug(LOG_SAVE, "called");
+
+	ASSERT(selectedPlayer < MAX_PLAYERS, "selectedPlayer %" PRIu32 " exceeds MAX_PLAYERS", selectedPlayer);
 
 	for (unsigned int player = 0; player < MAX_PLAYERS; player++)
 	{
@@ -1794,6 +1812,7 @@ void missionMoveTransporterOffWorld(DROID *psTransporter)
 		//need a callback for when all the selectedPlayers' reinforcements have been delivered
 		if (psTransporter->player == selectedPlayer)
 		{
+			ASSERT(selectedPlayer < MAX_PLAYERS, "selectedPlayer %" PRIu32 " exceeds MAX_PLAYERS", selectedPlayer);
 			psDroid = nullptr;
 			for (psDroid = mission.apsDroidLists[selectedPlayer]; psDroid != nullptr; psDroid = psDroid->psNext)
 			{
@@ -2884,6 +2903,7 @@ void missionDestroyObjects()
 	}
 
 	// human player, check that we do not reference the cleared out data
+	ASSERT(selectedPlayer < MAX_PLAYERS, "selectedPlayer %" PRIu32 " exceeds MAX_PLAYERS", selectedPlayer);
 	Player = selectedPlayer;
 
 	psDroid = apsDroidLists[Player];
@@ -2938,6 +2958,8 @@ void missionDestroyObjects()
 void processPreviousCampDroids()
 {
 	DROID           *psDroid, *psNext;
+
+	ASSERT(selectedPlayer < MAX_PLAYERS, "selectedPlayer %" PRIu32 " exceeds MAX_PLAYERS", selectedPlayer);
 
 	// See if any are left
 	if (mission.apsDroidLists[selectedPlayer])
@@ -3040,6 +3062,8 @@ void clearMissionWidgets()
  */
 static DROID *find_transporter()
 {
+	ASSERT_OR_RETURN(nullptr, selectedPlayer < MAX_PLAYERS, "selectedPlayer %" PRIu32 " exceeds MAX_PLAYERS", selectedPlayer);
+
 	for (auto droid_list : {apsDroidLists[selectedPlayer], mission.apsDroidLists[selectedPlayer]})
 	{
 		for (auto droid = droid_list; droid != nullptr; droid = droid->psNext)
@@ -3141,6 +3165,8 @@ mission ends. bOffWorld is true if the Mission is currently offWorld*/
 void emptyTransporters(bool bOffWorld)
 {
 	DROID       *psTransporter, *psDroid, *psNext, *psNextTrans;
+
+	ASSERT(selectedPlayer < MAX_PLAYERS, "selectedPlayer %" PRIu32 " exceeds MAX_PLAYERS", selectedPlayer);
 
 	//see if there are any Transporters in the world
 	for (psTransporter = apsDroidLists[selectedPlayer]; psTransporter != nullptr; psTransporter = psNextTrans)
