@@ -280,6 +280,7 @@ static inline bool tileIsExplored(const MAPTILE *psTile)
 */
 static inline bool tileIsClearlyVisible(const MAPTILE *psTile)
 {
+	if (selectedPlayer >= MAX_PLAYERS || godMode) { return true; }
 	return psTile->sensorBits & (1 << selectedPlayer);
 }
 
