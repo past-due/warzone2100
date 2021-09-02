@@ -274,7 +274,7 @@ static inline bool tileIsExplored(const MAPTILE *psTile)
 	return psTile->tileExploredBits & (1 << selectedPlayer);
 }
 
-/** Is the tile ACTUALLY, 100% visible? 
+/** Is the tile ACTUALLY, 100% visible? -- (For DISPLAY-ONLY purposes - *NOT* game-state calculations!)
  * This is not the same as for ex. psStructure->visible[selectedPlayer],
  * because that would only mean the psStructure is in *explored Tile*
  * psDroid->visible on the other hand, works correctly,
