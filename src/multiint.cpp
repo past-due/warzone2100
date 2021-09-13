@@ -1091,7 +1091,7 @@ static JoinGameResult joinGameInternalConnect(const char *host, uint32_t port, s
 
 // ////////////////////////////////////////////////////////////////////////////
 
-static void addInlineChooserBlueForm(const std::shared_ptr<W_SCREEN> &psScreen, W_FORM *psParent, UDWORD id, WzString txt, UDWORD x, UDWORD y, UDWORD w, UDWORD h)
+static std::shared_ptr<W_FORM> addInlineChooserBlueForm(const std::shared_ptr<W_SCREEN> &psScreen, W_FORM *psParent, UDWORD id, WzString txt, UDWORD x, UDWORD y, UDWORD w, UDWORD h)
 {
 	W_FORMINIT sFormInit;                  // draw options box.
 	sFormInit.formID = MULTIOP_INLINE_OVERLAY_ROOT_FRM;
@@ -1110,7 +1110,9 @@ static void addInlineChooserBlueForm(const std::shared_ptr<W_SCREEN> &psScreen, 
 			psWidget->move(psParent->screenPosX() + x, psParent->screenPosY() + y);
 		}
 	};
-	widgAddForm(psScreen, &sFormInit);
+	W_FORM *psForm = widgAddForm(psScreen, &sFormInit);
+	ASSERT_OR_RETURN(nullptr, psForm != nullptr, "widgAddForm failed");
+	return std::dynamic_pointer_cast<W_FORM>(psForm->shared_from_this());
 }
 
 static std::shared_ptr<W_FORM> createBlueForm(int x, int y, int w, int h, WIDGET_DISPLAY displayFunc /* = intDisplayFeBox*/)
@@ -1622,13 +1624,6 @@ void WzMultiplayerOptionsTitleUI::closeAllChoosers()
 
 void WzMultiplayerOptionsTitleUI::initInlineChooser(uint32_t player)
 {
-	// delete everything on that player's row,
-	widgDelete(psWScreen, MULTIOP_PLAYER_START + player);
-	widgDelete(psWScreen, MULTIOP_TEAMS_START + player);
-	widgDelete(psWScreen, MULTIOP_READY_FORM_ID + player);
-	widgDelete(psWScreen, MULTIOP_COLOUR_START + player);
-	widgDelete(psWScreen, MULTIOP_FACTION_START + player);
-
 	// remove any choosers already up
 	closeAllChoosers();
 
@@ -1636,7 +1631,7 @@ void WzMultiplayerOptionsTitleUI::initInlineChooser(uint32_t player)
 	widgRegisterOverlayScreen(psInlineChooserOverlayScreen, 1);
 }
 
-IntFormAnimated* WzMultiplayerOptionsTitleUI::initRightSideChooser(const char* sideText)
+std::shared_ptr<IntFormAnimated> WzMultiplayerOptionsTitleUI::initRightSideChooser(const char* sideText)
 {
 	// remove any choosers already up
 	closeAllChoosers();
@@ -1677,16 +1672,13 @@ IntFormAnimated* WzMultiplayerOptionsTitleUI::initRightSideChooser(const char* s
 		});
 	}
 
-	return aiForm.get();
+	return aiForm;
 }
 
-static bool addMultiButWithClickHandler(const std::shared_ptr<W_SCREEN> &screen, UDWORD formid, UDWORD id, UDWORD x, UDWORD y, UDWORD width, UDWORD height, const char *tipres, UDWORD norm, UDWORD down, UDWORD hi, const W_BUTTON::W_BUTTON_ONCLICK_FUNC& clickHandler, unsigned tc = MAX_PLAYERS)
+static bool addMultiButWithClickHandler(const std::shared_ptr<WIDGET> &parent, UDWORD id, UDWORD x, UDWORD y, UDWORD width, UDWORD height, const char *tipres, UDWORD norm, UDWORD down, UDWORD hi, const W_BUTTON::W_BUTTON_ONCLICK_FUNC& clickHandler, unsigned tc = MAX_PLAYERS)
 {
-	if (!addMultiBut(screen, formid, id, x, y, width, height, tipres, norm, down, hi, tc))
-	{
-		return false;
-	}
-	WzMultiButton *psButton = static_cast<WzMultiButton*>(widgGetFromID(screen, id));
+	ASSERT_OR_RETURN(false, parent != nullptr, "Null parent");
+	auto psButton = std::dynamic_pointer_cast<WzMultiButton>(addMultiBut(*(parent.get()), id, x, y, width, height, tipres, norm, down, hi, tc));
 	if (!psButton)
 	{
 		return false;
@@ -1697,7 +1689,7 @@ static bool addMultiButWithClickHandler(const std::shared_ptr<W_SCREEN> &screen,
 
 void WzMultiplayerOptionsTitleUI::openDifficultyChooser(uint32_t player)
 {
-	IntFormAnimated *aiForm = initRightSideChooser(_("DIFFICULTY"));
+	std::shared_ptr<IntFormAnimated> aiForm = initRightSideChooser(_("DIFFICULTY"));
 	if (!aiForm)
 	{
 		debug(LOG_ERROR, "Failed to initialize right-side chooser?");
@@ -1719,38 +1711,34 @@ void WzMultiplayerOptionsTitleUI::openDifficultyChooser(uint32_t player)
 		};
 
 		W_BUTINIT sButInit;
-		sButInit.formID = MULTIOP_AI_FORM;
-		sButInit.id = MULTIOP_DIFFICULTY_CHOOSE_START + difficultyIdx;
-		sButInit.x = 7;
-		sButInit.y = (MULTIOP_PLAYERHEIGHT + 5) * difficultyIdx + 4;
-		sButInit.width = MULTIOP_PLAYERWIDTH + 1;
-		sButInit.height = MULTIOP_PLAYERHEIGHT;
+		auto pDifficultyRow = std::make_shared<W_BUTTON>();
+		pDifficultyRow->id = 0; //MULTIOP_DIFFICULTY_CHOOSE_START + difficultyIdx;
+		pDifficultyRow->setGeometry(7, (MULTIOP_PLAYERHEIGHT + 5) * difficultyIdx + 4, MULTIOP_PLAYERWIDTH + 1, MULTIOP_PLAYERHEIGHT);
+		std::string tipStr;
 		switch (difficultyIdx)
 		{
-		case 0: sButInit.pTip = _("Starts disadvantaged"); break;
-		case 1: sButInit.pTip = _("Plays nice"); break;
-		case 2: sButInit.pTip = _("No holds barred"); break;
-		case 3: sButInit.pTip = _("Starts with advantages"); break;
+		case 0: tipStr = _("Starts disadvantaged"); break;
+		case 1: tipStr = _("Plays nice"); break;
+		case 2: tipStr = _("No holds barred"); break;
+		case 3: tipStr = _("Starts with advantages"); break;
 		}
 		const char *difficultyTip = aidata[NetPlay.players[player].ai].difficultyTips[difficultyIdx];
 		if (strcmp(difficultyTip, "") != 0)
 		{
-			sButInit.pTip += "\n";
-			sButInit.pTip += difficultyTip;
+			tipStr += "\n";
+			tipStr += difficultyTip;
 		}
-		sButInit.pDisplay = displayDifficulty;
-		sButInit.UserData = difficultyIdx;
-		sButInit.pUserData = new DisplayDifficultyCache();
-		sButInit.onDelete = [](WIDGET *psWidget) {
+		pDifficultyRow->setTip(tipStr);
+		pDifficultyRow->displayFunction = displayDifficulty;
+		pDifficultyRow->UserData = difficultyIdx;
+		pDifficultyRow->pUserData = new DisplayDifficultyCache();
+		pDifficultyRow->setOnDelete([](WIDGET *psWidget) {
 			assert(psWidget->pUserData != nullptr);
 			delete static_cast<DisplayDifficultyCache *>(psWidget->pUserData);
 			psWidget->pUserData = nullptr;
-		};
-		auto psButton = widgAddButton(psInlineChooserOverlayScreen, &sButInit);
-		if (psButton)
-		{
-			psButton->addOnClickHandler(onClickHandler);
-		}
+		});
+		aiForm->attach(pDifficultyRow);
+		pDifficultyRow->addOnClickHandler(onClickHandler);
 	}
 
 	difficultyChooserUp = player;
@@ -1758,7 +1746,7 @@ void WzMultiplayerOptionsTitleUI::openDifficultyChooser(uint32_t player)
 
 void WzMultiplayerOptionsTitleUI::openAiChooser(uint32_t player)
 {
-	IntFormAnimated *aiForm = initRightSideChooser(_("CHOOSE AI"));
+	std::shared_ptr<IntFormAnimated> aiForm = initRightSideChooser(_("CHOOSE AI"));
 	if (!aiForm)
 	{
 		debug(LOG_ERROR, "Failed to initialize right-side chooser?");
@@ -1886,7 +1874,7 @@ void WzMultiplayerOptionsTitleUI::openAiChooser(uint32_t player)
 		{
 			auto pAIRow = std::make_shared<W_BUTTON>(&emptyInit);
 			pAIRow->setTip(aidata[aiIdx].tip);
-			pAIRow->id = MULTIOP_AI_START + aiIdx;
+			pAIRow->id = 0; //MULTIOP_AI_START + aiIdx;
 			pAIRow->UserData = aiIdx;
 			pAIRow->setGeometry(0, 0, sButInit.width, sButInit.height);
 			pAIRow->displayFunction = displayAi;
@@ -2111,7 +2099,8 @@ void WzMultiplayerOptionsTitleUI::openTeamChooser(uint32_t player)
 	// add form.
 //	addBlueForm(MULTIOP_PLAYERS, MULTIOP_TEAMCHOOSER_FORM, "", 8, playerBoxHeight(player), MULTIOP_ROW_WIDTH, MULTIOP_TEAMSHEIGHT);
 	auto psParentForm = (W_FORM *)widgGetFromID(psWScreen, MULTIOP_PLAYERS);
-	addInlineChooserBlueForm(psInlineChooserOverlayScreen, psParentForm, MULTIOP_TEAMCHOOSER_FORM, "", PLAYERBOX_X0 + 1, std::max(playerRowY0(player), 0), MULTIOP_ROW_WIDTH, MULTIOP_TEAMSHEIGHT);
+	auto psInlineChooserForm = addInlineChooserBlueForm(psInlineChooserOverlayScreen, psParentForm, MULTIOP_TEAMCHOOSER_FORM, "", PLAYERBOX_X0 + 1, std::max(playerRowY0(player), 0), MULTIOP_ROW_WIDTH, MULTIOP_TEAMSHEIGHT);
+	ASSERT(psInlineChooserForm != nullptr, "Failed to create form");
 
 	auto psWeakTitleUI = std::weak_ptr<WzMultiplayerOptionsTitleUI>(std::dynamic_pointer_cast<WzMultiplayerOptionsTitleUI>(shared_from_this()));
 
@@ -2153,7 +2142,7 @@ void WzMultiplayerOptionsTitleUI::openTeamChooser(uint32_t player)
 		{
 			if (i != disallow)
 			{
-				addMultiButWithClickHandler(psInlineChooserOverlayScreen, MULTIOP_TEAMCHOOSER_FORM, MULTIOP_TEAMCHOOSER + i, i * (teamW * spaceDiv + space) / spaceDiv + 3, 6, teamW, teamH, _("Team"), IMAGE_TEAM0 + i, IMAGE_TEAM0_HI + i, IMAGE_TEAM0_HI + i, onClickHandler);
+				addMultiButWithClickHandler(psInlineChooserForm, MULTIOP_TEAMCHOOSER + i, i * (teamW * spaceDiv + space) / spaceDiv + 3, 6, teamW, teamH, _("Team"), IMAGE_TEAM0 + i, IMAGE_TEAM0_HI + i, IMAGE_TEAM0_HI + i, onClickHandler);
 			}
 			// may want to add some kind of 'can't do' icon instead of being blank?
 		}
@@ -2182,7 +2171,7 @@ void WzMultiplayerOptionsTitleUI::openTeamChooser(uint32_t player)
 
 		const int imgwidth = iV_GetImageWidth(FrontImages, IMAGE_NOJOIN);
 		const int imgheight = iV_GetImageHeight(FrontImages, IMAGE_NOJOIN);
-		addMultiButWithClickHandler(psInlineChooserOverlayScreen, MULTIOP_TEAMCHOOSER_FORM, MULTIOP_TEAMCHOOSER_KICK, MULTIOP_ROW_WIDTH - imgwidth - 4, 8, imgwidth, imgheight,
+		addMultiButWithClickHandler(psInlineChooserForm, MULTIOP_TEAMCHOOSER_KICK, MULTIOP_ROW_WIDTH - imgwidth - 4, 8, imgwidth, imgheight,
 			("Kick player"), IMAGE_NOJOIN, IMAGE_NOJOIN, IMAGE_NOJOIN, onClickHandler);
 	}
 
@@ -2196,10 +2185,11 @@ void WzMultiplayerOptionsTitleUI::openColourChooser(uint32_t player)
 
 	// add form.
 	auto psParentForm = (W_FORM *)widgGetFromID(psWScreen, MULTIOP_PLAYERS);
-	addInlineChooserBlueForm(psInlineChooserOverlayScreen, psParentForm, MULTIOP_COLCHOOSER_FORM, "",
+	auto psInlineChooserForm = addInlineChooserBlueForm(psInlineChooserOverlayScreen, psParentForm, MULTIOP_COLCHOOSER_FORM, "",
 		PLAYERBOX_X0,
 		std::max(playerRowY0(player), 0),
 		MULTIOP_ROW_WIDTH, MULTIOP_PLAYERHEIGHT);
+	ASSERT(psInlineChooserForm != nullptr, "Failed to create form");
 
 	// add the flags
 	int flagW = iV_GetImageWidth(FrontImages, IMAGE_PLAYERN);
@@ -2227,7 +2217,7 @@ void WzMultiplayerOptionsTitleUI::openColourChooser(uint32_t player)
 			}
 		};
 
-		addMultiButWithClickHandler(psInlineChooserOverlayScreen, MULTIOP_COLCHOOSER_FORM, MULTIOP_COLCHOOSER + getPlayerColour(i),
+		addMultiButWithClickHandler(psInlineChooserForm, MULTIOP_COLCHOOSER + getPlayerColour(i),
 			i * (flagW * spaceDiv + space) / spaceDiv + 4, 4, // x, y
 			flagW, flagH,  // w, h
 			getPlayerColourName(i), IMAGE_PLAYERN, IMAGE_PLAYERN_HI, IMAGE_PLAYERN_HI, onClickHandler, getPlayerColour(i)
@@ -2291,10 +2281,11 @@ void WzMultiplayerOptionsTitleUI::openFactionChooser(uint32_t player)
 
 	// add form.
 	auto psParentForm = (W_FORM *)widgGetFromID(psWScreen, MULTIOP_PLAYERS);
-	addInlineChooserBlueForm(psInlineChooserOverlayScreen, psParentForm, MULTIOP_FACCHOOSER_FORM, "",
+	auto psInlineChooserForm = addInlineChooserBlueForm(psInlineChooserOverlayScreen, psParentForm, MULTIOP_FACCHOOSER_FORM, "",
 		PLAYERBOX_X0,
 		std::max(playerRowY0(player), 0),
 		MULTIOP_ROW_WIDTH, MULTIOP_PLAYERHEIGHT);
+	ASSERT(psInlineChooserForm != nullptr, "Failed to create form");
 
 	// add the flags
 	int flagW = iV_GetImageWidth(FrontImages, IMAGE_FACTION_NORMAL) + 4;
@@ -2323,7 +2314,7 @@ void WzMultiplayerOptionsTitleUI::openFactionChooser(uint32_t player)
 			}
 		};
 
-		addMultiButWithClickHandler(psInlineChooserOverlayScreen, MULTIOP_FACCHOOSER_FORM, MULTIOP_FACCHOOSER + i,
+		addMultiButWithClickHandler(psInlineChooserForm, MULTIOP_FACCHOOSER + i,
 			i * (flagW * spaceDiv + space) / spaceDiv + PLAYERBOX_X0,  4, // x, y
 			flagW, flagH,  // w, h
 			to_localized_string(static_cast<FactionID>(i)),
@@ -3331,9 +3322,6 @@ std::shared_ptr<WIDGET> WzPlayerBoxTabs::createOptionsPopoverForm()
 	buttons.push_back(createOptionsCheckbox(_("Lock Teams"), locked.teams, false, [](WzCheckboxButton& button){
 		locked.teams = button.getIsChecked();
 	}));
-	buttons.push_back(createOptionsCheckbox(_("Lock Positions"), locked.position, false, [](WzCheckboxButton& button){
-		locked.position = button.getIsChecked();
-	}));
 
 	// determine required height for all buttons
 	int totalButtonHeight = std::accumulate(buttons.begin(), buttons.end(), 0, [](int a, const std::shared_ptr<WIDGET>& b) {
@@ -3727,20 +3715,24 @@ public:
 					sstrcat(tooltip, difficultyTip);
 				}
 			}
+			bool freshDifficultyButton = (difficultyChooserButton == nullptr);
 			difficultyChooserButton = addMultiBut(*readyButtonContainer, MULTIOP_DIFFICULTY_INIT_START + playerIdx, 6, 4, MULTIOP_READY_WIDTH, MULTIOP_READY_HEIGHT,
 						(NetPlay.isHost && !locked.difficulty) ? _("Click to change difficulty") : tooltip, icon, icon, icon);
 			auto player = playerIdx;
 			auto weakTitleUi = parentTitleUI;
-			difficultyChooserButton->addOnClickHandler([player, weakTitleUi](W_BUTTON&){
-				auto strongTitleUI = weakTitleUi.lock();
-				ASSERT_OR_RETURN(, strongTitleUI != nullptr, "Title UI is gone?");
-				if (!locked.difficulty && NetPlay.isHost)
-				{
-					widgScheduleTask([strongTitleUI, player] {
-						strongTitleUI->openDifficultyChooser(player);
-					});
-				}
-			});
+			if (freshDifficultyButton)
+			{
+				difficultyChooserButton->addOnClickHandler([player, weakTitleUi](W_BUTTON&){
+					auto strongTitleUI = weakTitleUi.lock();
+					ASSERT_OR_RETURN(, strongTitleUI != nullptr, "Title UI is gone?");
+					if (!locked.difficulty && NetPlay.isHost)
+					{
+						widgScheduleTask([strongTitleUI, player] {
+							strongTitleUI->openDifficultyChooser(player);
+						});
+					}
+				});
+			}
 			return;
 		}
 		else if (!NetPlay.players[playerIdx].allocated)
@@ -5918,6 +5910,7 @@ void WzMultiplayerOptionsTitleUI::start()
 	if (!bReenter)
 	{
 		playerDisplayView = PlayerDisplayView::Players;
+		playerRows.clear();
 		initKnownPlayers();
 		resetPlayerConfiguration(true);
 		memset(&locked, 0, sizeof(locked));
