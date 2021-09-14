@@ -1840,13 +1840,12 @@ static bool NETprocessSystemMessage(NETQUEUE playerQueue, uint8_t type)
 			if (NetPlay.players[player].allocated && strncmp(oldName.toUtf8().c_str(), NetPlay.players[player].name, sizeof(NetPlay.players[player].name)) != 0)
 			{
 				printConsoleNameChange(oldName.toUtf8().c_str(), NetPlay.players[player].name);
+				// Send the updated data to all other clients as well.
+				NETBroadcastPlayerInfo(player); // ultimately triggers updateMultiplayGameData inside NETSendNPlayerInfoTo
+				NETfixDuplicatePlayerNames();
+				netPlayersUpdated = true;
 			}
 
-			// Send the updated data to all other clients as well.
-			NETBroadcastPlayerInfo(player); // ultimately triggers updateMultiplayGameData inside NETSendNPlayerInfoTo
-			NETfixDuplicatePlayerNames();
-
-			netPlayersUpdated = true;
 			break;
 		}
 	case NET_PLAYER_STATS:
