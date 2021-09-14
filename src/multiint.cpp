@@ -3682,7 +3682,7 @@ public:
 			if (readyButton)
 			{
 				widgDelete(readyButton.get());
-				readyTextLabel = nullptr;
+				readyButton = nullptr;
 			}
 			if (readyTextLabel)
 			{
