@@ -6184,6 +6184,7 @@ void displayPlayer(WIDGET *psWidget, UDWORD xOffset, UDWORD yOffset)
 		ssprintf(progressString, j != selectedPlayer ? _("Sending Map: %u%% ") : _("Map: %u%% downloaded"), downloadProgress);
 		cache.wzMainText.setText(progressString, font_regular);
 		cache.wzMainText.render(x + 5, y + 22, WZCOL_FORM_TEXT);
+		cache.fullMainText = progressString;
 		return;
 	}
 	else if (ingame.localOptionsReceived && NetPlay.players[j].allocated)					// only draw if real player!
@@ -6354,6 +6355,7 @@ void displayPlayer(WIDGET *psWidget, UDWORD xOffset, UDWORD yOffset)
 		}
 		cache.wzMainText.setText(aitext, font_regular);
 		cache.wzMainText.render(x + nameX, y + 22, textColor);
+		cache.fullMainText = aitext;
 	}
 }
 
