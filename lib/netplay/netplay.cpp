@@ -2043,15 +2043,19 @@ static inline bool NETFilterMessageWhileSwappingPlayer(uint8_t sender, uint8_t t
 	switch (type)
 	{
 	case NET_TEXTMSG:
-		// TODO: Actually just send a message to the player that this text message was undelivered and to try again - it's easier and this should be rare
-		break;
+		// Just send a message to the player that this text message was undelivered and to try again - it's easier and this should be quite rare
+		{
+			const char* text = _("Message delivery failure - try again");
+			NetworkTextMessage message(NOTIFY_MESSAGE, text);
+			message.enqueue(NETnetQueue(sender));
+			return true; // filter / ignore
+		}
 	case NET_VOTE:
-		// TODO: Send the player a new VOTE_REQUEST so they can send a new vote?
-		break;
+		// POSSIBLE TODO: Send the player a new VOTE_REQUEST so they can send a new vote?
+		return true; // filter / ignore
 	case NET_PLAYERNAME_CHANGEREQUEST:	///< non-host human player is changing their name.
 		// We can ignore if we force the player to re-send their name when they change slots
-		return true;
-		break;
+		return true; // filter / ignore
 
 	// Client messages to ignore while waiting for a swap player ACK
 	// (because they may contain the old player index, and also the necessary messages will be resent after the ack)
@@ -2063,21 +2067,16 @@ static inline bool NETFilterMessageWhileSwappingPlayer(uint8_t sender, uint8_t t
 	case NET_READY_REQUEST:              ///< player ready to start an mp game
 	case NET_POSITIONREQUEST:            ///< position in GUI player list
 	case NET_DATA_CHECK:                 ///< Data integrity check
-		// filter / ignore
-		return true;
-		break;
+		return true; // filter / ignore
 
 	// one slot / index change at a time...
 	case NET_PLAYER_SLOTTYPE_REQUEST:
-		// filter / ignore
-		return true;
-		break;
+		return true; // filter / ignore
 
 	// client messages to be processed normally
 	case NET_FILE_REQUESTED:             ///< Player has requested a file (map/mod/?)
 	case NET_FILE_CANCELLED:             ///< Player cancelled a file request
-		return false;
-		break;
+		return false; // process normally (do *not* filter)
 
 	// host-only messages
 	case NET_OPTIONS:                    ///< welcome a player to a game.
@@ -2092,14 +2091,14 @@ static inline bool NETFilterMessageWhileSwappingPlayer(uint8_t sender, uint8_t t
 	case NET_FILE_PAYLOAD:               ///< sending file to the player that needs it
 	case NET_VOTE_REQUEST:               ///< Setup a vote popup
 	case NET_PLAYER_SWAP_INDEX:
-		ASSERT(false, "Received unexpected host-only message (%" PRIu8 ")", type);
+		ASSERT(false, "Received unexpected host-only message (%" PRIu8 ") from sender: %" PRIu8 "", type, sender);
 		break;
 
 	// only possible with initial join
 	case NET_JOIN:                       ///< join a game
 	case NET_ACCEPTED:                   ///< accepted into game
 	case NET_REJECTED:                   ///< nope, you can't join
-		ASSERT(false, "Received unexpected initial-join message (%" PRIu8 ")", type);
+		ASSERT(false, "Received unexpected initial-join message (%" PRIu8 ") from sender: %" PRIu8 "", type, sender);
 		break;
 
 	// should only be possible once game has started
@@ -2113,11 +2112,11 @@ static inline bool NETFilterMessageWhileSwappingPlayer(uint8_t sender, uint8_t t
 
 	// just process normally
 	case NET_SEND_TO_PLAYER:             ///< Non-host clients aren't directly connected to each other, so they talk via the host using these messages.
-		break;
+		return false; // process normally (do *not* filter)
 
 	case NET_PLAYER_SWAP_INDEX_ACK:
 		// **MUST** be permitted
-		break;
+		return false; // process normally (do *not* filter)
 
 	default:
 		// just process normally
