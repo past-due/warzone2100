@@ -120,6 +120,7 @@
 #define KICK_REASON_TAG          "kickReason"
 #define SLOTTYPE_TAG_PREFIX      "slotType"
 #define SLOTTYPE_REQUEST_TAG     SLOTTYPE_TAG_PREFIX "::request"
+#define SLOTTYPE_NOTIFICATION_ID_PREFIX SLOTTYPE_REQUEST_TAG "::"
 
 #define PLAYERBOX_X0 7
 
@@ -174,6 +175,8 @@ static UDWORD hideTime = 0;
 static uint8_t playerVotes[MAX_PLAYERS];
 LOBBY_ERROR_TYPES LobbyError = ERROR_NOERROR;
 static bool bInActualHostedLobby = false;
+static bool bRequestedSelfMoveToPlayers = false;
+static std::vector<bool> bHostRequestedMoveToPlayers = std::vector<bool>(MAX_CONNECTED_PLAYERS, false);
 
 enum class PlayerDisplayView
 {
@@ -1624,6 +1627,7 @@ void WzMultiplayerOptionsTitleUI::closeAllChoosers()
 	widgDelete(psInlineChooserOverlayScreen, FRONTEND_SIDETEXT2);
 	aiChooserUp = -1;
 	difficultyChooserUp = -1;
+	playerSlotSwapChooserUp = nullopt;
 	widgRemoveOverlayScreen(psInlineChooserOverlayScreen);
 }
 
@@ -2914,7 +2918,16 @@ static bool SendPlayerSlotTypeRequest(uint32_t player, bool isSpectator)
 	const char* originalPlayerSlotType = (NetPlay.players[player].isSpectator) ? "Spectator" : "Player";
 	const char* desiredPlayerSlotType = (isSpectator) ? "Spectator" : "Player";
 
-	// TODO: If I'm a spectator, and I ask to be a player, record locally that I gave permission for such a change
+	// If I'm a spectator, and I ask to be a player, record locally that I gave permission for such a change
+	if (!NetPlay.isHost && NetPlay.players[player].isSpectator && !isSpectator)
+	{
+		bRequestedSelfMoveToPlayers = true;
+	}
+	if (NetPlay.isHost && NetPlay.players[player].isSpectator && !isSpectator)
+	{
+		// If the host asks the spectator if they want to be a player, record this so we can appropriately flag that later move as "host initiated"
+		bHostRequestedMoveToPlayers[player] = true;
+	}
 
 	debug(LOG_NET, "Requesting the host to change our slot type. From %s to %s", originalPlayerSlotType, desiredPlayerSlotType);
 	// clients tell the host which player slot type they want (but the host may not allow)
@@ -3011,6 +3024,7 @@ static bool recvPlayerSlotTypeRequestAndPop(WzMultiplayerOptionsTitleUI& titleUI
 			std::string contentTitle;
 			std::string contentText;
 			std::string proceedButtonText;
+			std::string notificationId;
 			if (desiredIsSpectator)
 			{
 				contentTitle = _("Do you want to spectate?");
@@ -3018,6 +3032,7 @@ static bool recvPlayerSlotTypeRequestAndPop(WzMultiplayerOptionsTitleUI& titleUI
 				contentText += "\n";
 				contentText += _("You are currently a Player.");
 				proceedButtonText = _("Yes, I will spectate!");
+				notificationId = "spectate";
 			}
 			else
 			{
@@ -3026,6 +3041,7 @@ static bool recvPlayerSlotTypeRequestAndPop(WzMultiplayerOptionsTitleUI& titleUI
 				contentText += "\n";
 				contentText += _("You are currently a Spectator.");
 				proceedButtonText = _("Yes, I want to play!");
+				notificationId = "play";
 			}
 			notification.contentTitle = contentTitle;
 			notification.contentText = contentText;
@@ -3034,6 +3050,13 @@ static bool recvPlayerSlotTypeRequestAndPop(WzMultiplayerOptionsTitleUI& titleUI
 			});
 			notification.onDismissed = [](const WZ_Notification&, WZ_Notification_Dismissal_Reason reason) {
 				if (reason != WZ_Notification_Dismissal_Reason::USER_DISMISSED) { return; }
+				// Notify the host that the answer is "no" by sending a no-op PlayerSlotTypeRequest
+				SendPlayerSlotTypeRequest(selectedPlayer, NetPlay.players[selectedPlayer].isSpectator);
+			};
+			const std::string notificationIdentifierPrefix = SLOTTYPE_NOTIFICATION_ID_PREFIX;
+			const std::string notificationIdentifier = notificationIdentifierPrefix + notificationId;
+			notification.displayOptions = WZ_Notification_Display_Options::makeIgnorable(notificationIdentifier, 2);
+			notification.onIgnored = [](const WZ_Notification&) {
 				// Notify the host that the answer is "no" by sending a no-op PlayerSlotTypeRequest
 				SendPlayerSlotTypeRequest(selectedPlayer, NetPlay.players[selectedPlayer].isSpectator);
 			};
@@ -3069,7 +3092,8 @@ static bool recvPlayerSlotTypeRequestAndPop(WzMultiplayerOptionsTitleUI& titleUI
 		// Spectator wants to switch to a player slot
 
 		// Try a move to any open player slot
-		auto result = NETmoveSpectatorToPlayerSlot(playerIndex, nullopt);
+		auto result = NETmoveSpectatorToPlayerSlot(playerIndex, nullopt, bHostRequestedMoveToPlayers.at(playerIndex));
+		bHostRequestedMoveToPlayers[playerIndex] = false;
 		switch (result)
 		{
 			case SpectatorToPlayerMoveResult::SUCCESS:
@@ -3083,19 +3107,28 @@ static bool recvPlayerSlotTypeRequestAndPop(WzMultiplayerOptionsTitleUI& titleUI
 			case SpectatorToPlayerMoveResult::NEEDS_SLOT_SELECTION:
 			{
 				// Display a notification that a spectator would like to switch to a player
+				std::string notificationTag = SLOTTYPE_REQUEST_TAG;
+				notificationTag += "::" + std::to_string(playerIndex);
+				if (hasNotificationsWithTag(notificationTag))
+				{
+					// no nagging permitted - there's already a notification queued for this player index
+					break;
+				}
+				auto playerSlotSwapChooserUp = titleUI.playerSlotSwapChooserOpenForPlayer();
+				if (playerSlotSwapChooserUp.has_value() && playerSlotSwapChooserUp.value() == playerIndex)
+				{
+					// no nagging permitted - the host already has the player slot swap chooser up for this player!
+					break;
+				}
 				WZ_Notification notification;
 				notification.duration = 0;
 				std::string contentTitle = _("Spectator would like to become a Player");
-				std::string contentText = _("The following Spectator would like to become a player:");
-				contentText += "\n - ";
-				contentText += astringf(_("Spectator %u"), playerIndex);
-				contentText += ": ";
-				contentText += playerName;
+				std::string contentText = astringf(_("Spectator \"%s\" would like to become a player."), playerName.c_str());
 				contentText += "\n";
-				contentText += _("However there are currently no open Player slots.");
+				contentText += _("However, there are currently no open Player slots.");
 				contentText += "\n\n";
 				contentText += _("Would you like to swap this Spectator with a Player?");
-				std::string proceedButtonText = _("Yes, select Player to swap with Spectator.");
+				std::string proceedButtonText = _("Yes, select Player slot");
 				notification.contentTitle = contentTitle;
 				notification.contentText = contentText;
 				std::weak_ptr<WzMultiplayerOptionsTitleUI> weakTitleUI(std::dynamic_pointer_cast<WzMultiplayerOptionsTitleUI>(titleUI.shared_from_this()));
@@ -3113,7 +3146,7 @@ static bool recvPlayerSlotTypeRequestAndPop(WzMultiplayerOptionsTitleUI& titleUI
 					// Notify the player that the answer is "no" by sending a no-op PlayerSlotTypeRequest
 					SendPlayerSlotTypeRequest(playerIndex, NetPlay.players[playerIndex].isSpectator);
 				};
-				notification.tag = SLOTTYPE_REQUEST_TAG;
+				notification.tag = notificationTag;
 
 				addNotification(notification, WZ_Notification_Trigger::Immediate());
 				// "handled" - now up to the host to decide what happens, so return true below
@@ -3131,14 +3164,21 @@ static bool recvPlayerSlotTypeRequestAndPop(WzMultiplayerOptionsTitleUI& titleUI
 	return true;
 }
 
-static bool recvSwapPlayerIndexes(NETQUEUE queue)
+enum class SwapPlayerIndexesResult
+{
+	SUCCESS,
+	FAILURE,
+	ERROR_HOST_MADE_US_PLAYER_WITHOUT_PERMISSION,
+};
+
+static SwapPlayerIndexesResult recvSwapPlayerIndexes(NETQUEUE queue, const std::shared_ptr<WzTitleUI>& parent)
 {
 	// A special message that can be triggered by the host to queue-up a player index swap (for example, converting a player to a spectator-only slot - really should only be used for converting between player and spectator slots in the lobby)
 	// For the player being moved, this simulates a lot of the effects of a join, followed by a (quiet / virtual) "leave" of the old slot
 	// For other players, this provides a message and a (quiet / virtual) "leave" of the old slot
 	// Everyone then waits for the host to provide updated NET_PLAYER_INFO
 
-	ASSERT_OR_RETURN(false, queue.index == NetPlay.hostPlayer, "Message received from non-host user");
+	ASSERT_OR_RETURN(SwapPlayerIndexesResult::FAILURE, queue.index == NetPlay.hostPlayer, "Message received from non-host user");
 
 	uint32_t playerIndexA;
 	uint32_t playerIndexB;
@@ -3151,24 +3191,24 @@ static bool recvSwapPlayerIndexes(NETQUEUE queue)
 	if (!ingame.localJoiningInProgress)  // Only if game hasn't actually started yet.
 	{
 		debug(LOG_ERROR, "Player indexes cannot be swapped after game has started");
-		return false;
+		return SwapPlayerIndexesResult::FAILURE;
 	}
 	if (NetPlay.isHost)
 	{
 		debug(LOG_ERROR, "Should never be called for the host");
-		return false;
+		return SwapPlayerIndexesResult::FAILURE;
 	}
 
 	if (playerIndexA >= MAX_CONNECTED_PLAYERS)
 	{
 		debug(LOG_ERROR, "Bad player number (%" PRIu32 ") received from host!", playerIndexA);
-		return false;
+		return SwapPlayerIndexesResult::FAILURE;
 	}
 
 	if (playerIndexB >= MAX_CONNECTED_PLAYERS)
 	{
 		debug(LOG_ERROR, "Bad player number (%" PRIu32 ") received from host!", playerIndexB);
-		return false;
+		return SwapPlayerIndexesResult::FAILURE;
 	}
 
 	// Make sure neither is the host index, as this is *not* supported for the host
@@ -3176,7 +3216,7 @@ static bool recvSwapPlayerIndexes(NETQUEUE queue)
 		|| playerIndexA == NetPlay.hostPlayer || playerIndexB == NetPlay.hostPlayer)
 	{
 		debug(LOG_ERROR, "Cannot swap host slot! (players: %" PRIu32 ", %" PRIu32 ")!", playerIndexA, playerIndexB);
-		return false;
+		return SwapPlayerIndexesResult::FAILURE;
 	}
 
 	// Backup some data
@@ -3243,8 +3283,22 @@ static bool recvSwapPlayerIndexes(NETQUEUE queue)
 
 		if (selectedPlayerWasSpectator != NetPlay.players[selectedPlayer].isSpectator)
 		{
-			// Spectator status of player slot changed - TODO: Display a pretty notice
-			debug(LOG_INFO, "Spectator status changed!");
+			// Spectator status of player slot changed
+			debug(LOG_NET, "Spectator status changed! From %s to %s", (selectedPlayerWasSpectator) ? "true" : "false", (NetPlay.players[selectedPlayer].isSpectator) ? "true" : "false");
+			if (!NetPlay.players[selectedPlayer].isSpectator)
+			{
+				if (!bRequestedSelfMoveToPlayers)
+				{
+					// Host moved us from spectators to players, but we never asked for the move
+					debug(LOG_NET, "The host tried to move us to Players, but we never gave permission.");
+					return SwapPlayerIndexesResult::ERROR_HOST_MADE_US_PLAYER_WITHOUT_PERMISSION;
+				}
+				else
+				{
+					// We did indeed give permission for the move, so reset the flag
+					bRequestedSelfMoveToPlayers = false;
+				}
+			}
 		}
 	}
 	else
@@ -3256,7 +3310,7 @@ static bool recvSwapPlayerIndexes(NETQUEUE queue)
 	ActivityManager::instance().updateMultiplayGameData(game, ingame, NETGameIsLocked());
 	netPlayersUpdated = true;	// update the player box.
 
-	return true;
+	return SwapPlayerIndexesResult::SUCCESS;
 }
 
 static bool canChooseTeamFor(int i)
@@ -4480,6 +4534,8 @@ void WzMultiplayerOptionsTitleUI::openPlayerSlotSwapChooser(uint32_t playerIndex
 			}
 		});
 	}
+
+	playerSlotSwapChooserUp = playerIndex;
 }
 
 void WzMultiplayerOptionsTitleUI::closePlayerSlotSwapChooser()
@@ -4494,6 +4550,13 @@ void WzMultiplayerOptionsTitleUI::closePlayerSlotSwapChooser()
 	// AiChooser / DifficultyChooser / PositionChooser / PlayerSlotSwapChooser currently use the same formID
 	// Just call closeAllChoosers() for now
 	closeAllChoosers();
+
+	playerSlotSwapChooserUp = nullopt;
+}
+
+optional<uint32_t> WzMultiplayerOptionsTitleUI::playerSlotSwapChooserOpenForPlayer() const
+{
+	return playerSlotSwapChooserUp;
 }
 
 // ////////////////////////////////////////////////////////////////////////////
@@ -4993,7 +5056,14 @@ static void stopJoining(std::shared_ptr<WzTitleUI> parent)
 		}
 
 		ActivityManager::instance().joinedLobbyQuit();
-		changeTitleMode(MULTI);
+		if (parent)
+		{
+			changeTitleUI(parent);
+		}
+		else
+		{
+			changeTitleMode(MULTI);
+		}
 
 		selectedPlayer = 0;
 		realSelectedPlayer = 0;
@@ -5932,6 +6002,13 @@ void handleAutoReadyRequest()
 	}
 }
 
+void multiClearHostRequestMoveToPlayer(uint32_t playerIdx)
+{
+	ASSERT_OR_RETURN(, playerIdx < MAX_CONNECTED_PLAYERS, "Invalid playerIdx: %" PRIu32 "", playerIdx);
+	if (!NetPlay.isHost) { return; }
+	bHostRequestedMoveToPlayers[playerIdx] = false;
+}
+
 void WzMultiplayerOptionsTitleUI::frontendMultiMessages(bool running)
 {
 	NETQUEUE queue;
@@ -6249,11 +6326,23 @@ void WzMultiplayerOptionsTitleUI::frontendMultiMessages(bool running)
 				continue; // loop for next queue that has a message
 			}
 		case NET_PLAYER_SWAP_INDEX:
-			if (!recvSwapPlayerIndexes(queue))
 			{
-				ignoredMessage = true;
+				auto result = recvSwapPlayerIndexes(queue, parent);
+				if (result != SwapPlayerIndexesResult::SUCCESS)
+				{
+					ignoredMessage = true;
+					if (result == SwapPlayerIndexesResult::ERROR_HOST_MADE_US_PLAYER_WITHOUT_PERMISSION)
+					{
+						// Leave the badly behaved (likely modified) host!
+						sendRoomChatMessage(_("The host moved me to Players, but I never gave permission for this change. Bye!"));
+						debug(LOG_INFO, "Leaving game because host moved us to Players, but we never gave permission.");
+						stopJoining(std::make_shared<WzMsgBoxTitleUI>(WzString(_("The host tried to move us to Players, but we never gave permission.")), parent));
+						setLobbyError(ERROR_HOSTDROPPED);
+						return;
+					}
+				}
+				break;
 			}
-			break;
 
 		// Note: NET_PLAYER_SWAP_INDEX_ACK is handled in netplay
 
@@ -6602,6 +6691,8 @@ void WzMultiplayerOptionsTitleUI::start()
 	if (!bReenter)
 	{
 		playerDisplayView = PlayerDisplayView::Players;
+		bRequestedSelfMoveToPlayers = false;
+		bHostRequestedMoveToPlayers.resize(MAX_CONNECTED_PLAYERS, false);
 		playerRows.clear();
 		initKnownPlayers();
 		resetPlayerConfiguration(true);
@@ -6614,6 +6705,13 @@ void WzMultiplayerOptionsTitleUI::start()
 		inlineChooserUp = -1;
 		aiChooserUp = -1;
 		difficultyChooserUp = -1;
+		playerSlotSwapChooserUp = nullopt;
+
+		const std::string notificationIdentifierPrefix = SLOTTYPE_NOTIFICATION_ID_PREFIX;
+		removeNotificationPreferencesIf([&notificationIdentifierPrefix](const std::string &uniqueNotificationIdentifier) -> bool {
+			bool hasPrefix = (strncmp(uniqueNotificationIdentifier.c_str(), notificationIdentifierPrefix.c_str(), notificationIdentifierPrefix.size()) == 0);
+			return hasPrefix;
+		});
 
 		// Initialize the inline chooser overlay screen
 		psInlineChooserOverlayScreen = W_SCREEN::make();

@@ -27,6 +27,10 @@
 #include "../wrappers.h"
 #include "titleui.h"
 
+#include <optional-lite/optional.hpp>
+using nonstd::optional;
+using nonstd::nullopt;
+
 class IntFormAnimated; // forward-declare
 
 class WzMultiplayerOptionsTitleUI : public WzTitleUI
@@ -52,6 +56,7 @@ public:
 
 	void openPlayerSlotSwapChooser(uint32_t playerIndex);
 	void closePlayerSlotSwapChooser();
+	optional<uint32_t> playerSlotSwapChooserOpenForPlayer() const;
 
 	void openTeamChooser(uint32_t playerIndex);
 	void closeTeamChooser();
@@ -101,6 +106,7 @@ private:
 	int8_t inlineChooserUp;
 	int8_t aiChooserUp;
 	int8_t difficultyChooserUp;
+	optional<uint32_t> playerSlotSwapChooserUp;
 };
 
 #endif

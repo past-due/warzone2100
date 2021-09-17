@@ -86,6 +86,8 @@ void displayRoomNotifyMessage(char const *text);
 
 void handleAutoReadyRequest();
 
+void multiClearHostRequestMoveToPlayer(uint32_t playerIdx);
+
 // ////////////////////////////////////////////////////////////////
 // CONNECTION SCREEN
 

@@ -192,6 +192,39 @@ private:
 	bool queuedServerUpdate = false;
 };
 
+class PlayerManagementRecord
+{
+public:
+	void clear()
+	{
+		identitiesMovedToSpectatorsByHost.clear();
+		ipsMovedToSpectatorsByHost.clear();
+	}
+	void movedPlayerToSpectators(const PLAYER& player, const EcKey::Key& publicIdentity, bool byHost)
+	{
+		if (!byHost) { return; }
+		ipsMovedToSpectatorsByHost.insert(player.IPtextAddress);
+		identitiesMovedToSpectatorsByHost.insert(base64Encode(publicIdentity));
+	}
+	void movedSpectatorToPlayers(const PLAYER& player, const EcKey::Key& publicIdentity, bool byHost)
+	{
+		if (!byHost) { return; }
+		ipsMovedToSpectatorsByHost.erase(player.IPtextAddress);
+		identitiesMovedToSpectatorsByHost.erase(base64Encode(publicIdentity));
+	}
+	bool hostMovedPlayerToSpectators(const std::string& ipAddress)
+	{
+		return ipsMovedToSpectatorsByHost.count(ipAddress) > 0;
+	}
+	bool hostMovedPlayerToSpectators(const EcKey::Key& publicIdentity)
+	{
+		return identitiesMovedToSpectatorsByHost.count(base64Encode(publicIdentity)) > 0;
+	}
+private:
+	std::unordered_set<std::string> identitiesMovedToSpectatorsByHost;
+	std::unordered_set<std::string> ipsMovedToSpectatorsByHost;
+};
+
 // ////////////////////////////////////////////////////////////////////////
 // Variables
 
@@ -246,6 +279,7 @@ unsigned NET_PlayerConnectionStatus[CONNECTIONSTATUS_NORMAL][MAX_CONNECTED_PLAYE
 std::vector<optional<uint32_t>>	NET_waitingForIndexChangeAckSince = std::vector<optional<uint32_t>>(MAX_CONNECTED_PLAYERS, nullopt);	///< If waiting for the client to acknowledge a player index change, this is the realTime we started waiting
 
 static LobbyServerConnectionHandler lobbyConnectionHandler;
+static PlayerManagementRecord playerManagementRecord;
 
 // ////////////////////////////////////////////////////////////////////////////
 /************************************************************************************
@@ -1528,6 +1562,8 @@ int NETclose()
 		bsocket = nullptr;
 	}
 
+	playerManagementRecord.clear();
+
 	return 0;
 }
 
@@ -1899,6 +1935,10 @@ bool NETmovePlayerToSpectatorOnlySlot(uint32_t playerIdx, bool hostOverride /*= 
 		debug(LOG_ERROR, "No available spectator slots to move player %" PRIu32 " to", playerIdx);
 		return false;
 	}
+
+	// Backup the player's identity for later recording
+	auto playerPublicKeyIdentity = getMultiStats(playerIdx).identity.toBytes(EcKey::Privacy::Public);
+
 	// Swap the player indexes
 	if (!swapPlayerIndexes(playerIdx, availableSpectatorIndex.value()))
 	{
@@ -1907,16 +1947,18 @@ bool NETmovePlayerToSpectatorOnlySlot(uint32_t playerIdx, bool hostOverride /*= 
 	}
 	ASSERT(NetPlay.players[availableSpectatorIndex.value()].isSpectator, "New slot doesn't have spectator set??");
 
+	playerManagementRecord.movedPlayerToSpectators(NetPlay.players[availableSpectatorIndex.value()], playerPublicKeyIdentity, hostOverride);
+
 	// Broadcast the swapped player info
 	NETBroadcastTwoPlayerInfo(playerIdx, availableSpectatorIndex.value());
 
 	return true;
 }
 
-static bool wasAlreadyMovedToSpectatorByHost(uint32_t playerIdx)
+static bool wasAlreadyMovedToSpectatorsByHost(uint32_t playerIdx)
 {
-	// TODO: Implement
-	return false;
+	return playerManagementRecord.hostMovedPlayerToSpectators(NetPlay.players[playerIdx].IPtextAddress)
+		|| playerManagementRecord.hostMovedPlayerToSpectators(getMultiStats(playerIdx).identity.toBytes(EcKey::Privacy::Public));
 }
 
 SpectatorToPlayerMoveResult NETmoveSpectatorToPlayerSlot(uint32_t playerIdx, optional<uint32_t> newPlayerIdx, bool hostOverride /*= false*/)
@@ -1926,10 +1968,10 @@ SpectatorToPlayerMoveResult NETmoveSpectatorToPlayerSlot(uint32_t playerIdx, opt
 	ASSERT_OR_RETURN(SpectatorToPlayerMoveResult::FAILED, newPlayerIdx.value_or(0) < MAX_CONNECTED_PLAYERS, "newPlayerIdx out of bounds: %" PRIu32 "", newPlayerIdx.value_or(0));
 	ASSERT_OR_RETURN(SpectatorToPlayerMoveResult::FAILED, !newPlayerIdx.has_value() || newPlayerIdx.value() != NetPlay.hostPlayer, "newPlayerIdx cannot be host player: %" PRIu32 "", newPlayerIdx.value_or(0));
 	// Verify it's a human player
-	ASSERT_OR_RETURN(SpectatorToPlayerMoveResult::FAILED, isHumanPlayer(playerIdx) && NetPlay.players[playerIdx].isSpectator, "playerIdx is not a currently-connected spectator player: %" PRIu32 "", playerIdx);
+	ASSERT_OR_RETURN(SpectatorToPlayerMoveResult::FAILED, isHumanPlayer(playerIdx) && NetPlay.players[playerIdx].isSpectator, "playerIdx is not a currently-connected spectator: %" PRIu32 "", playerIdx);
 
 	// Check if the host has moved this player to a spectator before, if so deny (unless the *host* is the one triggering the move)
-	if (!hostOverride && wasAlreadyMovedToSpectatorByHost(playerIdx))
+	if (!hostOverride && wasAlreadyMovedToSpectatorsByHost(playerIdx))
 	{
 		return SpectatorToPlayerMoveResult::FAILED;
 	}
@@ -1949,6 +1991,9 @@ SpectatorToPlayerMoveResult NETmoveSpectatorToPlayerSlot(uint32_t playerIdx, opt
 	NetPlay.players[newPlayerIdx.value()].ai = AI_OPEN;
 	NetPlay.players[newPlayerIdx.value()].difficulty = AIDifficulty::DISABLED;
 
+	// Backup the spectator's identity for later recording
+	auto spectatorPublicKeyIdentity = getMultiStats(playerIdx).identity.toBytes(EcKey::Privacy::Public);
+
 	// Swap the player indexes
 	if (!swapPlayerIndexes(playerIdx, newPlayerIdx.value()))
 	{
@@ -1956,6 +2001,8 @@ SpectatorToPlayerMoveResult NETmoveSpectatorToPlayerSlot(uint32_t playerIdx, opt
 		return SpectatorToPlayerMoveResult::FAILED;
 	}
 	ASSERT(!NetPlay.players[newPlayerIdx.value()].isSpectator, "New slot should not be a spectator??");
+
+	playerManagementRecord.movedSpectatorToPlayers(NetPlay.players[newPlayerIdx.value()], spectatorPublicKeyIdentity, hostOverride);
 
 	// Broadcast the swapped player info
 	NETBroadcastTwoPlayerInfo(playerIdx, newPlayerIdx.value());
@@ -3720,6 +3767,7 @@ static void NETallowJoining()
 					debug(LOG_NET, "freeing temp socket %p (%d), creating permanent socket.", static_cast<void *>(tmp_socket[i]), __LINE__);
 					SocketSet_DelSocket(tmp_socket_set, tmp_socket[i]);
 					connected_bsocket[index] = tmp_socket[i];
+					NET_waitingForIndexChangeAckSince[index] = nullopt;
 					tmp_socket[i] = nullptr;
 					SocketSet_AddSocket(socket_set, connected_bsocket[index]);
 					NETmoveQueue(NETnetTmpQueue(i), NETnetQueue(index));
@@ -3731,6 +3779,17 @@ static void NETallowJoining()
 					{
 						char buf[256] = {'\0'};
 						ssprintf(buf, "** A player that you have kicked tried to rejoin the game, and was rejected. IP: %s", NetPlay.players[index].IPtextAddress);
+						debug(LOG_INFO, "%s", buf);
+						NETlogEntry(buf, SYNC_FLAG, i);
+
+						// Player has been kicked before, kick again.
+						rejected = (uint8_t)ERROR_KICKED;
+					}
+					else if (!NetPlay.players[index].isSpectator && playerManagementRecord.hostMovedPlayerToSpectators(NetPlay.players[index].IPtextAddress))
+					{
+						// The host previously relegated a player from this IP address to Spectators (this game), and it seems they are trying to rejoin as a Player - deny this
+						char buf[256] = {'\0'};
+						ssprintf(buf, "** A player that you moved to Spectators tried to rejoin the game (as a Player), and was rejected. IP: %s", NetPlay.players[index].IPtextAddress);
 						debug(LOG_INFO, "%s", buf);
 						NETlogEntry(buf, SYNC_FLAG, i);
 
@@ -3917,6 +3976,7 @@ bool NEThostGame(const char *SessionName, const char *PlayerName,
 		IPlistLast = 0;
 	}
 	NETloadBanList();
+	playerManagementRecord.clear();
 	sstrcpy(gamestruct.name, SessionName);
 	memset(&gamestruct.desc, 0, sizeof(gamestruct.desc));
 	gamestruct.desc.dwSize = sizeof(gamestruct.desc);
