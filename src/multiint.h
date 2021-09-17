@@ -152,7 +152,7 @@ void handleAutoReadyRequest();
 #define MULTIOP_PLAYERS_TABS_H	24
 #define MULTIOP_PLAYERSH		(380 + MULTIOP_PLAYERS_TABS_H + 1)
 
-#define MULTIOP_ROW_WIDTH		246
+#define MULTIOP_ROW_WIDTH		298
 
 //Team chooser
 #define MULTIOP_TEAMS_START		102310			//List of teams

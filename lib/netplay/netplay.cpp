@@ -243,6 +243,7 @@ static const NETSTATS nZeroStats    = {{0, 0}, {0, 0}, {0, 0}};
 static int nStatsLastUpdateTime = 0;
 
 unsigned NET_PlayerConnectionStatus[CONNECTIONSTATUS_NORMAL][MAX_CONNECTED_PLAYERS];
+std::vector<optional<uint32_t>>	NET_waitingForIndexChangeAckSince = std::vector<optional<uint32_t>>(MAX_CONNECTED_PLAYERS, nullopt);	///< If waiting for the client to acknowledge a player index change, this is the realTime we started waiting
 
 static LobbyServerConnectionHandler lobbyConnectionHandler;
 
@@ -308,6 +309,36 @@ void NETGameLocked(bool flag)
 	}
 	NETlogEntry("Password is", SYNC_FLAG, NetPlay.GamePassworded);
 	debug(LOG_NET, "Passworded game is %s", NetPlay.GamePassworded ? "TRUE" : "FALSE");
+}
+
+SpectatorInfo SpectatorInfo::currentNetPlayState()
+{
+	SpectatorInfo latestSpecInfo;
+	for (const auto& slot : NetPlay.players)
+	{
+		if (slot.isSpectator)
+		{
+			latestSpecInfo.totalSpectatorSlots++;
+			if (slot.allocated)
+			{
+				latestSpecInfo.spectatorsJoined++;
+			}
+		}
+	}
+	return latestSpecInfo;
+}
+
+SpectatorInfo NETGameGetSpectatorInfo()
+{
+	if (NetPlay.isHost)
+	{
+		// we have this as part of the host current gamestruct
+		return SpectatorInfo::fromUint32(gamestruct.desc.dwUserFlags[1]);
+	}
+	else
+	{
+		return SpectatorInfo::currentNetPlayState();
+	}
 }
 
 void NETsetLobbyOptField(const char *Value, const NET_LOBBY_OPT_FIELD Field)
@@ -512,6 +543,7 @@ void NET_InitPlayers(bool initTeams, bool initSpectator)
 	NetPlay.hostPlayer = NET_HOST_ONLY;	// right now, host starts always at index zero
 	NetPlay.playercount = 0;
 	NetPlay.wzFiles.clear();
+	NET_waitingForIndexChangeAckSince = std::vector<optional<uint32_t>>(MAX_CONNECTED_PLAYERS, nullopt);
 	debug(LOG_NET, "Players initialized");
 }
 
@@ -595,7 +627,7 @@ static bool NET_HasAnyOpenSlots()
 	return false;
 }
 
-static optional<uint32_t> NET_CreatePlayer(char const *name, bool forceTakeLowestAvailablePlayerNumber = false, optional<bool> asSpectator = false)
+static optional<uint32_t> NET_FindOpenSlotForPlayer(bool forceTakeLowestAvailablePlayerNumber = false, optional<bool> asSpectator = false)
 {
 	int index = -1;
 	int position = INT_MAX;
@@ -632,25 +664,36 @@ static optional<uint32_t> NET_CreatePlayer(char const *name, bool forceTakeLowes
 
 	if (index == -1)
 	{
+		return nullopt;
+	}
+
+	return static_cast<uint32_t>(index);
+}
+
+static optional<uint32_t> NET_CreatePlayer(char const *name, bool forceTakeLowestAvailablePlayerNumber = false, optional<bool> asSpectator = false)
+{
+	optional<uint32_t> index = NET_FindOpenSlotForPlayer(forceTakeLowestAvailablePlayerNumber, asSpectator);
+	if (!index.has_value())
+	{
 		debug(LOG_ERROR, "Could not find place for player %s", name);
-		NETlogEntry("Could not find a place for player!", SYNC_FLAG, index);
+		NETlogEntry("Could not find a place for player!", SYNC_FLAG, -1);
 		return nullopt;
 	}
 
 	char buf[250] = {'\0'};
 
-	ssprintf(buf, "A new player has been created. Player, %s, is set to slot %u", name, index);
+	ssprintf(buf, "A new player has been created. Player, %s, is set to slot %u", name, index.value());
 	debug(LOG_NET, "%s", buf);
-	NETlogEntry(buf, SYNC_FLAG, index);
-	NET_InitPlayer(index, false);  // re-init everything
-	NetPlay.players[index].allocated = true;
-	sstrcpy(NetPlay.players[index].name, name);
-	if (!NetPlay.players[index].isSpectator)
+	NETlogEntry(buf, SYNC_FLAG, index.value());
+	NET_InitPlayer(index.value(), false);  // re-init everything
+	NetPlay.players[index.value()].allocated = true;
+	sstrcpy(NetPlay.players[index.value()].name, name);
+	if (!NetPlay.players[index.value()].isSpectator)
 	{
 		++NetPlay.playercount;
 	}
 	++sync_counter.joins;
-	return static_cast<uint32_t>(index);
+	return index;
 }
 
 static void NET_DestroyPlayer(unsigned int index, bool suppressActivityUpdates = false)
@@ -1679,10 +1722,374 @@ void NETflush()
 	}
 }
 
+// Player index swapping
+
+// Warning: This should be used with care, and generally should not be called directly.
+// Use higher-level functions like NETmovePlayerToSpectatorOnlySlot & NETrequestSpectatorToPlay instead.
+static bool swapPlayerIndexes(uint32_t playerIndexA, uint32_t playerIndexB)
+{
+	ASSERT_OR_RETURN(false, ingame.localJoiningInProgress, "Only supported in lobby, before game starts");
+	ASSERT_OR_RETURN(false, playerIndexA < MAX_CONNECTED_PLAYERS, "playerIndexA out of bound: %" PRIu32 "", playerIndexA);
+	ASSERT_OR_RETURN(false, playerIndexB < MAX_CONNECTED_PLAYERS, "playerIndexB out of bound: %" PRIu32 "", playerIndexB);
+	ASSERT_OR_RETURN(false, playerIndexA != NET_HOST_ONLY && playerIndexA != NetPlay.hostPlayer && playerIndexB != NET_HOST_ONLY && playerIndexB != NetPlay.hostPlayer, "Can't swap host player index: (index A: %" PRIu32 ", index B: %" PRIu32 ")", playerIndexA, playerIndexB);
+
+	// Send the NET_SWAPPING_PLAYER_INDEX message *first*
+	NETbeginEncode(NETbroadcastQueue(), NET_PLAYER_SWAP_INDEX);
+	NETuint32_t(&playerIndexA);
+	NETuint32_t(&playerIndexB);
+	NETend();
+
+	// Then swap the networking stuff for these slots
+	std::swap(connected_bsocket[playerIndexA], connected_bsocket[playerIndexB]);
+	// should be no need to call SocketSet_AddSocket, since should already be in the socket_set
+	NETswapQueues(NETnetQueue(playerIndexA), NETnetQueue(playerIndexB));
+
+	// Backup the old NETPLAY PLAYERS data
+	std::array<PLAYER, 2> playersData = {std::move(NetPlay.players[playerIndexA]), std::move(NetPlay.players[playerIndexB])};
+
+	// Instead of calling clearPlayer() which has all kinds of unintended effects,
+	// hmmm...
+	std::array<uint32_t, 2> playerIndexes = {playerIndexA, playerIndexB};
+	for (auto playerIndex : playerIndexes)
+	{
+		// From MultiPlayerLeave()
+		//  From clearPlayer() - this is needed to disconnect PlayerReferences so, for example, old chat messages are still associated with the proper player
+		NetPlay.playerReferences[playerIndex]->disconnect();
+		NetPlay.playerReferences[playerIndex] = std::make_shared<PlayerReference>(playerIndex);
+
+		setMultiStats(playerIndex, PLAYERSTATS(), true); // local only - we will await this to be sent again by each player
+		//
+//		if (playerIndex < MAX_PLAYERS)
+//		{
+//			playerVotes[playerIndex] = 0;
+//		}
+	}
+
+	// Swap the NetPlay PLAYER entries
+	NetPlay.players[playerIndexB] = std::move(playersData[0]);
+	NetPlay.players[playerIndexA] = std::move(playersData[1]);
+	// Just like changePosition(), we should *preserve* the team and "position" from the original index
+	std::swap(NetPlay.players[playerIndexA].position, NetPlay.players[playerIndexB].position);
+	std::swap(NetPlay.players[playerIndexA].team, NetPlay.players[playerIndexB].team);
+	// And also swap spectator flag!
+	std::swap(NetPlay.players[playerIndexA].isSpectator, NetPlay.players[playerIndexB].isSpectator);
+	std::swap(NetPlay.players[playerIndexA].colour, NetPlay.players[playerIndexB].colour); // And the color!
+	// (Essentially all of the above are "slot-associated" more than "player-associated" properties, and so should stay with the slot)
+
+	// Swap certain ingame player-associated entries
+	std::swap(ingame.PingTimes[playerIndexA], ingame.PingTimes[playerIndexB]);
+	std::swap(ingame.JoiningInProgress[playerIndexA], ingame.JoiningInProgress[playerIndexB]);
+	std::swap(ingame.DataIntegrity[playerIndexA], ingame.DataIntegrity[playerIndexB]);
+
+	// Ensure we filter messages appropriately waiting for the client ack *at each new index*
+	if (NetPlay.players[playerIndexA].allocated)
+	{
+		NET_waitingForIndexChangeAckSince.at(playerIndexA) = realTime;
+	}
+	if (NetPlay.players[playerIndexB].allocated)
+	{
+		NET_waitingForIndexChangeAckSince.at(playerIndexB) = realTime;
+	}
+
+	// Fix up any AI players - if they get moved to a spectator slot, get rid of the AI
+	for (auto playerIndex : playerIndexes)
+	{
+		if (!NetPlay.players[playerIndex].allocated
+			&& NetPlay.players[playerIndex].ai >= 0
+			&& (NetPlay.players[playerIndex].isSpectator || playerIndex > MAX_PLAYERS))
+		{
+			// remove the AI
+			ASSERT(playerIndex != PLAYER_FEATURE, "Not expecting to see PLAYER_FEATURE here!");
+			NetPlay.players[playerIndex].difficulty =  AIDifficulty::DISABLED;
+			NetPlay.players[playerIndex].ai = AI_OPEN;
+			NetPlay.players[playerIndex].name[0] = '\0';
+		}
+	}
+
+	if (!NetPlay.players[playerIndexA].allocated || !NetPlay.players[playerIndexB].allocated)
+	{
+		// Recalculate NetPlay.playercount (etc), as it may have changed
+		NETfixPlayerCount();
+	}
+
+	return true;
+}
+
+static inline bool _NET_isSpectatorOnlySlot(UDWORD playerIdx)
+{
+	ASSERT_OR_RETURN(false, playerIdx < NetPlay.players.size(), "Invalid playerIdx: %" PRIu32 "", playerIdx);
+	return playerIdx >= MAX_PLAYERS || NetPlay.players[playerIdx].position >= game.maxPlayers;
+}
+
+static optional<uint32_t> _NET_findSpectatorSlotToOpen()
+{
+	for (uint32_t i = MAX_PLAYER_SLOTS; i < MAX_CONNECTED_PLAYERS; ++i)
+	{
+		if (!_NET_isSpectatorOnlySlot(i))
+		{
+			continue;
+		}
+		if (NetPlay.players[i].allocated || NetPlay.players[i].isSpectator)
+		{
+			continue;
+		}
+		if (game.mapHasScavengers && NetPlay.players[i].position == scavengerSlot())
+		{
+			continue; // skip it
+		}
+		if (i == PLAYER_FEATURE)
+		{
+			continue; // skip it
+		}
+
+		return i;
+	}
+	return nullopt;
+}
+
+bool NETcanOpenNewSpectatorSlot()
+{
+	return _NET_findSpectatorSlotToOpen().has_value();
+}
+
+static optional<uint32_t> _NET_openNewSpectatorSlot_internal(bool broadcastUpdate)
+{
+	ASSERT_HOST_ONLY(return false);
+	auto newSpecSlot = _NET_findSpectatorSlotToOpen();
+	if (!newSpecSlot.has_value())
+	{
+		return nullopt;
+	}
+
+	uint32_t i = newSpecSlot.value();
+	NetPlay.players[i].ai = AI_OPEN;
+	NetPlay.players[i].isSpectator = true;
+	// common code
+	NetPlay.players[i].difficulty = AIDifficulty::DISABLED; // disable AI for this slot
+	if (broadcastUpdate)
+	{
+		NETBroadcastPlayerInfo(i);
+		netPlayersUpdated = true;
+	}
+	return i;
+}
+
+bool NETopenNewSpectatorSlot()
+{
+	ASSERT_HOST_ONLY(return false);
+	return _NET_openNewSpectatorSlot_internal(true).has_value();
+}
+
+bool NETmovePlayerToSpectatorOnlySlot(uint32_t playerIdx, bool hostOverride /*= false*/)
+{
+	ASSERT_HOST_ONLY(return false);
+	ASSERT_OR_RETURN(false, playerIdx < MAX_CONNECTED_PLAYERS, "playerIdx out of bounds: %" PRIu32 "", playerIdx);
+	// Verify it's a human player
+	ASSERT_OR_RETURN(false, isHumanPlayer(playerIdx) && !NetPlay.players[playerIdx].isSpectator, "playerIdx is not a currently-connected human player: %" PRIu32 "", playerIdx);
+
+	// Try to grab a new spectator-only slot index
+	optional<uint32_t> availableSpectatorIndex = NET_FindOpenSlotForPlayer(false, true);
+	if (!availableSpectatorIndex.has_value() && hostOverride)
+	{
+		// Attempt to open a new spectator slot just for this player
+		availableSpectatorIndex = _NET_openNewSpectatorSlot_internal(false);
+	}
+	if (!availableSpectatorIndex.has_value())
+	{
+		debug(LOG_ERROR, "No available spectator slots to move player %" PRIu32 " to", playerIdx);
+		return false;
+	}
+	// Swap the player indexes
+	if (!swapPlayerIndexes(playerIdx, availableSpectatorIndex.value()))
+	{
+		debug(LOG_ERROR, "Failed to swap player indexes: %" PRIu32 ", %" PRIu32 "", playerIdx, availableSpectatorIndex.value());
+		return false;
+	}
+	ASSERT(NetPlay.players[availableSpectatorIndex.value()].isSpectator, "New slot doesn't have spectator set??");
+
+	// Broadcast the swapped player info
+	NETBroadcastTwoPlayerInfo(playerIdx, availableSpectatorIndex.value());
+
+	return true;
+}
+
+static bool wasAlreadyMovedToSpectatorByHost(uint32_t playerIdx)
+{
+	// TODO: Implement
+	return false;
+}
+
+SpectatorToPlayerMoveResult NETmoveSpectatorToPlayerSlot(uint32_t playerIdx, optional<uint32_t> newPlayerIdx, bool hostOverride /*= false*/)
+{
+	ASSERT_HOST_ONLY(return SpectatorToPlayerMoveResult::FAILED);
+	ASSERT_OR_RETURN(SpectatorToPlayerMoveResult::FAILED, playerIdx < MAX_CONNECTED_PLAYERS, "playerIdx out of bounds: %" PRIu32 "", playerIdx);
+	ASSERT_OR_RETURN(SpectatorToPlayerMoveResult::FAILED, newPlayerIdx.value_or(0) < MAX_CONNECTED_PLAYERS, "newPlayerIdx out of bounds: %" PRIu32 "", newPlayerIdx.value_or(0));
+	ASSERT_OR_RETURN(SpectatorToPlayerMoveResult::FAILED, !newPlayerIdx.has_value() || newPlayerIdx.value() != NetPlay.hostPlayer, "newPlayerIdx cannot be host player: %" PRIu32 "", newPlayerIdx.value_or(0));
+	// Verify it's a human player
+	ASSERT_OR_RETURN(SpectatorToPlayerMoveResult::FAILED, isHumanPlayer(playerIdx) && NetPlay.players[playerIdx].isSpectator, "playerIdx is not a currently-connected spectator player: %" PRIu32 "", playerIdx);
+
+	// Check if the host has moved this player to a spectator before, if so deny (unless the *host* is the one triggering the move)
+	if (!hostOverride && wasAlreadyMovedToSpectatorByHost(playerIdx))
+	{
+		return SpectatorToPlayerMoveResult::FAILED;
+	}
+
+	if (!newPlayerIdx.has_value())
+	{
+		// Attempt to find an open slot
+		newPlayerIdx = NET_FindOpenSlotForPlayer(false, false);
+		if (!newPlayerIdx.has_value())
+		{
+			return SpectatorToPlayerMoveResult::NEEDS_SLOT_SELECTION;
+		}
+	}
+
+	// Since a spectator could be moved into a Closed or AI slot, clear the closed or AI status on the target slot.
+	// (If swapping with a player slot, these should already be set as such.)
+	NetPlay.players[newPlayerIdx.value()].ai = AI_OPEN;
+	NetPlay.players[newPlayerIdx.value()].difficulty = AIDifficulty::DISABLED;
+
+	// Swap the player indexes
+	if (!swapPlayerIndexes(playerIdx, newPlayerIdx.value()))
+	{
+		debug(LOG_ERROR, "Failed to swap player indexes: %" PRIu32 ", %" PRIu32 "", playerIdx, newPlayerIdx.value());
+		return SpectatorToPlayerMoveResult::FAILED;
+	}
+	ASSERT(!NetPlay.players[newPlayerIdx.value()].isSpectator, "New slot should not be a spectator??");
+
+	// Broadcast the swapped player info
+	NETBroadcastTwoPlayerInfo(playerIdx, newPlayerIdx.value());
+
+	return SpectatorToPlayerMoveResult::SUCCESS;
+}
+
+static inline bool NETFilterMessageWhileSwappingPlayer(uint8_t sender, uint8_t type)
+{
+	if (!NetPlay.isHost)
+	{
+		return false; // only host filters these messages
+	}
+
+	if (sender == NetPlay.hostPlayer)
+	{
+		return false; // never filter host messages
+	}
+
+	if (static_cast<size_t>(sender) >= NET_waitingForIndexChangeAckSince.size() || !NET_waitingForIndexChangeAckSince.at(sender).has_value())
+	{
+		return false; // no filtering - not waiting for player to acknowledge index change
+	}
+
+	#define INDEX_CHANGE_ACK_TIMEOUT (5 * GAME_TICKS_PER_SEC)
+	if ((realTime - NET_waitingForIndexChangeAckSince.at(sender).value_or(realTime)) > INDEX_CHANGE_ACK_TIMEOUT)
+	{
+		// this client did not acknowledge the player index change before the timeout - kick them
+		char msg[256] = {'\0'};
+		ssprintf(msg, "Auto-kicking player %u, did not ack player index change within required timeframe.", (unsigned int)sender);
+		sendInGameSystemMessage(msg);
+		kickPlayer(sender, _("Client failed to ack player index swap"), ERROR_INVALID);
+		return true; // filter original message, of course
+	}
+
+	// Filter certain net messages if player index swap is in progress (until player acknowledges swap)
+
+	switch (type)
+	{
+	case NET_TEXTMSG:
+		// TODO: Actually just send a message to the player that this text message was undelivered and to try again - it's easier and this should be rare
+		break;
+	case NET_VOTE:
+		// TODO: Send the player a new VOTE_REQUEST so they can send a new vote?
+		break;
+	case NET_PLAYERNAME_CHANGEREQUEST:	///< non-host human player is changing their name.
+		// We can ignore if we force the player to re-send their name when they change slots
+		return true;
+		break;
+
+	// Client messages to ignore while waiting for a swap player ACK
+	// (because they may contain the old player index, and also the necessary messages will be resent after the ack)
+	case NET_PING:                       // For now, just drop it - until the player responds with the ack
+	case NET_PLAYER_STATS:
+	case NET_COLOURREQUEST:              ///< player requests a colour change.
+	case NET_FACTIONREQUEST:             ///< player requests a colour change.
+	case NET_TEAMREQUEST:                ///< request team membership
+	case NET_READY_REQUEST:              ///< player ready to start an mp game
+	case NET_POSITIONREQUEST:            ///< position in GUI player list
+	case NET_DATA_CHECK:                 ///< Data integrity check
+		// filter / ignore
+		return true;
+		break;
+
+	// one slot / index change at a time...
+	case NET_PLAYER_SLOTTYPE_REQUEST:
+		// filter / ignore
+		return true;
+		break;
+
+	// client messages to be processed normally
+	case NET_FILE_REQUESTED:             ///< Player has requested a file (map/mod/?)
+	case NET_FILE_CANCELLED:             ///< Player cancelled a file request
+		return false;
+		break;
+
+	// host-only messages
+	case NET_OPTIONS:                    ///< welcome a player to a game.
+	case NET_KICK:                       ///< kick a player .
+	case NET_FIREUP:                     ///< campaign game has started, we can go too.. Shortcut message, not to be used in dmatch.
+	case NET_PLAYER_INFO:                ///< basic player info
+	case NET_PLAYER_JOINED:              ///< notice about player joining
+	case NET_PLAYER_LEAVING:             ///< A player is leaving, (nicely)
+	case NET_PLAYER_DROPPED:             ///< notice about player dropped / disconnected
+	case NET_GAME_FLAGS:                 ///< game flags
+	case NET_HOST_DROPPED:               ///< Host has dropped
+	case NET_FILE_PAYLOAD:               ///< sending file to the player that needs it
+	case NET_VOTE_REQUEST:               ///< Setup a vote popup
+	case NET_PLAYER_SWAP_INDEX:
+		ASSERT(false, "Received unexpected host-only message (%" PRIu8 ")", type);
+		break;
+
+	// only possible with initial join
+	case NET_JOIN:                       ///< join a game
+	case NET_ACCEPTED:                   ///< accepted into game
+	case NET_REJECTED:                   ///< nope, you can't join
+		ASSERT(false, "Received unexpected initial-join message (%" PRIu8 ")", type);
+		break;
+
+	// should only be possible once game has started
+	case NET_PLAYERRESPONDING:           ///< computer that sent this is now playing warzone!
+	case NET_AITEXTMSG:                  ///< chat between AIs
+	case NET_BEACONMSG:                  ///< place beacon
+	case NET_SHARE_GAME_QUEUE:           ///< Message contains a game message, which should be inserted into a queue.
+	case NET_DEBUG_SYNC:                 ///< Synch error messages, so people don't have to use pastebin.
+	case NET_SPECTEXTMSG:                ///< chat between spectators
+		break;
+
+	// just process normally
+	case NET_SEND_TO_PLAYER:             ///< Non-host clients aren't directly connected to each other, so they talk via the host using these messages.
+		break;
+
+	case NET_PLAYER_SWAP_INDEX_ACK:
+		// **MUST** be permitted
+		break;
+
+	default:
+		// just process normally
+		break;
+	}
+
+	return false;
+}
+
 ///////////////////////////////////////////////////////////////////////////
 // Check if a message is a system message
 static bool NETprocessSystemMessage(NETQUEUE playerQueue, uint8_t type)
 {
+	if (NETFilterMessageWhileSwappingPlayer(playerQueue.index, type))
+	{
+		NETpop(playerQueue);
+		return true;
+	}
+
 	switch (type)
 	{
 	case NET_SEND_TO_PLAYER:
@@ -1725,7 +2132,8 @@ static bool NETprocessSystemMessage(NETQUEUE playerQueue, uint8_t type)
 					  || message->type == NET_GAME_FLAGS
 				      || message->type == NET_PLAYER_JOINED
 					  || message->type == NET_PLAYER_INFO
-					  || message->type == NET_FILE_PAYLOAD) && sender != NET_HOST_ONLY)
+					  || message->type == NET_FILE_PAYLOAD
+					  || message->type == NET_PLAYER_SWAP_INDEX) && sender != NET_HOST_ONLY)
 				    ||
 				    ((message->type == NET_HOST_DROPPED
 				      || message->type == NET_FILE_REQUESTED
@@ -1737,7 +2145,10 @@ static bool NETprocessSystemMessage(NETQUEUE playerQueue, uint8_t type)
 				      || message->type == NET_FILE_CANCELLED
 					  || message->type == NET_DATA_CHECK
 				      || message->type == NET_JOIN
-				      || message->type == NET_PLAYERNAME_CHANGEREQUEST) && receiver != NET_HOST_ONLY))
+				      || message->type == NET_PLAYERNAME_CHANGEREQUEST
+					  || message->type == NET_PLAYER_SWAP_INDEX_ACK) && receiver != NET_HOST_ONLY)
+					||
+					(message->type == NET_PLAYER_SLOTTYPE_REQUEST && (sender != NET_HOST_ONLY && receiver != NET_HOST_ONLY)))
 				{
 					char msg[256] = {'\0'};
 
@@ -1748,6 +2159,12 @@ static bool NETprocessSystemMessage(NETQUEUE playerQueue, uint8_t type)
 					NETplayerDropped(sender);
 					connected_bsocket[sender] = nullptr;
 					debug(LOG_ERROR, "%s", msg);
+					break;
+				}
+
+				// Certain messages should be filtered while we're waiting for the ack of a player index switch
+				if (NETFilterMessageWhileSwappingPlayer(sender, message->type))
+				{
 					break;
 				}
 
@@ -1768,6 +2185,12 @@ static bool NETprocessSystemMessage(NETQUEUE playerQueue, uint8_t type)
 			}
 			else
 			{
+				if (NetPlay.isHost && NETFilterMessageWhileSwappingPlayer(playerQueue.index, message->type))
+				{
+					debug(LOG_NET, "Ignoring message type (%d) from Player %d while swapping player index", (int)message->type, (int)playerQueue.index);
+					break;
+				}
+
 				debug(LOG_INFO, "Report this: Player %d sent us message type (%d) addressed to %d from %d. We are %d.", (int)playerQueue.index, (int)message->type, (int)receiver, (int)sender, selectedPlayer);
 			}
 
@@ -2057,6 +2480,35 @@ static bool NETprocessSystemMessage(NETQUEUE playerQueue, uint8_t type)
 	case NET_DEBUG_SYNC:
 		{
 			recvDebugSync(playerQueue);
+			break;
+		}
+	case NET_PLAYER_SWAP_INDEX_ACK:
+		{
+			ASSERT_HOST_ONLY(break);
+
+			uint32_t oldPlayerIndex;
+			uint32_t newPlayerIndex;
+
+			NETbeginDecode(playerQueue, NET_PLAYER_SWAP_INDEX_ACK);
+			NETuint32_t(&oldPlayerIndex);
+			NETuint32_t(&newPlayerIndex);
+			NETend();
+
+			bool isSentByCorrectClient = responsibleFor(playerQueue.index, newPlayerIndex);
+			if (!isSentByCorrectClient)
+			{
+				debug(LOG_ERROR, "NET_PLAYER_SWAP_INDEX_ACK sent by wrong player: %" PRIu32 "", playerQueue.index);
+				break;
+			}
+
+			if (newPlayerIndex >= NET_waitingForIndexChangeAckSince.size() || !NET_waitingForIndexChangeAckSince[newPlayerIndex].has_value())
+			{
+				debug(LOG_ERROR, "NET_PLAYER_SWAP_INDEX_ACK sent despite us not waiting for it (for player: %" PRIu32 ")", newPlayerIndex);
+				break;
+			}
+
+			NET_waitingForIndexChangeAckSince[newPlayerIndex] = nullopt;
+
 			break;
 		}
 
@@ -2969,7 +3421,6 @@ void NETfixPlayerCount()
 {
 	int maxPlayers = game.maxPlayers;
 	unsigned playercount = 0;
-	SpectatorInfo latestSpecInfo;
 	for (int index = 0; index < game.maxPlayers; ++index)
 	{
 		if (NetPlay.players[index].ai == AI_CLOSED)
@@ -2986,17 +3437,7 @@ void NETfixPlayerCount()
 		}
 	}
 
-	for (const auto& slot : NetPlay.players)
-	{
-		if (slot.isSpectator)
-		{
-			latestSpecInfo.totalSpectatorSlots++;
-			if (slot.allocated)
-			{
-				latestSpecInfo.spectatorsJoined++;
-			}
-		}
-	}
+	SpectatorInfo latestSpecInfo = SpectatorInfo::currentNetPlayState();
 
 	if (allow_joining && NetPlay.isHost && (NetPlay.playercount != playercount || gamestruct.desc.dwMaxPlayers != maxPlayers || SpectatorInfo::fromUint32(gamestruct.desc.dwUserFlags[1]) != latestSpecInfo))
 	{
@@ -4629,6 +5070,9 @@ const char *messageTypeToString(unsigned messageType_)
 	case NET_VOTE_REQUEST:              return "NET_VOTE_REQUEST";
 	case NET_SPECTEXTMSG:				return "NET_SPECTEXTMSG";
 	case NET_PLAYERNAME_CHANGEREQUEST:  return "NET_PLAYERNAME_CHANGEREQUEST";
+	case NET_PLAYER_SLOTTYPE_REQUEST:   return "NET_PLAYER_SLOTTYPE_REQUEST";
+	case NET_PLAYER_SWAP_INDEX:         return "NET_PLAYER_SWAP_INDEX";
+	case NET_PLAYER_SWAP_INDEX_ACK:     return "NET_PLAYER_SWAP_INDEX_ACK";
 	case NET_MAX_TYPE:                  return "NET_MAX_TYPE";
 
 	// Game-state-related messages, must be processed by all clients at the same game time.

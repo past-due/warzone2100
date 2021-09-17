@@ -50,6 +50,9 @@ public:
 	void openPositionChooser(uint32_t playerIndex);
 	void closePositionChooser();
 
+	void openPlayerSlotSwapChooser(uint32_t playerIndex);
+	void closePlayerSlotSwapChooser();
+
 	void openTeamChooser(uint32_t playerIndex);
 	void closeTeamChooser();
 
