@@ -19,8 +19,28 @@ jobs:
         submodules: recursive
     - name: Install gettext
       env:
-        DEBIAN_FRONTEND: noninteractive
-      run: sudo apt-get -y install gettext
+        GETTEXT_URL: 'https://www.mirrorservice.org/sites/ftp.gnu.org/gnu/gettext/gettext-0.21.tar.gz' #'https://ftp.gnu.org/pub/gnu/gettext/gettext-0.21.tar.gz'
+        GETTEXT_SHA512: 'bbe590c5dd3580c75bf30ff768da99a88eb8d466ec1ac9eea20be4cab4357ecf72448e6b81b47425e39d50fa6320ba426632914d7898dfebb4f159abc39c31d1'
+      run: |
+        mkdir -p "dl"
+        curl -L "${GETTEXT_URL}" --retry 3 --output "dl/gettext.tar.gz" || exit 1
+        cd "dl"
+        echo "${GETTEXT_SHA512} gettext.tar.gz" | sha512sum -c
+        echo "Verified SHA512"
+        echo "Extracting..."
+        tar -xvzf gettext.tar.gz -C gettext
+        cd "gettext"
+        echo "Configuring gettext"
+        ./configure --prefix=/usr    \
+                    --disable-static \
+                    --docdir=/usr/share/doc/gettext-0.21-custom
+        echo "Make"
+        make
+        echo "Make install"
+        make install
+        echo "Versions"
+        xgettext --version
+        msgfmt --version
     - name: Generate POTFILES.in
       working-directory: '${{ github.workspace }}/master/po'
       run: |
@@ -35,6 +55,13 @@ jobs:
         temp_dir="${GITHUB_WORKSPACE}/temp/po"
         mkdir -p "${temp_dir}"
         cmake "-DPOTFILES_IN=${potfiles_in_path}" "-DOUTPUT_FILE=${potFile_inRepo}" "-DTEMP_DIR=${temp_dir}" -P "${GITHUB_WORKSPACE}/master/po/WZ_build_po_template.cmake"
+        echo "OUTPUT_POFILE=${potFile_inRepo}" >> $GITHUB_ENV
+    - name: Upload artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: "warzone2100.pot"
+        path: ${{ env.OUTPUT_POFILE }}
+        if-no-files-found: 'error'
     - name: Create Pull Request to update base files (if needed)
       if: (github.repository == 'Warzone2100/warzone2100')
       id: cpr
