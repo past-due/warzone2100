@@ -3110,6 +3110,7 @@ IMPL_JS_FUNC(setScrollLimits, wzapi::setScrollLimits)
 IMPL_JS_FUNC(getScrollLimits, wzapi::getScrollLimits)
 IMPL_JS_FUNC(loadLevel, wzapi::loadLevel)
 IMPL_JS_FUNC(autoSave, wzapi::autoSave)
+IMPL_JS_FUNC(closeGame, wzapi::closeGame)
 IMPL_JS_FUNC(enumRange, wzapi::enumRange)
 IMPL_JS_FUNC(enumArea, scripting_engine::enumAreaJS)
 IMPL_JS_FUNC(addBeacon, wzapi::addBeacon)
@@ -3339,6 +3340,7 @@ bool quickjs_scripting_instance::registerFunctions(const std::string& scriptName
 	JS_REGISTER_FUNC(getRevealStatus, 0); // WZAPI
 	JS_REGISTER_FUNC(setRevealStatus, 1); // WZAPI
 	JS_REGISTER_FUNC(autoSave, 0); // WZAPI
+	JS_REGISTER_FUNC(closeGame, 0); // WZAPI
 
 	// horrible hacks follow -- do not rely on these being present!
 	JS_REGISTER_FUNC(hackNetOff, 0); // WZAPI

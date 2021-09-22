@@ -672,6 +672,20 @@ bool wzapi::autoSave(WZAPI_NO_PARAMS)
 	return ::autoSave();
 }
 
+//-- ## closeGame()
+//--
+//-- Close game in headless game mode
+//--
+wzapi::no_return_value wzapi::closeGame(WZAPI_NO_PARAMS)
+{
+	if (headlessGameMode())
+	{
+		stdOutGameSummary(0);
+	}
+	exit(0);
+	return {};
+}
+
 // MARK: - horrible hacks follow -- do not rely on these being present!
 
 //-- ## hackNetOff()
@@ -2399,11 +2413,6 @@ bool wzapi::gameOverMessage(WZAPI_PARAMS(bool gameWon, optional<bool> _showBackD
 	if (autogame_enabled())
 	{
 		debug(LOG_WARNING, "Autogame completed successfully!");
-		if (headlessGameMode())
-		{
-			stdOutGameSummary(0);
-		}
-		exit(0);
 	}
 	return true;
 }

@@ -979,6 +979,7 @@ namespace wzapi
 	bool getRevealStatus(WZAPI_NO_PARAMS);
 	bool setRevealStatus(WZAPI_PARAMS(bool status));
 	bool autoSave(WZAPI_NO_PARAMS);
+	no_return_value closeGame(WZAPI_NO_PARAMS);
 
 	// horrible hacks follow -- do not rely on these being present!
 	no_return_value hackNetOff(WZAPI_NO_PARAMS);

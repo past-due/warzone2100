@@ -263,6 +263,7 @@ function checkEndConditions()
 		{
 			gameOverMessage(false);
 		}
+		closeGame(); //close game in headless mode
 	}
 }
 
