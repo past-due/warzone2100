@@ -138,7 +138,8 @@ public:
 	// - previewOnly (set to true to shortcut processing of map details that don't factor into preview generation)
 	// - a logger
 	// - a WzMap::IOProvider
-	static std::unique_ptr<Map> loadFromPath(const std::string& mapFolderPath, MapType mapType, uint32_t mapMaxPlayers, uint32_t seed, bool previewOnly = false, std::unique_ptr<LoggingProtocol> logger = nullptr, std::unique_ptr<IOProvider> mapIO = std::unique_ptr<IOProvider>(new StdIOProvider()));
+	// - whether to run script maps in "debug mode" (which enables certain additional functions for developer use)
+	static std::unique_ptr<Map> loadFromPath(const std::string& mapFolderPath, MapType mapType, uint32_t mapMaxPlayers, uint32_t seed, bool previewOnly = false, std::unique_ptr<LoggingProtocol> logger = nullptr, std::unique_ptr<IOProvider> mapIO = std::unique_ptr<IOProvider>(new StdIOProvider()), bool debugMode = false);
 
 	// Export a map to a specified folder path in a specified output format (version)
 	static bool exportMapToPath(Map& map, const std::string& mapFolderPath, MapType mapType, uint32_t mapMaxPlayers, OutputFormat format, std::unique_ptr<LoggingProtocol> logger = nullptr, std::unique_ptr<IOProvider> mapIO = std::unique_ptr<IOProvider>(new StdIOProvider()));

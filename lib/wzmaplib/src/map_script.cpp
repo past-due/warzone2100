@@ -195,6 +195,15 @@ struct ScriptMapData
 	std::unique_ptr<WzMap::Map> map = std::unique_ptr<WzMap::Map>(new WzMap::Map());
 	std::mt19937 mt;
 	WzMap::LoggingProtocol* pCustomLogger = nullptr;
+	// debugging / profiling mode
+	bool debugModeEnabled = false;
+	struct PerfMeasurement {
+		std::string labelStr;
+		std::chrono::steady_clock::time_point startTime;
+		std::chrono::steady_clock::time_point endTime;
+	};
+	std::vector<PerfMeasurement> debugPerformanceMeasurements;
+	uint32_t lastPerfId = 0;
 };
 
 #define MAPSCRIPT_GET_CONTEXT_DATA() \
@@ -388,6 +397,52 @@ static JSValue runMap_setMapData(JSContext *ctx, JSValueConst this_val, int argc
 	return JS_TRUE;
 }
 
+//MAP-- ## debugPerfStart([descriptionString])
+//MAP--
+//MAP-- Marks the start of a new debug performance measurement (optionally supplying a description string).
+//MAP-- Returns a unique `perfId` which should be passed to ```debugPerfEnd``` to mark the end of this performance measurement.
+//MAP--
+//MAP-- Performance measurements are only recorded and output if WZ is launched with the `--mapscriptdebug` option.
+//MAP--
+static JSValue runMap_debugPerfStart(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
+{
+	MAPSCRIPT_GET_CONTEXT_DATA()//;
+	if (!data.debugModeEnabled)
+	{
+		// simulate
+		return JS_NewUint32(ctx, data.lastPerfId++);
+	}
+	std::string labelStr = (argc >= 1) ? JSValueToStdString(ctx, argv[0]) : std::string();
+	data.lastPerfId = data.debugPerformanceMeasurements.size();
+	data.debugPerformanceMeasurements.emplace_back();
+	auto& newPerfMeasurement = data.debugPerformanceMeasurements.back();
+	newPerfMeasurement.labelStr = std::move(labelStr);
+	newPerfMeasurement.startTime = std::chrono::steady_clock::now();
+	return JS_NewUint32(ctx, data.lastPerfId);
+}
+
+//MAP-- ## debugPerfEnd(perfId)
+//MAP--
+//MAP-- Marks the end of a debug performance point - supply the return value of a previous call to ```debugPerfStart```.
+//MAP--
+//MAP-- Performance measurements are only recorded and output if WZ is launched with the `--mapscriptdebug` option.
+//MAP--
+static JSValue runMap_debugPerfEnd(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv)
+{
+	MAPSCRIPT_GET_CONTEXT_DATA()//;
+	if (!data.debugModeEnabled)
+	{
+		return JS_TRUE;
+	}
+	auto endTime = std::chrono::steady_clock::now();
+	auto pCustomLogger = data.pCustomLogger;
+	SCRIPT_ASSERT(ctx, argc == 1, "Must have one parameter");
+	uint32_t perfId = JSValueToUint32(ctx, argv[0]);
+	SCRIPT_ASSERT(ctx, static_cast<size_t>(perfId) < data.debugPerformanceMeasurements.size(), "Invalid perfId passed: %" PRIu32, perfId);
+	data.debugPerformanceMeasurements[perfId].endTime = endTime;
+	return JS_TRUE;
+}
+
 struct MapScriptRuntimeInfo {
 	std::chrono::system_clock::time_point startTime;
 };
@@ -409,11 +464,12 @@ static void QJSRuntimeFree_LeakHandler_Warning(const char* msg)
 	debug(pRuntimeFree_CustomLogger, LOG_WARNING, "QuickJS FreeRuntime leak: %s", msg);
 }
 
-std::unique_ptr<Map> runMapScript(const std::vector<char>& fileBuffer, const std::string &path, uint32_t seed, bool preview, LoggingProtocol* pCustomLogger /*= nullptr*/)
+std::unique_ptr<Map> runMapScript(const std::vector<char>& fileBuffer, const std::string &path, uint32_t seed, bool preview, bool debugMode /* = false */, LoggingProtocol* pCustomLogger /*= nullptr*/)
 {
 	ScriptMapData data;
 	data.mt = std::mt19937(seed);
 	data.pCustomLogger = pCustomLogger;
+	data.debugModeEnabled = debugMode;
 
 	JSRuntime *rt = JS_NewRuntime();
 	if (rt == nullptr)
@@ -482,7 +538,9 @@ std::unique_ptr<Map> runMapScript(const std::vector<char>& fileBuffer, const std
 	static const JSCFunctionListEntry js_builtin_mapFuncs[] = {
 		QJS_CFUNC_DEF("gameRand", 0, runMap_gameRand ),
 		QJS_CFUNC_DEF("log", 1, runMap_log ),
-		QJS_CFUNC_DEF("setMapData", 7, runMap_setMapData )
+		QJS_CFUNC_DEF("setMapData", 7, runMap_setMapData ),
+		QJS_CFUNC_DEF("debugPerfStart", 0, runMap_debugPerfStart ),
+		QJS_CFUNC_DEF("debugPerfEnd", 1, runMap_debugPerfEnd )
 	};
 	JS_SetPropertyFunctionList(ctx, global_obj, js_builtin_mapFuncs, sizeof(js_builtin_mapFuncs) / sizeof(js_builtin_mapFuncs[0]));
 
@@ -508,8 +566,29 @@ std::unique_ptr<Map> runMapScript(const std::vector<char>& fileBuffer, const std
 		JS_FreeValue(ctx, result);
 		return nullptr;
 	}
-
 	JS_FreeValue(ctx, result);
+
+	if (data.debugModeEnabled)
+	{
+		if (!data.debugPerformanceMeasurements.empty())
+		{
+			debug(pCustomLogger, LOG_INFO, "Debug Performance Measurements (count: %zu):", data.debugPerformanceMeasurements.size());
+			for (size_t i = 0; i < data.debugPerformanceMeasurements.size(); ++i)
+			{
+				const auto& perfMeasurement = data.debugPerformanceMeasurements[i];
+				auto microSecondsElapsed = std::chrono::duration_cast<std::chrono::microseconds>(perfMeasurement.endTime - perfMeasurement.startTime).count();
+				if (!perfMeasurement.labelStr.empty())
+				{
+					debug(pCustomLogger, LOG_INFO, "- [%zu]: %lld (%s)", i, static_cast<long long>(microSecondsElapsed), perfMeasurement.labelStr.c_str());
+				}
+				else
+				{
+					debug(pCustomLogger, LOG_INFO, "- [%zu]: %lld", i, static_cast<long long>(microSecondsElapsed));
+				}
+			}
+		}
+	}
+
 	return std::move(data.map);
 }
 

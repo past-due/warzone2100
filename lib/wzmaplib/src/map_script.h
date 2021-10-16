@@ -28,6 +28,6 @@ namespace WzMap {
 class Map;
 class LoggingProtocol;
 
-std::unique_ptr<Map> runMapScript(const std::vector<char>& fileBuffer, const std::string &path, uint32_t seed, bool preview, LoggingProtocol* pCustomLogger = nullptr);
+std::unique_ptr<Map> runMapScript(const std::vector<char>& fileBuffer, const std::string &path, uint32_t seed, bool preview, bool debugMode = false, LoggingProtocol* pCustomLogger = nullptr);
 
 } // namespace WzMap

@@ -1944,7 +1944,7 @@ Map::Map(const std::string& mapFolderPath, MapType mapType, uint32_t mapMaxPlaye
 // - previewOnly (set to true to shortcut processing of map details that don't factor into preview generation)
 // - a logger
 // - a WzMap::IOProvider
-std::unique_ptr<Map> Map::loadFromPath(const std::string& mapFolderPath, MapType mapType, uint32_t mapMaxPlayers, uint32_t seed, bool previewOnly, std::unique_ptr<LoggingProtocol> logger, std::unique_ptr<IOProvider> mapIO)
+std::unique_ptr<Map> Map::loadFromPath(const std::string& mapFolderPath, MapType mapType, uint32_t mapMaxPlayers, uint32_t seed, bool previewOnly, std::unique_ptr<LoggingProtocol> logger, std::unique_ptr<IOProvider> mapIO, bool debugMode)
 {
 	if (!mapIO)
 	{
@@ -1959,7 +1959,7 @@ std::unique_ptr<Map> Map::loadFromPath(const std::string& mapFolderPath, MapType
 	{
 		debug(logger.get(), LOG_INFO, "Loading: %s", gameJSPath.c_str());
 		// Load script map, which actually loads everything
-		auto result = runMapScript(fileData, gameJSPath, seed, false, logger.get());
+		auto result = runMapScript(fileData, gameJSPath, seed, false, debugMode, logger.get());
 		if (result)
 		{
 			result->m_mapFolderPath = mapFolderPath;
