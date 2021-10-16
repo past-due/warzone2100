@@ -347,6 +347,7 @@ typedef enum
 	CLI_ADD_LOBBY_ADMINPUBLICKEY,
 	CLI_COMMAND_INTERFACE,
 	CLI_STARTPLAYERS,
+	CLI_MAPSCRIPTDEBUG,
 } CLI_OPTIONS;
 
 static const struct poptOption *getOptionsTable()
@@ -414,6 +415,7 @@ static const struct poptOption *getOptionsTable()
 		{ "addlobbyadminpublickey", POPT_ARG_STRING, CLI_ADD_LOBBY_ADMINPUBLICKEY, N_("Add a lobby admin public key (for slash commands)"), N_("b64-pub-key")},
 		{ "enablecmdinterface", POPT_ARG_STRING, CLI_COMMAND_INTERFACE, N_("Enable command interface"), N_("(stdin)")},
 		{ "startplayers", POPT_ARG_STRING, CLI_STARTPLAYERS, N_("Minimum required players to auto-start game"), N_("startplayers")},
+		{ "mapscriptdebug", POPT_ARG_NONE, CLI_MAPSCRIPTDEBUG, N_("Enable map script debugging"), nullptr},
 		// Terminating entry
 		{ nullptr, 0, 0,              nullptr,                                    nullptr },
 	};
@@ -940,6 +942,9 @@ bool ParseCommandLine(int argc, const char * const *argv)
 				qFatal("Invalid start players count");
 			}
 			debug(LOG_INFO, "Games will automatically start with [%d] players (when ready)", wz_min_autostart_players);
+			break;
+		case CLI_MAPSCRIPTDEBUG:
+			war_setMapScriptDebug(true);
 			break;
 
 		};

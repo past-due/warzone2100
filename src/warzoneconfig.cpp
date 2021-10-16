@@ -66,6 +66,7 @@ struct WARZONE_GLOBALS
 	bool autoAdjustDisplayScale = true;
 	int autoLagKickSeconds = 60;
 	bool disableReplayRecording = false;
+	bool scriptMapDebug = false;
 };
 
 static WARZONE_GLOBALS warGlobs;
@@ -427,4 +428,14 @@ bool war_getDisableReplayRecording()
 void war_setDisableReplayRecording(bool disable)
 {
 	warGlobs.disableReplayRecording = disable;
+}
+
+bool war_getMapScriptDebug()
+{
+	return warGlobs.scriptMapDebug;
+}
+
+void war_setMapScriptDebug(bool debugEnabled)
+{
+	warGlobs.scriptMapDebug = debugEnabled;
 }

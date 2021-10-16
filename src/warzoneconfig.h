@@ -118,6 +118,8 @@ int war_getAutoLagKickSeconds();
 void war_setAutoLagKickSeconds(int seconds);
 bool war_getDisableReplayRecording();
 void war_setDisableReplayRecording(bool disable);
+bool war_getMapScriptDebug();
+void war_setMapScriptDebug(bool debugEnabled);
 
 /**
  * Enable or disable sound initialization
