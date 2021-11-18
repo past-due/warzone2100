@@ -118,6 +118,9 @@ jobs:
             $MSYSTEM = "CLANGARM64" # NOTE: Will not work on GitHub Actions CI currently as it requires a native ARM64 runner
             $WZ_MINGW_PKG_PREFIX = "mingw-w64-clang-aarch64"
           }
+          # For mingw, must also set VCPKG_DEFAULT_HOST_TRIPLET
+          $VCPKG_DEFAULT_HOST_TRIPLET = "${VCPKG_DEFAULT_TRIPLET}"
+          echo "VCPKG_DEFAULT_HOST_TRIPLET=${VCPKG_DEFAULT_HOST_TRIPLET}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         }
         else {
           $WZ_USING_MINGW = "false"
@@ -396,6 +399,7 @@ jobs:
       shell: msys2 {0}
       run: |
         echo "VCPKG_DEFAULT_TRIPLET=${VCPKG_DEFAULT_TRIPLET}"
+        echo "VCPKG_DEFAULT_HOST_TRIPLET=${VCPKG_DEFAULT_HOST_TRIPLET}"
         echo "VCPKG_BINARY_SOURCES=${VCPKG_BINARY_SOURCES}"
         WZ_FULL_POWERSHELL_PATH="$(cygpath '${{ steps.settings.outputs.WZ_FULL_POWERSHELL_PATH }}')"
         echo "WZ_FULL_POWERSHELL_PATH=${WZ_FULL_POWERSHELL_PATH}"
