@@ -1661,7 +1661,7 @@ void VkTexture::upload_and_generate_mipmaps(const size_t& offset_x, const size_t
 //								   nullptr);
 		stbir_resize_uint8_generic(input_pixels, input_w, input_h, 0,
 								   output_pixels, output_w, output_h, 0,
-								   components, components == 4 ? 3 : STBIR_ALPHA_CHANNEL_NONE, 0,
+								   static_cast<int>(components), components == 4 ? 3 : STBIR_ALPHA_CHANNEL_NONE, 0,
 								   STBIR_EDGE_CLAMP,
 								   STBIR_FILTER_MITCHELL,
 								   STBIR_COLORSPACE_LINEAR,
@@ -2941,7 +2941,7 @@ bool VkRoot::_initialize(const gfx_api::backend_Impl_Factory& impl, int32_t anti
 	return true;
 }
 
-gfx_api::pixel_format_usage::flags VkRoot::getPixelFormatUsageSupport(gfx_api::pixel_format format, const vk::DispatchLoaderDynamic& vkDynLoader) const
+gfx_api::pixel_format_usage::flags VkRoot::getPixelFormatUsageSupport(gfx_api::pixel_format format) const
 {
 	gfx_api::pixel_format_usage::flags retVal = gfx_api::pixel_format_usage::none;
 	ASSERT_OR_RETURN(retVal, physicalDevice, "Physical device is null");
@@ -3002,7 +3002,7 @@ void VkRoot::initPixelFormatsSupport()
 	texture2DFormatsSupport.resize(static_cast<size_t>(gfx_api::MAX_PIXEL_FORMAT) + 1, gfx_api::pixel_format_usage::none);
 
 	#define PIXEL_FORMAT_SUPPORT_SET(x) \
-	texture2DFormatsSupport[static_cast<size_t>(x)] = getPixelFormatUsageSupport(x, vkDynLoader);
+	texture2DFormatsSupport[static_cast<size_t>(x)] = getPixelFormatUsageSupport(x);
 
 	// these uncompressed formats should be mandatory
 	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8)

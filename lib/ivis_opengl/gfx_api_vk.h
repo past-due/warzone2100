@@ -588,7 +588,7 @@ public:
 private:
 	virtual bool _initialize(const gfx_api::backend_Impl_Factory& impl, int32_t antialiasing, swap_interval_mode mode) override;
 	void initPixelFormatsSupport();
-	gfx_api::pixel_format_usage::flags getPixelFormatUsageSupport(gfx_api::pixel_format format, const vk::DispatchLoaderDynamic& vkDynLoader) const;
+	gfx_api::pixel_format_usage::flags getPixelFormatUsageSupport(gfx_api::pixel_format format) const;
 	std::string calculateFormattedRendererInfoString() const;
 	void set_uniforms_set(const size_t& set_idx, const void* buffer, size_t bufferSize);
 private:
