@@ -24,6 +24,7 @@
 #include <string.h>
 #include "lib/framework/string_ext.h"
 #include "lib/framework/geometry.h"
+#include "lib/ivis_opengl/pietypes.h"
 #include "lib/ivis_opengl/ivisdef.h"
 #include "lib/ivis_opengl/piestate.h"
 #include "lib/ivis_opengl/pieclip.h"
@@ -256,16 +257,14 @@ struct TextLayoutMetrics
 
 struct RenderedText
 {
-	RenderedText(std::unique_ptr<unsigned char[]> &&_data, uint32_t _width, uint32_t _height, int32_t _offset_x, int32_t _offset_y)
-	: data(std::move(_data)), width(_width), height(_height), offset_x(_offset_x), offset_y(_offset_y)
+	RenderedText(std::unique_ptr<iV_Image> &&_bitmap, int32_t _offset_x, int32_t _offset_y)
+	: bitmap(std::move(_bitmap)), offset_x(_offset_x), offset_y(_offset_y)
 	{ }
 
-	RenderedText() : data(nullptr) , width(0) , height(0) , offset_x(0) , offset_y(0)
+	RenderedText() : bitmap(nullptr), offset_x(0), offset_y(0)
 	{ }
 
-	std::unique_ptr<unsigned char[]> data;
-	uint32_t width;
-	uint32_t height;
+	std::unique_ptr<iV_Image> bitmap;
 	int32_t offset_x;
 	int32_t offset_y;
 };
@@ -379,8 +378,9 @@ struct TextShaper
 		const uint32_t x_advance = (shapingResult.x_advance / 64);
 		const uint32_t y_advance = (shapingResult.y_advance / 64);
 
-		std::unique_ptr<unsigned char[]> stringTexture(new unsigned char[4 * texture_width * texture_height]);
-		memset(stringTexture.get(), 0, 4 * texture_width * texture_height);
+		std::unique_ptr<iV_Image> stringBitmap(new iV_Image());
+		stringBitmap->allocate(texture_width, texture_height, 4, true);
+		unsigned char* stringTexture = stringBitmap->bmp_w();
 
 		std::for_each(glyphs.begin(), glyphs.end(),
 			[&](const glyphRaster &g)
@@ -401,7 +401,7 @@ struct TextShaper
 				}
 			});
 		return DrawTextResult(
-				RenderedText(std::move(stringTexture), texture_width, texture_height, min_x, min_y),
+				RenderedText(std::move(stringBitmap), min_x, min_y),
 				TextLayoutMetrics(std::max(texture_width, x_advance), std::max(texture_height, y_advance))
 		);
 	}
@@ -840,13 +840,13 @@ void iV_DrawTextRotated(const char *string, float XPos, float YPos, float rotati
 	TextRun tr(string, "en", HB_SCRIPT_COMMON, HB_DIRECTION_LTR);
 	DrawTextResult drawResult = getShaper().drawText(tr, getFTFace(fontID));
 
-	if (drawResult.text.width > 0 && drawResult.text.height > 0)
+	if (drawResult.text.bitmap && drawResult.text.bitmap->width() > 0 && drawResult.text.bitmap->height() > 0)
 	{
 		if (textureID)
 			delete textureID;
-		textureID = gfx_api::context::get().create_texture(1, drawResult.text.width, drawResult.text.height, gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8);
-		textureID->upload(0u, 0u, 0u, drawResult.text.width, drawResult.text.height, gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8, drawResult.text.data.get());
-		iV_DrawImageText(*textureID, Vector2f(XPos, YPos), Vector2f((float)drawResult.text.offset_x / _horizScaleFactor, (float)drawResult.text.offset_y / _vertScaleFactor), Vector2f((float)drawResult.text.width / _horizScaleFactor, (float)drawResult.text.height / _vertScaleFactor), rotation, color);
+		textureID = gfx_api::context::get().createTextureForCompatibleImageUploads(1, *(drawResult.text.bitmap.get()), "text::");
+		textureID->upload(0u, 0u, 0u, *(drawResult.text.bitmap.get()));
+		iV_DrawImageText(*textureID, Vector2f(XPos, YPos), Vector2f((float)drawResult.text.offset_x / _horizScaleFactor, (float)drawResult.text.offset_y / _vertScaleFactor), Vector2f((float)drawResult.text.bitmap->width() / _horizScaleFactor, (float)drawResult.text.bitmap->height() / _vertScaleFactor), rotation, color);
 	}
 }
 
@@ -901,7 +901,7 @@ void WzText::drawAndCacheText(const std::string &string, iV_fonts fontID)
 	mPtsBelowBase = metricsHeight_PixelsToPoints(type->size->metrics.descender >> 6);
 
 	DrawTextResult drawResult = getShaper().drawText(tr, face);
-	dimensions = Vector2i(drawResult.text.width, drawResult.text.height);
+	dimensions = (drawResult.text.bitmap) ? Vector2i(drawResult.text.bitmap->width(), drawResult.text.bitmap->height()) : Vector2i(0,0);
 	offsets = Vector2i(drawResult.text.offset_x, drawResult.text.offset_y);
 	layoutMetrics = Vector2i(drawResult.layoutMetrics.width, drawResult.layoutMetrics.height);
 
@@ -913,8 +913,8 @@ void WzText::drawAndCacheText(const std::string &string, iV_fonts fontID)
 
 	if (dimensions.x > 0 && dimensions.y > 0)
 	{
-		texture = gfx_api::context::get().create_texture(1, dimensions.x, dimensions.y, gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8);
-		texture->upload(0u, 0u, 0u, dimensions.x , dimensions.y, gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8, drawResult.text.data.get());
+		texture = gfx_api::context::get().createTextureForCompatibleImageUploads(1, *(drawResult.text.bitmap.get()), "text::");
+		texture->upload(0u, 0u, 0u, *(drawResult.text.bitmap.get()));
 	}
 }
 
