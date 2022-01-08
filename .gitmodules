@@ -43,3 +43,7 @@
 [submodule "3rdparty/fmt"]
 	path = 3rdparty/fmt
 	url = https://github.com/fmtlib/fmt.git
+[submodule "3rdparty/basis_universal"]
+	path = 3rdparty/basis_universal
+	url = https://github.com/BinomialLLC/basis_universal.git
+	shallow = true
