@@ -22,6 +22,7 @@
 
 #include <vector>
 #include <array>
+#include <algorithm>
 
 // Return the formats for which real-time compression support has been included in this executable
 static std::vector<gfx_api::pixel_format> builtInRealTimeFormatCompressors =
