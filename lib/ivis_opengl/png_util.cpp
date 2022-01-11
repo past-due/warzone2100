@@ -349,12 +349,11 @@ bool iV_loadImage_PNG2(const char *fileName, iV_Image& image, iV_Image::ColorSpa
 	if (png_get_valid(png_ptr, info_ptr, PNG_INFO_sRGB))
 	{
 		int intent;
-		if (png_get_sRGB(png_ptr, info_ptr, &intent) != PNG_INFO_sRGB)
+		if (png_get_sRGB(png_ptr, info_ptr, &intent) == PNG_INFO_sRGB)
 		{
-			// TODO: HANDLE ERROR
+			set_file_gamma = true;
+			png_set_gamma(png_ptr, screen_gamma, PNG_DEFAULT_sRGB);
 		}
-		set_file_gamma = true;
-		png_set_gamma(png_ptr, screen_gamma, PNG_DEFAULT_sRGB);
 	}
 #endif
 
@@ -363,20 +362,17 @@ bool iV_loadImage_PNG2(const char *fileName, iV_Image& image, iV_Image::ColorSpa
 	{
 		double file_gamma;
 #ifdef PNG_FLOATING_POINT_SUPPORTED
-		if (png_get_gAMA(png_ptr, info_ptr, &file_gamma) != PNG_INFO_gAMA)
+		if (png_get_gAMA(png_ptr, info_ptr, &file_gamma) == PNG_INFO_gAMA)
 		{
-			// TODO: HANDLE ERROR
-		}
 #else
 		png_fixed_point fixed_gamma = 0;
-		if (png_get_gAMA_fixed(png_ptr, info_ptr, &fixed_gamma) != PNG_INFO_gAMA)
+		if (png_get_gAMA_fixed(png_ptr, info_ptr, &fixed_gamma) == PNG_INFO_gAMA)
 		{
-			// TODO: HANDLE ERROR
-		}
-		file_gamma = fixed_gamma / 100000.0;
+			file_gamma = fixed_gamma / 100000.0;
 #endif
-		set_file_gamma = true;
-		png_set_gamma(png_ptr, screen_gamma, file_gamma);
+			set_file_gamma = true;
+			png_set_gamma(png_ptr, screen_gamma, file_gamma);
+		}
 	}
 #endif
 
