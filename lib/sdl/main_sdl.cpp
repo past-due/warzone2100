@@ -2150,6 +2150,12 @@ void wzSDLPreWindowCreate_InitOpenGLAttributes(bool antialiasing, bool useOpenGL
 		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, antialiasing);
 	}
 
+#if defined(WZ_TEST_SRGB_FRAMEBUFFER)
+	// NOTE: There are still colorspace and other issues to resolve,
+	//       which is why this is currently excluded by default. FIXME
+	SDL_GL_SetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, 1);
+#endif
+
 	if (!sdl_OpenGL_Impl::configureOpenGLContextRequest(sdl_OpenGL_Impl::getInitialContextRequest(useOpenGLES), useOpenGLESLibrary))
 	{
 		// Failed to configure OpenGL context request

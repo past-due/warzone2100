@@ -2213,6 +2213,11 @@ vk::SurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormat
 		vk::SurfaceFormatKHR{ vk::Format::eR8G8B8A8Unorm, vk::ColorSpaceKHR::eVkColorspaceSrgbNonlinear }
 	};
 
+//	const auto desiredFormats = std::array<vk::SurfaceFormatKHR, 2> {
+//		vk::SurfaceFormatKHR{ vk::Format::eB8G8R8A8Srgb, vk::ColorSpaceKHR::eVkColorspaceSrgbNonlinear },
+//		vk::SurfaceFormatKHR{ vk::Format::eR8G8B8A8Srgb, vk::ColorSpaceKHR::eVkColorspaceSrgbNonlinear }
+//	};
+
 	if(availableFormats.size() == 1
 	   && availableFormats[0].format == vk::Format::eUndefined)
 	{
@@ -2619,7 +2624,7 @@ bool VkRoot::createSwapchain()
 	pDefaultTexture = new VkTexture(*this, 1, defaultTexture_width, defaultTexture_height, gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8, "<default_texture>");
 
 	iV_Image defaultTexture;
-	defaultTexture.allocate(defaultTexture_width, defaultTexture_height, 4, true);
+	defaultTexture.allocate(defaultTexture_width, defaultTexture_height, 4, true, iV_Image::ColorSpace::Linear);
 	if (!pDefaultTexture->upload(0, defaultTexture))
 	{
 		debug(LOG_ERROR, "Failed to upload default texture??");
@@ -2955,6 +2960,19 @@ void VkRoot::initPixelFormatsSupport()
 	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC)
 	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_R11_EAC)
 	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RG11_EAC)
+
+	// sRGB variants (uncompressed)
+	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA8_SRGB_PACK8)
+	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB8_SRGB_PACK8)
+
+	// sRGB variants (compressed)
+	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB_BC1_SRGB)
+	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BC2_SRGB)
+	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BC3_SRGB)
+	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BPTC_SRGB)
+
+	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB8_ETC2_SRGB)
+	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC_SRGB)
 }
 
 bool VkRoot::createSurface()
@@ -3283,6 +3301,24 @@ vk::Format VkRoot::get_format(const gfx_api::pixel_format& format) const
 		return vk::Format::eEacR11UnormBlock;
 	case gfx_api::pixel_format::FORMAT_RG11_EAC:
 		return vk::Format::eEacR11G11UnormBlock;
+// sRGB variants (uncompressed)
+	case gfx_api::pixel_format::FORMAT_RGBA8_SRGB_PACK8:
+		return vk::Format::eR8G8B8A8Srgb;
+	case gfx_api::pixel_format::FORMAT_RGB8_SRGB_PACK8:
+		return vk::Format::eR8G8B8Srgb;
+	// sRGB variants (compressed)
+	case gfx_api::pixel_format::FORMAT_RGB_BC1_SRGB:
+		return vk::Format::eBc1RgbSrgbBlock;
+	case gfx_api::pixel_format::FORMAT_RGBA_BC2_SRGB:
+		return vk::Format::eBc2SrgbBlock;
+	case gfx_api::pixel_format::FORMAT_RGBA_BC3_SRGB:
+		return vk::Format::eBc3SrgbBlock;
+	case gfx_api::pixel_format::FORMAT_RGBA_BPTC_SRGB:
+		return vk::Format::eBc7SrgbBlock;
+	case gfx_api::pixel_format::FORMAT_RGB8_ETC2_SRGB:
+		return vk::Format::eEtc2R8G8B8SrgbBlock;
+	case gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC_SRGB:
+		return vk::Format::eEtc2R8G8B8A8SrgbBlock;
 	case gfx_api::pixel_format::FORMAT_RGB8_ETC1:
 		// Not supported!
 	default:
@@ -3296,6 +3332,12 @@ bool VkRoot::texture2DFormatIsSupported(gfx_api::pixel_format format, gfx_api::p
 	size_t formatIdx = static_cast<size_t>(format);
 	ASSERT_OR_RETURN(false, formatIdx < texture2DFormatsSupport.size(), "Invalid format index: %zu", formatIdx);
 	return (texture2DFormatsSupport[formatIdx] & usage) == usage;
+}
+
+iV_Image::ColorSpace VkRoot::getFrameBufferColorspace() const
+{
+	// TODO: Implement based on swapchain srgb (or not)
+	return iV_Image::ColorSpace::Linear;
 }
 
 gfx_api::texture* VkRoot::create_texture(const std::size_t& mipmap_count, const std::size_t& width, const std::size_t& height, const gfx_api::pixel_format& internal_format, const std::string& filename)

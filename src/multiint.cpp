@@ -539,7 +539,7 @@ static void loadEmptyMapPreview()
 {
 	// No map is available to preview, so improvise.
 	iV_Image bckImage;
-	if (!bckImage.allocate(BACKDROP_HACK_WIDTH, BACKDROP_HACK_HEIGHT, 3, true))
+	if (!bckImage.allocate(BACKDROP_HACK_WIDTH, BACKDROP_HACK_HEIGHT, 3, true, gfx_api::context::get().getFrameBufferColorspace()))
 	{
 		debug(LOG_ERROR, "Failed to allocate memory for map preview");
 		return;
@@ -726,7 +726,7 @@ void loadMapPreview(bool hideInterface)
 
 	// for the backdrop, we currently need to copy this to the top-left of an image that's BACKDROP_HACK_WIDTH x BACKDROP_HACK_HEIGHT
 	iV_Image bckImage;
-	if (!bckImage.allocate(BACKDROP_HACK_WIDTH, BACKDROP_HACK_HEIGHT, 3, true))
+	if (!bckImage.allocate(BACKDROP_HACK_WIDTH, BACKDROP_HACK_HEIGHT, 3, true, gfx_api::context::get().getFrameBufferColorspace()))
 	{
 		debug(LOG_FATAL, "Failed to allocate memory for map preview");
 		abort();	// should be a fatal error ?

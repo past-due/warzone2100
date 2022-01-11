@@ -185,6 +185,11 @@ IMAGEFILE *iV_LoadImageFile(const char *fileName)
 		numImages += *ptr == '\n';
 		++ptr;
 	}
+
+//	bool hasAppropriateSRGBSupport = gfx_api::context::get().texture2DFormatIsSupported(gfx_api::pixel_format::FORMAT_RGBA8_SRGB_PACK8, gfx_api::pixel_format_usage::sampled_image);
+	bool hasAppropriateSRGBSupport = gfx_api::context::get().getFrameBufferColorspace() == iV_Image::ColorSpace::sRGB;
+	iV_Image::ColorSpace loadingColorspace = (hasAppropriateSRGBSupport) ? iV_Image::ColorSpace::sRGB : iV_Image::ColorSpace::Linear;
+
 	IMAGEFILE *imageFile = new IMAGEFILE;
 	imageFile->imageDefs.resize(numImages);
 	imageFile->imageNames.resize(numImages);
@@ -213,7 +218,7 @@ IMAGEFILE *iV_LoadImageFile(const char *fileName)
 		ImageMergeRectangle *imageRect = &pageLayout.images[numImages];
 		imageRect->index = numImages;
 		imageRect->data = new iV_Image;
-		if (!iV_loadImage_PNG(spriteName.c_str(), imageRect->data))
+		if (!iV_loadImage_PNG2(spriteName.c_str(), *imageRect->data, loadingColorspace, true))
 		{
 			debug(LOG_ERROR, "Failed to find image \"%s\" listed in \"%s\".", spriteName.c_str(), fileName);
 			delete imageFile;
@@ -239,7 +244,7 @@ IMAGEFILE *iV_LoadImageFile(const char *fileName)
 	for (unsigned p = 0; p < pageLayout.pages.size(); ++p)
 	{
 		int size = pageLayout.pages[p];
-		ivImages[p].allocate(size, size, 4, true);
+		ivImages[p].allocate(size, size, 4, true, loadingColorspace);
 		imageFile->pages[p].size = size;
 		// Must set imageFile->pages[p].id later, after filling out ivImages[p].bmp.
 	}

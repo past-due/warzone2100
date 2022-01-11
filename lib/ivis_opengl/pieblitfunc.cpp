@@ -210,9 +210,11 @@ static void pie_DrawRect(float x0, float y0, float x1, float y1, PIELIGHT colour
 	const auto& center = Vector2f(x0, y0);
 	const auto& mvp = defaultProjectionMatrix() * glm::translate(Vector3f(center, 0.f)) * glm::scale(glm::vec3(x1 - x0, y1 - y0, 1.f));
 
+	auto colour_vec = gfx_api::context::get().pielightToVec4ForShaders(colour);
+
 	PSO::get().bind();
 	PSO::get().bind_constants({ mvp, glm::vec2{}, glm::vec2{},
-		glm::vec4(colour.vector[0] / 255.f, colour.vector[1] / 255.f, colour.vector[2] / 255.f, colour.vector[3] / 255.f) });
+		/*glm::vec4(colour.vector[0] / 255.f, colour.vector[1] / 255.f, colour.vector[2] / 255.f, colour.vector[3] / 255.f)*/ colour_vec });
 	PSO::get().bind_vertex_buffers(pie_internal::rectBuffer);
 	PSO::get().draw(4, 0);
 	PSO::get().unbind_vertex_buffers(pie_internal::rectBuffer);
@@ -339,7 +341,7 @@ static void iv_DrawImageImpl(gfx_api::texture& TextureID, Vector2f offset, Vecto
 	PSO::get().bind_constants({ transformMat,
 		TextureUV,
 		TextureSize,
-		glm::vec4(colour.vector[0] / 255.f, colour.vector[1] / 255.f, colour.vector[2] / 255.f, colour.vector[3] / 255.f), 0});
+		/*glm::vec4(colour.vector[0] / 255.f, colour.vector[1] / 255.f, colour.vector[2] / 255.f, colour.vector[3] / 255.f)*/gfx_api::context::get().pielightToVec4ForShaders(colour), 0});
 	PSO::get().bind_textures(&TextureID);
 	PSO::get().bind_vertex_buffers(pie_internal::rectBuffer);
 	PSO::get().draw(4, 0);
@@ -652,7 +654,7 @@ void pie_SetRadar(gfx_api::gfxFloat x, gfx_api::gfxFloat y, gfx_api::gfxFloat wi
 {
 	for (size_t i = 0; i < NUM_RADAR_TEXTURES; ++i)
 	{
-		radarGfx[i]->makeTexture(twidth, theight);
+		radarGfx[i]->makeTexture(twidth, theight, (gfx_api::context::get().getFrameBufferColorspace() == iV_Image::ColorSpace::sRGB) ? gfx_api::pixel_format::FORMAT_RGBA8_SRGB_PACK8 : gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8);
 		//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);  // Want GL_LINEAR (or GL_LINEAR_MIPMAP_NEAREST) for min filter, but GL_NEAREST for mag filter. // TODO: Add a gfx_api::sampler_type to handle this case? bilinear, but nearest for mag?
 		gfx_api::gfxFloat texcoords[] = { 0.0f, 0.0f,  1.0f, 0.0f,  0.0f, 1.0f,  1.0f, 1.0f };
 		gfx_api::gfxFloat vertices[] = { x, y,  x + width, y,  x, y + height,  x + width, y + height };

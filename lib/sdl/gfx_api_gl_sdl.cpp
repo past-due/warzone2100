@@ -155,6 +155,17 @@ bool sdl_OpenGL_Impl::isOpenGLES() const
 	return contextRequest >= OpenGLES30;
 }
 
+bool sdl_OpenGL_Impl::isSRGBFramebuffer() const
+{
+	int value = 0;
+	if (SDL_GL_GetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, &value) != 0)
+	{
+		// Failed to get attribute
+		return false;
+	}
+	return value != 0;
+}
+
 bool sdl_OpenGL_Impl::createGLContext()
 {
 	SDL_GLContext WZglcontext = SDL_GL_CreateContext(window);

@@ -963,10 +963,10 @@ bool initTerrain()
 	lightmapPixmap = std::unique_ptr<iV_Image>(new iV_Image());
 
 	// not every system may have RGB texture support, so may need to expand to 4-channel (RGBA)
-	auto lightmapChannels = gfx_api::context::get().getClosestSupportedUncompressedImageFormatChannels(3); // ideal is RGB, but check if supported
+	auto lightmapChannels = gfx_api::context::get().getClosestSupportedUncompressedImageFormatChannels(3, gfx_api::context::get().getFrameBufferColorspace()); // ideal is RGB, but check if supported
 	ASSERT_OR_RETURN(false, lightmapChannels.has_value(), "Exhausted all possible uncompressed formats for lightmap texture??");
 
-	if (lightmapPixmap == nullptr || !lightmapPixmap->allocate(lightmapWidth, lightmapHeight, lightmapChannels.value(), true))
+	if (lightmapPixmap == nullptr || !lightmapPixmap->allocate(lightmapWidth, lightmapHeight, lightmapChannels.value(), true, gfx_api::context::get().getFrameBufferColorspace()))
 	{
 		debug(LOG_FATAL, "Out of memory!");
 		abort();

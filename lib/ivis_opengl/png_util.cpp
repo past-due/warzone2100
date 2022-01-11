@@ -26,6 +26,7 @@
 #include <physfs.h>
 #include "lib/framework/physfs_ext.h"
 #include <algorithm>
+#include "gfx_api.h"
 
 #define PNG_BYTES_TO_CHECK 8
 
@@ -195,7 +196,7 @@ bool iV_loadImage_PNG(const char *fileName, iV_Image *image)
 		// something is wrong - unexpected row size
 		png_error(png_ptr, "unexpected row bytes");
 	}
-	image->allocate(width, height, depth);
+	image->allocate(width, height, depth, false, iV_Image::ColorSpace::Linear); // TODO: Fix??
 
 	{
 		unsigned int i = 0;
@@ -214,7 +215,7 @@ bool iV_loadImage_PNG(const char *fileName, iV_Image *image)
 	return true;
 }
 
-bool iV_loadImage_PNG2(const char *fileName, iV_Image& image)
+bool iV_loadImage_PNG2(const char *fileName, iV_Image& image, iV_Image::ColorSpace targetColorspace, bool forceRGBA8)
 {
 	unsigned char PNGheader[PNG_BYTES_TO_CHECK];
 	PHYSFS_sint64 readSize;
@@ -231,6 +232,8 @@ bool iV_loadImage_PNG2(const char *fileName, iV_Image& image)
 	size_t row_bytes = 0;
 
 	png_bytep* row_pointers = nullptr;
+
+	auto currentWorkingColorspace = gfx_api::context::get().getFrameBufferColorspace();
 
 	// Open file
 	PHYSFS_file *fileHandle = PHYSFS_openRead(fileName);
@@ -260,6 +263,20 @@ bool iV_loadImage_PNG2(const char *fileName, iV_Image& image)
 		debug(LOG_FATAL, "pie_PNGLoadMem: Unable to create png struct");
 		PNGReadCleanup(&info_ptr, &png_ptr, fileHandle);
 		return false;
+	}
+
+	bool read_sRGB = (targetColorspace == iV_Image::ColorSpace::sRGB);
+	double screen_gamma = (read_sRGB) ? PNG_DEFAULT_sRGB : PNG_GAMMA_LINEAR;
+//	double default_output_gamma = (currentWorkingColorspace == iV_Image::ColorSpace::sRGB) ? PNG_DEFAULT_sRGB : PNG_GAMMA_LINEAR;
+//#ifdef PNG_READ_GAMMA_SUPPORTED
+//	// set default file gamma for files that lack the info to LINEAR (to match prior WZ behavior)
+//	png_set_gamma(png_ptr, screen_gamma, screen_gamma);
+//#endif
+////	png_set_alpha_mode(png_ptr, PNG_ALPHA_PNG, PNG_GAMMA_LINEAR);
+	if (currentWorkingColorspace == iV_Image::ColorSpace::sRGB)
+	{
+		png_set_alpha_mode(png_ptr, PNG_ALPHA_PNG, PNG_DEFAULT_sRGB);
+		png_set_alpha_mode(png_ptr, PNG_ALPHA_PNG, screen_gamma);
 	}
 
 	info_ptr = png_create_info_struct(png_ptr);
@@ -311,7 +328,8 @@ bool iV_loadImage_PNG2(const char *fileName, iV_Image& image)
 	/* tell libpng to strip 16 bit/color files down to 8 bits/color */
 	if (bit_depth == 16)
 	{
-		png_set_strip_16(png_ptr);
+//		png_set_strip_16(png_ptr);
+		png_set_scale_16(png_ptr);
 	}
 
 	if (color_type == PNG_COLOR_TYPE_PALETTE)
@@ -337,8 +355,120 @@ bool iV_loadImage_PNG2(const char *fileName, iV_Image& image)
 		png_set_packing(png_ptr);
 	}
 
+	if (forceRGBA8)
+	{
+		/* More transformations to ensure we end up with 32bpp, 4 channel RGBA */
+		png_set_gray_to_rgb(png_ptr);
+	}
+
 	// Fill alpha with 0xFF (if needed)
 	png_set_filler(png_ptr, 0xff, PNG_FILLER_AFTER);
+
+//	bool read_sRGB = (targetColorspace == iV_Image::ColorSpace::sRGB);
+//	// TODO: May need an #ifdef check of libpng version to be able to use PNG_DEFAULT_sRGB
+//	// See: http://www.libpng.org/pub/png/libpng-manual.txt
+//	// "
+//	//	Many systems permit the system gamma to be changed via a lookup table in the
+//	//	display driver, a few systems, including older Macs, change the response by
+//	//	default.  As of 1.5.4 three special values are available to handle common
+//	//	situations:
+//	//
+//	//	   PNG_DEFAULT_sRGB: Indicates that the system conforms to the
+//	//						 IEC 61966-2-1 standard.  This matches almost
+//	//						 all systems.
+//	//	   PNG_GAMMA_MAC_18: Indicates that the system is an older
+//	//						 (pre Mac OS 10.6) Apple Macintosh system with
+//	//						 the default settings.
+//	//	   PNG_GAMMA_LINEAR: Just the fixed point value for 1.0 - indicates
+//	//						 that the system expects data with no gamma
+//	//						 encoding.
+//	double screen_gamma = (read_sRGB) ? PNG_DEFAULT_sRGB : PNG_GAMMA_LINEAR;
+//
+//	bool set_file_gamma = false;
+//#ifdef PNG_sRGB_SUPPORTED
+//	if (png_get_valid(png_ptr, info_ptr, PNG_INFO_sRGB))
+//	{
+//		int intent;
+//		if (png_get_sRGB(png_ptr, info_ptr, &intent) == PNG_INFO_sRGB)
+//		{
+//			set_file_gamma = true;
+//			png_set_gamma(png_ptr, screen_gamma, PNG_DEFAULT_sRGB);
+//			debug(LOG_INFO, "Setting sRGB gama: %s", fileName);
+//		}
+//	}
+//#endif
+//
+//#ifdef PNG_iCCP_SUPPORTED
+//	if (!set_file_gamma && png_get_valid(png_ptr, info_ptr, PNG_INFO_iCCP))
+//	{
+//		// WARNING: We do not handle processing these
+//		// Instead, ensure the PNG file has either the sRGB chunk or the gAMA chunk properly set
+//
+//		// For now, to approximate old behavior, we set to linear gamma
+//		// This probably isn't correct but it results in the desired output without larger changes to the rest of the rendering pipeline
+//		debug(LOG_INFO, "Ignoring ICCP: %s", fileName);
+////
+////		set_file_gamma = true;
+////		png_set_gamma(png_ptr, screen_gamma, PNG_GAMMA_LINEAR);
+//	}
+//#endif
+
+//#ifdef PNG_gAMA_SUPPORTED
+//	if (!set_file_gamma && png_get_valid(png_ptr, info_ptr, PNG_INFO_gAMA))
+//	{
+//		double file_gamma;
+//#ifdef PNG_FLOATING_POINT_SUPPORTED
+//		if (png_get_gAMA(png_ptr, info_ptr, &file_gamma) == PNG_INFO_gAMA)
+//		{
+//#else
+//		png_fixed_point fixed_gamma = 0;
+//		if (png_get_gAMA_fixed(png_ptr, info_ptr, &fixed_gamma) == PNG_INFO_gAMA)
+//		{
+//			file_gamma = fixed_gamma / 100000.0;
+//#endif
+//			set_file_gamma = true;
+////
+////			float tmpGamma = (float) 100000 / file_gamma;
+////			if (tmpGamma > 1.6667f)
+////			{
+////				png_set_gamma(png_ptr, screen_gamma, PNG_DEFAULT_sRGB);
+////			}
+////			else
+////			{
+////				png_set_gamma(png_ptr, screen_gamma, PNG_GAMMA_LINEAR);
+////			}
+//
+//			debug(LOG_INFO, "Setting gAMA (%f): %s", (float)file_gamma, fileName);
+//			png_set_gamma(png_ptr, screen_gamma, file_gamma);
+//		}
+//	}
+//#endif
+
+
+#ifdef PNG_cHRM_SUPPORTED
+
+#endif
+
+//#ifdef PNG_READ_GAMMA_SUPPORTED
+//	if (!set_file_gamma)
+//	{
+//		// set default file gamma for files that lack the info to LINEAR (to match prior WZ behavior)
+//		png_set_gamma(png_ptr, screen_gamma, PNG_GAMMA_LINEAR);
+//	}
+//#endif
+
+	if (currentWorkingColorspace == iV_Image::ColorSpace::Linear)
+	{
+		// Nets the old behavior (ugh)
+		png_set_gamma(png_ptr, screen_gamma, PNG_GAMMA_LINEAR);
+	}
+
+#if PNG_LIBPNG_VER >= 10504
+//	png_set_alpha_mode(png_ptr, PNG_ALPHA_PNG, screen_gamma);
+//#else
+//	// png_set_alpha_mode is not available - must use png_set_gamma instead
+//	png_set_gamma(png_ptr, gammaValue, 1.0/gammaValue);
+#endif
 
 	png_read_update_info(png_ptr, info_ptr);
 
@@ -361,7 +491,7 @@ bool iV_loadImage_PNG2(const char *fileName, iV_Image& image)
 	}
 
 	// Figure out output image type
-	auto destFormat = iV_Image::pixel_format_for_channels(channels);
+	auto destFormat = iV_Image::pixel_format_for_channels(channels, (read_sRGB) ? iV_Image::ColorSpace::sRGB : iV_Image::ColorSpace::Linear);
 	if (destFormat == gfx_api::pixel_format::invalid)
 	{
 		PNGReadCleanup(&info_ptr, &png_ptr, fileHandle);
@@ -376,7 +506,7 @@ bool iV_loadImage_PNG2(const char *fileName, iV_Image& image)
 	}
 
 	// Allocate buffer
-	if (!image.allocate(width, height, channels))
+	if (!image.allocate(width, height, channels, false, (read_sRGB) ? iV_Image::ColorSpace::sRGB : iV_Image::ColorSpace::Linear))
 	{
 		debug(LOG_FATAL, "pie_PNGLoadMem: Unable to allocate memory to load: %s", fileName);
 		PNGReadCleanup(&info_ptr, &png_ptr, fileHandle);
@@ -528,7 +658,7 @@ IMGSaveError iV_loadImage_PNG(const std::vector<unsigned char>& memoryBuffer, iV
 		// something is wrong - unexpected row size
 		png_error(png_ptr, "unexpected row bytes");
 	}
-	image->allocate(width, height, depth);
+	image->allocate(width, height, depth, false, iV_Image::ColorSpace::Linear); // TODO: Fix??
 
 	{
 		unsigned int i = 0;

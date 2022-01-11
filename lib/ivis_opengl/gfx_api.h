@@ -317,12 +317,15 @@ namespace gfx_api
 		virtual bool setSwapInterval(swap_interval_mode mode) = 0;
 		virtual swap_interval_mode getSwapInterval() const = 0;
 		virtual bool texture2DFormatIsSupported(pixel_format format, pixel_format_usage::flags usage) = 0;
+		virtual iV_Image::ColorSpace getFrameBufferColorspace() const = 0;
+		glm::vec4 pielightToVec4ForShaders(PIELIGHT color) const;
+		glm::vec4 gammaCorrectColorVec4_Slow(glm::vec4 color) const;
 	public:
 		// High-level API for getting a texture object from file / uncompressed bitmap
 		gfx_api::texture* loadTextureFromFile(const char *filename, gfx_api::texture_type textureType, int maxWidth = -1, int maxHeight = -1);
 		gfx_api::texture* loadTextureFromUncompressedImage(iV_Image&& image, gfx_api::texture_type textureType, const std::string& filename, int maxWidth = -1, int maxHeight = -1);
 
-		optional<unsigned int> getClosestSupportedUncompressedImageFormatChannels(unsigned int channels);
+		optional<unsigned int> getClosestSupportedUncompressedImageFormatChannels(unsigned int channels, iV_Image::ColorSpace colorSpace);
 		gfx_api::texture* createTextureForCompatibleImageUploads(const size_t& mipmap_count, const iV_Image& bitmap, const std::string& filename);
 	private:
 		virtual bool _initialize(const backend_Impl_Factory& impl, int32_t antialiasing, swap_interval_mode mode) = 0;

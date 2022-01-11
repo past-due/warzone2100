@@ -48,6 +48,7 @@ namespace gfx_api
 		virtual void getDrawableSize(int* w, int* h) = 0;
 
 		virtual bool isOpenGLES() const = 0;
+		virtual bool isSRGBFramebuffer() const = 0;
 
 		virtual bool setSwapInterval(gfx_api::context::swap_interval_mode mode) = 0;
 		virtual gfx_api::context::swap_interval_mode getSwapInterval() const = 0;
@@ -227,6 +228,7 @@ struct gl_context final : public gfx_api::context
 	virtual bool setSwapInterval(gfx_api::context::swap_interval_mode mode) override;
 	virtual gfx_api::context::swap_interval_mode getSwapInterval() const override;
 	virtual bool texture2DFormatIsSupported(gfx_api::pixel_format format, gfx_api::pixel_format_usage::flags usage) override;
+	virtual iV_Image::ColorSpace getFrameBufferColorspace() const override;
 private:
 	virtual bool _initialize(const gfx_api::backend_Impl_Factory& impl, int32_t antialiasing, swap_interval_mode mode) override;
 	void initPixelFormatsSupport();
@@ -241,4 +243,5 @@ private:
 	size_t frameNum = 0;
 	std::string formattedRendererInfoString;
 	std::vector<gfx_api::pixel_format_usage::flags> texture2DFormatsSupport;
+	iV_Image::ColorSpace framebufferColorspace = iV_Image::ColorSpace::Linear;
 };
