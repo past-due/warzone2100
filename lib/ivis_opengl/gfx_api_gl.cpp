@@ -2485,8 +2485,8 @@ void gl_context::initPixelFormatsSupport()
 
 	// sRGB variants of the uncompressed formats
 	// Desktop OpenGL: OpenGL 2.1+, or GL_EXT_texture_sRGB
-	// OpenGL ES: OpenGL ES 3.0+, or // TODO: EXT_sRGB
-	if ((!gles && (GLAD_GL_VERSION_2_1 || GLAD_GL_EXT_texture_sRGB)) || (gles && GL_ES_VERSION_3_0))
+	// OpenGL ES: OpenGL ES 3.0+, or EXT_sRGB
+	if ((!gles && (GLAD_GL_VERSION_2_1 || GLAD_GL_EXT_texture_sRGB)) || (gles && (GL_ES_VERSION_3_0 || GLAD_GL_EXT_sRGB)))
 	{
 		PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA8_SRGB_PACK8)
 		PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB8_SRGB_PACK8)
@@ -2500,12 +2500,7 @@ void gl_context::initPixelFormatsSupport()
 		PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB_BC1_UNORM) // DXT1
 		PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BC2_UNORM) // DXT3
 		PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BC3_UNORM) // DXT5
-		if (!gles && (GLAD_GL_VERSION_2_1 || GLAD_GL_EXT_texture_sRGB)) // || gles && GLAD_EXT_texture_compression_s3tc_srgb // TODO: ???
-		{
-			PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB_BC1_SRGB) // DXT1 (sRGB)
-			PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BC2_SRGB) // DXT3 (sRGB)
-			PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BC3_SRGB) // DXT5 (sRGB)
-		}
+
 	}
 	else if (gles)
 	{
@@ -2523,6 +2518,17 @@ void gl_context::initPixelFormatsSupport()
 		}
 	}
 
+	// S3TC sRGB
+	// Desktop OpenGL: GL_EXT_texture_compression_s3tc + either: GL_EXT_texture_sRGB or OpenGL 2.1+ (where GL_EXT_texture_sRGB has been promoted to core)
+	// OpenGL ES: GL_EXT_texture_compression_s3tc_srgb, GL_NV_sRGB_formats
+	if ((!gles && GLAD_GL_EXT_texture_compression_s3tc && (GLAD_GL_VERSION_2_1 || GLAD_GL_EXT_texture_sRGB))
+		|| (gles && (GLAD_GL_EXT_texture_compression_s3tc_srgb || GLAD_GL_NV_sRGB_formats)))
+	{
+		PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB_BC1_SRGB) // DXT1 (sRGB)
+		PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BC2_SRGB) // DXT3 (sRGB)
+		PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BC3_SRGB) // DXT5 (sRGB)
+	}
+
 	// RGTC
 	// Desktop OpenGL: GL_ARB_texture_compression_rgtc (or OpenGL 3.0+ Core?)
 	// OpenGL ES: TODO: Could check for GL_EXT_texture_compression_rgtc, but support seems rare
@@ -2534,8 +2540,8 @@ void gl_context::initPixelFormatsSupport()
 
 	// BPTC
 	// Desktop OpenGL: GL_ARB_texture_compression_bptc
-	// TODO: OpenGL ES: Could detect GL_EXT_texture_compression_bptc, but support seems very rare
-	if (!gles && GLAD_GL_ARB_texture_compression_bptc)
+	// OpenGL ES: GL_EXT_texture_compression_bptc
+	if ((!gles && GLAD_GL_ARB_texture_compression_bptc) || (gles && GLAD_GL_EXT_texture_compression_bptc))
 	{
 		PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BPTC_UNORM)
 		PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BPTC_SRGB)
