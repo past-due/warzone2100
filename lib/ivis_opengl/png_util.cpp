@@ -344,8 +344,22 @@ bool iV_loadImage_PNG2(const char *fileName, iV_Image& image, iV_Image::ColorSpa
 	// TODO: May need an #ifdef check of libpng version to be able to use PNG_DEFAULT_sRGB
 	double screen_gamma = (read_sRGB) ? PNG_DEFAULT_sRGB : PNG_GAMMA_LINEAR;
 
+	bool set_file_gamma = false;
+#ifdef PNG_sRGB_SUPPORTED
+	if (png_get_valid(png_ptr, info_ptr, PNG_INFO_sRGB))
+	{
+		int intent;
+		if (png_get_sRGB(png_ptr, info_ptr, &intent) != PNG_INFO_sRGB)
+		{
+			// TODO: HANDLE ERROR
+		}
+		set_file_gamma = true;
+		png_set_gamma(png_ptr, screen_gamma, PNG_DEFAULT_sRGB);
+	}
+#endif
+
 #ifdef PNG_gAMA_SUPPORTED
-	if (png_get_valid(png_ptr, info_ptr, PNG_INFO_gAMA))
+	if (!set_file_gamma && png_get_valid(png_ptr, info_ptr, PNG_INFO_gAMA))
 	{
 		double file_gamma;
 #ifdef PNG_FLOATING_POINT_SUPPORTED
@@ -361,11 +375,15 @@ bool iV_loadImage_PNG2(const char *fileName, iV_Image& image, iV_Image::ColorSpa
 		}
 		file_gamma = fixed_gamma / 100000.0;
 #endif
+		set_file_gamma = true;
 		png_set_gamma(png_ptr, screen_gamma, file_gamma);
 	}
-	else
+#endif
+
+#ifdef PNG_READ_GAMMA_SUPPORTED
+	if (!set_file_gamma)
 	{
-		// set default file gamma for files that lack the info to LINEAR
+		// set default file gamma for files that lack the info to LINEAR (to match prior WZ behavior)
 		png_set_gamma(png_ptr, screen_gamma, PNG_GAMMA_LINEAR);
 	}
 #endif
