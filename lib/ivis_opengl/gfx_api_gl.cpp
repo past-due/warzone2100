@@ -110,6 +110,57 @@ static GLenum to_gl_internalformat(const gfx_api::pixel_format& format, bool gle
 			return GL_COMPRESSED_R11_EAC;
 		case gfx_api::pixel_format::FORMAT_RG11_EAC:
 			return GL_COMPRESSED_RG11_EAC;
+
+		// sRGB variants (uncompressed)
+		case gfx_api::pixel_format::FORMAT_RGBA8_SRGB_PACK8:
+			if (!gles)
+			{
+				return GL_SRGB8_ALPHA8_EXT;
+			}
+			else
+			{
+				if (GL_ES_VERSION_3_0) // OpenGL ES 3.0+
+				{
+					return GL_SRGB8_ALPHA8_EXT;
+				}
+				else
+				{
+					// presumably EXT_sRGB must be supported
+					return GL_SRGB_ALPHA_EXT;
+				}
+			}
+		case gfx_api::pixel_format::FORMAT_RGB8_SRGB_PACK8:
+			if (!gles)
+			{
+				return GL_SRGB8_EXT;
+			}
+			else
+			{
+				if (GL_ES_VERSION_3_0) // OpenGL ES 3.0+
+				{
+					return GL_SRGB8_EXT;
+				}
+				else
+				{
+					// presumably EXT_sRGB must be supported
+					return GL_SRGB_EXT;
+				}
+			}
+
+		// sRGB variants (compressed)
+		case gfx_api::pixel_format::FORMAT_RGB_BC1_SRGB:
+			return GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT;
+		case gfx_api::pixel_format::FORMAT_RGBA_BC2_SRGB:
+			return GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT;
+		case gfx_api::pixel_format::FORMAT_RGBA_BC3_SRGB:
+			return GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT;
+		case gfx_api::pixel_format::FORMAT_RGBA_BPTC_SRGB:
+			return GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM_ARB;
+
+		case gfx_api::pixel_format::FORMAT_RGB8_ETC2_SRGB:
+			return GL_COMPRESSED_SRGB8_ETC2;
+		case gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC_SRGB:
+			return GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC;
 		default:
 			debug(LOG_FATAL, "Unrecognised pixel format");
 	}
@@ -122,10 +173,12 @@ static GLenum to_gl_format(const gfx_api::pixel_format& format, bool gles)
 	{
 		// UNCOMPRESSED FORMATS
 		case gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8:
+		case gfx_api::pixel_format::FORMAT_RGBA8_SRGB_PACK8:
 			return GL_RGBA;
 		case gfx_api::pixel_format::FORMAT_BGRA8_UNORM_PACK8:
 			return GL_BGRA;
 		case gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8:
+		case gfx_api::pixel_format::FORMAT_RGB8_SRGB_PACK8:
 			return GL_RGB;
 		case gfx_api::pixel_format::FORMAT_RG8_UNORM:
 			if (gles && GLAD_GL_EXT_texture_rg)
@@ -1943,7 +1996,7 @@ bool gl_context::getScreenshot(std::function<void (std::unique_ptr<iV_Image>)> c
 	auto image = std::unique_ptr<iV_Image>(new iV_Image());
 	auto width = m_viewport[2];
 	auto height = m_viewport[3];
-	bool allocateResult = image->allocate(width, height, channelsPerPixel); // RGB
+	bool allocateResult = image->allocate(width, height, channelsPerPixel, false, iV_Image::ColorSpace::Linear); // RGB
 	ASSERT_OR_RETURN(false, allocateResult, "Failed to allocate buffer");
 
 	glPixelStorei(GL_PACK_ALIGNMENT, 1);
@@ -2430,6 +2483,15 @@ void gl_context::initPixelFormatsSupport()
 		PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RG8_UNORM)
 	}
 
+	// sRGB variants of the uncompressed formats
+	// Desktop OpenGL: OpenGL 2.1+, or GL_EXT_texture_sRGB
+	// OpenGL ES: OpenGL ES 3.0+, or // TODO: EXT_sRGB
+	if ((!gles && (GLAD_GL_VERSION_2_1 || GLAD_GL_EXT_texture_sRGB)) || (gles && GL_ES_VERSION_3_0))
+	{
+		PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA8_SRGB_PACK8)
+		PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB8_SRGB_PACK8)
+	}
+
 	// S3TC
 	// Desktop OpenGL: GL_EXT_texture_compression_s3tc
 	// OpenGL ES: (May be supported by the same GL_EXT_texture_compression_s3tc, other extensions)
@@ -2438,6 +2500,12 @@ void gl_context::initPixelFormatsSupport()
 		PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB_BC1_UNORM) // DXT1
 		PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BC2_UNORM) // DXT3
 		PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BC3_UNORM) // DXT5
+		if (!gles && (GLAD_GL_VERSION_2_1 || GLAD_GL_EXT_texture_sRGB)) // || gles && GLAD_EXT_texture_compression_s3tc_srgb // TODO: ???
+		{
+			PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB_BC1_SRGB) // DXT1 (sRGB)
+			PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BC2_SRGB) // DXT3 (sRGB)
+			PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BC3_SRGB) // DXT5 (sRGB)
+		}
 	}
 	else if (gles)
 	{
@@ -2470,6 +2538,7 @@ void gl_context::initPixelFormatsSupport()
 	if (!gles && GLAD_GL_ARB_texture_compression_bptc)
 	{
 		PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BPTC_UNORM)
+		PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BPTC_SRGB)
 	}
 
 	// ETC1
@@ -2489,12 +2558,21 @@ void gl_context::initPixelFormatsSupport()
 	//		- To handle this, really restrict when it's permitted on desktop - only permit if S3TC is *not* supported
 	// OpenGL ES: Mandatory in OpenGL ES 3.0+
 	// IMPORTANT: **MUST** come after S3TC/DXT & RGTC is checked !!
+	bool canSupportETC2_sRGB = (gles && GLAD_GL_ES_VERSION_3_0) || (!gles && GLAD_GL_ARB_ES3_compatibility);
 	if ((gles && GLAD_GL_ES_VERSION_3_0) || (!gles && GLAD_GL_ARB_ES3_compatibility))
 	{
 		PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB8_ETC2)
+		if (canSupportETC2_sRGB)
+		{
+			PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB8_ETC2_SRGB)
+		}
 		if (gles || !texture2DFormatIsSupported(gfx_api::pixel_format::FORMAT_RGBA_BC3_UNORM, gfx_api::pixel_format_usage::sampled_image))
 		{
 			PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC)
+			if (canSupportETC2_sRGB)
+			{
+				PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC_SRGB)
+			}
 		}
 		if (gles || !texture2DFormatIsSupported(gfx_api::pixel_format::FORMAT_R_BC4_UNORM, gfx_api::pixel_format_usage::sampled_image))
 		{

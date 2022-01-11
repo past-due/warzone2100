@@ -222,7 +222,7 @@ bool resizeRadar()
 	radarTexWidth = scrollMaxX - scrollMinX;
 	radarTexHeight = scrollMaxY - scrollMinY;
 	radarBufferSize = radarTexWidth * radarTexHeight * sizeof(UDWORD);
-	radarBitmap.allocate(radarTexWidth, radarTexHeight, 4, true);
+	radarBitmap.allocate(radarTexWidth, radarTexHeight, 4, true, iV_Image::ColorSpace::Linear);
 	radarOverlayBuffer = (uint32_t*)malloc(radarBufferSize);
 	memset(radarOverlayBuffer, 0, radarBufferSize);
 	frameSkip = 0;

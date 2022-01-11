@@ -195,7 +195,7 @@ bool iV_loadImage_PNG(const char *fileName, iV_Image *image)
 		// something is wrong - unexpected row size
 		png_error(png_ptr, "unexpected row bytes");
 	}
-	image->allocate(width, height, depth);
+	image->allocate(width, height, depth, false, iV_Image::ColorSpace::Linear); // TODO: Fix??
 
 	{
 		unsigned int i = 0;
@@ -214,7 +214,7 @@ bool iV_loadImage_PNG(const char *fileName, iV_Image *image)
 	return true;
 }
 
-bool iV_loadImage_PNG2(const char *fileName, iV_Image& image)
+bool iV_loadImage_PNG2(const char *fileName, iV_Image& image, iV_Image::ColorSpace targetColorspace)
 {
 	unsigned char PNGheader[PNG_BYTES_TO_CHECK];
 	PHYSFS_sint64 readSize;
@@ -340,6 +340,43 @@ bool iV_loadImage_PNG2(const char *fileName, iV_Image& image)
 	// Fill alpha with 0xFF (if needed)
 	png_set_filler(png_ptr, 0xff, PNG_FILLER_AFTER);
 
+	bool read_sRGB = (targetColorspace == iV_Image::ColorSpace::sRGB);
+	// TODO: May need an #ifdef check of libpng version to be able to use PNG_DEFAULT_sRGB
+	double screen_gamma = (read_sRGB) ? PNG_DEFAULT_sRGB : PNG_GAMMA_LINEAR;
+
+#ifdef PNG_gAMA_SUPPORTED
+	if (png_get_valid(png_ptr, info_ptr, PNG_INFO_gAMA))
+	{
+		double file_gamma;
+#ifdef PNG_FLOATING_POINT_SUPPORTED
+		if (png_get_gAMA(png_ptr, info_ptr, &file_gamma) != PNG_INFO_gAMA)
+		{
+			// TODO: HANDLE ERROR
+		}
+#else
+		png_fixed_point fixed_gamma = 0;
+		if (png_get_gAMA_fixed(png_ptr, info_ptr, &fixed_gamma) != PNG_INFO_gAMA)
+		{
+			// TODO: HANDLE ERROR
+		}
+		file_gamma = fixed_gamma / 100000.0;
+#endif
+		png_set_gamma(png_ptr, screen_gamma, file_gamma);
+	}
+	else
+	{
+		// set default file gamma for files that lack the info to LINEAR
+		png_set_gamma(png_ptr, screen_gamma, PNG_GAMMA_LINEAR);
+	}
+#endif
+
+#if PNG_LIBPNG_VER >= 10504
+	png_set_alpha_mode(png_ptr, PNG_ALPHA_PNG, screen_gamma);
+//#else
+//	// png_set_alpha_mode is not available - must use png_set_gamma instead
+//	png_set_gamma(png_ptr, gammaValue, 1.0/gammaValue);
+#endif
+
 	png_read_update_info(png_ptr, info_ptr);
 
 	color_type = png_get_color_type(png_ptr, info_ptr);
@@ -361,7 +398,7 @@ bool iV_loadImage_PNG2(const char *fileName, iV_Image& image)
 	}
 
 	// Figure out output image type
-	auto destFormat = iV_Image::pixel_format_for_channels(channels);
+	auto destFormat = iV_Image::pixel_format_for_channels(channels, (read_sRGB) ? iV_Image::ColorSpace::sRGB : iV_Image::ColorSpace::Linear);
 	if (destFormat == gfx_api::pixel_format::invalid)
 	{
 		PNGReadCleanup(&info_ptr, &png_ptr, fileHandle);
@@ -376,7 +413,7 @@ bool iV_loadImage_PNG2(const char *fileName, iV_Image& image)
 	}
 
 	// Allocate buffer
-	if (!image.allocate(width, height, channels))
+	if (!image.allocate(width, height, channels, false, (read_sRGB) ? iV_Image::ColorSpace::sRGB : iV_Image::ColorSpace::Linear))
 	{
 		debug(LOG_FATAL, "pie_PNGLoadMem: Unable to allocate memory to load: %s", fileName);
 		PNGReadCleanup(&info_ptr, &png_ptr, fileHandle);
@@ -528,7 +565,7 @@ IMGSaveError iV_loadImage_PNG(const std::vector<unsigned char>& memoryBuffer, iV
 		// something is wrong - unexpected row size
 		png_error(png_ptr, "unexpected row bytes");
 	}
-	image->allocate(width, height, depth);
+	image->allocate(width, height, depth, false, iV_Image::ColorSpace::Linear); // TODO: Fix??
 
 	{
 		unsigned int i = 0;

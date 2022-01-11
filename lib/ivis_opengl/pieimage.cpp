@@ -80,7 +80,7 @@ iV_Image& iV_Image::operator=(iV_Image&& other)
 }
 
 // Allocate a new iV_Image buffer
-bool iV_Image::allocate(unsigned int newWidth, unsigned int newHeight, unsigned int newChannels, bool zeroMemory)
+bool iV_Image::allocate(unsigned int newWidth, unsigned int newHeight, unsigned int newChannels, bool zeroMemory, iV_Image::ColorSpace newColorSpace)
 {
 	if (m_bmp)
 	{
@@ -104,12 +104,13 @@ bool iV_Image::allocate(unsigned int newWidth, unsigned int newHeight, unsigned 
 	m_width = newWidth;
 	m_height = newHeight;
 	m_channels = newChannels;
+	m_colorSpace = newColorSpace;
 	return true;
 }
 
 bool iV_Image::duplicate(const iV_Image& other)
 {
-	if (!allocate(other.width(), other.height(), other.channels(), false))
+	if (!allocate(other.width(), other.height(), other.channels(), false, other.colorSpace()))
 	{
 		return false;
 	}
@@ -119,7 +120,7 @@ bool iV_Image::duplicate(const iV_Image& other)
 
 void iV_Image::clear()
 {
-	allocate(0,0,0);
+	allocate(0,0,0,false,iV_Image::ColorSpace::Linear);
 }
 
 // Get a pointer to the bitmap data that can be read
@@ -134,8 +135,9 @@ unsigned char* iV_Image::bmp_w()
 	return m_bmp;
 }
 
-gfx_api::pixel_format iV_Image::pixel_format_for_channels(unsigned int channels)
+gfx_api::pixel_format iV_Image::pixel_format_for_channels(unsigned int channels, iV_Image::ColorSpace colorspace)
 {
+	const bool sRGB = (colorspace == iV_Image::ColorSpace::sRGB);
 	switch (channels)
 	{
 	case 1:
@@ -143,9 +145,9 @@ gfx_api::pixel_format iV_Image::pixel_format_for_channels(unsigned int channels)
 	case 2:
 		return gfx_api::pixel_format::FORMAT_RG8_UNORM;
 	case 3:
-		return gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8;
+		return (!sRGB) ? gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8 : gfx_api::pixel_format::FORMAT_RGB8_SRGB_PACK8;
 	case 4:
-		return gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8;
+		return (!sRGB) ? gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8 : gfx_api::pixel_format::FORMAT_RGBA8_SRGB_PACK8;
 	default:
 		debug(LOG_FATAL, "iV_getPixelFormat: Unsupported image channels: %u", channels);
 		return gfx_api::pixel_format::invalid;
@@ -154,7 +156,7 @@ gfx_api::pixel_format iV_Image::pixel_format_for_channels(unsigned int channels)
 
 gfx_api::pixel_format iV_Image::pixel_format() const
 {
-	return iV_Image::pixel_format_for_channels(m_channels);
+	return iV_Image::pixel_format_for_channels(m_channels, m_colorSpace);
 }
 
 template <size_t readChannels, size_t writeChannels, int writeAlphaChannel = -1, unsigned char defaultAlphaValue = 255>
@@ -316,7 +318,7 @@ bool iV_Image::resize(int output_w, int output_h)
 							   m_channels, m_channels == 4 ? 3 : STBIR_ALPHA_CHANNEL_NONE, 0,
 							   STBIR_EDGE_CLAMP,
 							   STBIR_FILTER_MITCHELL,
-							   STBIR_COLORSPACE_LINEAR,
+							   (m_colorSpace == ColorSpace::sRGB) ? STBIR_COLORSPACE_SRGB : STBIR_COLORSPACE_LINEAR,
 							   nullptr);
 	free(m_bmp);
 	m_width = output_w;

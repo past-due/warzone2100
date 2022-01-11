@@ -81,8 +81,11 @@ static gfx_api::texture* loadImageTextureFromFile_PNG(const std::string& filenam
 {
 	iV_Image loadedUncompressedImage;
 
+	// TODO: Check that at least one sRGB uncompressed / compressed format is available
+	// If not, pass iV_Image::ColorSpace::Linear ??
+
 	// 1.) Load the PNG into an iV_Image
-	if (!iV_loadImage_PNG2(filename.c_str(), loadedUncompressedImage))
+	if (!iV_loadImage_PNG2(filename.c_str(), loadedUncompressedImage, iV_Image::ColorSpace::sRGB))
 	{
 		// Failed to load the image
 		return nullptr;
@@ -163,16 +166,7 @@ gfx_api::texture* gfx_api::context::loadTextureFromUncompressedImage(iV_Image&& 
 		}
 	}
 
-	// 4.) Extend channels, if needed, to a supported uncompressed format
-	auto channels = image.channels();
-	// Verify that the gfx backend supports this format
-	auto closestSupportedChannels = getClosestSupportedUncompressedImageFormatChannels(channels);
-	ASSERT_OR_RETURN(nullptr, closestSupportedChannels.has_value(), "Exhausted all possible uncompressed formats??");
-	for (auto i = image.channels(); i < closestSupportedChannels; ++i)
-	{
-		image.expand_channels_towards_rgba();
-	}
-
+	// 4.) Determine uploadFormat
 	auto uploadFormat = image.pixel_format();
 	auto bestAvailableCompressedFormat = gfx_api::bestRealTimeCompressionFormatForImage(image, textureType);
 	if (bestAvailableCompressedFormat.has_value() && bestAvailableCompressedFormat.value() != gfx_api::pixel_format::invalid)
@@ -186,10 +180,32 @@ gfx_api::texture* gfx_api::context::loadTextureFromUncompressedImage(iV_Image&& 
 		}
 	}
 
-	// 5.) Create a new compatible gpu texture object
+	// 5.) Extend channels, if needed, to a supported uncompressed format
+	if (is_uncompressed_format(uploadFormat))
+	{
+		auto channels = image.channels();
+		auto colorSpace = image.colorSpace();
+		// Verify that the gfx backend supports this format
+		auto closestSupportedChannels = getClosestSupportedUncompressedImageFormatChannels(channels, colorSpace);
+		if (!closestSupportedChannels.has_value() && colorSpace == iV_Image::ColorSpace::sRGB)
+		{
+			// Try again, but with a linear colorSpace
+			// (This is non-ideal and will result in some precision issues, but at least it'll display something)
+			colorSpace = iV_Image::ColorSpace::Linear;
+			closestSupportedChannels = getClosestSupportedUncompressedImageFormatChannels(channels, colorSpace);
+		}
+		ASSERT_OR_RETURN(nullptr, closestSupportedChannels.has_value(), "Exhausted all possible uncompressed formats??");
+		for (auto i = image.channels(); i < closestSupportedChannels; ++i)
+		{
+			image.expand_channels_towards_rgba();
+		}
+		uploadFormat = iV_Image::pixel_format_for_channels(closestSupportedChannels.value(), colorSpace);
+	}
+
+	// 6.) Create a new compatible gpu texture object
 	std::unique_ptr<gfx_api::texture> pTexture = std::unique_ptr<gfx_api::texture>(gfx_api::context::get().create_texture(mipmap_levels, image.width(), image.height(), uploadFormat, filename));
 
-	// 6.) Upload initial (full) level
+	// 7.) Upload initial (full) level
 	if (uploadFormat == image.pixel_format())
 	{
 		bool uploadResult = pTexture->upload(0, image);
@@ -204,7 +220,7 @@ gfx_api::texture* gfx_api::context::loadTextureFromUncompressedImage(iV_Image&& 
 		ASSERT_OR_RETURN(nullptr, uploadResult, "Failed to upload buffer to image");
 	}
 
-	// 7.) Generate and upload mipmaps (if needed)
+	// 8.) Generate and upload mipmaps (if needed)
 	for (size_t i = 1; i < mipmap_levels; i++)
 	{
 		unsigned int output_w = std::max<unsigned int>(1, image.width() >> 1);
@@ -232,16 +248,16 @@ gfx_api::texture* gfx_api::context::loadTextureFromUncompressedImage(iV_Image&& 
 
 // MARK: - texture
 
-optional<unsigned int> gfx_api::context::getClosestSupportedUncompressedImageFormatChannels(unsigned int channels)
+optional<unsigned int> gfx_api::context::getClosestSupportedUncompressedImageFormatChannels(unsigned int channels, iV_Image::ColorSpace colorSpace)
 {
-	auto format = iV_Image::pixel_format_for_channels(channels);
+	auto format = iV_Image::pixel_format_for_channels(channels, colorSpace);
 
 	// Verify that the gfx backend supports this format
 	while (!gfx_api::context::get().texture2DFormatIsSupported(format, gfx_api::pixel_format_usage::flags::sampled_image))
 	{
 		ASSERT_OR_RETURN(nullopt, channels < 4, "Exhausted all possible uncompressed formats??");
 		channels += 1;
-		format = iV_Image::pixel_format_for_channels(channels);
+		format = iV_Image::pixel_format_for_channels(channels, colorSpace);
 	}
 
 	return channels;
@@ -249,13 +265,21 @@ optional<unsigned int> gfx_api::context::getClosestSupportedUncompressedImageFor
 
 gfx_api::texture* gfx_api::context::createTextureForCompatibleImageUploads(const size_t& mipmap_count, const iV_Image& bitmap, const std::string& filename)
 {
-	// Get the channels of this iV_Image
 	auto channels = bitmap.channels();
+	auto colorSpace = bitmap.colorSpace();
+
 	// Verify that the gfx backend supports this format
-	auto closestSupportedChannels = getClosestSupportedUncompressedImageFormatChannels(channels);
+	auto closestSupportedChannels = getClosestSupportedUncompressedImageFormatChannels(channels, colorSpace);
+	if (!closestSupportedChannels.has_value() && colorSpace == iV_Image::ColorSpace::sRGB)
+	{
+		// Try again, but with a linear colorSpace
+		// (This is non-ideal and will result in some precision issues, but at least it'll display something)
+		colorSpace = iV_Image::ColorSpace::Linear;
+		closestSupportedChannels = getClosestSupportedUncompressedImageFormatChannels(channels, colorSpace);
+	}
 	ASSERT_OR_RETURN(nullptr, closestSupportedChannels.has_value(), "Exhausted all possible uncompressed formats??");
 
-	auto target_pixel_format = iV_Image::pixel_format_for_channels(closestSupportedChannels.value());
+	auto target_pixel_format = iV_Image::pixel_format_for_channels(closestSupportedChannels.value(), colorSpace);
 
 	gfx_api::texture* pTexture = gfx_api::context::get().create_texture(1, bitmap.width(), bitmap.height(), target_pixel_format, filename);
 	return pTexture;

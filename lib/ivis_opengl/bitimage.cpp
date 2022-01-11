@@ -239,7 +239,7 @@ IMAGEFILE *iV_LoadImageFile(const char *fileName)
 	for (unsigned p = 0; p < pageLayout.pages.size(); ++p)
 	{
 		int size = pageLayout.pages[p];
-		ivImages[p].allocate(size, size, 4, true);
+		ivImages[p].allocate(size, size, 4, true, iV_Image::ColorSpace::Linear); // TODO: Fix Linear??
 		imageFile->pages[p].size = size;
 		// Must set imageFile->pages[p].id later, after filling out ivImages[p].bmp.
 	}

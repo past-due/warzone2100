@@ -51,7 +51,7 @@ struct IMGSaveError
  */
 bool iV_loadImage_PNG(const char *fileName, iV_Image *image);
 
-bool iV_loadImage_PNG2(const char *fileName, iV_Image& image);
+bool iV_loadImage_PNG2(const char *fileName, iV_Image& image, iV_Image::ColorSpace targetColorspace);
 
 /*!
  * Load a PNG from a memory buffer into an image

@@ -2619,7 +2619,7 @@ bool VkRoot::createSwapchain()
 	pDefaultTexture = new VkTexture(*this, 1, defaultTexture_width, defaultTexture_height, gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8, "<default_texture>");
 
 	iV_Image defaultTexture;
-	defaultTexture.allocate(defaultTexture_width, defaultTexture_height, 4, true);
+	defaultTexture.allocate(defaultTexture_width, defaultTexture_height, 4, true, iV_Image::ColorSpace::Linear);
 	if (!pDefaultTexture->upload(0, defaultTexture))
 	{
 		debug(LOG_ERROR, "Failed to upload default texture??");
@@ -2955,6 +2955,19 @@ void VkRoot::initPixelFormatsSupport()
 	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC)
 	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_R11_EAC)
 	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RG11_EAC)
+
+	// sRGB variants (uncompressed)
+	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA8_SRGB_PACK8)
+	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB8_SRGB_PACK8)
+
+	// sRGB variants (compressed)
+	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB_BC1_SRGB)
+	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BC2_SRGB)
+	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BC3_SRGB)
+	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BPTC_SRGB)
+
+	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB8_ETC2_SRGB)
+	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC_SRGB)
 }
 
 bool VkRoot::createSurface()
@@ -3283,6 +3296,24 @@ vk::Format VkRoot::get_format(const gfx_api::pixel_format& format) const
 		return vk::Format::eEacR11UnormBlock;
 	case gfx_api::pixel_format::FORMAT_RG11_EAC:
 		return vk::Format::eEacR11G11UnormBlock;
+// sRGB variants (uncompressed)
+	case gfx_api::pixel_format::FORMAT_RGBA8_SRGB_PACK8:
+		return vk::Format::eR8G8B8A8Srgb;
+	case gfx_api::pixel_format::FORMAT_RGB8_SRGB_PACK8:
+		return vk::Format::eR8G8B8Srgb;
+	// sRGB variants (compressed)
+	case gfx_api::pixel_format::FORMAT_RGB_BC1_SRGB:
+		return vk::Format::eBc1RgbSrgbBlock;
+	case gfx_api::pixel_format::FORMAT_RGBA_BC2_SRGB:
+		return vk::Format::eBc2SrgbBlock;
+	case gfx_api::pixel_format::FORMAT_RGBA_BC3_SRGB:
+		return vk::Format::eBc3SrgbBlock;
+	case gfx_api::pixel_format::FORMAT_RGBA_BPTC_SRGB:
+		return vk::Format::eBc7SrgbBlock;
+	case gfx_api::pixel_format::FORMAT_RGB8_ETC2_SRGB:
+		return vk::Format::eEtc2R8G8B8SrgbBlock;
+	case gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC_SRGB:
+		return vk::Format::eEtc2R8G8B8A8SrgbBlock;
 	case gfx_api::pixel_format::FORMAT_RGB8_ETC1:
 		// Not supported!
 	default:

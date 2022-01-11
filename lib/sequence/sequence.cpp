@@ -271,7 +271,7 @@ static void Allocate_videoFrame(void)
 	const ogg_uint32_t height_factor = (scanMode ? 2 : 1);
 	int expected_size = videodata.ti.frame_width * videodata.ti.frame_height * 4 * height_factor;
 
-	VideoFrameBitmap.allocate(videodata.ti.frame_width, videodata.ti.frame_height * height_factor, 4, true);
+	VideoFrameBitmap.allocate(videodata.ti.frame_width, videodata.ti.frame_height * height_factor, 4, true, iV_Image::ColorSpace::Linear);
 	ASSERT(VideoFrameBitmap.data_size() == expected_size, "Allocated size does not match expected size!");
 }
 
@@ -689,7 +689,7 @@ bool seq_Play(const char *filename)
 			return false;
 		}
 		iV_Image blackFrame;
-		blackFrame.allocate(texture_width, texture_height, 4, true);
+		blackFrame.allocate(texture_width, texture_height, 4, true, iV_Image::ColorSpace::Linear);
 
 		// disable scanlines temporarily if the video is too large for the texture or shown too small
 		if (videodata.ti.frame_height * 2 > texture_height || vertices[3][1] < videodata.ti.frame_height * 2)
