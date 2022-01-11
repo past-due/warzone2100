@@ -81,11 +81,12 @@ static gfx_api::texture* loadImageTextureFromFile_PNG(const std::string& filenam
 {
 	iV_Image loadedUncompressedImage;
 
-	// TODO: Check that at least one sRGB uncompressed / compressed format is available
-	// If not, pass iV_Image::ColorSpace::Linear ??
+	// Check that at least base RGBA (sRGB) support is available
+	bool use_srgb = gfx_api::context::get().texture2DFormatIsSupported(gfx_api::pixel_format::FORMAT_RGBA8_SRGB_PACK8, gfx_api::pixel_format_usage::sampled_image);
+	iV_Image::ColorSpace loadingColorspace = (use_srgb) ? iV_Image::ColorSpace::sRGB : iV_Image::ColorSpace::Linear;
 
 	// 1.) Load the PNG into an iV_Image
-	if (!iV_loadImage_PNG2(filename.c_str(), loadedUncompressedImage, iV_Image::ColorSpace::sRGB))
+	if (!iV_loadImage_PNG2(filename.c_str(), loadedUncompressedImage, loadingColorspace))
 	{
 		// Failed to load the image
 		return nullptr;

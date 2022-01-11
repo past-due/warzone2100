@@ -214,7 +214,7 @@ bool iV_loadImage_PNG(const char *fileName, iV_Image *image)
 	return true;
 }
 
-bool iV_loadImage_PNG2(const char *fileName, iV_Image& image, iV_Image::ColorSpace targetColorspace)
+bool iV_loadImage_PNG2(const char *fileName, iV_Image& image, iV_Image::ColorSpace targetColorspace, bool forceRGBA8)
 {
 	unsigned char PNGheader[PNG_BYTES_TO_CHECK];
 	PHYSFS_sint64 readSize;
@@ -337,6 +337,12 @@ bool iV_loadImage_PNG2(const char *fileName, iV_Image& image, iV_Image::ColorSpa
 		png_set_packing(png_ptr);
 	}
 
+	if (forceRGBA8)
+	{
+		/* More transformations to ensure we end up with 32bpp, 4 channel RGBA */
+		png_set_gray_to_rgb(png_ptr);
+	}
+
 	// Fill alpha with 0xFF (if needed)
 	png_set_filler(png_ptr, 0xff, PNG_FILLER_AFTER);
 
@@ -356,6 +362,14 @@ bool iV_loadImage_PNG2(const char *fileName, iV_Image& image, iV_Image::ColorSpa
 		}
 	}
 #endif
+
+//#ifdef PNG_iCCP_SUPPORTED
+//	if (!set_file_gamma && png_get_valid(png_ptr, info_ptr, PNG_INFO_iCCP))
+//	{
+//		// WARNING: We do not handle processing these
+//		// Instead, ensure the PNG file has either the sRGB chunk or the gAMA chunk properly set
+//	}
+//#endif
 
 #ifdef PNG_gAMA_SUPPORTED
 	if (!set_file_gamma && png_get_valid(png_ptr, info_ptr, PNG_INFO_gAMA))
