@@ -379,7 +379,7 @@ struct TextShaper
 		const uint32_t y_advance = (shapingResult.y_advance / 64);
 
 		std::unique_ptr<iV_Image> stringBitmap(new iV_Image());
-		stringBitmap->allocate(texture_width, texture_height, 4, true, iV_Image::ColorSpace::Linear);
+		stringBitmap->allocate(texture_width, texture_height, 4, true, iV_Image::ColorSpace::Linear); //gfx_api::context::get().getFrameBufferColorspace());
 		unsigned char* stringTexture = stringBitmap->bmp_w();
 
 		std::for_each(glyphs.begin(), glyphs.end(),

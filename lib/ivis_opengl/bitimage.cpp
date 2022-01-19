@@ -186,7 +186,8 @@ IMAGEFILE *iV_LoadImageFile(const char *fileName)
 		++ptr;
 	}
 
-	bool hasAppropriateSRGBSupport = gfx_api::context::get().texture2DFormatIsSupported(gfx_api::pixel_format::FORMAT_RGBA8_SRGB_PACK8, gfx_api::pixel_format_usage::sampled_image);
+//	bool hasAppropriateSRGBSupport = gfx_api::context::get().texture2DFormatIsSupported(gfx_api::pixel_format::FORMAT_RGBA8_SRGB_PACK8, gfx_api::pixel_format_usage::sampled_image);
+	bool hasAppropriateSRGBSupport = gfx_api::context::get().getFrameBufferColorspace() == iV_Image::ColorSpace::sRGB;
 	iV_Image::ColorSpace loadingColorspace = (hasAppropriateSRGBSupport) ? iV_Image::ColorSpace::sRGB : iV_Image::ColorSpace::Linear;
 
 	IMAGEFILE *imageFile = new IMAGEFILE;

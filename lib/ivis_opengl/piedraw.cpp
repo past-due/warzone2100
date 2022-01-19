@@ -55,8 +55,8 @@
 static size_t pieCount = 0;
 static size_t polyCount = 0;
 static bool shadows = false;
-static gfx_api::gfxFloat lighting0[LIGHT_MAX][4];
-static gfx_api::gfxFloat lightingDefault[LIGHT_MAX][4];
+static glm::vec4 lighting0[LIGHT_MAX];
+static glm::vec4 lightingDefault[LIGHT_MAX];
 
 /*
  *	Source
@@ -66,22 +66,28 @@ void pie_InitLighting()
 {
 	// set scene color, ambient, diffuse and specular light intensities of sun
 	// diffuse lighting is turned off because players dislike it
-	const gfx_api::gfxFloat defaultLight[LIGHT_MAX][4] = {
+	glm::vec4 defaultLight[LIGHT_MAX] = {
 		{0.0f, 0.0f, 0.0f, 1.0f}, // LIGHT_EMISSIVE
 		{0.5f, 0.5f, 0.5f, 1.0f}, // LIGHT_AMBIENT
 		{1.0f, 1.0f, 1.0f, 1.0f}, // LIGHT_DIFFUSE
 		{1.0f, 1.0f, 1.0f, 1.0f}  // LIGHT_SPECULAR
 	};
+//	defaultLight[0] = gfx_api::context::get().gammaCorrectColorVec4_Slow(defaultLight[0]);
+//	defaultLight[1] = gfx_api::context::get().gammaCorrectColorVec4_Slow(defaultLight[1]);
+//	defaultLight[2] = gfx_api::context::get().gammaCorrectColorVec4_Slow(defaultLight[2]);
+//	defaultLight[3] = gfx_api::context::get().gammaCorrectColorVec4_Slow(defaultLight[3]);
 	memcpy(lighting0, defaultLight, sizeof(lighting0));
 	memcpy(lightingDefault, defaultLight, sizeof(lightingDefault));
 }
 
 void pie_Lighting0(LIGHTING_TYPE entry, const float value[4])
 {
-	lighting0[entry][0] = value[0];
-	lighting0[entry][1] = value[1];
-	lighting0[entry][2] = value[2];
-	lighting0[entry][3] = value[3];
+	glm::vec4 val_vec4 = {value[0], value[1], value[2], value[3]};
+	lighting0[entry] = val_vec4; //gfx_api::context::get().gammaCorrectColorVec4_Slow(val_vec4);
+//	lighting0[entry][0] = value[0];
+//	lighting0[entry][1] = value[1];
+//	lighting0[entry][2] = value[2];
+//	lighting0[entry][3] = value[3];
 }
 
 void pie_setShadows(bool drawShadows)
@@ -272,7 +278,9 @@ static void draw3dShapeTemplated(const templatedState &lastState, ShaderOnce& gl
 	gfx_api::Draw3DShapePerInstanceUniforms instanceUniforms {
 		matrix,
 		glm::transpose(glm::inverse(matrix)),
-		pal_PIELIGHTtoVec4(colour), pal_PIELIGHTtoVec4(teamcolour),
+//		pal_PIELIGHTtoVec4(colour), pal_PIELIGHTtoVec4(teamcolour),
+		gfx_api::context::get().pielightToVec4ForShaders(colour), pal_PIELIGHTtoVec4(teamcolour),
+//		gfx_api::context::get().gammaCorrectColor(colour), pal_PIELIGHTtoVec4(teamcolour),
 		stretch, ecmState, !(pieFlag & pie_PREMULTIPLIED)
 	};
 
@@ -858,7 +866,15 @@ static void pie_DrawShadows(uint64_t currentGameFrame)
 	pie_ShadowDrawLoop(shadowCache);
 
 	PIELIGHT grey;
-	grey.byte = { 0, 0, 0, 128 };
+	if (gfx_api::context::get().getFrameBufferColorspace() == iV_Image::ColorSpace::Linear)
+	{
+		grey.byte = { 0, 0, 0, 128 };
+	}
+	else
+	{
+		// sRGB
+		grey.byte = { 0, 0, 0, 186 };
+	}
 	pie_BoxFill_alpha(0, 0, width, height, grey);
 
 	scshapes.resize(0);

@@ -2222,6 +2222,23 @@ bool gl_context::initGLContext()
 		i = j + 1;
 	}
 
+#if defined(WZ_TEST_SRGB_FRAMEBUFFER)
+	if (backend_impl->isSRGBFramebuffer())
+	{
+		if (!gles)
+		{
+			// NEEDS:
+			// - Checks for whether sRGB framebuffer is supported (appropriate extensions, GL versions, etc)
+			// - A check for errors right after the call?
+			// - Possibly a sanity-check with glIsEnabled (requires OpenGL 3.0+)
+			glEnable(GL_FRAMEBUFFER_SRGB);
+		}
+
+		// Assuming all is successful, store the colorspace
+		framebufferColorspace = iV_Image::ColorSpace::sRGB;
+	}
+#endif
+
 	/* Dump extended information about OpenGL implementation to the console */
 
 	std::string line;
@@ -2451,6 +2468,11 @@ bool gl_context::texture2DFormatIsSupported(gfx_api::pixel_format format, gfx_ap
 	size_t formatIdx = static_cast<size_t>(format);
 	ASSERT_OR_RETURN(false, formatIdx < texture2DFormatsSupport.size(), "Invalid format index: %zu", formatIdx);
 	return (texture2DFormatsSupport[formatIdx] & usage) == usage;
+}
+
+iV_Image::ColorSpace gl_context::getFrameBufferColorspace() const
+{
+	return framebufferColorspace;
 }
 
 void gl_context::initPixelFormatsSupport()

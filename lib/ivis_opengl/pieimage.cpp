@@ -318,7 +318,7 @@ bool iV_Image::resize(int output_w, int output_h)
 							   m_channels, m_channels == 4 ? 3 : STBIR_ALPHA_CHANNEL_NONE, 0,
 							   STBIR_EDGE_CLAMP,
 							   STBIR_FILTER_MITCHELL,
-							   (m_colorSpace == ColorSpace::sRGB) ? STBIR_COLORSPACE_SRGB : STBIR_COLORSPACE_LINEAR,
+							   STBIR_COLORSPACE_SRGB, //(m_colorSpace == ColorSpace::sRGB) ? STBIR_COLORSPACE_SRGB : STBIR_COLORSPACE_LINEAR,
 							   nullptr);
 	free(m_bmp);
 	m_width = output_w;

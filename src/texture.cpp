@@ -81,7 +81,7 @@ static size_t newPage(const char *name, int level, int width, int height, int co
 		pie_ReserveTexture(name, width, height);
 		pie_AssignTexture(texPage,
 			gfx_api::context::get().create_texture(mipmap_levels, width, height,
-				gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8));
+				(gfx_api::context::get().getFrameBufferColorspace() == iV_Image::ColorSpace::sRGB) ? gfx_api::pixel_format::FORMAT_RGBA8_SRGB_PACK8 : gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8));
 	}
 	terrainPage = texPage;
 	return texPage;
@@ -184,7 +184,7 @@ bool texLoad(const char *fileName)
 			snprintf(fullPath, sizeof(fullPath), "%s/tile-%02d.png", partialPath, k);
 			if (PHYSFS_exists(fullPath)) // avoid dire warning
 			{
-				bool retval = iV_loadImage_PNG(fullPath, &tile);
+				bool retval = iV_loadImage_PNG2(fullPath, tile, gfx_api::context::get().getFrameBufferColorspace());
 				ASSERT_OR_RETURN(false, retval, "Could not load %s!", fullPath);
 			}
 			else

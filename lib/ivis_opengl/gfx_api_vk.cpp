@@ -2213,6 +2213,11 @@ vk::SurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormat
 		vk::SurfaceFormatKHR{ vk::Format::eR8G8B8A8Unorm, vk::ColorSpaceKHR::eVkColorspaceSrgbNonlinear }
 	};
 
+//	const auto desiredFormats = std::array<vk::SurfaceFormatKHR, 2> {
+//		vk::SurfaceFormatKHR{ vk::Format::eB8G8R8A8Srgb, vk::ColorSpaceKHR::eVkColorspaceSrgbNonlinear },
+//		vk::SurfaceFormatKHR{ vk::Format::eR8G8B8A8Srgb, vk::ColorSpaceKHR::eVkColorspaceSrgbNonlinear }
+//	};
+
 	if(availableFormats.size() == 1
 	   && availableFormats[0].format == vk::Format::eUndefined)
 	{
@@ -3327,6 +3332,12 @@ bool VkRoot::texture2DFormatIsSupported(gfx_api::pixel_format format, gfx_api::p
 	size_t formatIdx = static_cast<size_t>(format);
 	ASSERT_OR_RETURN(false, formatIdx < texture2DFormatsSupport.size(), "Invalid format index: %zu", formatIdx);
 	return (texture2DFormatsSupport[formatIdx] & usage) == usage;
+}
+
+iV_Image::ColorSpace VkRoot::getFrameBufferColorspace() const
+{
+	// TODO: Implement based on swapchain srgb (or not)
+	return iV_Image::ColorSpace::Linear;
 }
 
 gfx_api::texture* VkRoot::create_texture(const std::size_t& mipmap_count, const std::size_t& width, const std::size_t& height, const gfx_api::pixel_format& internal_format, const std::string& filename)
