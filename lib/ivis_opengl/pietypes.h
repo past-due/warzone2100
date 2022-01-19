@@ -124,6 +124,7 @@ public:
 public:
 	virtual unsigned int width() const = 0;
 	virtual unsigned int height() const = 0;
+	virtual unsigned int channels() const = 0;
 	virtual gfx_api::pixel_format pixel_format() const = 0;
 
 	// Get a pointer to the image data that can be read
@@ -135,23 +136,16 @@ public:
 // Not thread-safe
 class iV_Image final : public iV_BaseImage
 {
-public:
-	enum class ColorSpace
-	{
-		Linear,
-		sRGB
-	};
 private:
 	unsigned int m_width = 0, m_height = 0, m_channels = 0;
 	unsigned char *m_bmp = nullptr;
-	ColorSpace m_colorSpace = ColorSpace::Linear;
 
 public:
 	// iV_BaseImage
 	unsigned int width() const override { return m_width; }
 	unsigned int height() const override { return m_height; }
+	unsigned int channels() const override  { return m_channels; }
 
-	unsigned int channels() const { return m_channels; }
 	unsigned int depth() const { return m_channels * 8; }
 
 	// Get the current bitmap pixel format
@@ -161,11 +155,11 @@ public:
 	size_t data_size() const override { return size_in_bytes(); }
 
 public:
-	static gfx_api::pixel_format pixel_format_for_channels(unsigned int channels, ColorSpace colorspace);
+	static gfx_api::pixel_format pixel_format_for_channels(unsigned int channels);
 
 public:
 	// Allocate a new iV_Image buffer
-	bool allocate(unsigned int width = 0, unsigned int height = 0, unsigned int channels = 0, bool zeroMemory = false, ColorSpace colorspace = ColorSpace::Linear);
+	bool allocate(unsigned int width = 0, unsigned int height = 0, unsigned int channels = 0, bool zeroMemory = false);
 
 	// Duplicate an iV_Image (makes a deep copy)
 	bool duplicate(const iV_Image& other);
@@ -178,8 +172,6 @@ public:
 
 	// Get a pointer to the bitmap data that can be written to
 	unsigned char* bmp_w();
-
-	ColorSpace colorSpace() const { return m_colorSpace; }
 
 public:
 	// Get bmp size (in bytes)

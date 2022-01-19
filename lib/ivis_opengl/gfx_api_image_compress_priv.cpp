@@ -30,13 +30,9 @@ static std::vector<gfx_api::pixel_format> builtInRealTimeFormatCompressors =
 #if defined(ETCPAK_ENABLED)
 		gfx_api::pixel_format::FORMAT_RGB8_ETC1,
 		gfx_api::pixel_format::FORMAT_RGB8_ETC2,
-		gfx_api::pixel_format::FORMAT_RGB8_ETC2_SRGB,
 		gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC,
-		gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC_SRGB,
 		gfx_api::pixel_format::FORMAT_RGB_BC1_UNORM, // DXT1
-		gfx_api::pixel_format::FORMAT_RGB_BC1_SRGB, // DXT1
 		gfx_api::pixel_format::FORMAT_RGBA_BC3_UNORM, // DXT5
-		gfx_api::pixel_format::FORMAT_RGBA_BC3_SRGB, // DXT5
 #endif
 };
 
@@ -48,9 +44,7 @@ static inline bool hasBuiltInRealTimeFormatCompressor(gfx_api::pixel_format desi
 }
 
 static optional<gfx_api::pixel_format> bestAvailableCompressionFormat_GameTextureRGBA = nullopt;
-static optional<gfx_api::pixel_format> bestAvailableCompressionFormat_GameTextureRGBA_sRGB = nullopt;
 static optional<gfx_api::pixel_format> bestAvailableCompressionFormat_GameTextureRGB = nullopt;
-static optional<gfx_api::pixel_format> bestAvailableCompressionFormat_GameTextureRGB_sRGB = nullopt;
 
 void gfx_api::initBestRealTimeCompressionFormats()
 {
@@ -58,9 +52,7 @@ void gfx_api::initBestRealTimeCompressionFormats()
 	// Overall quality ranking:
 	//   FORMAT_ASTC_4x4_UNORM > FORMAT_RGBA_BPTC_UNORM > FORMAT_RGBA8_ETC2_EAC (/ FORMAT_RGB8_ETC2) > FORMAT_RGBA_BC3_UNORM (DXT5) / FORMAT_RGB_BC1_UNORM (for RGB - 4bpp) > ETC1 (only RGB) > PVRTC (is generally the lowest quality)
 	constexpr std::array<gfx_api::pixel_format, 2> qualityOrderRGBA = { gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC, gfx_api::pixel_format::FORMAT_RGBA_BC3_UNORM };
-	constexpr std::array<gfx_api::pixel_format, 2> qualityOrderRGBA_sRGB = { gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC_SRGB, gfx_api::pixel_format::FORMAT_RGBA_BC3_SRGB };
 	constexpr std::array<gfx_api::pixel_format, 3> qualityOrderRGB = { gfx_api::pixel_format::FORMAT_RGB8_ETC2, gfx_api::pixel_format::FORMAT_RGB_BC1_UNORM, gfx_api::pixel_format::FORMAT_RGB8_ETC1 };
-	constexpr std::array<gfx_api::pixel_format, 3> qualityOrderRGB_sRGB = { gfx_api::pixel_format::FORMAT_RGB8_ETC2_SRGB, gfx_api::pixel_format::FORMAT_RGB_BC1_SRGB };
 
 	for ( auto format : qualityOrderRGBA )
 	{
@@ -74,18 +66,6 @@ void gfx_api::initBestRealTimeCompressionFormats()
 			break;
 		}
 	}
-	for ( auto format : qualityOrderRGBA_sRGB )
-	{
-		if (!hasBuiltInRealTimeFormatCompressor(format))
-		{
-			continue;
-		}
-		if (gfx_api::context::get().texture2DFormatIsSupported(format, gfx_api::pixel_format_usage::sampled_image))
-		{
-			bestAvailableCompressionFormat_GameTextureRGBA_sRGB = format;
-			break;
-		}
-	}
 	for ( auto format : qualityOrderRGB )
 	{
 		if (!hasBuiltInRealTimeFormatCompressor(format))
@@ -95,18 +75,6 @@ void gfx_api::initBestRealTimeCompressionFormats()
 		if (gfx_api::context::get().texture2DFormatIsSupported(format, gfx_api::pixel_format_usage::sampled_image))
 		{
 			bestAvailableCompressionFormat_GameTextureRGB = format;
-			break;
-		}
-	}
-	for ( auto format : qualityOrderRGB_sRGB )
-	{
-		if (!hasBuiltInRealTimeFormatCompressor(format))
-		{
-			continue;
-		}
-		if (gfx_api::context::get().texture2DFormatIsSupported(format, gfx_api::pixel_format_usage::sampled_image))
-		{
-			bestAvailableCompressionFormat_GameTextureRGB_sRGB = format;
 			break;
 		}
 	}
@@ -127,6 +95,7 @@ private:
 public:
 	virtual unsigned int width() const override;
 	virtual unsigned int height() const override;
+	virtual unsigned int channels() const override;
 
 	// Get the current image pixel format
 	virtual gfx_api::pixel_format pixel_format() const override;
@@ -229,6 +198,49 @@ void iV_CompressedImage::clear()
 unsigned int iV_CompressedImage::width() const { return m_width; }
 unsigned int iV_CompressedImage::height() const { return m_height; }
 
+unsigned int iV_CompressedImage::channels() const
+{
+	switch (m_format)
+	{
+		// UNCOMPRESSED FORMATS
+		case gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8:
+		case gfx_api::pixel_format::FORMAT_BGRA8_UNORM_PACK8:
+			return 4;
+		case gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8:
+			return 3;
+		case gfx_api::pixel_format::FORMAT_RG8_UNORM:
+			return 2;
+		case gfx_api::pixel_format::FORMAT_R8_UNORM:
+			return 1;
+		// COMPRESSED FORMAT
+		case gfx_api::pixel_format::FORMAT_RGB_BC1_UNORM:
+			return 3;
+		case gfx_api::pixel_format::FORMAT_RGBA_BC2_UNORM:
+			return 4;
+		case gfx_api::pixel_format::FORMAT_RGBA_BC3_UNORM:
+			return 4;
+		case gfx_api::pixel_format::FORMAT_R_BC4_UNORM:
+			return 1;
+		case gfx_api::pixel_format::FORMAT_RG_BC5_UNORM:
+			return 2;
+		case gfx_api::pixel_format::FORMAT_RGBA_BPTC_UNORM:
+			return 4;
+		case gfx_api::pixel_format::FORMAT_RGB8_ETC1:
+		case gfx_api::pixel_format::FORMAT_RGB8_ETC2:
+			return 3;
+		case gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC:
+			return 4;
+		case gfx_api::pixel_format::FORMAT_R11_EAC:
+			return 1;
+		case gfx_api::pixel_format::FORMAT_RG11_EAC:
+			return 2;
+		default:
+			debug(LOG_FATAL, "Unrecognised pixel format");
+	}
+
+	return 0;
+}
+
 gfx_api::pixel_format iV_CompressedImage::pixel_format() const
 {
 	return m_format;
@@ -288,13 +300,7 @@ static std::unique_ptr<iV_CompressedImage> compressImageEtcPak(const iV_Image& i
 	uint32_t blocks = pSourceImage->width() * linesToProcess / 16;
 
 	size_t outputSize = pSourceImage->width() * pSourceImage->height() / 2;
-	if (desiredFormat == gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC
-		|| desiredFormat == gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC_SRGB
-		|| desiredFormat == gfx_api::pixel_format::FORMAT_RGBA_BC3_UNORM
-		|| desiredFormat == gfx_api::pixel_format::FORMAT_RGBA_BC3_SRGB)
-	{
-		outputSize *= 2;
-	}
+	if(desiredFormat == gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC || desiredFormat == gfx_api::pixel_format::FORMAT_RGBA_BC3_UNORM) outputSize *= 2;
 
 	std::unique_ptr<iV_CompressedImage> compressedOutput = std::unique_ptr<iV_CompressedImage>(new iV_CompressedImage());
 	if (!compressedOutput->allocate(desiredFormat, outputSize, pSourceImage->width(), pSourceImage->height(), false))
@@ -309,19 +315,15 @@ static std::unique_ptr<iV_CompressedImage> compressImageEtcPak(const iV_Image& i
 			CompressEtc1RgbDither(reinterpret_cast<const uint32_t*>(pSourceImage->bmp()), reinterpret_cast<uint64_t*>(compressedOutput->data_w()), blocks, pSourceImage->width());
 			break;
 		case gfx_api::pixel_format::FORMAT_RGB8_ETC2:
-		case gfx_api::pixel_format::FORMAT_RGB8_ETC2_SRGB:
 			CompressEtc2Rgb(reinterpret_cast<const uint32_t*>(pSourceImage->bmp()), reinterpret_cast<uint64_t*>(compressedOutput->data_w()), blocks, pSourceImage->width());
 			break;
 		case gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC:
-		case gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC_SRGB:
 			CompressEtc2Rgba(reinterpret_cast<const uint32_t*>(pSourceImage->bmp()), reinterpret_cast<uint64_t*>(compressedOutput->data_w()), blocks, pSourceImage->width());
 			break;
 		case gfx_api::pixel_format::FORMAT_RGB_BC1_UNORM:
-		case gfx_api::pixel_format::FORMAT_RGB_BC1_SRGB:
 			CompressDxt1Dither(reinterpret_cast<const uint32_t*>(pSourceImage->bmp()), reinterpret_cast<uint64_t*>(compressedOutput->data_w()), blocks, pSourceImage->width());
 			break;
 		case gfx_api::pixel_format::FORMAT_RGBA_BC3_UNORM:
-		case gfx_api::pixel_format::FORMAT_RGBA_BC3_SRGB:
 			CompressDxt5(reinterpret_cast<const uint32_t*>(pSourceImage->bmp()), reinterpret_cast<uint64_t*>(compressedOutput->data_w()), blocks, pSourceImage->width());
 			break;
 		default:
@@ -356,18 +358,10 @@ optional<gfx_api::pixel_format> gfx_api::bestRealTimeCompressionFormatForImage(c
 		{
 			switch (image.pixel_format())
 			{
-				case gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8:
-					return bestAvailableCompressionFormat_GameTextureRGB;
 				case gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8:
 					return bestAvailableCompressionFormat_GameTextureRGBA;
-				case gfx_api::pixel_format::FORMAT_RGB8_SRGB_PACK8:
-					if (bestAvailableCompressionFormat_GameTextureRGB_sRGB.has_value())
-					{
-						return bestAvailableCompressionFormat_GameTextureRGB_sRGB;
-					}
-					// fall-through
-				case gfx_api::pixel_format::FORMAT_RGBA8_SRGB_PACK8:
-					return bestAvailableCompressionFormat_GameTextureRGBA_sRGB;
+				case gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8:
+					return bestAvailableCompressionFormat_GameTextureRGB;
 				default:
 					break;
 			}
@@ -392,13 +386,9 @@ std::unique_ptr<iV_BaseImage> gfx_api::compressImage(const iV_Image& image, gfx_
 	{
 		case gfx_api::pixel_format::FORMAT_RGB8_ETC1:
 		case gfx_api::pixel_format::FORMAT_RGB8_ETC2:
-		case gfx_api::pixel_format::FORMAT_RGB8_ETC2_SRGB:
 		case gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC:
-		case gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC_SRGB:
 		case gfx_api::pixel_format::FORMAT_RGB_BC1_UNORM:
-		case gfx_api::pixel_format::FORMAT_RGB_BC1_SRGB:
 		case gfx_api::pixel_format::FORMAT_RGBA_BC3_UNORM:
-		case gfx_api::pixel_format::FORMAT_RGBA_BC3_SRGB:
 			// Use EtcPak
 #if defined(ETCPAK_ENABLED)
 			return compressImageEtcPak(image, desiredFormat);

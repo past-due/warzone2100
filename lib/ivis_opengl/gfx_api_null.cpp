@@ -388,8 +388,3 @@ bool null_context::texture2DFormatIsSupported(gfx_api::pixel_format format, gfx_
 	// no matter what the input is, return true (since this null backend doesn't care and no-ops whatever it gets)
 	return true;
 }
-
-iV_Image::ColorSpace null_context::getFrameBufferColorspace() const
-{
-	return iV_Image::ColorSpace::Linear;
-}

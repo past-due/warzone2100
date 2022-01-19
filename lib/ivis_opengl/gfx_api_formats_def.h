@@ -53,21 +53,8 @@ namespace gfx_api
 
 		FORMAT_R11_EAC,			// one channel unsigned data
 		FORMAT_RG11_EAC,		// two channel unsigned data
-
-		// sRGB variants (uncompressed)
-		FORMAT_RGBA8_SRGB_PACK8,
-		FORMAT_RGB8_SRGB_PACK8,
-
-		// sRGB variants (compressed)
-		FORMAT_RGB_BC1_SRGB,   // BC1 / DXT1 (sRGB)
-		FORMAT_RGBA_BC2_SRGB,  // BC2 / DXT3 (sRGB)
-		FORMAT_RGBA_BC3_SRGB,  // BC3 / DXT5 (sRGB)
-		FORMAT_RGBA_BPTC_SRGB, // BC7 - higher quality, not quite as widely available (not available at all on macOS)
-
-		FORMAT_RGB8_ETC2_SRGB,		// Compresses RGB888 data (successor to ETC1)
-		FORMAT_RGBA8_ETC2_EAC_SRGB,	// Compresses RGBA8888 data with full alpha support
 	};
-	constexpr pixel_format MAX_PIXEL_FORMAT = pixel_format::FORMAT_RGBA8_ETC2_EAC_SRGB;
+	constexpr pixel_format MAX_PIXEL_FORMAT = pixel_format::FORMAT_RG11_EAC;
 
 	static inline bool is_uncompressed_format(const pixel_format& format)
 	{
@@ -79,9 +66,6 @@ namespace gfx_api
 			case gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8:
 			case gfx_api::pixel_format::FORMAT_RG8_UNORM:
 			case gfx_api::pixel_format::FORMAT_R8_UNORM:
-			// sRGB variants
-			case gfx_api::pixel_format::FORMAT_RGBA8_SRGB_PACK8:
-			case gfx_api::pixel_format::FORMAT_RGB8_SRGB_PACK8:
 				return true;
 			default:
 				return false;
