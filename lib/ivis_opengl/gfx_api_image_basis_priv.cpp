@@ -42,10 +42,11 @@ static optional<gfx_api::pixel_format> bestAvailableBasisCompressionFormat_Specu
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgnu-anonymous-struct"
 #pragma clang diagnostic ignored "-Wnested-anon-types"
+#pragma clang diagnostic ignored "-Warray-bounds"
 #elif defined(__GNUC__)
 #pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wgnu-anonymous-struct"
-#pragma GCC diagnostic ignored "-Wnested-anon-types"
+#pragma GCC diagnostic ignored "-Wunused-value"
+#pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 #include <basisu_transcoder.h>
 #if defined(__clang__)

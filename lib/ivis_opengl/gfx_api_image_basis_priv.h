@@ -23,6 +23,7 @@
 #include "gfx_api_formats_def.h"
 
 #include <memory>
+#include <vector>
 
 #include <optional-lite/optional.hpp>
 using nonstd::optional;
