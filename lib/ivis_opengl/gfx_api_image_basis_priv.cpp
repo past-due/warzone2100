@@ -46,6 +46,7 @@ static optional<gfx_api::pixel_format> bestAvailableBasisCompressionFormat_Specu
 #elif defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-value"
+#pragma GCC diagnostic ignored "-Wclass-memaccess"
 #pragma GCC diagnostic ignored "-Wpedantic"
 #endif
 #include <basisu_transcoder.h>
