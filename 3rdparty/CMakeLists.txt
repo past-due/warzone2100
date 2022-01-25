@@ -66,7 +66,7 @@ set_property(TARGET quickjs PROPERTY FOLDER "3rdparty")
 
 
 # basis-universal
-find_program(BASIS_UNIVERSAL_CLI NAMES basisu basisu_tool)
+find_program(BASIS_UNIVERSAL_CLI NAMES basisu)
 if(NOT BASIS_UNIVERSAL_CLI)
   message(STATUS "Pre-installed basisu tool not found - attempting to build for host system")
 
