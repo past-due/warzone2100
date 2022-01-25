@@ -66,7 +66,21 @@ set_property(TARGET quickjs PROPERTY FOLDER "3rdparty")
 
 
 # basis-universal
+set(_ORIGINAL_CMAKE_PROGRAM_PATH "${CMAKE_PROGRAM_PATH}")
+if(DEFINED VCPKG_INSTALLED_DIR AND DEFINED VCPKG_HOST_TRIPLET)
+  # Partial workaround for: https://github.com/microsoft/vcpkg/issues/17001
+  # Explicitly add the HOST_TRIPLET paths to CMAKE_PROGRAM_PATH
+  list(APPEND CMAKE_PROGRAM_PATH "${VCPKG_INSTALLED_DIR}/${VCPKG_HOST_TRIPLET}/tools")
+  file(GLOB Z_VCPKG_TOOLS_DIRS "${VCPKG_INSTALLED_DIR}/${VCPKG_HOST_TRIPLET}/tools/*")
+  foreach(Z_VCPKG_TOOLS_DIR IN LISTS Z_VCPKG_TOOLS_DIRS)
+    if(IS_DIRECTORY "${Z_VCPKG_TOOLS_DIR}")
+      list(APPEND CMAKE_PROGRAM_PATH "${Z_VCPKG_TOOLS_DIR}")
+    endif()
+  endforeach()
+  message(STATUS "@@@@@ CMAKE_PROGRAM_PATH=${CMAKE_PROGRAM_PATH}")
+endif()
 find_program(BASIS_UNIVERSAL_CLI NAMES basisu PATH_SUFFIXES "tools/basisu" NO_CACHE)
+set(CMAKE_PROGRAM_PATH "${_ORIGINAL_CMAKE_PROGRAM_PATH}")
 if(NOT BASIS_UNIVERSAL_CLI)
   message(STATUS "Pre-installed basisu tool not found - attempting to build for host system")
 
@@ -98,7 +112,7 @@ if(NOT BASIS_UNIVERSAL_CLI)
   endif()
   message(STATUS "Basis-Universal Host Tool Built")
 
-  find_program(BASIS_UNIVERSAL_CLI NAMES basisu PATHS "${BASISU_BINARY_DIR}/basis_install/bin" NO_DEFAULT_PATH)
+  find_program(BASIS_UNIVERSAL_CLI NAMES basisu PATHS "${BASISU_BINARY_DIR}/basis_install/bin" NO_CACHE NO_DEFAULT_PATH)
   if(NOT BASIS_UNIVERSAL_CLI)
     message(FATAL_ERROR "Built basisu CLI tool not found!")
   endif()
