@@ -119,10 +119,24 @@ if(NOT MSVC)
 	endif()
 endif()
 
-## TODO: Must also set BASISD_IS_BIG_ENDIAN if the target platform is big-endian!!
-# if (# SOME DETECTION FOR TARGET PLATFORM BIG-ENDIAN #)
-# 	target_compile_definitions(basis_transcoder PRIVATE "-DBASISD_IS_BIG_ENDIAN=1")
-# endif()
+# Must also set BASISD_IS_BIG_ENDIAN if the target platform is big-endian!
+if (NOT DEFINED CMAKE_CXX_BYTE_ORDER AND CMAKE_VERSION VERSION_LESS 3.20)
+	# CMake < 3.20 does not have CMAKE_<LANG>_BYTE_ORDER
+	# Instead, use the older TestBigEndian module (although this may not work for cross-compilation)
+	if (NOT CMAKE_CROSSCOMPILING)
+		include(TestBigEndian)
+		test_big_endian(IS_BIGENDIAN)
+		if (IS_BIGENDIAN)
+			set(CMAKE_CXX_BYTE_ORDER "BIG_ENDIAN")
+		endif()
+	else()
+		message(WARNING "Unable to determine endianness for target architecture. Either upgrade to CMake 3.20+, or - if big endian - manually set the CMAKE_CXX_BYTE_ORDER cache variable to \"BIG_ENDIAN\". Otherwise, assuming little endian.")
+	endif()
+endif()
+if (DEFINED CMAKE_CXX_BYTE_ORDER AND CMAKE_CXX_BYTE_ORDER STREQUAL "BIG_ENDIAN")
+	message(STATUS "Defining BASISD_IS_BIG_ENDIAN=1")
+	target_compile_definitions(basis_transcoder PRIVATE "-DBASISD_IS_BIG_ENDIAN=1")
+endif()
 
 # Disable certain transcoder formats
 target_compile_definitions(basis_transcoder PRIVATE "-DBASISD_SUPPORT_ATC=0" "-DBASISD_SUPPORT_PVRTC1=0" "-DBASISD_SUPPORT_PVRTC2=0")
