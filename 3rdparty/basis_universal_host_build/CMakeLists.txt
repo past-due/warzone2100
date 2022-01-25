@@ -23,9 +23,9 @@ ExternalProject_Add(basisuExecutable
   SOURCE_DIR        "${BASISU_SOURCE_DIR}"
   BINARY_DIR		"${BASISU_BINARY_DIR}"
   # The two "--unset" options tell it to use the host defaults rather than the configured ones.
-  CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env --unset=CC --unset=CXX ${CMAKE_COMMAND} -DCMAKE_INSTALL_PREFIX=${BASISU_INSTALL_DIR} -B "${BASISU_BINARY_DIR}" "${BASISU_SOURCE_DIR}"
-  BUILD_COMMAND ${CMAKE_COMMAND} --build "${BASISU_BINARY_DIR}"
-  INSTALL_COMMAND   ${CMAKE_COMMAND} --install "${BASISU_BINARY_DIR}" --prefix "${BASISU_INSTALL_DIR}"
+  CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env --unset=CC --unset=CXX ${CMAKE_COMMAND} chdir "${BASISU_BINARY_DIR}" ${CMAKE_COMMAND} -DCMAKE_INSTALL_PREFIX=${BASISU_INSTALL_DIR} "${BASISU_SOURCE_DIR}"
+  BUILD_COMMAND ${CMAKE_COMMAND} --build "${BASISU_BINARY_DIR}" --target install --config Release
+  INSTALL_COMMAND   ""
   #EXCLUDE_FROM_ALL  TRUE
   BUILD_ALWAYS      TRUE
 )
