@@ -64,46 +64,38 @@ target_include_directories(glad PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/glad/include
 add_subdirectory(quickjs EXCLUDE_FROM_ALL)
 set_property(TARGET quickjs PROPERTY FOLDER "3rdparty")
 
-
 # basis-universal
-find_program(BASIS_UNIVERSAL_CLI NAMES basisu basisu_tool)
+# Build the tool for the host system at configure time
+set(BASISU_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/basis_universal_host_tool/")
+execute_process(
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${BASISU_BINARY_DIR}"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/basis_universal_host_build"
+    RESULT_VARIABLE _basis_result
+)
+if(NOT _basis_result EQUAL 0)
+	message(FATAL_ERROR "Failed to create directory for basis_universal_host_build")
+endif()
+execute_process(
+    COMMAND ${CMAKE_COMMAND} -DCMAKE_BUILD_TYPE=Release "${CMAKE_CURRENT_SOURCE_DIR}/basis_universal_host_build"
+    WORKING_DIRECTORY "${BASISU_BINARY_DIR}"
+    RESULT_VARIABLE _basis_result
+)
+if(NOT _basis_result EQUAL 0)
+	message(FATAL_ERROR "Failed to configure basis_universal_host_build")
+endif()
+execute_process(
+    COMMAND ${CMAKE_COMMAND} --build "${BASISU_BINARY_DIR}" --config Release
+    WORKING_DIRECTORY "${BASISU_BINARY_DIR}"
+    RESULT_VARIABLE _basis_result
+)
+if(NOT _basis_result EQUAL 0)
+	message(FATAL_ERROR "Basis-Universal host tool build failed")
+endif()
+message(STATUS "Basis-Universal Host Tool Built")
+
+find_program(BASIS_UNIVERSAL_CLI NAMES basisu PATHS "${BASISU_BINARY_DIR}/basis_install/bin" NO_DEFAULT_PATH)
 if(NOT BASIS_UNIVERSAL_CLI)
-  message(STATUS "Pre-installed basisu tool not found - attempting to build for host system")
-
-  # Build the tool for the host system at configure time
-  set(BASISU_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/basis_universal_host_tool/")
-  execute_process(
-      COMMAND ${CMAKE_COMMAND} -E make_directory "${BASISU_BINARY_DIR}"
-      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/basis_universal_host_build"
-      RESULT_VARIABLE _basis_result
-  )
-  if(NOT _basis_result EQUAL 0)
-    message(FATAL_ERROR "Failed to create directory for basis_universal_host_build")
-  endif()
-  execute_process(
-      COMMAND ${CMAKE_COMMAND} -DCMAKE_BUILD_TYPE=Release "${CMAKE_CURRENT_SOURCE_DIR}/basis_universal_host_build"
-      WORKING_DIRECTORY "${BASISU_BINARY_DIR}"
-      RESULT_VARIABLE _basis_result
-  )
-  if(NOT _basis_result EQUAL 0)
-    message(FATAL_ERROR "Failed to configure basis_universal_host_build")
-  endif()
-  execute_process(
-      COMMAND ${CMAKE_COMMAND} --build "${BASISU_BINARY_DIR}" --config Release
-      WORKING_DIRECTORY "${BASISU_BINARY_DIR}"
-      RESULT_VARIABLE _basis_result
-  )
-  if(NOT _basis_result EQUAL 0)
-    message(FATAL_ERROR "Basis-Universal host tool build failed")
-  endif()
-  message(STATUS "Basis-Universal Host Tool Built")
-
-  find_program(BASIS_UNIVERSAL_CLI NAMES basisu PATHS "${BASISU_BINARY_DIR}/basis_install/bin" NO_DEFAULT_PATH)
-  if(NOT BASIS_UNIVERSAL_CLI)
-    message(FATAL_ERROR "Built basisu CLI tool not found!")
-  endif()
-else()
-  message(STATUS "Pre-installed basisu tool found: ${BASIS_UNIVERSAL_CLI}")
+	message(WARNING "Built basisu CLI tool not found!")
 endif()
 
 set(BASIS_UNIVERSAL_CLI "${BASIS_UNIVERSAL_CLI}" PARENT_SCOPE)
