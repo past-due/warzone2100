@@ -76,16 +76,16 @@ if(NOT _basis_result EQUAL 0)
 	message(FATAL_ERROR "Failed to create directory for basis_universal_host_build")
 endif()
 execute_process(
-    COMMAND ${CMAKE_COMMAND} -B "${BASISU_BINARY_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/basis_universal_host_build"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/basis_universal_host_build"
+    COMMAND ${CMAKE_COMMAND} -DCMAKE_BUILD_TYPE=Release "${CMAKE_CURRENT_SOURCE_DIR}/basis_universal_host_build"
+    WORKING_DIRECTORY "${BASISU_BINARY_DIR}"
     RESULT_VARIABLE _basis_result
 )
 if(NOT _basis_result EQUAL 0)
 	message(FATAL_ERROR "Failed to configure basis_universal_host_build")
 endif()
 execute_process(
-	COMMAND ${CMAKE_COMMAND} --build "${BASISU_BINARY_DIR}"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/basis_universal_host_build"
+    COMMAND ${CMAKE_COMMAND} --build "${BASISU_BINARY_DIR}" --config Release
+    WORKING_DIRECTORY "${BASISU_BINARY_DIR}"
     RESULT_VARIABLE _basis_result
 )
 if(NOT _basis_result EQUAL 0)
