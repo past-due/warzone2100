@@ -6,7 +6,12 @@ if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
 	OPTION(WZ_INCLUDE_VIDEOS "Download & include videos in the application package" OFF)
 endif()
 
-find_package(ZIP REQUIRED)
+if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
+	# "Fake" COMPRESS_ZIP that just stages the needed files in folders
+	include(EnscriptenCompressZip)
+else()
+	find_package(ZIP REQUIRED)
+endif()
 
 find_program( GLSLC "glslc"
 			  PATHS "$ENV{VULKAN_SDK}/bin"
@@ -180,25 +185,30 @@ set(DATA_FILES
 if(WZ_INCLUDE_VIDEOS)
 	list(APPEND DATA_FILES "${CMAKE_CURRENT_BINARY_DIR}/sequences.wz")
 endif()
-install(FILES ${DATA_FILES}
-	DESTINATION "${WZ_DATADIR}"
-	COMPONENT Data
-)
 
-install(FILES
-	${wz2100_fonts_FILES}
-	COMPONENT Data DESTINATION "${WZ_DATADIR}/fonts"
-)
+if(NOT CMAKE_SYSTEM_NAME MATCHES "Emscripten")
 
-file(GLOB DATA_MUSIC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/music/*.opus" "${CMAKE_CURRENT_SOURCE_DIR}/music/albums/*/*.*")
-foreach(_music_file ${DATA_MUSIC_FILES})
-	file(RELATIVE_PATH _music_file_relative_path "${CMAKE_CURRENT_SOURCE_DIR}/music" "${_music_file}")
-	get_filename_component(_music_file_subdir_path "${_music_file_relative_path}" DIRECTORY)
-	install(FILES ${_music_file}
-		DESTINATION "${WZ_DATADIR}/music/${_music_file_subdir_path}"
+	install(FILES ${DATA_FILES}
+		DESTINATION "${WZ_DATADIR}"
 		COMPONENT Data
 	)
-endforeach()
+
+	install(FILES
+		${wz2100_fonts_FILES}
+		COMPONENT Data DESTINATION "${WZ_DATADIR}/fonts"
+	)
+
+	file(GLOB DATA_MUSIC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/music/*.opus" "${CMAKE_CURRENT_SOURCE_DIR}/music/albums/*/*.*")
+	foreach(_music_file ${DATA_MUSIC_FILES})
+		file(RELATIVE_PATH _music_file_relative_path "${CMAKE_CURRENT_SOURCE_DIR}/music" "${_music_file}")
+		get_filename_component(_music_file_subdir_path "${_music_file_relative_path}" DIRECTORY)
+		install(FILES ${_music_file}
+			DESTINATION "${WZ_DATADIR}/music/${_music_file_subdir_path}"
+			COMPONENT Data
+		)
+	endforeach()
+
+endif(NOT CMAKE_SYSTEM_NAME MATCHES "Emscripten")
 
 set(DATA_FILES ${DATA_FILES} PARENT_SCOPE)
 set(DATA_FONTS ${wz2100_fonts_FILES} PARENT_SCOPE)

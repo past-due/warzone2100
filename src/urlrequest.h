@@ -20,7 +20,11 @@
 #define _URL_REQUEST_H_
 
 #include <functional>
+#if !defined(__EMSCRIPTEN__)
 #include <curl/curl.h>
+#else
+#include "curl_emscripten_typedefs.h"
+#endif
 #include <string>
 #include <memory>
 #include <unordered_map>

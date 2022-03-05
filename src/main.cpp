@@ -1678,6 +1678,36 @@ static void cleanupOldLogFiles()
 	});
 }
 
+#if defined(__EMSCRIPTEN__)
+
+#include <emscripten.h>
+
+void debug_callback_emscripten_log(WZ_DECL_UNUSED void **data, const char *outputBuffer, code_part part)
+{
+	int flags = EM_LOG_NO_PATHS | EM_LOG_CONSOLE;
+	switch (part)
+	{
+		case LOG_ERROR:
+			flags |= EM_LOG_ERROR;
+			break;
+		case LOG_WARNING:
+			flags |= EM_LOG_WARN;
+			break;
+		default:
+			break;
+	}
+	if (outputBuffer[strlen(outputBuffer) - 1] != '\n')
+	{
+		emscripten_log(flags, "%s\n", outputBuffer);
+	}
+	else
+	{
+		emscripten_log(flags, "%s", outputBuffer);
+	}
+}
+
+#endif
+
 // for backend detection
 extern const char *BACKEND;
 
@@ -1730,7 +1760,11 @@ int realmain(int argc, char *argv[])
 	osSpecificFirstChanceProcessSetup();
 
 	debug_init();
+#if defined(__EMSCRIPTEN__)
+	debug_register_callback(debug_callback_emscripten_log, nullptr, nullptr, nullptr);
+#else
 	debug_register_callback(debug_callback_stderr, nullptr, nullptr, nullptr);
+#endif
 #if defined(WZ_OS_WIN) && defined(DEBUG_INSANE)
 	debug_register_callback(debug_callback_win32debug, NULL, NULL, NULL);
 #endif // WZ_OS_WIN && DEBUG_INSANE

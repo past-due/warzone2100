@@ -112,8 +112,12 @@ target_link_libraries(warzone2100 nlohmann_json)
 target_link_libraries(warzone2100 optional-lite)
 target_link_libraries(warzone2100 quickjs)
 
-include(IncludeFindCurl)
-target_link_libraries(warzone2100 CURL::libcurl)
+if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
+	# Exclude CURL implementation, Use Fetch API for Emscripten
+else()
+	include(IncludeFindCurl)
+	target_link_libraries(warzone2100 CURL::libcurl)
+endif()
 target_link_libraries(warzone2100 re2::re2)
 
 find_package(SQLite3 3.14 REQUIRED)
@@ -174,7 +178,7 @@ if (DEFINED CURL_OPENSSL_REQUIRES_CALLBACKS)
 		message(STATUS "Ignoring cURL OpenSSL backend, as other thread-safe backend(s) exist")
 	endif()
 endif()
-if (NOT DEFINED CURL_SUPPORTED_SSL_BACKENDS)
+if (NOT DEFINED CURL_SUPPORTED_SSL_BACKENDS AND NOT CMAKE_SYSTEM_NAME MATCHES "Emscripten")
 	if (NOT VCPKG_TOOLCHAIN) # ignore warning when using vcpkg
 		message(WARNING "Could not determine cURL's SSL/TLS backends; if cURL is built with OpenSSL < 1.1.0 or GnuTLS < 2.11.0, this may result in thread-safety issues")
 	endif()
@@ -217,6 +221,40 @@ endif()
 # To change the install destination at configure-time, please change the value of CMAKE_INSTALL_BINDIR
 # (WZ_APP_INSTALL_DEST is for the platform / generator-specific overrides *in* this file)
 set(WZ_APP_INSTALL_DEST "${CMAKE_INSTALL_BINDIR}")
+
+#######################
+# Emscripten Packaging Config
+
+if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
+
+	target_link_options(warzone2100 PRIVATE "SHELL:-s ENVIRONMENT=web,worker")
+#	target_link_options(warzone2100 PRIVATE "SHELL:-s INVOKE_RUN=0")
+
+	target_link_options(warzone2100 PRIVATE "SHELL:-s TOTAL_STACK=10485760")
+	target_link_options(warzone2100 PRIVATE "SHELL:-s INITIAL_MEMORY=268435456")
+	target_link_options(warzone2100 PRIVATE "SHELL:-s ALLOW_MEMORY_GROWTH=1")
+	target_link_options(warzone2100 PRIVATE "SHELL:-s DEMANGLE_SUPPORT=1")
+#	target_link_options(warzone2100 PRIVATE "SHELL:-s GL_ASSERTIONS=1")
+	target_link_options(warzone2100 PRIVATE "SHELL:-s LZ4=1")
+	#target_link_options(warzone2100 PRIVATE "SHELL:-s FULL_ES3=1")
+	target_link_options(warzone2100 PRIVATE "SHELL:-s PTHREAD_POOL_SIZE=8")
+
+	target_link_options(warzone2100 PRIVATE "SHELL:--shell-file ${PROJECT_SOURCE_DIR}/platforms/emscripten/shell.html")
+	target_link_options(warzone2100 PRIVATE "SHELL:--pre-js ${PROJECT_SOURCE_DIR}/platforms/emscripten/prejs.js")
+
+	foreach(_data_file ${DATA_FILES})
+		get_filename_component(_foldername "${_data_file}" NAME_WE)
+		message(STATUS "COPYING DATA: ${_foldername}")
+		target_link_options(warzone2100 PRIVATE "SHELL:--preload-file ${_data_file}@/data/${_foldername}/")
+	endforeach()
+
+	foreach(_font_file ${DATA_FONTS})
+		get_filename_component(_fontname "${_font_file}" NAME)
+		message(STATUS "COPYING FONT FILE: ${_fontname} (from: ${_font_file})")
+		target_link_options(warzone2100 PRIVATE "SHELL:--preload-file ${_font_file}@/data/fonts/")
+	endforeach()
+
+endif()
 
 #######################
 # macOS Build Config
@@ -557,7 +595,7 @@ if(CMAKE_SYSTEM_NAME MATCHES "Windows")
 	endif()
 endif()
 
-if(NOT CMAKE_SYSTEM_NAME MATCHES "Darwin" AND NOT MSVC)
+if(NOT CMAKE_SYSTEM_NAME MATCHES "(Darwin|Emscripten)" AND NOT MSVC)
 	# Ensure noexecstack
 	ADD_TARGET_LINK_FLAGS_IF_SUPPORTED(TARGET warzone2100 LINK_FLAGS "-Wl,-z,noexecstack" CACHED_RESULT_NAME LINK_FLAG_WL_Z_NOEXECSTACK_SUPPORTED)
 	# Enable RELRO (if supported)

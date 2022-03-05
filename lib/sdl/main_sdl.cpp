@@ -69,6 +69,10 @@
 #include "cocoa_wz_menus.h"
 #endif
 
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#endif
+
 #include <nonstd/optional.hpp>
 using nonstd::optional;
 using nonstd::nullopt;
@@ -2554,6 +2558,31 @@ bool wzMainScreenSetup_VerifyWindow()
 	return true;
 }
 
+#if defined(__EMSCRIPTEN__)
+
+#include <emscripten.h>
+#include <emscripten/html5.h>
+
+EM_BOOL emscripten_window_resized_callback(int eventType, const void *reserved, void *userData)
+{
+	double width, height;
+	emscripten_get_element_css_size("canvas", &width, &height);
+
+	int newWindowWidth = (int)width, newWindowHeight = (int)height;
+
+	// resize SDL window
+	SDL_SetWindowSize(WZwindow, newWindowWidth, newWindowHeight);
+
+	unsigned int oldWindowWidth = windowWidth;
+	unsigned int oldWindowHeight = windowHeight;
+	handleWindowSizeChange(oldWindowWidth, oldWindowHeight, newWindowWidth, newWindowHeight);
+	// Store the new values (in case the user manually resized the window bounds)
+	war_SetWidth(newWindowWidth);
+	war_SetHeight(newWindowHeight);
+	return true;
+}
+#endif
+
 bool wzMainScreenSetup(optional<video_backend> backend, int antialiasing, WINDOW_MODE fullscreen, int vsync, bool highDPI)
 {
 	// Output linked SDL version
@@ -2654,6 +2683,16 @@ bool wzMainScreenSetup(optional<video_backend> backend, int antialiasing, WINDOW
 	if (backend.has_value())
 	{
 		wzMainScreenSetup_VerifyWindow();
+
+#if defined(__EMSCRIPTEN__)
+		// Enable "soft fullscreen" - where the canvas automatically fills the window
+		EmscriptenFullscreenStrategy strategy;
+		strategy.scaleMode = EMSCRIPTEN_FULLSCREEN_CANVAS_SCALE_STDDEF;
+		strategy.filteringMode = EMSCRIPTEN_FULLSCREEN_FILTERING_DEFAULT;
+		strategy.canvasResizedCallback = emscripten_window_resized_callback;
+		strategy.canvasResizedCallbackUserData = nullptr; // pointer to user data
+		emscripten_enter_soft_fullscreen("canvas", &strategy);
+#endif
 	}
 
 	return true;
@@ -2911,6 +2950,12 @@ void wzEventLoopOneFrame(void* arg)
 			{
 				bool *bContinue = static_cast<bool*>(arg);
 				*bContinue = false;
+#if defined(__EMSCRIPTEN__)
+				// FUTURE TODO: Actually trigger cleanup code?
+				
+				// Stop Emscripten from calling the main loop
+				emscripten_cancel_main_loop();
+#endif
 			}
 			return;
 		default:
@@ -2947,10 +2992,15 @@ void wzMainEventLoop(std::function<void()> onShutdown)
 	event.type = 0;
 
 	bool bContinue = true;
+#if defined(__EMSCRIPTEN__)
+	// Receives a function to call and some user data to provide it.
+	emscripten_set_main_loop_arg(wzEventLoopOneFrame, &bContinue, -1, true);
+#else
 	while (bContinue)
 	{
 		wzEventLoopOneFrame(&bContinue);
 	}
+#endif
 
 	if (onShutdown)
 	{

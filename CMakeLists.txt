@@ -14,12 +14,14 @@ endif()
 
 include(CMakeDependentOption)
 
-OPTION(ENABLE_DOCS "Enable documentation generation" ON)
-OPTION(ENABLE_NLS "Native Language Support" ON)
 OPTION(WZ_ENABLE_WARNINGS "Enable (additional) warnings" OFF)
 OPTION(WZ_ENABLE_WARNINGS_AS_ERRORS "Enable compiler flags that treat (most) warnings as errors" ON)
-OPTION(WZ_ENABLE_BACKEND_VULKAN "Enable Vulkan backend" ON)
 OPTION(WZ_FORCE_MINIMAL_OPUSFILE "Force a minimal build of Opusfile, since WZ does not need (or want) HTTP stream support" ON)
+if(NOT CMAKE_SYSTEM_NAME MATCHES "Emscripten")
+	OPTION(ENABLE_DOCS "Enable documentation generation" ON)
+	OPTION(ENABLE_NLS "Native Language Support" ON)
+	OPTION(WZ_ENABLE_BACKEND_VULKAN "Enable Vulkan backend" ON)
+endif()
 
 if(CMAKE_SYSTEM_NAME MATCHES "Windows" OR CMAKE_SYSTEM_NAME MATCHES "Darwin" OR CMAKE_SYSTEM_NAME MATCHES "Linux")
 	# Only supported on Windows, macOS, and Linux
@@ -126,6 +128,26 @@ if(CMAKE_HOST_SYSTEM_NAME MATCHES "Darwin")
 	list(APPEND CMAKE_PREFIX_PATH "/usr/local/opt/gettext")
 endif()
 
+if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
+	# For Emscripten, we must currently get the following packages from Emscripten ports:
+	#	- SDL2
+	#	- Freetype
+	#	- Harfbuzz
+	# We must also specify:
+	#	- Pthread support
+	#	- Exception support
+	#	- WebGL 2.0 support [LINK]
+	#	- Fetch API [LINK]
+	set(COMP_AND_LINK_FLAGS "-gseparate-dwarf -fwasm-exceptions")
+	set(USE_FLAGS "-s USE_PTHREADS=1 -s USE_SDL=2 -s USE_FREETYPE=1 -s USE_HARFBUZZ=1 -s USE_LIBPNG=1")
+    #set(USE_FLAGS "-s USE_PTHREADS=1 -s USE_SDL=2 -s USE_FREETYPE=1 -s USE_HARFBUZZ=1 -s USE_LIBPNG=1")
+    # Set various flags and executable settings
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMP_AND_LINK_FLAGS} ${USE_FLAGS}")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMP_AND_LINK_FLAGS} ${USE_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s MAX_WEBGL_VERSION=2 -s FETCH=1")
+    set(CMAKE_EXECUTABLE_SUFFIX .html)
+endif()
+
 INCLUDE(AddTargetLinkFlagsIfSupported)
 
 # Use "-fPIC" / "-fPIE" for all targets by default, including static libs
@@ -156,8 +178,8 @@ if("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
 
 	# Default stack size is 1MB - increase to better match other platforms
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
-elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU|Clang" AND NOT APPLE)
-	# Ensure all builds always have debug info built (Xcode is handled separately below)
+elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU|Clang" AND NOT APPLE AND NOT CMAKE_SYSTEM_NAME MATCHES "Emscripten")
+	# Ensure all builds always have debug info built (Xcode is handled separately below, Emscripten handled above)
 	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -g")
 endif()
 if(MINGW AND ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang"))
@@ -190,34 +212,38 @@ endif()
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 
-# Enable stack protection, if supported by the compiler
-# Prefer -fstack-protector-strong if supported, fall-back to -fstack-protector
-check_c_compiler_flag(-fstack-protector-strong HAS_CFLAG_FSTACK_PROTECTOR_STRONG)
-if (HAS_CFLAG_FSTACK_PROTECTOR_STRONG)
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-strong")
-else()
-	check_c_compiler_flag(-fstack-protector HAS_CFLAG_FSTACK_PROTECTOR)
-	if (HAS_CFLAG_FSTACK_PROTECTOR)
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector")
+if(NOT CMAKE_SYSTEM_NAME MATCHES "Emscripten")
+
+	# Enable stack protection, if supported by the compiler
+	# Prefer -fstack-protector-strong if supported, fall-back to -fstack-protector
+	check_c_compiler_flag(-fstack-protector-strong HAS_CFLAG_FSTACK_PROTECTOR_STRONG)
+	if (HAS_CFLAG_FSTACK_PROTECTOR_STRONG)
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-strong")
+	else()
+		check_c_compiler_flag(-fstack-protector HAS_CFLAG_FSTACK_PROTECTOR)
+		if (HAS_CFLAG_FSTACK_PROTECTOR)
+			set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector")
+		endif()
 	endif()
-endif()
-check_cxx_compiler_flag(-fstack-protector-strong HAS_CXXFLAG_FSTACK_PROTECTOR_STRONG)
-if (HAS_CXXFLAG_FSTACK_PROTECTOR_STRONG)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector-strong")
-else()
-	check_cxx_compiler_flag(-fstack-protector HAS_CXXFLAG_FSTACK_PROTECTOR)
-	if (HAS_CXXFLAG_FSTACK_PROTECTOR)
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector")
+	check_cxx_compiler_flag(-fstack-protector-strong HAS_CXXFLAG_FSTACK_PROTECTOR_STRONG)
+	if (HAS_CXXFLAG_FSTACK_PROTECTOR_STRONG)
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector-strong")
+	else()
+		check_cxx_compiler_flag(-fstack-protector HAS_CXXFLAG_FSTACK_PROTECTOR)
+		if (HAS_CXXFLAG_FSTACK_PROTECTOR)
+			set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector")
+		endif()
 	endif()
-endif()
-# Enable -fstack-clash-protection if available
-check_c_compiler_flag(-fstack-clash-protection HAS_CFLAG_FSTACK_CLASH_PROTECTION)
-if (HAS_CFLAG_FSTACK_CLASH_PROTECTION AND NOT MINGW)
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-clash-protection")
-endif()
-check_cxx_compiler_flag(-fstack-clash-protection HAS_CXXFLAG_FSTACK_CLASH_PROTECTION)
-if (HAS_CXXFLAG_FSTACK_CLASH_PROTECTION AND NOT MINGW)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-clash-protection")
+	# Enable -fstack-clash-protection if available
+	check_c_compiler_flag(-fstack-clash-protection HAS_CFLAG_FSTACK_CLASH_PROTECTION)
+	if (HAS_CFLAG_FSTACK_CLASH_PROTECTION AND NOT MINGW)
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-clash-protection")
+	endif()
+	check_cxx_compiler_flag(-fstack-clash-protection HAS_CXXFLAG_FSTACK_CLASH_PROTECTION)
+	if (HAS_CXXFLAG_FSTACK_CLASH_PROTECTION AND NOT MINGW)
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-clash-protection")
+	endif()
+
 endif()
 
 include(CheckCompilerFlagsOutput)
@@ -439,6 +465,11 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 		set(CMAKE_XCODE_ATTRIBUTE_CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF YES)			# -Wimplicit-retain-self
 		set(CMAKE_XCODE_ATTRIBUTE_CLANG_WARN_OBJC_REPEATED_USE_OF_WEAK YES)			# -Warc-repeated-use-of-weak
 		set(CMAKE_XCODE_ATTRIBUTE_CLANG_WARN__ARC_BRIDGE_CAST_NONARC YES)			# -Warc-bridge-casts-disallowed-in-nonarc
+
+	elseif(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
+
+		list(APPEND WZ_TARGET_ADDITIONAL_C_BUILD_FLAGS -fno-common -fno-math-errno -fno-rounding-math -ffp-model=precise)
+		list(APPEND WZ_TARGET_ADDITIONAL_CXX_BUILD_FLAGS -fno-common -fno-math-errno -fno-rounding-math -ffp-model=precise)
 
 	else()
 		# GCC, Clang, etc

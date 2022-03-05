@@ -42,6 +42,8 @@ function(test_link_to_sdl_target sdl_target output_var)
     set(${output_var} "${${output_var}}" PARENT_SCOPE)
 endfunction()
 
+if(NOT CMAKE_SYSTEM_NAME MATCHES "Emscripten")
+
 # Prefer finding SDL2 using CMake Config, to properly include any dependencies / linked libraries (with complete, imported targets)
 # - This should work for vcpkg-installed SDL2, as well as other installs that generate a full (proper) CMake Config,
 # - and is required to properly link with a static SDL2 library (at least on Windows and macOS)
@@ -120,6 +122,8 @@ set(_prior_CMAKE_REQUIRED_INCLUDES "${CMAKE_REQUIRED_INCLUDES}")
 set(CMAKE_REQUIRED_INCLUDES "${_sdl2_include_dir}")
 CHECK_INCLUDE_FILE_CXX("SDL_vulkan.h" HAVE_SDL_VULKAN_H)
 set(CMAKE_REQUIRED_INCLUDES "${_prior_CMAKE_REQUIRED_INCLUDES}")
+
+endif(NOT CMAKE_SYSTEM_NAME MATCHES "Emscripten")
 
 add_library(sdl-backend STATIC ${HEADERS} ${SRC})
 include(WZTargetConfiguration)

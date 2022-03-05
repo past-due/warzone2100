@@ -280,8 +280,10 @@ void initLoadingScreen(bool drawbdrop)
 	wzShowMouse(false);
 	pie_SetFogStatus(false);
 
+#if !defined(__EMSCRIPTEN__)
 	// setup the callback....
 	resSetLoadCallback(loadingScreenCallback);
+#endif
 
 	if (drawbdrop)
 	{
@@ -305,7 +307,9 @@ void closeLoadingScreen()
 		free(stars);
 		stars = nullptr;
 	}
+#if !defined(__EMSCRIPTEN__)
 	resSetLoadCallback(nullptr);
+#endif
 }
 
 
