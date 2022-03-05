@@ -347,6 +347,10 @@ void debug_init()
 	enabled_debug[LOG_INFO] = true;
 	enabled_debug[LOG_FATAL] = true;
 	enabled_debug[LOG_POPUP] = true;
+#if defined(__EMSCRIPTEN__)
+	enabled_debug[LOG_WARNING] = true;
+//	enabled_debug[LOG_SOUND] = false; // must be false or sound breaks (some openal edge case)
+#endif
 	inputBuffer[0][0] = '\0';
 	inputBuffer[1][0] = '\0';
 #ifdef DEBUG

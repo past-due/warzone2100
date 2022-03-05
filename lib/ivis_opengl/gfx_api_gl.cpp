@@ -433,17 +433,17 @@ static const std::map<SHADER_MODE, program_data> shader_to_file_table =
 	std::make_pair(SHADER_RECT, program_data{ "Rect program", "shaders/rect.vert", "shaders/rect.frag",
 		{ "transformationMatrix", "color" } }),
 	std::make_pair(SHADER_TEXRECT, program_data{ "Textured rect program", "shaders/rect.vert", "shaders/texturedrect.frag",
-		{ "transformationMatrix", "tuv_offset", "tuv_scale", "color", "texture" } }),
+		{ "transformationMatrix", "tuv_offset", "tuv_scale", "color" } }),
 	std::make_pair(SHADER_GFX_COLOUR, program_data{ "gfx_color program", "shaders/gfx.vert", "shaders/gfx.frag",
 		{ "posMatrix" } }),
-	std::make_pair(SHADER_GFX_TEXT, program_data{ "gfx_text program", "shaders/gfx.vert", "shaders/texturedrect.frag",
-		{ "posMatrix", "color", "texture" } }),
+	std::make_pair(SHADER_GFX_TEXT, program_data{ "gfx_text program", "shaders/texturedrect.vert", "shaders/texturedrect.frag",
+		{ "posMatrix", "color" } }),
 	std::make_pair(SHADER_SKYBOX, program_data{ "skybox program", "shaders/skybox.vert", "shaders/skybox.frag",
 		{ "posMatrix", "color", "fog_color", "fog_enabled" } }),
 	std::make_pair(SHADER_GENERIC_COLOR, program_data{ "generic color program", "shaders/generic.vert", "shaders/rect.frag",{ "ModelViewProjectionMatrix", "color" } }),
 	std::make_pair(SHADER_LINE, program_data{ "line program", "shaders/line.vert", "shaders/rect.frag",{ "from", "to", "color", "ModelViewProjectionMatrix" } }),
 	std::make_pair(SHADER_TEXT, program_data{ "Text program", "shaders/rect.vert", "shaders/text.frag",
-		{ "transformationMatrix", "tuv_offset", "tuv_scale", "color", "texture" } })
+		{ "transformationMatrix", "tuv_offset", "tuv_scale", "color" } })
 };
 
 enum SHADER_VERSION
@@ -675,7 +675,8 @@ desc(_desc), vertex_buffer_desc(_vertex_buffer_desc)
 		// (The built-in shaders support (and have been tested with) VERSION_ES_100 and VERSION_ES_300)
 		const char *shaderVersionStr = shaderVersionString(getMaximumShaderVersionForCurrentGLESContext(VERSION_ES_100, VERSION_ES_300));
 
-		vertexShaderHeader = shaderVersionStr;
+		vertexShaderHeader = std::string(shaderVersionStr);
+		fragmentShaderHeader = std::string(shaderVersionStr);
 		// OpenGL ES Shading Language - 4. Variables and Types - pp. 35-36
 		// https://www.khronos.org/registry/gles/specs/2.0/GLSL_ES_Specification_1.0.17.pdf?#page=41
 		// 
@@ -683,7 +684,12 @@ desc(_desc), vertex_buffer_desc(_vertex_buffer_desc)
 		// > Hence for float, floating point vector and matrix variable declarations, either the
 		// > declaration must include a precision qualifier or the default float precision must
 		// > have been previously declared.
-		fragmentShaderHeader = std::string(shaderVersionStr) + "#if GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\nprecision highp int;\n#else\nprecision mediump float;\n#endif\n";
+#if defined(__EMSCRIPTEN__)
+		vertexShaderHeader += "precision highp float;\n";
+		fragmentShaderHeader += "precision highp float;precision highp int;\n";
+#else
+		fragmentShaderHeader += "#if defined(GL_FRAGMENT_PRECISION_HIGH) || __VERSION__ >= 300\nprecision highp float;\nprecision highp int;\n#else\nprecision mediump float;\n#endif\n";
+#endif
 	}
 
 	build_program(fragmentHighpFloatAvailable, fragmentHighpIntAvailable,
@@ -933,10 +939,22 @@ void gl_pipeline_state_object::getLocs()
 	GLint locTex1 = glGetUniformLocation(program, "TextureTcmask");
 	GLint locTex2 = glGetUniformLocation(program, "TextureNormal");
 	GLint locTex3 = glGetUniformLocation(program, "TextureSpecular");
-	glUniform1i(locTex0, 0);
-	glUniform1i(locTex1, 1);
-	glUniform1i(locTex2, 2);
-	glUniform1i(locTex3, 3);
+	if (locTex0 != -1)
+	{
+		glUniform1i(locTex0, 0);
+	}
+	if (locTex1 != -1)
+	{
+		glUniform1i(locTex1, 1);
+	}
+	if (locTex2 != -1)
+	{
+		glUniform1i(locTex2, 2);
+	}
+	if (locTex3 != -1)
+	{
+		glUniform1i(locTex3, 3);
+	}
 }
 
 static std::unordered_set<std::string> getUniformNamesFromSource(const char* shaderContents)
@@ -1148,15 +1166,23 @@ void gl_pipeline_state_object::build_program(bool fragmentHighpFloatAvailable, b
 			glObjectLabel(GL_PROGRAM, program, -1, programName.c_str());
 		}
 	}
-	fetch_uniforms(uniformNames, duplicateFragmentUniformNames);
+	fetch_uniforms(uniformNames, duplicateFragmentUniformNames, programName);
 	getLocs();
 }
 
-void gl_pipeline_state_object::fetch_uniforms(const std::vector<std::string>& uniformNames, const std::vector<std::string>& duplicateFragmentUniformNames)
+void gl_pipeline_state_object::fetch_uniforms(const std::vector<std::string>& uniformNames, const std::vector<std::string>& duplicateFragmentUniformNames, const std::string& programName)
 {
 	std::transform(uniformNames.begin(), uniformNames.end(),
 				   std::back_inserter(locations),
-				   [&](const std::string& name) { return glGetUniformLocation(program, name.data()); });
+				   [&](const std::string& name)
+	{
+		GLint loc = glGetUniformLocation(program, name.data());
+		if (loc == -1)
+		{
+			debug(LOG_ERROR, "[Program: %s] Unable to find uniform location for: %s", programName.c_str(), name.c_str());
+		}
+		return loc;
+	});
 	if (!duplicateFragmentUniformNames.empty())
 	{
 		std::transform(duplicateFragmentUniformNames.begin(), duplicateFragmentUniformNames.end(),
@@ -1364,7 +1390,7 @@ void gl_pipeline_state_object::set_constants(const gfx_api::constant_buffer_type
 	setUniforms(1, cbuf.offset);
 	setUniforms(2, cbuf.size);
 	setUniforms(3, cbuf.color);
-	setUniforms(4, cbuf.texture);
+//	setUniforms(4, cbuf.texture);
 }
 
 void gl_pipeline_state_object::set_constants(const gfx_api::constant_buffer_type<SHADER_GFX_COLOUR>& cbuf)
@@ -1376,7 +1402,7 @@ void gl_pipeline_state_object::set_constants(const gfx_api::constant_buffer_type
 {
 	setUniforms(0, cbuf.transform_matrix);
 	setUniforms(1, cbuf.color);
-	setUniforms(2, cbuf.texture);
+//	setUniforms(2, cbuf.texture);
 }
 
 void gl_pipeline_state_object::set_constants(const gfx_api::constant_buffer_type<SHADER_SKYBOX>& cbuf)
@@ -1407,7 +1433,7 @@ void gl_pipeline_state_object::set_constants(const gfx_api::constant_buffer_type
 	setUniforms(1, cbuf.offset);
 	setUniforms(2, cbuf.size);
 	setUniforms(3, cbuf.color);
-	setUniforms(4, cbuf.texture);
+//	setUniforms(4, cbuf.texture);
 }
 
 GLint get_size(const gfx_api::vertex_attribute_type& type)

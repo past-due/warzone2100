@@ -46,6 +46,8 @@
 	this Software without prior written authorization of the copyright holder.
 */
 
+#if !defined(__EMSCRIPTEN__)
+
 #define NOMINMAX
 #include "urlrequest.h"
 #include "lib/framework/wzapp.h"
@@ -1381,3 +1383,5 @@ void urlRequestShutdown()
 
 	curl_global_cleanup();
 }
+
+#endif // !defined(__EMSCRIPTEN__)

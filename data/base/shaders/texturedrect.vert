@@ -14,13 +14,15 @@ attribute vec4 vertexColor;
 #endif
 
 #if (!defined(GL_ES) && (__VERSION__ >= 130)) || (defined(GL_ES) && (__VERSION__ >= 300))
-out vec4 vColour;
+out vec2 uv;
 #else
-varying vec4 vColour;
+varying vec2 uv;
 #endif
 
 void main()
 {
+	// Pass texture coordinates to fragment shader
+	uv = vertexTexCoord;
+
 	gl_Position = posMatrix * vertex;
-	vColour = vertexColor;
 }

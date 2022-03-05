@@ -261,7 +261,11 @@ bool runTitleMenu()
 		changeTitleMode(QUIT);
 		break;
 	case FRONTEND_MULTIPLAYER:
+#if !defined(__EMSCRIPTEN__)
 		changeTitleMode(MULTI);
+#else
+		wzDisplayDialog(Dialog_Information, "Multiplayer requires the native version.", "The web version of Warzone 2100 does not support multiplayer. Please visit https://wz2100.net to download the native version for your platform.");
+#endif
 		break;
 	case FRONTEND_SINGLEPLAYER:
 		changeTitleMode(SINGLE);
@@ -609,8 +613,10 @@ void startMultiPlayerMenu()
 
 	addSideText(FRONTEND_SIDETEXT ,	FRONTEND_SIDEX, FRONTEND_SIDEY, _("MULTI PLAYER"));
 
+#if !defined(__EMSCRIPTEN__)
 	addTextButton(FRONTEND_HOST,     FRONTEND_POS2X, FRONTEND_POS2Y, _("Host Game"), WBUT_TXTCENTRE);
 	addTextButton(FRONTEND_JOIN,     FRONTEND_POS3X, FRONTEND_POS3Y, _("Join Game"), WBUT_TXTCENTRE);
+#endif
 	addTextButton(FRONTEND_REPLAY,   FRONTEND_POS7X, FRONTEND_POS7Y, _("View Replay"), WBUT_TXTCENTRE);
 
 	addMultiBut(psWScreen, FRONTEND_BOTFORM, FRONTEND_QUIT, 10, 10, 30, 29, P_("menu", "Return"), IMAGE_RETURN, IMAGE_RETURN_HI, IMAGE_RETURN_HI);

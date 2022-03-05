@@ -1,3 +1,15 @@
+set(_png_util_cpp "png_util.cpp")
+if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
+	# We should be using the Emscripten port linker flags for FreeType & Harfbuzz
+	find_package(SPNG REQUIRED)
+	set(_png_util_cpp "png_util_spng.cpp")
+else()
+	find_package(PNG 1.2 REQUIRED)
+	find_package(Freetype REQUIRED)
+	find_package(Harfbuzz 1.0 REQUIRED)
+endif()
+find_package(Fribidi) # recommended, but optional
+
 file(GLOB HEADERS
 	"bitimage.h"
 	"gfx_api.h"
@@ -46,7 +58,7 @@ file(GLOB SRC
 	"piemode.cpp"
 	"piepalette.cpp"
 	"piestate.cpp"
-	"png_util.cpp"
+	"${_png_util_cpp}"
 	"screen.cpp"
 	"tex.cpp"
 	"textdraw.cpp"
@@ -55,11 +67,6 @@ file(GLOB SRC
 
 add_subdirectory(3rdparty/etcpak)
 
-find_package(PNG 1.2 REQUIRED)
-find_package(Freetype REQUIRED)
-find_package(Harfbuzz 1.0 REQUIRED)
-find_package(Fribidi) # recommended, but optional
-
 include(CheckCXXCompilerFlag)
 
 add_library(ivis-opengl STATIC ${HEADERS} ${SRC})
@@ -67,8 +74,14 @@ set_property(TARGET ivis-opengl PROPERTY FOLDER "lib")
 include(WZTargetConfiguration)
 WZ_TARGET_CONFIGURATION(ivis-opengl)
 
-target_include_directories(ivis-opengl PRIVATE ${HARFBUZZ_INCLUDE_DIRS} ${FREETYPE_INCLUDE_DIR_ft2build})
-target_link_libraries(ivis-opengl PRIVATE framework PNG::PNG ${HARFBUZZ_LIBRARIES} ${FREETYPE_LIBRARIES})
+if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
+	# We should be using the Emscripten port linker flags for FreeType & Harfbuzz
+	target_link_libraries(ivis-opengl PRIVATE SPNG::SPNG)
+else()
+	target_include_directories(ivis-opengl PRIVATE ${HARFBUZZ_INCLUDE_DIRS} ${FREETYPE_INCLUDE_DIR_ft2build})
+	target_link_libraries(ivis-opengl PRIVATE PNG::PNG ${HARFBUZZ_LIBRARIES} ${FREETYPE_LIBRARIES})
+endif()
+target_link_libraries(ivis-opengl PRIVATE framework)
 target_link_libraries(ivis-opengl PUBLIC glad)
 target_link_libraries(ivis-opengl PUBLIC optional-lite)
 if (WZ_DEBUG_GFX_API_LEAKS)

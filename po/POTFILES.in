@@ -476,7 +476,7 @@ src/titleui/titleui.cpp
 src/transporter.cpp
 src/updatemanager.cpp
 src/urlhelpers.cpp
-src/urlrequest.cpp
+src/urlrequest_curl.cpp
 src/version.cpp
 src/visibility.cpp
 src/warcam.cpp
