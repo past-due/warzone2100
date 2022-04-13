@@ -14,9 +14,6 @@ RUN /scripts/get-dependencies_linux.sh archlinux build-dependencies \
 
 RUN lsb_release -a
 
-# Explicitly add /code as a "safe directory" (see: CVE-2022-24765)
-RUN git config --global --add safe.directory /code
-
 # Defines arguments which can be passed during build time.
 ARG USER=warzone2100
 ARG UID=1000
