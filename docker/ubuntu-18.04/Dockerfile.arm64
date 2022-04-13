@@ -11,6 +11,9 @@ RUN apt-get -u update \
  && /scripts/get-dependencies_linux.sh ubuntu build-dependencies \
  && rm -rf /var/lib/apt/lists/*
 
+# Explicitly add /code as a "safe directory" (see: CVE-2022-24765)
+RUN git config --global --add safe.directory /code
+
 WORKDIR /code
 CMD ["sh"]
 

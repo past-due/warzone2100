@@ -19,6 +19,9 @@ RUN apt-get -u update \
  && DEBIAN_FRONTEND=noninteractive apt-get -y install vulkan-sdk \
  && rm -rf /var/lib/apt/lists/*
 
+# Explicitly add /code as a "safe directory" (see: CVE-2022-24765)
+RUN git config --global --add safe.directory /code
+
 WORKDIR /code
 CMD ["sh"]
 
