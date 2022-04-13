@@ -12,7 +12,7 @@ RUN apk add --no-cache bash git build-base clang cmake ninja gdb p7zip gettext a
 # Explicitly add /code as a "safe directory" (see: CVE-2022-24765)
 RUN git config --global --add safe.directory /code
 
-# Defines argument which can be passed during build time.
+# Defines arguments which can be passed during build time.
 ARG USER=warzone2100
 ARG UID=1000
 # Create a user with given UID.
