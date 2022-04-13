@@ -13,9 +13,10 @@ RUN apk add --no-cache bash git build-base clang cmake ninja gdb p7zip gettext a
 RUN git config --global --add safe.directory /code
 
 # Defines argument which can be passed during build time.
+ARG USER=warzone2100
 ARG UID=1000
 # Create a user with given UID.
-RUN useradd -d /home/warzone2100 -m -g root -G sudo -u $UID warzone2100
+RUN useradd -d /home/warzone2100 -m -g root -G "$USER" -u "$UID" "$USER"
 # Switch to ubuntu user by default.
 USER warzone2100
 # Check the current uid of the user.
