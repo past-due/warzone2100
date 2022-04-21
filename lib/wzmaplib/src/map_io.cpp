@@ -1,7 +1,7 @@
 /*
 	This file is part of Warzone 2100.
 	Copyright (C) 1999-2004  Eidos Interactive
-	Copyright (C) 2005-2021  Warzone 2100 Project
+	Copyright (C) 2005-2022  Warzone 2100 Project
 
 	Warzone 2100 is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -31,6 +31,7 @@
 
 #if !defined(_WIN32)
 # include <fcntl.h>
+# include <dirent.h> // TODO: Also use CMake check for dirent.h
 #endif
 
 #include "3rdparty/SDL_endian.h"
@@ -152,6 +153,19 @@ bool BinaryIOStream::writeSLE32(int32_t val)
 	if (!result.has_value()) { return false; }
 	return result.value() == sizeof(val);
 }
+
+bool IOProvider::enumerateFiles(const std::string& basePath, const std::function<bool (const char* file)>& enumFunc)
+{
+	// Must implement in subclasses
+	return false;
+}
+
+bool IOProvider::enumerateFolders(const std::string& basePath, const std::function<bool (const char* file)>& enumFunc)
+{
+	// Must implement in subclasses
+	return false;
+}
+
 
 class WzMapBinaryStdIOStream : public WzMap::BinaryIOStream
 {
@@ -344,6 +358,156 @@ bool StdIOProvider::writeFullFile(const std::string& filename, const char *ppFil
 		return false;
 	}
 	return true;
+}
+
+const char* StdIOProvider::pathSeparator() const
+{
+#if defined(_WIN32)
+	return "\\";
+#else
+	return "/";
+#endif
+}
+
+#if defined(_WIN32)
+bool win_utf8ToUtf16(const char* str, std::vector<wchar_t>& outputWStr)
+{
+	int wstr_len = MultiByteToWideChar(CP_UTF8, 0, str, -1, NULL, 0);
+	if (wstr_len <= 0)
+	{
+//		DWORD dwError = GetLastError();
+//		debug(LOG_ERROR, "Could not not convert string from UTF-8; MultiByteToWideChar failed with error %lu: %s\n", dwError, str);
+		return false;
+	}
+	outputWStr = std::vector<wchar_t>(wstr_len, L'\0');
+	if (MultiByteToWideChar(CP_UTF8, 0, str, -1, &outputWStr[0], wstr_len) == 0)
+	{
+//		DWORD dwError = GetLastError();
+//		debug(LOG_ERROR, "Could not not convert string from UTF-8; MultiByteToWideChar[2] failed with error %lu: %s\n", dwError, str);
+		return false;
+	}
+	return true;
+}
+#endif
+
+enum EnumDirFlags
+{
+	ENUM_RECURSE = 0x01,
+	ENUM_FILES = 0x02,
+	ENUM_FOLDERS = 0x04
+};
+bool enumerateDirInternal(const std::string& basePath, int enumDirFlags, const std::function<bool (const char* file)>& enumFunc)
+{
+#if defined(_WIN32)
+	// List files inside the basePath directory (recursing into subdirectories)
+	std::string findFileStr = basePath + "\\*";
+	std::vector<wchar_t> wFindFileStr;
+	if (!win_utf8ToUtf16(findFileStr.c_str(), wFindFileStr))
+	{
+		return false;
+	}
+	WIN32_FIND_DATAW ffd;
+	HANDLE hFind = FindFirstFileW(wFindFileStr.data(), &ffd);
+	if (hFind == INVALID_HANDLE_VALUE)
+	{
+		return false;
+	}
+	std::vector<char> u8_buffer(MAX_PATH, 0);
+	std::string fullFilePath;
+	do {
+		// convert ffd.cFileName to UTF-8
+		if (!win_Utf16toUtf8(ffd.cFileName, u8_buffer))
+		{
+			// encoding conversion error...
+			continue;
+		}
+		if (strcmp(u8_buffer.data(), ".") == 0 || strcmp(u8_buffer.data(), "..") == 0)
+		{
+			continue;
+		}
+		fullFilePath = basePath + "\\" + u8_buffer.data();
+		if (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+		{
+			// found a file
+			if ((enumDirFlags & ENUM_FILES) == ENUM_FILES)
+			{
+				if (!enumFunc(fullFilePath))
+				{
+					break;
+				}
+			}
+		}
+		else
+		{
+			if (((enumDirFlags & ENUM_FOLDERS) == ENUM_FOLDERS))
+			{
+				if (!enumFunc(fullFilePath.c_str()))
+				{
+					break;
+				}
+			}
+			if (((enumDirFlags & ENUM_RECURSE) == ENUM_RECURSE))
+			{
+				// recurse into subfolder
+				enumerateDirInternal(fullFilePath, enumDirFlags, enumFunc);
+			}
+		}
+	} while (FindNextFileW(hFind, &ffd) != 0);
+	FindClose(hFind);
+#else
+	struct dirent *dir = NULL;
+	DIR *d = opendir(".");
+	if (d == NULL)
+	{
+		return false;
+	}
+	std::string fullFilePath;
+	while ((dir = readdir(d)))
+	{
+		if (strcmp(dir->d_name, "." ) == 0 || strcmp(dir->d_name, "..") == 0)
+		{
+			continue;
+		}
+		fullFilePath = basePath + "/" + dir->d_name;
+		if (dir->d_type == DT_DIR)
+		{
+			// recurse
+			if (((enumDirFlags & ENUM_FOLDERS) == ENUM_FOLDERS))
+			{
+				if (!enumFunc(fullFilePath.c_str()))
+				{
+					break;
+				}
+			}
+			if (((enumDirFlags & ENUM_RECURSE) == ENUM_RECURSE))
+			{
+				enumerateDirInternal(fullFilePath, enumDirFlags, enumFunc);
+			}
+		}
+		else if ((enumDirFlags & ENUM_FILES) == ENUM_FILES)
+		{
+			// found a file
+			if (!enumFunc(fullFilePath.c_str()))
+			{
+				break;
+			}
+		}
+	}
+	closedir(d);
+#endif
+	return true;
+}
+
+// enumFunc receives each enumerated file, and returns true to continue enumeration, or false to shortcut / stop enumeration
+bool StdIOProvider::enumerateFiles(const std::string& basePath, const std::function<bool (const char* file)>& enumFunc)
+{
+	return enumerateDirInternal(basePath, ENUM_RECURSE | ENUM_FILES, enumFunc);
+}
+
+// enumFunc receives each enumerated subfolder, and returns true to continue enumeration, or false to shortcut / stop enumeration
+bool StdIOProvider::enumerateFolders(const std::string& basePath, const std::function<bool (const char* file)>& enumFunc)
+{
+	return enumerateDirInternal(basePath, ENUM_RECURSE | ENUM_FOLDERS, enumFunc);
 }
 
 } // namespace WzMap
