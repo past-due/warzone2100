@@ -20,6 +20,7 @@
 
 #include "../include/wzmaplib/map_io.h"
 #include <cstdio>
+#include <cstring>
 
 #if defined(_WIN32)
 # define WIN32_LEAN_AND_MEAN
@@ -370,20 +371,22 @@ const char* StdIOProvider::pathSeparator() const
 }
 
 #if defined(_WIN32)
-bool win_utf8ToUtf16(const char* str, std::vector<wchar_t>& outputWStr)
+static bool win_utf16toUtf8(const wchar_t* buffer, std::vector<char>& u8_buffer)
 {
-	int wstr_len = MultiByteToWideChar(CP_UTF8, 0, str, -1, NULL, 0);
-	if (wstr_len <= 0)
+	// Convert the UTF-16 to UTF-8
+	int outputLength = WideCharToMultiByte(CP_UTF8, 0, buffer, -1, NULL, 0, NULL, NULL);
+	if (outputLength <= 0)
 	{
-//		DWORD dwError = GetLastError();
-//		debug(LOG_ERROR, "Could not not convert string from UTF-8; MultiByteToWideChar failed with error %lu: %s\n", dwError, str);
+		// Conversion error
 		return false;
 	}
-	outputWStr = std::vector<wchar_t>(wstr_len, L'\0');
-	if (MultiByteToWideChar(CP_UTF8, 0, str, -1, &outputWStr[0], wstr_len) == 0)
+	if (u8_buffer.size() < static_cast<size_t>(outputLength))
 	{
-//		DWORD dwError = GetLastError();
-//		debug(LOG_ERROR, "Could not not convert string from UTF-8; MultiByteToWideChar[2] failed with error %lu: %s\n", dwError, str);
+		u8_buffer.resize(outputLength, 0);
+	}
+	if (WideCharToMultiByte(CP_UTF8, 0, buffer, -1, &u8_buffer[0], outputLength, NULL, NULL) <= 0)
+	{
+		// Conversion error
 		return false;
 	}
 	return true;
@@ -416,7 +419,7 @@ bool enumerateDirInternal(const std::string& basePath, int enumDirFlags, const s
 	std::string fullFilePath;
 	do {
 		// convert ffd.cFileName to UTF-8
-		if (!win_Utf16toUtf8(ffd.cFileName, u8_buffer))
+		if (!win_utf16toUtf8(ffd.cFileName, u8_buffer))
 		{
 			// encoding conversion error...
 			continue;
