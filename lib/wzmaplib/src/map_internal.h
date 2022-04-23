@@ -68,4 +68,9 @@ void _printLog(WzMap::LoggingProtocol* logger, int line, WzMap::LoggingProtocol:
 
 optional<nlohmann::json> loadJsonObjectFromFile(const std::string& filename, WzMap::IOProvider& mapIO, WzMap::LoggingProtocol* pCustomLogger = nullptr);
 
+static inline bool strEndsWith(const std::string &str, const std::string &suffix)
+{
+	return (str.size() >= suffix.size()) && (str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0);
+}
+
 } // namespace WzMap
