@@ -392,29 +392,6 @@ const char* StdIOProvider::pathSeparator() const
 #endif
 }
 
-#if defined(_WIN32)
-static bool win_utf16toUtf8(const wchar_t* buffer, std::vector<char>& u8_buffer)
-{
-	// Convert the UTF-16 to UTF-8
-	int outputLength = WideCharToMultiByte(CP_UTF8, 0, buffer, -1, NULL, 0, NULL, NULL);
-	if (outputLength <= 0)
-	{
-		// Conversion error
-		return false;
-	}
-	if (u8_buffer.size() < static_cast<size_t>(outputLength))
-	{
-		u8_buffer.resize(outputLength, 0);
-	}
-	if (WideCharToMultiByte(CP_UTF8, 0, buffer, -1, &u8_buffer[0], outputLength, NULL, NULL) <= 0)
-	{
-		// Conversion error
-		return false;
-	}
-	return true;
-}
-#endif
-
 enum EnumDirFlags
 {
 	ENUM_RECURSE = 0x01,

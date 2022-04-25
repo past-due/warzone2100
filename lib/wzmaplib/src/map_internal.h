@@ -73,4 +73,9 @@ static inline bool strEndsWith(const std::string &str, const std::string &suffix
 	return (str.size() >= suffix.size()) && (str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0);
 }
 
+#if defined(_WIN32)
+bool win_utf8ToUtf16(const char* str, std::vector<wchar_t>& outputWStr);
+bool win_utf16toUtf8(const wchar_t* buffer, std::vector<char>& u8_buffer);
+#endif
+
 } // namespace WzMap
