@@ -27,6 +27,8 @@
 
 #include <zip.h> // from libzip
 
+#include "../src/map_internal.h"
+
 class WrappedZipArchive
 {
 public:
@@ -200,10 +202,20 @@ static zip_int64_t wz_zip_name_locate_impl(zip_t *archive, const char *fname, zi
 
 std::shared_ptr<WzMapZipIO> WzMapZipIO::openZipArchiveFS(const char* fileSystemPath, bool extraConsistencyChecks, bool readOnly)
 {
+	if (fileSystemPath == nullptr) { return nullptr; }
 	struct zip_error error;
 	zip_error_init(&error);
-	// FIXME: TODO: Add special win32 handling here (convert path from UTF-8 to UTF-16 and use the wide char win32 open functions)
+#if defined(_WIN32)
+	// Special win32 handling (convert path from UTF-8 to UTF-16 and use the wide-char win32 source functions)
+	std::vector<wchar_t> wFileSystemPathStr;
+	if (!win_utf8ToUtf16(fileSystemPath, wFileSystemPathStr))
+	{
+		return nullptr;
+	}
+	zip_source_t* s = zip_source_win32w_create(wFileSystemPathStr.c_str(), 0, -1, &error);
+#else
 	zip_source_t* s = zip_source_file_create(fileSystemPath, 0, -1, &error);
+#endif
 	if (s == NULL)
 	{
 		// Failed to create source / open file
