@@ -355,14 +355,21 @@ bool WzMapZipIO::enumerateFiles(const std::string& basePath, const std::function
 	{
 		return false;
 	}
+	std::string basePathToSearch = basePath;
+	bool emptyBasePath = basePathToSearch.empty();
+	if (!emptyBasePath && basePathToSearch.back() != '/')
+	{
+		basePathToSearch += '/';
+	}
+	if (basePathToSearch == "/")
+	{
+		basePathToSearch = "";
+		emptyBasePath = true;
+	}
 	for (zip_uint64_t idx = 0; idx < static_cast<zip_uint64_t>(result); idx++)
 	{
 		const char *name = zip_get_name(m_zipArchive->handle(), idx, ZIP_FL_ENC_GUESS);
 		if (name == NULL)
-		{
-			continue;
-		}
-		if (!basePath.empty() && strncmp(basePath.c_str(), name, basePath.size()) != 0)
 		{
 			continue;
 		}
@@ -382,6 +389,11 @@ bool WzMapZipIO::enumerateFiles(const std::string& basePath, const std::function
 					std::string nameStr = name;
 					std::replace(nameStr.begin(), nameStr.end(), '\\', '/');
 
+					if (!emptyBasePath && strncmp(basePathToSearch.c_str(), nameStr.c_str(), basePathToSearch.size()) != 0)
+					{
+						continue;
+					}
+
 					// filter out entries that end with "/" (these are dedicated directory entries)
 					if (nameStr.back() == '/')
 					{
@@ -394,6 +406,11 @@ bool WzMapZipIO::enumerateFiles(const std::string& basePath, const std::function
 					continue;
 				}
 			}
+		}
+
+		if (!emptyBasePath && strncmp(basePathToSearch.c_str(), name, basePathToSearch.size()) != 0)
+		{
+			continue;
 		}
 
 		// filter out entries that end with "/" (these are dedicated directory entries)
