@@ -522,13 +522,13 @@ bool enumerateDirInternal(const std::string& rootBasePath, const std::string& ba
 // enumFunc receives each enumerated file, and returns true to continue enumeration, or false to shortcut / stop enumeration
 bool StdIOProvider::enumerateFiles(const std::string& basePath, const std::function<bool (const char* file)>& enumFunc)
 {
-	return enumerateDirInternal(basePath, "", ENUM_RECURSE | ENUM_FILES, enumFunc);
+	return enumerateDirInternal(basePath, "", ENUM_FILES, enumFunc);
 }
 
 // enumFunc receives each enumerated subfolder, and returns true to continue enumeration, or false to shortcut / stop enumeration
 bool StdIOProvider::enumerateFolders(const std::string& basePath, const std::function<bool (const char* file)>& enumFunc)
 {
-	return enumerateDirInternal(basePath, "", ENUM_RECURSE | ENUM_FOLDERS, enumFunc);
+	return enumerateDirInternal(basePath, "", ENUM_FOLDERS, enumFunc);
 }
 
 } // namespace WzMap
