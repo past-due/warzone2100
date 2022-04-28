@@ -346,6 +346,7 @@ const char* WzMapZipIO::pathSeparator() const
 
 bool WzMapZipIO::enumerateFiles(const std::string& basePath, const std::function<bool (const char* file)>& enumFunc)
 {
+	bool recurse = false;
 	if (!enumFunc)
 	{
 		return false;
@@ -366,6 +367,7 @@ bool WzMapZipIO::enumerateFiles(const std::string& basePath, const std::function
 		basePathToSearch = "";
 		emptyBasePath = true;
 	}
+	std::string nameStr;
 	for (zip_uint64_t idx = 0; idx < static_cast<zip_uint64_t>(result); idx++)
 	{
 		const char *name = zip_get_name(m_zipArchive->handle(), idx, ZIP_FL_ENC_GUESS);
@@ -373,11 +375,11 @@ bool WzMapZipIO::enumerateFiles(const std::string& basePath, const std::function
 		{
 			continue;
 		}
-		size_t nameLen = strlen(name);
-		if (nameLen == 0)
+		if (*name == '\0')
 		{
 			continue;
 		}
+		nameStr = name;
 
 		if (malformed_windows_path_separators_workaround)
 		{
@@ -386,24 +388,7 @@ bool WzMapZipIO::enumerateFiles(const std::string& basePath, const std::function
 			{
 				if (opsys == ZIP_OPSYS_DOS && strchr(name, '\\') != nullptr)
 				{
-					std::string nameStr = name;
 					std::replace(nameStr.begin(), nameStr.end(), '\\', '/');
-
-					if (!emptyBasePath && strncmp(basePathToSearch.c_str(), nameStr.c_str(), basePathToSearch.size()) != 0)
-					{
-						continue;
-					}
-
-					// filter out entries that end with "/" (these are dedicated directory entries)
-					if (nameStr.back() == '/')
-					{
-						continue;
-					}
-					if (!enumFunc(nameStr.c_str()))
-					{
-						break;
-					}
-					continue;
 				}
 			}
 		}
@@ -414,11 +399,23 @@ bool WzMapZipIO::enumerateFiles(const std::string& basePath, const std::function
 		}
 
 		// filter out entries that end with "/" (these are dedicated directory entries)
-		if (*(name + (nameLen - 1)) == '/')
+		if (nameStr.back() == '/')
 		{
 			continue;
 		}
-		if (!enumFunc(name))
+
+		if (!recurse && nameStr.find('/', basePathToSearch.length()) != std::string::npos)
+		{
+			continue;
+		}
+
+		// remove prefix from path
+		if (!emptyBasePath)
+		{
+			nameStr = nameStr.substr(basePathToSearch.length());
+		}
+
+		if (!enumFunc(nameStr.c_str()))
 		{
 			break;
 		}
@@ -428,6 +425,8 @@ bool WzMapZipIO::enumerateFiles(const std::string& basePath, const std::function
 
 bool WzMapZipIO::enumerateFolders(const std::string& basePath, const std::function<bool (const char* file)>& enumFunc)
 {
+	bool recurse = false;
+
 	if (!enumFunc)
 	{
 		return false;
@@ -533,6 +532,15 @@ bool WzMapZipIO::enumerateFolders(const std::string& basePath, const std::functi
 		if (dirPath.length() == basePathToSearch.length())
 		{
 			continue;
+		}
+		// only recurse into subdirectories if permitted
+		if (!recurse)
+		{
+			size_t firstSlashPos = dirPath.find('/', basePathToSearch.length());
+			if (firstSlashPos != std::string::npos && firstSlashPos != (dirPath.length() - 1))
+			{
+				continue;
+			}
 		}
 		// remove prefix from dirPath
 		std::string relativeDirPath = dirPath.substr(basePathToSearch.length());
