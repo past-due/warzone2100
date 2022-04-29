@@ -36,6 +36,9 @@ public:
 	//	- readOnly: Open the zip archive in read-only mode
 	static std::shared_ptr<WzMapZipIO> openZipArchiveFS(const char* fileSystemPath, bool extraConsistencyChecks = false, bool readOnly = false);
 
+	// Initialize a new WzMapZipIO provider with a fileSystemPath to a new .zip/.wz archive (to be written)
+	static std::shared_ptr<WzMapZipIO> createZipArchiveFS(const char* fileSystemPath);
+
 	~WzMapZipIO();
 public:
 	virtual std::unique_ptr<WzMap::BinaryIOStream> openBinaryStream(const std::string& filename, WzMap::BinaryIOStream::OpenMode mode) override;

@@ -28,15 +28,29 @@
 #include <zip.h> // from libzip
 
 #include "../src/map_internal.h"
+#include <wzmaplib/map_io.h>
 
 class WrappedZipArchive
 {
 public:
-	WrappedZipArchive(zip_t* pZip)
+	typedef std::function<void ()> PostCloseFunc;
+public:
+	WrappedZipArchive(zip_t* pZip, PostCloseFunc postCloseFunc = nullptr)
 	: pZip(pZip)
+	, postCloseFunc(postCloseFunc)
 	{ }
 	~WrappedZipArchive()
 	{
+		close();
+	}
+	zip_t* handle() const
+	{
+		return pZip;
+	}
+protected:
+	void close()
+	{
+		if (!pZip) { return; }
 		if (readOnly)
 		{
 			zip_discard(pZip);
@@ -45,13 +59,15 @@ public:
 		{
 			zip_close(pZip);
 		}
-	}
-	zip_t* handle() const
-	{
-		return pZip;
+		pZip = nullptr;
+		if (postCloseFunc)
+		{
+			postCloseFunc();
+		}
 	}
 private:
 	zip_t* pZip = nullptr;
+	PostCloseFunc postCloseFunc;
 	bool readOnly = false;
 };
 
@@ -105,10 +121,22 @@ public:
 
 	virtual optional<size_t> writeBytes(const void *buffer, size_t len) override
 	{
-		// Write to writeBuffer
-		const char* begin = (const char*)buffer;
-		const char* end = begin + len;
-		m_writeBuffer.insert(m_writeBuffer.end(), begin, end);
+		// Expand writeBuffer if needed
+		if (m_writeBufferCapacity - m_writeBufferLen < len)
+		{
+			size_t newCapacity = std::max<size_t>(m_writeBufferCapacity + std::max<size_t>((m_writeBufferCapacity / 2), len), 1024);
+			auto newBuffer = (unsigned char*)realloc(m_writeBuffer, m_writeBufferCapacity);
+			if (newBuffer == NULL)
+			{
+				return nullopt;
+			}
+			m_writeBuffer = newBuffer;
+			m_writeBufferCapacity = newCapacity;
+		}
+		// Copy to writeBuffer
+		memcpy(m_writeBuffer + m_writeBufferLen, buffer, len);
+		m_writeBufferLen += len;
+
 		return len;
 	}
 
@@ -122,25 +150,35 @@ public:
 			m_filename.clear();
 		}
 		// If writing
-		else if (!m_writeBuffer.empty() && !m_filename.empty())
+		else if (m_writeBufferLen > 0 && m_writeBuffer != nullptr && !m_filename.empty())
 		{
-			zip_source_t *s = zip_source_buffer(m_zipArchive->handle(), m_writeBuffer.data(), m_writeBuffer.size(), 0);
+			zip_source_t *s = zip_source_buffer(m_zipArchive->handle(), m_writeBuffer, m_writeBufferLen, 1);
 			if (s == NULL)
 			{
 				// Failed to create a source buffer from the write buffer?
-				m_writeBuffer.clear();
+				free(m_writeBuffer);
+				m_writeBuffer = nullptr;
+				m_writeBufferLen = 0;
+				m_writeBufferCapacity = 0;
 				m_filename.clear();
 				return false;
 			}
+			// From this point on, libzip is now responsible for freeing the m_writeBuffer
+			// Reset local variables
+			m_writeBuffer = nullptr;
+			m_writeBufferLen = 0;
+			m_writeBufferCapacity = 0;
+			// Add the source data to the zip as a file
 			zip_int64_t result = zip_file_add(m_zipArchive->handle(), m_filename.c_str(), s, ZIP_FL_OVERWRITE | ZIP_FL_ENC_UTF_8);
-			zip_source_free(s);
-			m_writeBuffer.clear();
-			m_filename.clear();
+			// NOTE: Do *not* call zip_source_free(s) if zip_file_add succeeds!
 			if (result < 0)
 			{
 				// Failed to write file
+				zip_source_free(s);
+				m_filename.clear();
 				return false;
 			}
+			m_filename.clear();
 		}
 		return true;
 	}
@@ -171,10 +209,14 @@ public:
 	}
 private:
 	std::shared_ptr<WrappedZipArchive> m_zipArchive;
-	std::string m_filename;
 	optional<WzMap::BinaryIOStream::OpenMode> m_mode;
+	// reading
 	zip_file_t *m_pReadHandle = nullptr;
-	std::vector<unsigned char> m_writeBuffer;
+	// writing
+	std::string m_filename;
+	unsigned char* m_writeBuffer = nullptr;
+	size_t m_writeBufferLen = 0;
+	size_t m_writeBufferCapacity = 0;
 };
 
 static zip_int64_t wz_zip_name_locate_impl(zip_t *archive, const char *fname, zip_flags_t flags, bool useWindowsPathWorkaroundIfNeeded)
@@ -219,6 +261,7 @@ std::shared_ptr<WzMapZipIO> WzMapZipIO::openZipArchiveFS(const char* fileSystemP
 	if (s == NULL)
 	{
 		// Failed to create source / open file
+		zip_error_fini(&error);
 		return nullptr;
 	}
 	int flags = 0;
@@ -235,10 +278,90 @@ std::shared_ptr<WzMapZipIO> WzMapZipIO::openZipArchiveFS(const char* fileSystemP
 	{
 		// Failed to open from source
 		zip_source_free(s);
+		zip_error_fini(&error);
 		return nullptr;
 	}
+	zip_error_fini(&error);
 	auto result = std::shared_ptr<WzMapZipIO>(new WzMapZipIO());
 	result->m_zipArchive = std::make_shared<WrappedZipArchive>(pZip);
+	return result;
+}
+
+std::shared_ptr<WzMapZipIO> WzMapZipIO::createZipArchiveFS(const char* fileSystemPath)
+{
+	if (fileSystemPath == nullptr) { return nullptr; }
+	if (*fileSystemPath == '\0') { return nullptr; }
+
+	struct zip_error error;
+	zip_error_init(&error);
+
+	// Create new (empty) in-memory source buffer
+	zip_source_t *pMemSource = zip_source_buffer_create(NULL, 0, 1, &error);
+	if (pMemSource == NULL)
+	{
+		// Failed to create source
+		zip_error_fini(&error);
+		return nullptr;
+	}
+
+	int flags = ZIP_TRUNCATE;
+	zip_t* pZip = zip_open_from_source(pMemSource, flags, &error);
+	if (pZip == NULL)
+	{
+		// Failed to open from source
+		zip_source_free(pMemSource);
+		zip_error_fini(&error);
+		return nullptr;
+	}
+
+	zip_error_fini(&error);
+	zip_source_keep(pMemSource); // explicitly keep the buffer around after the in-memory zip file is "closed"
+
+	auto result = std::shared_ptr<WzMapZipIO>(new WzMapZipIO());
+	std::string writeNewZipOutputPath = fileSystemPath;
+	result->m_zipArchive = std::make_shared<WrappedZipArchive>(pZip, [pMemSource, writeNewZipOutputPath]() {
+		// This closure is run after the zip file is "closed"
+
+		if (zip_source_is_deleted(pMemSource))
+		{
+			// the zip is empty, so do nothing
+			zip_source_free(pMemSource);
+			return;
+		}
+
+		zip_stat_t zst;
+		if (zip_source_stat(pMemSource, &zst) < 0)
+		{
+			zip_source_free(pMemSource);
+			return;
+		}
+
+		if (zip_source_open(pMemSource) < 0)
+		{
+			zip_source_free(pMemSource);
+			return;
+		}
+
+		std::vector<char> zipDataBuffer(zst.size, 0);
+
+		if (zip_source_read(pMemSource, zipDataBuffer.data(), zst.size) < zst.size)
+		{
+			zip_source_close(pMemSource);
+			zip_source_free(pMemSource);
+			return;
+		}
+
+		zip_source_close(pMemSource);
+		zip_source_free(pMemSource);
+
+		//  Write out the zipDataBuffer to a file at the writeNewZipOutputPath
+		WzMap::StdIOProvider stdIOProvider;
+		if (!stdIOProvider.writeFullFile(writeNewZipOutputPath, zipDataBuffer.data(), static_cast<uint32_t>(zipDataBuffer.size())))
+		{
+			// Failed to write out zip buffer data
+			return;
+		}
+	});
 	return result;
 }
 
@@ -322,19 +445,25 @@ bool WzMapZipIO::loadFullFile(const std::string& filename, std::vector<char>& fi
 
 bool WzMapZipIO::writeFullFile(const std::string& filename, const char *ppFileData, uint32_t fileSize)
 {
-	zip_source_t *s = zip_source_buffer(m_zipArchive->handle(), ppFileData, fileSize, 0);
-	if (s == NULL)
+	auto writeStream = WzMapBinaryZipIOStream::openForWriting(filename, m_zipArchive);
+	if (!writeStream)
 	{
-		// Failed to create a source buffer from the write buffer?
 		return false;
 	}
-	zip_int64_t result = zip_file_add(m_zipArchive->handle(), filename.c_str(), s, ZIP_FL_OVERWRITE | ZIP_FL_ENC_UTF_8);
-	zip_source_free(s);
-	if (result < 0)
+	// write the entire file
+	auto result = writeStream->writeBytes(ppFileData, fileSize);
+	if (!result.has_value())
 	{
-		// Failed to write file
+		// write failed
 		return false;
 	}
+	if (result.value() != fileSize)
+	{
+		// write was short??
+		return false;
+	}
+	writeStream->close();
+
 	m_cachedDirectoriesList.clear(); // for now, just clear so it's re-generated if enumerateFolders is called
 	return true;
 }
