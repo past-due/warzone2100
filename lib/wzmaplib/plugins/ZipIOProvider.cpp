@@ -150,8 +150,12 @@ public:
 			m_filename.clear();
 		}
 		// If writing
-		else if (m_writeBufferLen > 0 && m_writeBuffer != nullptr && !m_filename.empty())
+		else if (m_writeBufferLen > 0)
 		{
+			if (m_writeBuffer == nullptr)
+			{
+				return false; // should not happen
+			}
 			zip_source_t *s = zip_source_buffer(m_zipArchive->handle(), m_writeBuffer, m_writeBufferLen, 1);
 			if (s == NULL)
 			{
@@ -169,6 +173,11 @@ public:
 			m_writeBufferLen = 0;
 			m_writeBufferCapacity = 0;
 			// Add the source data to the zip as a file
+			if (m_filename.empty()) // should not happen
+			{
+				zip_source_free(s);
+				return false;
+			}
 			zip_int64_t result = zip_file_add(m_zipArchive->handle(), m_filename.c_str(), s, ZIP_FL_OVERWRITE | ZIP_FL_ENC_UTF_8);
 			// NOTE: Do *not* call zip_source_free(s) if zip_file_add succeeds!
 			if (result < 0)
