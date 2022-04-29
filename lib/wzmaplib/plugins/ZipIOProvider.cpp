@@ -133,7 +133,7 @@ public:
 		if (m_writeBufferCapacity - m_writeBufferLen < len)
 		{
 			size_t newCapacity = std::max<size_t>(m_writeBufferCapacity + std::max<size_t>((m_writeBufferCapacity / 2), len), 1024);
-			auto newBuffer = (unsigned char*)realloc(m_writeBuffer, m_writeBufferCapacity);
+			auto newBuffer = (unsigned char*)realloc(m_writeBuffer, newCapacity);
 			if (newBuffer == NULL)
 			{
 				return nullopt;
@@ -539,7 +539,7 @@ bool WzMapZipIO::enumerateFiles(const std::string& basePath, const std::function
 			}
 		}
 
-		if (!emptyBasePath && strncmp(basePathToSearch.c_str(), name, basePathToSearch.size()) != 0)
+		if (!emptyBasePath && strncmp(basePathToSearch.c_str(), nameStr.c_str(), basePathToSearch.size()) != 0)
 		{
 			continue;
 		}
