@@ -30,6 +30,14 @@
 #include "../src/map_internal.h"
 #include <wzmaplib/map_io.h>
 
+#if defined(_WIN32)
+# define WIN32_LEAN_AND_MEAN
+# define WIN32_EXTRA_LEAN
+# undef NOMINMAX
+# define NOMINMAX 1
+# include <windows.h>
+#endif
+
 class WrappedZipArchive
 {
 public:
