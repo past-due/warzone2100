@@ -861,8 +861,38 @@ static optional<GamInfo> loadGamFile_OldBinary(const std::string& filePath, IOPr
 
 static optional<GamInfo> loadGamFile_JSON(const std::string& filePath, IOProvider& mapIO, LoggingProtocol* pCustomLogger)
 {
-	// FUTURE TODO: Implement if needed
-	return nullopt;
+	auto loadedResult = loadJsonObjectFromFile(filePath, mapIO, pCustomLogger);
+	if (!loadedResult.has_value())
+	{
+		// Failed to load JSON - rely on loadJsonFromFile to handle output of errors
+		return nullopt;
+	}
+
+	debug(pCustomLogger, LOG_INFO, "Loading: %s", filePath.c_str());
+
+	nlohmann::json& mRoot = loadedResult.value();
+	GamInfo gamInfo;
+	uint32_t version = 0;
+
+	try {
+		// Get required properties
+		version = mRoot.at("version").get<uint32_t>();
+		gamInfo.gameTime = mRoot.at("gameTime").get<uint32_t>();
+		gamInfo.GameType = mRoot.at("GameType").get<uint32_t>();
+		gamInfo.ScrollMinX = mRoot.at("ScrollMinX").get<int32_t>();
+		gamInfo.ScrollMinY = mRoot.at("ScrollMinY").get<int32_t>();
+		gamInfo.ScrollMaxX = mRoot.at("ScrollMaxX").get<uint32_t>();
+		gamInfo.ScrollMaxY = mRoot.at("ScrollMaxY").get<uint32_t>();
+		auto levelNameStr = mRoot.at("levelName").get<std::string>();
+		strncpy(gamInfo.levelName, levelNameStr.c_str(), OLD_MAX_LEVEL_SIZE - 1);
+		gamInfo.levelName[OLD_MAX_LEVEL_SIZE - 1] = '\0';
+	}
+	catch (const std::exception &e) {
+		debug(pCustomLogger, LOG_ERROR, "JSON document from %s is invalid: %s", filePath.c_str(), e.what());
+		return nullopt;
+	}
+
+	return gamInfo;
 }
 
 // Load map GAM details from either:
