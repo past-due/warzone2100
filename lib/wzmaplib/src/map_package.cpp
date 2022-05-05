@@ -825,7 +825,7 @@ static optional<GamInfo> loadGamFile_OldBinary(const std::string& filePath, IOPr
 		// So assume we have a version of 35 and onward
 
 		// Reverse the little-endian decoding
-		SDL_Swap32(version);
+		version = SDL_Swap32(version);
 	}
 
 	GamInfo gamInfo;
@@ -848,12 +848,12 @@ static optional<GamInfo> loadGamFile_OldBinary(const std::string& filePath, IOPr
 	if (version > 34)
 	{
 		// Reverse the little-endian decoding
-		SDL_Swap32(gamInfo.gameTime);
-		SDL_Swap32(gamInfo.GameType);
-		SDL_Swap32(gamInfo.ScrollMinX);
-		SDL_Swap32(gamInfo.ScrollMinY);
-		SDL_Swap32(gamInfo.ScrollMaxX);
-		SDL_Swap32(gamInfo.ScrollMaxY);
+		gamInfo.gameTime = SDL_Swap32(gamInfo.gameTime);
+		gamInfo.GameType = SDL_Swap32(gamInfo.GameType);
+		gamInfo.ScrollMinX = SDL_Swap32(gamInfo.ScrollMinX);
+		gamInfo.ScrollMinY = SDL_Swap32(gamInfo.ScrollMinY);
+		gamInfo.ScrollMaxX = SDL_Swap32(gamInfo.ScrollMaxX);
+		gamInfo.ScrollMaxY = SDL_Swap32(gamInfo.ScrollMaxY);
 	}
 
 	return gamInfo;
@@ -877,6 +877,10 @@ static optional<GamInfo> loadGamFile_JSON(const std::string& filePath, IOProvide
 	try {
 		// Get required properties
 		version = mRoot.at("version").get<uint32_t>();
+		if (version < 7)
+		{
+			debug(pCustomLogger, LOG_WARNING, "Unexpected gam.json version (%" PRIu32 ") in: %s", version, filePath.c_str());
+		}
 		gamInfo.gameTime = mRoot.at("gameTime").get<uint32_t>();
 		gamInfo.GameType = mRoot.at("GameType").get<uint32_t>();
 		gamInfo.ScrollMinX = mRoot.at("ScrollMinX").get<int32_t>();
@@ -1768,21 +1772,17 @@ optional<MapStats> MapPackage::calculateMapStats(MapStatsConfiguration statsConf
 	if (packageType() == MapPackageType::Map_Mod && m_mapIO != nullptr)
 	{
 		// Try to load stats configuration from the map package (if it's a map mod and is overriding those stats)
-		bool didLoadMapPackageStats = false;
 		if (statsConfig.loadFromTemplatesJSON(m_mapIO->pathJoin("stats", "templates.json"), *m_mapIO, pCustomLogger))
 		{
 			debug(pCustomLogger, LOG_INFO, "Using map mod stats overrides: templates.json");
-			didLoadMapPackageStats = true;
 		}
 		if (statsConfig.loadFromStructureJSON(m_mapIO->pathJoin("stats", "structure.json"), *m_mapIO, pCustomLogger))
 		{
 			debug(pCustomLogger, LOG_INFO, "Using map mod stats overrides: structure.json");
-			didLoadMapPackageStats = true;
 		}
 		if (statsConfig.loadFromFeaturesJSON(m_mapIO->pathJoin("stats", "features.json"), *m_mapIO, pCustomLogger))
 		{
 			debug(pCustomLogger, LOG_INFO, "Using map mod stats overrides: features.json");
-			didLoadMapPackageStats = true;
 		}
 	}
 
