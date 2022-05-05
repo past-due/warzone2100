@@ -445,20 +445,16 @@ bool addLoadSave(LOADSAVE_MODE savemode, const char *title)
 		savetime = WZ_PHYSFS_getLastModTime(savefile);
 
 		size_t lenIWithoutExtension = strlen(i) - extensionLen;
+		std::string fileNameWithoutExtension(i, lenIWithoutExtension);
 		for(auto &el: saveGameNamesAndTimes)
 		{
 			// only add if doesn't exist yet
-			// also don't compare std::string, to avoid building std::string from char*
-			if (el.name.length() != lenIWithoutExtension)
-			{
-				return true; // move to next
-			}
-			if (strncmp(i, el.name.c_str(), lenIWithoutExtension) == 0)
+			if (el.name.compare(fileNameWithoutExtension) == 0)
 			{
 				return true; // move to next
 			}
 		}
-		saveGameNamesAndTimes.emplace_back(i, savetime);
+		saveGameNamesAndTimes.emplace_back(std::move(fileNameWithoutExtension), savetime);
 		return true;
 	});
 
