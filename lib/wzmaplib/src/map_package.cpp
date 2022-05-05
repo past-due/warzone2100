@@ -793,7 +793,7 @@ static optional<GamInfo> loadGamFile_OldBinary(const std::string& filePath, IOPr
 	char aFileType[4] = {};
 	uint32_t version = 0;
 
-	if (readStream->readBytes(aFileType, 4) != 4)
+	if (readStream->readBytes(aFileType, 4) != static_cast<size_t>(4))
 	{
 		return nullopt;
 	}
