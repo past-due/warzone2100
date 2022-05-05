@@ -877,6 +877,8 @@ bool processMap(const char* archive, const char* realFileName_platformIndependen
 		return false;
 	}
 
+	WzMapPhysFSIO mapIO;
+
 	bool containsMap = false;
 
 	// First pass: Look for new "self-contained" maps / level.json (which are in multiplay/maps/<map name>)
