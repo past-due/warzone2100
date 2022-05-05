@@ -25,7 +25,7 @@ vcpkg_from_github(
         001-fix-uwp.patch
         002-fix-builder-error.patch
         wz-mingw-headers.patch
-        wz-mingw-headers-2.patch
+#        wz-mingw-headers-2.patch
         wz-mingw-headers-3.patch
 )
 
