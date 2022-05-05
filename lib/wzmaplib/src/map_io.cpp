@@ -530,17 +530,17 @@ bool enumerateDirInternal(const std::string& rootBasePath, const std::string& ba
 	std::string findFileStr = rootBasePath;
 	if (!findFileStr.empty() && findFileStr.back() != '\\')
 	{
-		dirToSearch += "\\";
+		findFileStr += "\\";
 	}
 	if (!basePath.empty())
 	{
-		dirToSearch += basePath;
+		findFileStr += basePath;
 		if (basePath.back() != '\\')
 		{
-			dirToSearch += "\\";
+			findFileStr += "\\";
 		}
 	}
-	dirToSearch += "*";
+	findFileStr += "*";
 	std::vector<wchar_t> wFindFileStr;
 	if (!win_utf8ToUtf16(findFileStr.c_str(), wFindFileStr))
 	{
@@ -571,7 +571,7 @@ bool enumerateDirInternal(const std::string& rootBasePath, const std::string& ba
 			// found a file
 			if ((enumDirFlags & ENUM_FILES) == ENUM_FILES)
 			{
-				if (!enumFunc(fullFilePath))
+				if (!enumFunc(fullFilePath.c_str()))
 				{
 					break;
 				}
