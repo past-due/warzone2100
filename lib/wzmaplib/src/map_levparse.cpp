@@ -32,6 +32,11 @@ using nonstd::nullopt;
 
 namespace WzMap {
 
+#if !defined(__clang__) && defined(__GNUC__) && ((__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7))
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
+
 bool levParseBasic(const char* data, size_t dataLen, IOProvider& mapIO, std::function<void (const std::string& command, const std::string& arg)> handleCommand, std::function<void (const std::string& commentLine)> handleCommentLine /*= nullptr*/, LoggingProtocol* pCustomLogger /*= nullptr*/)
 {
 	if (dataLen == 0)
@@ -122,10 +127,6 @@ bool levParseBasic(const char* data, size_t dataLen, IOProvider& mapIO, std::fun
 				addCharToCommandPart(c);
 			}
 		}
-#if !defined(__clang__) && defined(__GNUC__) && ((__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7))
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#endif
 		else if (c == '/' && (nextChar.value_or(0) == '/' || nextChar.value_or(0) == '*') && (mode != ParsingMode::Comment && mode != ParsingMode::SingleLineComment))
 		{
 			if (nextChar.value_or(0) == '/')
@@ -151,9 +152,6 @@ bool levParseBasic(const char* data, size_t dataLen, IOProvider& mapIO, std::fun
 			idx++;
 			lastModeChangeStartPos = idx + 1;
 		}
-#if !defined(__clang__) && defined(__GNUC__) && ((__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7))
-#pragma GCC diagnostic pop
-#endif
 		else if (mode == ParsingMode::Normal && c == '\"')
 		{
 			mode = ParsingMode::QuotedText;
@@ -196,6 +194,10 @@ bool levParseBasic(const char* data, size_t dataLen, IOProvider& mapIO, std::fun
 
 	return true;
 }
+
+#if !defined(__clang__) && defined(__GNUC__) && ((__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7))
+#pragma GCC diagnostic pop
+#endif
 
 optional<MAP_TILESET> convertLevMapTilesetType(std::string dataset)
 {
