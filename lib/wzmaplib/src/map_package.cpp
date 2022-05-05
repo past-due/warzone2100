@@ -929,7 +929,7 @@ static bool writeGamFile_OldBinary(const std::string& filePath, const GamInfo& g
 	// serialize gam file header ('game')
 	char aFileType[4] = {'g', 'a', 'm', 'e'};
 	uint32_t version = 8; // use 8 to be FlaME-compatible
-	if (writeStream->writeBytes(aFileType, 4) != 4)
+	if (writeStream->writeBytes(aFileType, 4) != static_cast<size_t>(4))
 	{
 		return false;
 	}
