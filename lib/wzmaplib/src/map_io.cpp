@@ -207,14 +207,36 @@ std::string IOProvider::pathJoin(const std::string& a, const std::string& b)
 std::string IOProvider::pathDirName(const std::string& fullPath)
 {
 	// Split the path at the path separator
-	size_t dirnameLength = fullPath.rfind(pathSeparator());
+	std::string pathSep = pathSeparator();
+	if (pathSep.empty())
+	{
+		return fullPath;
+	}
+	size_t dirnameLength = fullPath.size();
+	size_t lastPos = dirnameLength;
+	do {
+		lastPos = dirnameLength - pathSep.length();
+		dirnameLength = fullPath.rfind(pathSep, lastPos);
+	} while (dirnameLength != std::string::npos && dirnameLength == lastPos);
+
 	return (dirnameLength != std::string::npos) ? fullPath.substr(0, dirnameLength) : "";
 }
 
 std::string IOProvider::pathBaseName(const std::string& fullPath)
 {
 	// Split the path at the path separator
-	size_t dirnameLength = fullPath.rfind(pathSeparator());
+	std::string pathSep = pathSeparator();
+	if (pathSep.empty())
+	{
+		return fullPath;
+	}
+	size_t dirnameLength = fullPath.size();
+	size_t lastPos = dirnameLength;
+	do {
+		lastPos = dirnameLength - pathSep.length();
+		dirnameLength = fullPath.rfind(pathSep, lastPos);
+	} while (dirnameLength != std::string::npos && dirnameLength == lastPos);
+
 	return (dirnameLength != std::string::npos) ? fullPath.substr(dirnameLength + 1) : fullPath;
 }
 
