@@ -211,7 +211,7 @@ public:
 		auto position = zip_ftell(m_pReadHandle);
 		if (position < 0)
 		{
-			return false;
+			return true;
 		}
 		// attempt to read a byte
 		uint8_t tmpByte;
