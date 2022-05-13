@@ -1346,7 +1346,7 @@ bool MapPackage::exportMapPackageFiles(std::string basePath, LevelFormat levelFo
 	{
 		// Since the new JSON level format is requested, and a "plain" map package is being output,
 		// Can create a "flattened" map package! (where everything is in the root of the archive)
-		debug(pCustomLogger, LOG_ERROR, "Output map supports a \"flattened\" plain map archive");
+		debug(pCustomLogger, LOG_INFO, "Output map supports a \"flattened\" plain map archive");
 		mapFolderPath = "";
 	}
 
