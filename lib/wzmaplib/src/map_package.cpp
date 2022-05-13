@@ -1809,6 +1809,7 @@ std::string MapPackage::to_string(MapPackage::ModTypes modType)
 		case MapPackage::ModTypes::Tilesets: return "tilesets";
 		case MapPackage::ModTypes::Datasets: return "datasets";
 	}
+	return "";	// silence warning
 }
 
 bool MapPackage::loadGamInfo()
