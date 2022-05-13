@@ -497,11 +497,6 @@ jobs:
     - name: Collect Failure Logs
       if: failure()
       run: |
-        $angle_Log = "build\vcpkg\buildtrees\angle\install-x64-windows-rel-out.log"
-        if (Test-Path $angle_Log -PathType Leaf)
-        {
-          Copy-Item -LiteralPath "$angle_Log" -Destination ".\output\error_logs"
-        }
         $NSIS_Log = "build\_CPack_Packages\win32\NSIS\NSISOutput.log"
         if (Test-Path $NSIS_Log -PathType Leaf)
         {

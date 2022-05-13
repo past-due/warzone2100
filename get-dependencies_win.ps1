@@ -125,7 +125,7 @@ $vcpkg_succeeded = -1;
 $vcpkg_attempts = 0;
 Write-Output "vcpkg install --x-manifest-root=$($ScriptRoot) --x-install-root=.\vcpkg_installed\ --overlay-ports=$($overlay_ports_path) $additional_vcpkg_flags";
 
-While (($vcpkg_succeeded -ne 0) -and ($vcpkg_attempts -le 0))
+While (($vcpkg_succeeded -ne 0) -and ($vcpkg_attempts -le 2))
 {
 	& .\vcpkg\vcpkg install --x-manifest-root=$($ScriptRoot) --x-install-root=.\vcpkg_installed\ --overlay-ports=$($overlay_ports_path) $additional_vcpkg_flags;
 	$vcpkg_succeeded = $LastExitCode;
