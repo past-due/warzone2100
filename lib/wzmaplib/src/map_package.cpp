@@ -179,7 +179,7 @@ std::string internal_baseDir(const std::string& fullPathToFile, IOProvider& mapI
 	if (lastSlash == std::string::npos)
 	{
 		// Did not find a path separator
-		debug(pCustomLogger, LOG_WARNING, "Did not find parent path in \"%s\" (path separator: \"%s\")", fullPathToFile.c_str(), pathSeparator);
+		debug(pCustomLogger, LOG_INFO, "Did not find parent path in \"%s\" (path separator: \"%s\")", fullPathToFile.c_str(), pathSeparator);
 		// Default to an empty path
 		return std::string();
 	}
