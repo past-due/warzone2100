@@ -469,11 +469,6 @@ static inline optional<uint32_t> jsonGetFileFormatVersion(const std::string& fil
 	return fileFormatVersion;
 }
 
-#if !defined(__clang__) && defined(__GNUC__) && (12 <= __GNUC__)
-# pragma GCC diagnostic push
-# pragma GCC diagnostic ignored "-Wnull-dereference"
-#endif
-
 template <typename T>
 static inline optional<std::vector<T>> jsonGetListOfType(const nlohmann::json& obj, const std::string& key, size_t minItems, size_t maxItems, const JsonParsingContext& jsonContext, LoggingProtocol* pCustomLogger = nullptr, bool allowNonList = false)
 {
@@ -544,10 +539,6 @@ static inline optional<std::vector<T>> jsonGetListOfType(const nlohmann::json& o
 	}
 	return result;
 }
-
-#if !defined(__clang__) && defined(__GNUC__) && (12 <= __GNUC__)
-# pragma GCC diagnostic pop
-#endif
 
 // the player is extracted from either "player" or "startpos"
 // for multiplayer / skirmish maps, "startpos" should be set to the player slot index
