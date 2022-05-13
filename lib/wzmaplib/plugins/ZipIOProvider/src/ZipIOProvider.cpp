@@ -124,7 +124,7 @@ public:
 			uint8_t tmpByte = m_extraByteRead.value();
 			memcpy(buffer, &tmpByte, 1);
 			m_extraByteRead.reset();
-			buffer = reinterpret_cast<uint8_t*>(buffer) + 1;
+			buffer = reinterpret_cast<char*>(buffer) + 1;
 			len -= 1;
 			extraByte = 1;
 		}
