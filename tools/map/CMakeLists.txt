@@ -28,7 +28,7 @@ add_executable(maptools
 target_link_libraries(maptools PRIVATE wzmaplib PNG::PNG)
 if (TARGET ZipIOProvider)
 	target_link_libraries(maptools PRIVATE ZipIOProvider)
-else
+else()
 	message(WARNING "ZipIOProvider is not available - please ensure libzip is installed. maptools will be compiled without direct support for .wz archives")
 	target_compile_definitions(maptools PRIVATE "WZ_MAPTOOLS_DISABLE_ARCHIVE_SUPPORT")
 endif()
