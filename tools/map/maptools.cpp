@@ -165,6 +165,7 @@ static bool convertMapPackage(const std::string& mapPackageContentsPath, const s
 	}
 	else
 	{
+#if !defined(WZ_MAPTOOLS_DISABLE_ARCHIVE_SUPPORT)
 		exportIO = WzMapZipIO::createZipArchiveFS(outputPath.c_str());
 		if (!exportIO)
 		{
@@ -172,6 +173,10 @@ static bool convertMapPackage(const std::string& mapPackageContentsPath, const s
 			return false;
 		}
 		outputBasePath.clear();
+#else
+		std::cerr << "maptools was not compiled with map archive (.wz) support - you must pass --output-uncompressed" << std::endl;
+		return false;
+#endif // !defined(WZ_MAPTOOLS_DISABLE_ARCHIVE_SUPPORT)
 	}
 
 	if (!wzMapPackage->exportMapPackageFiles(outputBasePath, levelFormat, outputFormat, nullopt, copyAdditionalFiles, logger, exportIO))
@@ -200,6 +205,7 @@ static bool convertMapPackage(const std::string& mapPackageContentsPath, const s
 	return true;
 }
 
+#if !defined(WZ_MAPTOOLS_DISABLE_ARCHIVE_SUPPORT)
 static bool convertMapPackage_FromArchive(const std::string& mapArchive, const std::string& outputPath, WzMap::LevelFormat levelFormat, WzMap::OutputFormat outputFormat, bool copyAdditionalFiles, bool verbose, bool outputUncompressed)
 {
 	auto zipArchive = WzMapZipIO::openZipArchiveFS(mapArchive.c_str());
@@ -211,6 +217,7 @@ static bool convertMapPackage_FromArchive(const std::string& mapArchive, const s
 
 	return convertMapPackage("", outputPath, levelFormat, outputFormat, copyAdditionalFiles, verbose, outputUncompressed, zipArchive);
 }
+#endif // !defined(WZ_MAPTOOLS_DISABLE_ARCHIVE_SUPPORT)
 
 static bool convertMap(WzMap::MapType mapType, uint32_t mapMaxPlayers, const std::string& inputMapDirectory, const std::string& outputMapDirectory, WzMap::OutputFormat outputFormat, bool verbose)
 {
