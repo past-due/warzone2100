@@ -510,6 +510,23 @@ const char* WzMapZipIO::pathSeparator() const
 	return "/";
 }
 
+static inline bool isUnsafeZipEntryName(const std::string& filename)
+{
+	if (filename.empty())
+	{
+		return true; // unexpected empty name
+	}
+
+	// Check for directory traversal
+	// This will reject *any* filenames with ".." in them, but that should never happen for expected filenames in WZ archives
+	if (filename.find("..") != std::string::npos)
+	{
+		return true;
+	}
+
+	return false;
+}
+
 bool WzMapZipIO::enumerateFilesInternal(const std::string& basePath, bool recurse, const std::function<bool (const char* file)>& enumFunc)
 {
 	if (!enumFunc)
@@ -559,6 +576,12 @@ bool WzMapZipIO::enumerateFilesInternal(const std::string& basePath, bool recurs
 		}
 
 		if (!emptyBasePath && strncmp(basePathToSearch.c_str(), nameStr.c_str(), basePathToSearch.size()) != 0)
+		{
+			continue;
+		}
+
+		// filter out unsafe entry paths
+		if (isUnsafeZipEntryName(nameStr))
 		{
 			continue;
 		}
@@ -629,6 +652,12 @@ bool WzMapZipIO::enumerateFoldersInternal(const std::string& basePath, bool recu
 						std::replace(nameStr.begin(), nameStr.end(), '\\', '/');
 					}
 				}
+			}
+
+			// filter out unsafe entry paths
+			if (isUnsafeZipEntryName(nameStr))
+			{
+				continue;
 			}
 
 			// entries that end with "/" are dedicated directory entries
