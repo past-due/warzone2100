@@ -23,6 +23,14 @@
 
 #include <cstdarg>
 
+#if defined(_WIN32)
+# define WIN32_LEAN_AND_MEAN
+# define WIN32_EXTRA_LEAN
+# undef NOMINMAX
+# define NOMINMAX 1
+# include <windows.h>
+#endif
+
 namespace WzMap {
 
 // MARK: - Logging
@@ -44,13 +52,6 @@ void _printLog(WzMap::LoggingProtocol* logger, int line, WzMap::LoggingProtocol:
 // MARK: - Helpers
 
 #if defined(_WIN32)
-
-# define WIN32_LEAN_AND_MEAN
-# define WIN32_EXTRA_LEAN
-# undef NOMINMAX
-# define NOMINMAX 1
-# include <windows.h>
-
 bool win_utf8ToUtf16(const char* str, std::vector<wchar_t>& outputWStr)
 {
 	int wstr_len = MultiByteToWideChar(CP_UTF8, 0, str, -1, NULL, 0);
