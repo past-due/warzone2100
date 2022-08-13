@@ -141,16 +141,30 @@ if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
 	# We must also specify:
 	#	- Pthread support
 	#	- Exception support
-	#	- WebGL 2.0 support [LINK]
-	#	- Fetch API [LINK]
-	set(COMP_AND_LINK_FLAGS "-gseparate-dwarf -fwasm-exceptions")
+	#	- WebGL 2.0 support [LINK - see src/CMakeLists.txt]
+	#	- Fetch API [LINK - see src/CMakeLists.txt]
+
+	set(COMP_AND_LINK_FLAGS "-fwasm-exceptions")
 	set(USE_FLAGS "-s USE_PTHREADS=1 -s USE_SDL=2 -s USE_FREETYPE=1 -s USE_HARFBUZZ=1 -s USE_LIBPNG=1")
-    #set(USE_FLAGS "-s USE_PTHREADS=1 -s USE_SDL=2 -s USE_FREETYPE=1 -s USE_HARFBUZZ=1 -s USE_LIBPNG=1")
-    # Set various flags and executable settings
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMP_AND_LINK_FLAGS} ${USE_FLAGS}")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMP_AND_LINK_FLAGS} ${USE_FLAGS}")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s MAX_WEBGL_VERSION=2 -s FETCH=1")
-    set(CMAKE_EXECUTABLE_SUFFIX .html)
+
+	# Set various flags and executable settings
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMP_AND_LINK_FLAGS} ${USE_FLAGS}")
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMP_AND_LINK_FLAGS} ${USE_FLAGS}")
+	set(CMAKE_EXECUTABLE_SUFFIX .html)
+
+	# -fwasm-exceptions must be passed to linker as well
+	add_link_options(
+		"$<$<LINK_LANGUAGE:CXX,C>:-fwasm-exceptions>"
+	)
+
+	# enable separate-dwarf debug info for Debug/RelWithDebInfo builds
+	set(debug_builds_only "$<OR:$<CONFIG:DEBUG>,$<CONFIG:RELWITHDEBINFO>>")
+	add_compile_options(
+		"$<$<AND:$<COMPILE_LANGUAGE:CXX,C>,${debug_builds_only}>:-gseparate-dwarf>"
+	)
+	add_link_options(
+		"$<$<AND:$<LINK_LANGUAGE:CXX,C>,${debug_builds_only}>:-gseparate-dwarf>"
+	)
 endif()
 
 INCLUDE(AddTargetLinkFlagsIfSupported)

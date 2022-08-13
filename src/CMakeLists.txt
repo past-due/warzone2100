@@ -231,6 +231,10 @@ set(WZ_APP_INSTALL_DEST "${CMAKE_INSTALL_BINDIR}")
 
 if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
 
+	target_link_options(warzone2100 PRIVATE "SHELL:-s MAX_WEBGL_VERSION=2")
+	target_link_options(warzone2100 PRIVATE "SHELL:-s FETCH=1")
+	target_link_options(warzone2100 PRIVATE "SHELL:-s WASM_BIGINT")
+
 	target_link_options(warzone2100 PRIVATE "SHELL:-s ENVIRONMENT=web,worker")
 #	target_link_options(warzone2100 PRIVATE "SHELL:-s INVOKE_RUN=0")
 
