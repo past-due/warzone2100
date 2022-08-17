@@ -205,6 +205,9 @@ static std::string getProgramPath(const char *programCommand)
 		return std::string();
 	}
 
+#elif defined(__EMSCRIPTEN__)
+	return "warzone2100.wasm";
+
 #elif defined(WZ_OS_UNIX) && !defined(WZ_OS_MAC)
 	{
 		FILE *whichProgramStream;
