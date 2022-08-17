@@ -2916,6 +2916,9 @@ static void handleActiveEvent(SDL_Event *event)
 }
 
 static SDL_Event event;
+#if defined(__EMSCRIPTEN__)
+std::function<void()> saved_onShutdown;
+#endif
 
 void wzEventLoopOneFrame(void* arg)
 {
@@ -2951,7 +2954,12 @@ void wzEventLoopOneFrame(void* arg)
 				bool *bContinue = static_cast<bool*>(arg);
 				*bContinue = false;
 #if defined(__EMSCRIPTEN__)
-				// FUTURE TODO: Actually trigger cleanup code?
+				// Actually trigger cleanup code
+				if (saved_onShutdown)
+				{
+					saved_onShutdown();
+				}
+				wzShutdown();
 				
 				// Stop Emscripten from calling the main loop
 				emscripten_cancel_main_loop();
@@ -2993,6 +3001,7 @@ void wzMainEventLoop(std::function<void()> onShutdown)
 
 	bool bContinue = true;
 #if defined(__EMSCRIPTEN__)
+	saved_onShutdown = onShutdown;
 	// Receives a function to call and some user data to provide it.
 	emscripten_set_main_loop_arg(wzEventLoopOneFrame, &bContinue, -1, true);
 #else
