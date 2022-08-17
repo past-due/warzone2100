@@ -50,6 +50,7 @@
 
 #define NOMINMAX
 #include "urlrequest.h"
+#include "urlrequest_private.h"
 #include "lib/framework/wzapp.h"
 #include <atomic>
 #include <list>
@@ -87,33 +88,6 @@ static volatile bool urlRequestQuit = false;
 static WZ_THREAD        *urlRequestThread = nullptr;
 static WZ_MUTEX         *urlRequestMutex = nullptr;
 static WZ_SEMAPHORE     *urlRequestSemaphore = nullptr;
-
-MemoryStruct::MemoryStruct()
-{
-	memory = (char *) malloc(1);
-	size = 0;
-}
-
-MemoryStruct::~MemoryStruct()
-{
-	if (memory != nullptr)
-	{
-		free(memory);
-		memory = nullptr;
-	}
-}
-
-HTTPResponseHeaders::~HTTPResponseHeaders() { }
-HTTPResponseDetails::~HTTPResponseDetails() { }
-AsyncRequest::~AsyncRequest() { }
-
-bool URLRequestBase::setRequestHeader(const std::string& name, const std::string& value)
-{
-	ASSERT_OR_RETURN(false, !name.empty(), "Header name must not be empty");
-	ASSERT_OR_RETURN(false, name.find_first_of(":") == std::string::npos, "Header name must not contain ':'");
-	requestHeaders[name] = value;
-	return true;
-}
 
 struct AsyncRequestImpl : public AsyncRequest
 {
@@ -365,45 +339,6 @@ static int xferinfo(void *p, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ul
 static int older_progress(void *p, double dltotal, double dlnow, double ultotal, double ulnow);
 #endif
 static size_t header_callback(char *buffer, size_t size, size_t nitems, void *userdata);
-
-class CaseInsensitiveHash
-{
-public:
-	size_t operator() (std::string key) const
-	{
-		std::transform(key.begin(), key.end(), key.begin(), [](char c) { return std::tolower(c); });
-		return std::hash<std::string>{}(key);
-	}
-};
-class CaseInsensitiveEqualFunc
-{
-public:
-	bool operator() (std::string lhs, std::string rhs) const
-	{
-		std::transform(lhs.begin(), lhs.end(), lhs.begin(), [](char c) { return std::tolower(c); });
-		std::transform(rhs.begin(), rhs.end(), rhs.begin(), [](char c) { return std::tolower(c); });
-		return lhs == rhs;
-	}
-};
-
-typedef std::unordered_map<std::string, std::string, CaseInsensitiveHash, CaseInsensitiveEqualFunc> ResponseHeaderContainer;
-
-class HTTPResponseHeadersContainer: public HTTPResponseHeaders {
-public:
-	virtual bool hasHeader(const std::string& name) const override
-	{
-		return responseHeaders.count(name) > 0;
-	}
-	virtual bool getHeader(const std::string& name, std::string& output_value) const override
-	{
-		const auto it = responseHeaders.find(name);
-		if (it == responseHeaders.end()) { return false; }
-		output_value = it->second;
-		return true;
-	}
-public:
-	ResponseHeaderContainer responseHeaders;
-};
 
 #if LIBCURL_VERSION_NUM >= 0x071000	// cURL 7.16.0+
 static int sockopt_callback(void *clientp, curl_socket_t curlfd,
@@ -661,16 +596,6 @@ static int older_progress(void *p,
                   (curl_off_t)ulnow);
 }
 #endif
-
-static void trim_str(std::string& str)
-{
-	str.erase(str.begin(), std::find_if(str.begin(), str.end(), [](int c) {
-		return !std::isspace(c);
-	}));
-	str.erase(std::find_if(str.rbegin(), str.rend(), [](int c) {
-		return !std::isspace(c);
-	}).base(), str.end());
-}
 
 static size_t header_callback(char *buffer, size_t size,
 							  size_t nitems, void *userdata)

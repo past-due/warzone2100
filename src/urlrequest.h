@@ -95,9 +95,11 @@ public:
 
 	// MARK: callbacks
 	// IMPORTANT:
-	// - callbacks will be called on a background thread
+	// - callbacks *may* be called on a background thread
 	// - if you need to do something on the main thread, please wrap that logic
 	//   (inside your callback) in wzAsyncExecOnMainThread
+	// IMPORTANT:
+	// - `dltotal` may be <= 0 if the server did not report the Content-Length field
 	UrlProgressCallback progressCallback;
 	// IMPORTANT:
 	// - `transferDetails` may be null
