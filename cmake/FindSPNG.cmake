@@ -1,12 +1,11 @@
-# - Try to locate SDL2
+# - Try to locate SPNG
 # This module defines:
 #
-#  SDL2_INCLUDE_DIR
-#  SDL2_LIBRARY
-#  SDL2_FOUND
-#  SDL2_VERSION_STRING, human-readable string containing the version of SDL
+#  SPNG_INCLUDE_DIR
+#  SPNG_LIBRARY
+#  SPNG_FOUND
 #
-# Portions derived from FindSDL.cmake, distributed under the OSI-approved BSD 3-Clause License (https://cmake.org/licensing)
+# As well as the imported target SPNG::SPNG
 #
 
 find_path(SPNG_INCLUDE_DIR NAMES spng.h)
