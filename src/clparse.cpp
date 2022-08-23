@@ -43,6 +43,7 @@
 #include "warzoneconfig.h"
 #include "wrappers.h"
 #include "multilobbycommands.h"
+#include "seqdisp.h"
 
 #include <cwchar>
 
@@ -350,6 +351,9 @@ typedef enum
 	CLI_ADD_LOBBY_ADMINPUBLICKEY,
 	CLI_COMMAND_INTERFACE,
 	CLI_STARTPLAYERS,
+#if defined(__EMSCRIPTEN__)
+	CLI_VIDEOURL,
+#endif
 } CLI_OPTIONS;
 
 static const struct poptOption *getOptionsTable()
@@ -418,6 +422,9 @@ static const struct poptOption *getOptionsTable()
 		{ "addlobbyadminpublickey", POPT_ARG_STRING, CLI_ADD_LOBBY_ADMINPUBLICKEY, N_("Add a lobby admin public key (for slash commands)"), N_("b64-pub-key")},
 		{ "enablecmdinterface", POPT_ARG_STRING, CLI_COMMAND_INTERFACE, N_("Enable command interface"), N_("(stdin)")},
 		{ "startplayers", POPT_ARG_STRING, CLI_STARTPLAYERS, N_("Minimum required players to auto-start game"), N_("startplayers")},
+#if defined(__EMSCRIPTEN__)
+		{ "videourl", POPT_ARG_STRING, CLI_VIDEOURL,   N_("Base URL for on-demand video downloads"), N_("Base video URL") },
+#endif
 		// Terminating entry
 		{ nullptr, 0, 0,              nullptr,                                    nullptr },
 	};
@@ -986,6 +993,18 @@ bool ParseCommandLine(int argc, const char * const *argv)
 			}
 			debug(LOG_INFO, "Games will automatically start with [%d] players (when ready)", wz_min_autostart_players);
 			break;
+
+#if defined(__EMSCRIPTEN__)
+		case CLI_VIDEOURL:
+			token = poptGetOptArg(poptCon);
+			if (token == nullptr)
+			{
+				qFatal("Bad autorating server");
+			}
+			seq_setOnDemandVideoURL(token);
+			debug(LOG_INFO, "Using \"%s\" as base video URL.", token);
+			break;
+#endif
 
 		};
 	}
