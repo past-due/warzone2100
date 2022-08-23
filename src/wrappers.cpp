@@ -45,6 +45,10 @@
 #include "wrappers.h"
 #include "titleui/titleui.h"
 
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#endif
+
 struct STAR
 {
 	int      xPos;
@@ -273,6 +277,17 @@ void loadingScreenCallback()
 	wzPumpEventsWhileLoading();
 }
 
+#if defined(__EMSCRIPTEN__)
+EM_JS(void, wzemscripten_display_web_loading_indicator, (int x), {
+	if (typeof wz_js_display_loading_indicator === "function") {
+		wz_js_display_loading_indicator(x);
+	}
+	else {
+		console.log('Cannot find wz_js_display_loading_indicator function');
+	}
+});
+#endif
+
 // fill buffers with the static screen
 void initLoadingScreen(bool drawbdrop)
 {
@@ -283,6 +298,8 @@ void initLoadingScreen(bool drawbdrop)
 #if !defined(__EMSCRIPTEN__)
 	// setup the callback....
 	resSetLoadCallback(loadingScreenCallback);
+#else
+	wzemscripten_display_web_loading_indicator(1);
 #endif
 
 	if (drawbdrop)
@@ -309,6 +326,8 @@ void closeLoadingScreen()
 	}
 #if !defined(__EMSCRIPTEN__)
 	resSetLoadCallback(nullptr);
+#else
+	wzemscripten_display_web_loading_indicator(0);
 #endif
 }
 

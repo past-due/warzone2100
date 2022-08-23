@@ -11,6 +11,14 @@
       div.emscripten_container { border: 0px none; }
       /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
       canvas.emscripten { border: 0px none; background-color: black; }
+      
+      #gameloadingspinner {
+        z-index: 999;
+        position: absolute;
+        display: none;
+        width: 100px;
+        height: 100px;
+      }
 
       .spinner {
         height: 50px;
@@ -45,8 +53,130 @@
       }
 
     </style>
+    <style>
+      /* 
+      CSS Loading Spinner (Modified for WZ)
+
+      Original License:
+      Copyright (c) 2022 by Martin van Driel (https://codepen.io/martinvd/pen/xbQJom)
+
+      Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+      The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
+
+      .loader {
+        position: absolute;
+        top: calc(50% - 32px);
+        left: calc(50% - 32px);
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        perspective: 800px;
+      }
+
+      .inner {
+        position: absolute;
+        box-sizing: border-box;
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;  
+      }
+
+      .inner.core {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .circle {
+        width: 15%;
+        height: 15%;
+        border-radius: 50%;
+        background-color: #EFEFFA;
+        box-shadow:
+          inset 0 0 5px #09ff00,
+          inset 2px 0 8px #09ff00,
+          inset -2px 0 8px #09ff00,
+          inset 2px 0 30px #09ff00,
+          inset -2px 0 30px #09ff00,
+          0 0 50px #09ff00,
+          -1px 0 8px #09ff00,
+          1px 0 8px #09ff00;
+        animation: pulseOpacity 2.5s infinite cubic-bezier(0.455, 0.03, 0.515, 0.955);
+      }
+
+      @keyframes pulseOpacity {
+        0% {
+          opacity: 1;
+        }
+        50% {
+          opacity: .4;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+
+      .inner.one {
+        left: 0%;
+        top: 0%;
+        animation: rotate-one 1s linear infinite;
+        border-bottom: 3px solid #EFEFFA;
+      }
+
+      .inner.two {
+        right: 0%;
+        top: 0%;
+        animation: rotate-two 1s linear infinite;
+        border-right: 3px solid #EFEFFA;
+      }
+
+      .inner.three {
+        right: 0%;
+        bottom: 0%;
+        animation: rotate-three 1s linear infinite;
+        border-top: 3px solid #EFEFFA;
+      }
+
+      @keyframes rotate-one {
+        0% {
+          transform: rotateX(35deg) rotateY(-45deg) rotateZ(0deg);
+        }
+        100% {
+          transform: rotateX(35deg) rotateY(-45deg) rotateZ(360deg);
+        }
+      }
+
+      @keyframes rotate-two {
+        0% {
+          transform: rotateX(50deg) rotateY(10deg) rotateZ(0deg);
+        }
+        100% {
+          transform: rotateX(50deg) rotateY(10deg) rotateZ(360deg);
+        }
+      }
+
+      @keyframes rotate-three {
+        0% {
+          transform: rotateX(35deg) rotateY(55deg) rotateZ(0deg);
+        }
+        100% {
+          transform: rotateX(35deg) rotateY(55deg) rotateZ(360deg);
+        }
+      }
+    </style>
   </head>
   <body>
+    <figure style="overflow:visible;" id="gameloadingspinner">
+      <div class="loader">
+        <div class="inner core"><div class="circle"></div></div>
+        <div class="inner one"></div>
+        <div class="inner two"></div>
+        <div class="inner three"></div>
+      </div>
+    </figure>
     <figure style="overflow:visible;" id="spinner"><div class="spinner"></div><center style="margin-top:0.5em"><strong>Warzone 2100</strong></center></figure>
     <div class="emscripten" id="status">Downloading...</div>
     <div class="emscripten">
@@ -68,8 +198,21 @@
     function startGame() {
       // Make canvas visible
       //document.getElementById('emscripten_container').display="inline";
+      var startButton = document.getElementById('start-button');
+      startButton.disabled = false;
+      startButton.hidden = true;
+      document.body.style.background = 'black';
+      wz_js_display_loading_indicator(1);
       // Execute main()
-      callMain();
+      setTimeout( function() { callMain(Module['arguments']); }, 10);
+    }
+    function wz_js_display_loading_indicator(enabled) {
+      var loadingElement = document.getElementById('gameloadingspinner');
+      if (enabled) {
+        loadingElement.style.display = 'inline';
+      } else {
+        loadingElement.style.display = 'none';
+      }
     }
   </script>
 	<div class="emscripten">
