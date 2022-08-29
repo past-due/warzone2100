@@ -3013,15 +3013,15 @@ void wzEventLoopOneFrame(void* arg)
 				bool *bContinue = static_cast<bool*>(arg);
 				*bContinue = false;
 #if defined(__EMSCRIPTEN__)
+				// Exit "soft fullscreen" - (as long as we aren't in "real" fullscreen mode)
+				emscripten_exit_soft_fullscreen();
+
 				// Actually trigger cleanup code
 				if (saved_onShutdown)
 				{
 					saved_onShutdown();
 				}
 				wzShutdown();
-
-				// Exit "soft fullscreen" - (as long as we aren't in "real" fullscreen mode)
-				emscripten_exit_soft_fullscreen();
 				
 				// Stop Emscripten from calling the main loop
 				emscripten_cancel_main_loop();
