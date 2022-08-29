@@ -1690,6 +1690,7 @@ static void cleanupOldLogFiles()
 #if defined(__EMSCRIPTEN__)
 
 #include <emscripten.h>
+#include "emscripten_helpers.h"
 
 void debug_callback_emscripten_log(WZ_DECL_UNUSED void **data, const char *outputBuffer, code_part part)
 {
@@ -1809,6 +1810,10 @@ int realmain(int argc, char *argv[])
 	{
 		setupExceptionHandler(utfargc, utfargv, version_getFormattedVersionString(false), version_getVersionedAppDirFolderName(), isPortableMode());
 	}
+
+#if defined(__EMSCRIPTEN__)
+	initWZEmscriptenHelpers();
+#endif
 
 	/*** Initialize sodium library ***/
 	if (sodium_init() < 0) {

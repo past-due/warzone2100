@@ -40,6 +40,7 @@ public:
 		WIN_INSTALLED_BINARIES,
 		WIN_LOADEDMODULES,
 		WIN_LOADEDMODULENAMES,
+		EMSCRIPTEN_WINDOW_URL
 	};
 private:
 	std::string GetCurrentEnvironmentPropertyValue(const EnvironmentProperty& property);
