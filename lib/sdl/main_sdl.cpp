@@ -346,7 +346,9 @@ static std::vector<video_backend>& sortGfxBackendsForCurrentSystem(std::vector<v
 std::vector<video_backend> wzAvailableGfxBackends()
 {
 	std::vector<video_backend> availableBackends;
+#if !defined(__EMSCRIPTEN__)
 	availableBackends.push_back(video_backend::opengl);
+#endif
 #if !defined(WZ_OS_MAC) // OpenGL ES is not supported on macOS, and WZ doesn't currently ship with an OpenGL ES library on macOS
 	availableBackends.push_back(video_backend::opengles);
 #endif
@@ -364,7 +366,10 @@ video_backend wzGetDefaultGfxBackendForCurrentSystem()
 {
 	// SDL backend supports: OpenGL, OpenGLES, Vulkan (if compiled with support), DirectX (on Windows, via LibANGLE)
 
-#if defined(_WIN32) && defined(WZ_BACKEND_DIRECTX) && (defined(_M_ARM64) || defined(_M_ARM))
+#if defined(__EMSCRIPTEN__)
+	// For Emscripten, OpenGLES (WebGL) should be the default
+	return video_backend::opengles;
+#elif defined(_WIN32) && defined(WZ_BACKEND_DIRECTX) && (defined(_M_ARM64) || defined(_M_ARM))
 	// On ARM-based Windows, DirectX should be the default (for compatibility)
 	return video_backend::directx;
 #else
