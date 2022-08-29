@@ -243,7 +243,7 @@ if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
 	target_link_options(warzone2100 PRIVATE "SHELL:-s ALLOW_MEMORY_GROWTH=1")
 	target_link_options(warzone2100 PRIVATE "SHELL:-s DEMANGLE_SUPPORT=1")
 #	target_link_options(warzone2100 PRIVATE "SHELL:-s GL_ASSERTIONS=1")
-	target_link_options(warzone2100 PRIVATE "SHELL:-s LZ4=1")
+#	target_link_options(warzone2100 PRIVATE "SHELL:-s LZ4=1") # LZ4 can't be used while also supporting gettext translations (no support for mmap in LZ4 filesystem backend)
 	#target_link_options(warzone2100 PRIVATE "SHELL:-s FULL_ES3=1")
 	target_link_options(warzone2100 PRIVATE "SHELL:-s PTHREAD_POOL_SIZE=8")
 
@@ -261,6 +261,14 @@ if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
 		message(STATUS "COPYING FONT FILE: ${_fontname} (from: ${_font_file})")
 		target_link_options(warzone2100 PRIVATE "SHELL:--preload-file ${_font_file}@/data/fonts/")
 	endforeach()
+
+	# Bundle the translations
+	if(ENABLE_NLS)
+		if (NOT WZ_LOCALEDIR_ISABSOLUTE)
+			message(FATAL_ERROR "Expected absolute path for WZ_LOCALEDIR: ${WZ_LOCALEDIR}")
+		endif()
+		target_link_options(warzone2100 PRIVATE "SHELL:--preload-file ${wz2100_translations_LOCALE_FOLDER}@${WZ_LOCALEDIR}/")
+	endif()
 
 endif()
 
