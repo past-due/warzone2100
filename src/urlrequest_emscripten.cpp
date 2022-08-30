@@ -70,12 +70,16 @@ public:
 				fetchHeadersLayout.push_back(strdup(it.first.c_str()));
 				fetchHeadersLayout.push_back(strdup(it.second.c_str()));
 			}
+			fetchHeadersLayout.push_back(0);
 		}
 		~FetchRequestHeaders()
 		{
 			for (auto& value : fetchHeadersLayout)
 			{
-				free(value);
+				if (value)
+				{
+					free(value);
+				}
 			}
 			fetchHeadersLayout.clear();
 		}
