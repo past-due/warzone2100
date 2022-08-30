@@ -246,6 +246,9 @@ if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
 	target_link_options(warzone2100 PRIVATE "SHELL:--shell-file ${PROJECT_SOURCE_DIR}/platforms/emscripten/shell.html")
 	target_link_options(warzone2100 PRIVATE "SHELL:--pre-js ${PROJECT_SOURCE_DIR}/platforms/emscripten/prejs.js")
 
+	target_link_options(warzone2100 PRIVATE "SHELL:-sMODULARIZE")
+	target_link_options(warzone2100 PRIVATE "SHELL:-s EXPORT_NAME=createWZModule")
+
 	foreach(_data_file ${DATA_FILES})
 		get_filename_component(_foldername "${_data_file}" NAME_WE)
 		message(STATUS "COPYING DATA: ${_foldername}")
