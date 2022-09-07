@@ -137,6 +137,12 @@ gfx_api::texture* null_context::create_texture(const size_t& mipmap_count, const
 	return new_texture;
 }
 
+gfx_api::texture_array* null_context::create_texture_array(const size_t& mipmap_count, const size_t& layer_count, const size_t & width, const size_t & height, const gfx_api::pixel_format & internal_format, const std::string& filename)
+{
+	auto* new_texture = new null_texture_array();
+	return new_texture;
+}
+
 gfx_api::buffer * null_context::create_buffer_object(const gfx_api::buffer::usage &usage, const buffer_storage_hint& hint /*= buffer_storage_hint::static_draw*/)
 {
 	return new null_buffer(usage, hint);

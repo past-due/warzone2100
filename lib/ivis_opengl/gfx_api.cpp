@@ -211,6 +211,7 @@ static inline bool uncompressedPNGImageConvertChannels(iV_Image& image, gfx_api:
 }
 
 // Takes an iv_Image and texture_type and loads a texture as appropriate / possible
+// TODO: This function should take optional<gfx_api::pixel_format> desiredFormat and, if set, use that in place of bestAvailableCompressedFormat
 gfx_api::texture* gfx_api::context::loadTextureFromUncompressedImage(iV_Image&& image, gfx_api::texture_type textureType, const std::string& filename, int maxWidth /*= -1*/, int maxHeight /*= -1*/)
 {
 	// 1.) Convert to expected # of channels based on textureType
@@ -290,6 +291,96 @@ gfx_api::texture* gfx_api::context::loadTextureFromUncompressedImage(iV_Image&& 
 	}
 
 	return pTexture.release();
+}
+//
+//gfx_api::texture_array* /*gfx_api::context::*/loadTextureArrayLayerFromUncompressedImage(iV_Image&& image, gfx_api::texture_type textureType, const std::string& filename, int maxWidth /*= -1*/, int maxHeight /*= -1*/)
+bool gfx_api::context::uploadImageToTextureArray(std::unique_ptr<iV_Image> image, size_t layer, gfx_api::texture_type textureType, gfx_api::pixel_format uploadFormat, gfx_api::texture_array& texture, size_t mipmap_levels, const std::string& filename)
+{
+//	// 1.) Convert to expected # of channels based on textureType
+//	if (!uncompressedPNGImageConvertChannels(image, textureType, filename))
+//	{
+//		return false;
+//	}
+//
+//	// 2.) If maxWidth / maxHeight exceed current image dimensions, resize()
+//	image.scale_image_max_size(maxWidth, maxHeight);
+//
+//	// 3.) Determine mipmap levels (if needed / desired, based on textureType)
+//	size_t mipmap_levels = calcMipmapLevelsForUncompressedImage(image, textureType);
+
+	if (!gfx_api::is_uncompressed_format(uploadFormat))
+	{
+		// For now, check that the minimum mipmap level is 4x4 or greater, otherwise run-time compression is not currently supported
+		size_t min_mipmap_w = std::max<size_t>(1, image->width() >> (mipmap_levels - 1));
+		size_t min_mipmap_h = std::max<size_t>(1, image->height() >> (mipmap_levels - 1));
+		ASSERT_OR_RETURN(false, min_mipmap_w >= 4 && min_mipmap_h >= 4, "Minimum mipmap level < 4x4");
+		// Will compress below
+	}
+	else
+	{
+		// Extend channels, if needed, to the desired uncompressed upload format
+		auto channels = image->channels();
+		auto desiredFormatChannels = gfx_api::format_channels(uploadFormat);
+		ASSERT_OR_RETURN(false, channels <= desiredFormatChannels, "Trying to upload image with more channels (%u) than in upload format! (%u)", channels, desiredFormatChannels);
+		for (auto i = channels; i < desiredFormatChannels; ++i)
+		{
+			bool success = image->expand_channels_towards_rgba();
+			ASSERT_OR_RETURN(false, success, "Failed to expand image channels from (%u)", i);
+		}
+	}
+
+//	auto uploadFormat = desiredFormat; //image.pixel_format();
+//	auto bestAvailableCompressedFormat = desiredFormat;
+//	if (desiredFormat != gfx_api::pixel_format::invalid)
+//	{
+//		// For now, check that the minimum mipmap level is 4x4 or greater, otherwise do not run-time compress
+//		size_t min_mipmap_w = std::max<size_t>(1, image.width() >> (mipmap_levels - 1));
+//		size_t min_mipmap_h = std::max<size_t>(1, image.height() >> (mipmap_levels - 1));
+//		if (min_mipmap_w >= 4 && min_mipmap_h >= 4)
+//		{
+//			uploadFormat = bestAvailableCompressedFormat.value();
+//		}
+//	}
+
+	// 5.) Upload initial (full) level
+	if (uploadFormat == image->pixel_format())
+	{
+		bool uploadResult = texture.upload_layer(0, layer, *image);
+		ASSERT_OR_RETURN(false, uploadResult, "Failed to upload buffer to image");
+	}
+	else
+	{
+		// Run-time compression
+		auto compressedImage = gfx_api::compressImage(*image, uploadFormat);
+		ASSERT_OR_RETURN(false, compressedImage != nullptr, "Failed to compress image to format: %zu", static_cast<size_t>(uploadFormat));
+		bool uploadResult = texture.upload_layer(0, layer, *compressedImage);
+		ASSERT_OR_RETURN(false, uploadResult, "Failed to upload buffer to image");
+	}
+
+	// 6.) Generate and upload mipmaps (if needed)
+	for (size_t i = 1; i < mipmap_levels; i++)
+	{
+		unsigned int output_w = std::max<unsigned int>(1, image->width() >> 1);
+		unsigned int output_h = std::max<unsigned int>(1, image->height() >> 1);
+
+		image->resize(output_w, output_h);
+
+		if (uploadFormat == image->pixel_format())
+		{
+			bool uploadResult = texture.upload_layer(i, layer, *image);
+			ASSERT_OR_RETURN(false, uploadResult, "Failed to upload buffer to image");
+		}
+		else
+		{
+			// Run-time compression
+			auto compressedImage = gfx_api::compressImage(*image, uploadFormat);
+			ASSERT_OR_RETURN(false, compressedImage != nullptr, "Failed to compress image to format: %zu", static_cast<size_t>(uploadFormat));
+			bool uploadResult = texture.upload_layer(i, layer, *compressedImage);
+			ASSERT_OR_RETURN(false, uploadResult, "Failed to upload buffer to image");
+		}
+	}
+
+	return true;
 }
 
 std::unique_ptr<iV_Image> gfx_api::loadUncompressedImageFromFile(const char *filename, gfx_api::texture_type textureType, int maxWidth /*= -1*/, int maxHeight /*= -1*/, bool forceRGBA8 /*= false*/)
@@ -467,4 +558,175 @@ size_t gfx_api::format_memory_size(gfx_api::pixel_format format, size_t width, s
 		// no default case to ensure compiler error if more formats are added
 	}
 	return 0; // silence warning
+}
+
+// MARK: 2D Texture Arrays
+
+gfx_api::texture_array* gfx_api::context::load2DTextureArrayFromFiles(std::vector<std::string> filenames, gfx_api::texture_type textureType, int maxWidth /*= -1*/, int maxHeight /*= -1*/)
+{
+	ASSERT_OR_RETURN(nullptr, !filenames.empty(), "Empty set of filenames?");
+
+	// Build list of loaded filenames
+	bool hasKTX2 = false;
+	bool hasPNG = false;
+	std::vector<std::string> imageLoadFilenames;
+	for (const auto& filename : filenames)
+	{
+		std::string imageLoadFilename = imageLoadFilenameFromInputFilename(WzString::fromUtf8(filename));
+		imageLoadFilenames.push_back(imageLoadFilename);
+		hasKTX2 = hasKTX2 || strEndsWith(imageLoadFilename, ".ktx2");
+		hasPNG = hasPNG || strEndsWith(imageLoadFilename, ".png");
+	}
+
+	auto maxChannelsForTextureType = maxExpectedChannelsForTextureType(textureType);
+	auto closestSupportedChannels = getClosestSupportedUncompressedImageFormatChannels(gfx_api::pixel_format_target::texture_2d_array, maxChannelsForTextureType);
+	ASSERT_OR_RETURN(nullptr, closestSupportedChannels.has_value(), "Exhausted all possible uncompressed formats??");
+	gfx_api::pixel_format target_pixel_format = iV_Image::pixel_format_for_channels(closestSupportedChannels.value());
+	std::unique_ptr<gfx_api::texture_array> pTexture = nullptr;
+	size_t mipmap_levels = 0;
+	unsigned int texture_width = 0;
+	unsigned int texture_height = 0;
+
+	if (hasPNG)
+	{
+		if (hasKTX2)
+		{
+			// POSSIBLE FUTURE TODO: Better handle situation where two different file types are being input, each of which has different (potentially incompatible) target formats for transcoding (real-time compression from PNG has a more limited set than basis transcoding)
+			// For now, just load both to uncompressed iV_Image
+			// Then upload from the uncompressed iV_Image generating mip_maps as appropriate
+			debug(LOG_INFO, "Performance Warning: Loading 2d texture array from a set of files that has both png and ktx2 (basis) files.");
+		}
+		for (size_t i = 0; i < imageLoadFilenames.size(); i++)
+		{
+			const auto& imageLoadFilename = imageLoadFilenames[i];
+			std::unique_ptr<iV_Image> uncompressedImage = loadUncompressedImageFromFile(imageLoadFilename.c_str(), textureType, maxWidth, maxHeight);
+			ASSERT_OR_RETURN(nullptr, uncompressedImage != nullptr, "Unable to load image from file: %s", imageLoadFilename.c_str());
+			if (pTexture == nullptr)
+			{
+				texture_width = uncompressedImage->width();
+				texture_height = uncompressedImage->height();
+
+				// Determine mipmap levels (if needed / desired, based on textureType)
+				mipmap_levels = calcMipmapLevelsForUncompressedImage(*uncompressedImage.get(), textureType);
+
+				// Get the "best available" output format for real-time compression
+				auto bestAvailableCompressedFormat = gfx_api::bestRealTimeCompressionFormat(gfx_api::pixel_format_target::texture_2d_array, textureType);
+				if (bestAvailableCompressedFormat.has_value() && bestAvailableCompressedFormat.value() != gfx_api::pixel_format::invalid)
+				{
+					// For now, check that the minimum mipmap level is 4x4 or greater, otherwise do not run-time compress
+					size_t min_mipmap_w = std::max<size_t>(1, texture_width >> (mipmap_levels - 1));
+					size_t min_mipmap_h = std::max<size_t>(1, texture_height >> (mipmap_levels - 1));
+					if (min_mipmap_w >= 4 && min_mipmap_h >= 4)
+					{
+						target_pixel_format = bestAvailableCompressedFormat.value();
+					}
+				}
+
+				// Create the texture array with the size of the first image
+				pTexture = std::unique_ptr<gfx_api::texture_array>(create_texture_array(mipmap_levels, imageLoadFilenames.size(), uncompressedImage->width(), uncompressedImage->height(), target_pixel_format));
+				ASSERT_OR_RETURN(nullptr, pTexture != nullptr, "Unable to create texture 2d array!");
+			}
+			ASSERT_OR_RETURN(nullptr, texture_width == uncompressedImage->width() && texture_height == uncompressedImage->height(), "Image dimensions (%u x %u) for \"%s\" do not match original image dimensions (%u, %u). All images in a 2d texture array should have the same dimensions.", uncompressedImage->width(), uncompressedImage->height(), imageLoadFilename.c_str(), texture_width, texture_height);
+			bool uploadResult = uploadImageToTextureArray(std::move(uncompressedImage), i, textureType, target_pixel_format, *pTexture, mipmap_levels, imageLoadFilename);
+			ASSERT_OR_RETURN(nullptr, uploadResult, "Failed to upload buffer for file to texture 2d array: %s", imageLoadFilename.c_str());
+		}
+	}
+	else if (hasKTX2)
+	{
+#if defined(BASIS_ENABLED)
+		// Get the "best available" output format for real-time compression
+		auto bestAvailableCompressedFormat = gfx_api::getBestAvailableTranscodeFormatForBasis(gfx_api::pixel_format_target::texture_2d_array, textureType);
+		if (bestAvailableCompressedFormat.has_value() && bestAvailableCompressedFormat.value() != gfx_api::pixel_format::invalid)
+		{
+			target_pixel_format = bestAvailableCompressedFormat.value();
+		}
+		for (size_t i = 0; i < imageLoadFilenames.size(); i++)
+		{
+			const auto& imageLoadFilename = imageLoadFilenames[i];
+			auto images = gfx_api::loadiVImagesFromFile_Basis(imageLoadFilename.c_str(), textureType, gfx_api::pixel_format_target::texture_2d_array, target_pixel_format, maxWidth, maxHeight);
+			ASSERT_OR_RETURN(nullptr, !images.empty(), "Unable to load images from file: %s", imageLoadFilename.c_str());
+			if (pTexture == nullptr)
+			{
+				texture_width = images[0]->width();
+				texture_height = images[0]->height();
+
+				// Determine mipmap levels
+				size_t mipmap_levels = images.size();
+
+				// Create the texture array with the size of the first image
+				pTexture = std::unique_ptr<gfx_api::texture_array>(create_texture_array(mipmap_levels, imageLoadFilenames.size(), texture_width, texture_height, target_pixel_format));
+				ASSERT_OR_RETURN(nullptr, pTexture != nullptr, "Unable to create texture 2d array!");
+			}
+			ASSERT_OR_RETURN(nullptr, texture_width == images[0]->width() && texture_height == images[0]->height(), "Image dimensions (%u x %u) for \"%s\" do not match original image dimensions (%u, %u). All images in a 2d texture array should have the same dimensions.",  images[0]->width(), images[0]->height(), imageLoadFilename.c_str(), texture_width, texture_height);
+			for (size_t mipIdx = 0; mipIdx < images.size(); mipIdx++)
+			{
+				bool uploadResult = pTexture->upload_layer(mipIdx, i, *(images[mipIdx]));
+				ASSERT_OR_RETURN(nullptr, uploadResult, "Failed to upload buffer for file to texture 2d array: %s", imageLoadFilename.c_str());
+			}
+		}
+#endif
+	}
+
+	if (pTexture)
+	{
+		pTexture->flush();
+	}
+
+//	size_t max_mip_levels = 0;
+	// TODO:
+	// - Should handle:
+	//		- If images in list do not have the same size (must all use the same size + number of mip_levels...)
+	//		-
+	for (const auto& imageLoadFilename : imageLoadFilenames)
+	{
+#if defined(BASIS_ENABLED)
+		if (strEndsWith(imageLoadFilename, ".ktx2"))
+		{
+			// TODO: Call variant that loads *all* mip levels, with the supplied desiredFormat
+//			loadedUncompressedImage = gfx_api::loadUncompressedImageFromFile_KTX2(imageLoadFilename, textureType, maxWidth, maxHeight);
+			// CHECK max_mip_levels is same for all images - if not, error out!! (Images loaded for 2d texture array must all be the same size and have the same mip_levels, for now)
+//			if (!loadedUncompressedImage)
+//			{
+//				// Failed to load the image
+//				return nullptr;
+//			}
+		}
+		else
+#endif
+		if (strEndsWith(imageLoadFilename, ".png"))
+		{
+			// TODO: Use the variant that loads *all* mip levels, with the supplied desiredFormat
+//			// Load the PNG into an iV_Image
+//			loadedUncompressedImage = std::unique_ptr<iV_Image>(new iV_Image());
+//			if (!iV_loadImage_PNG2(imageLoadFilename.c_str(), *loadedUncompressedImage, false))
+//			{
+//				// Failed to load the image
+//				return nullptr;
+//			}
+//			// Convert to expected # of channels based on textureType
+//			if (!uncompressedPNGImageConvertChannels(*loadedUncompressedImage, textureType, imageLoadFilename))
+//			{
+//				return nullptr;
+//			}
+//			// If maxWidth / maxHeight exceed current image dimensions, resize()
+//			loadedUncompressedImage->scale_image_max_size(maxWidth, maxHeight);
+		}
+		else
+		{
+			debug(LOG_ERROR, "Unable to load image file: %s", imageLoadFilename.c_str());
+			return nullptr;
+		}
+
+		// TODO: Various checks
+		// TODO: Upload loadedImages to 2d texture array object
+	}
+
+	// The basic logic of the above should be:
+	//	Load each 
+
+
+	// TODO: flush 2d texture array object
+
+
+	return pTexture.release();
 }

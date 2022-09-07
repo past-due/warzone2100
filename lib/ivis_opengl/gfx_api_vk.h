@@ -398,6 +398,37 @@ private:
 	const VkRoot* root;
 };
 
+struct VkTextureArray final : public gfx_api::texture_array
+{
+	const vk::Device dev;
+	vk::Image object;
+	WZ_vk::UniqueImageView view;
+	VmaAllocation allocation = VK_NULL_HANDLE;
+	gfx_api::pixel_format internal_format = gfx_api::pixel_format::invalid;
+	const uint32_t mipmap_levels;
+	const uint32_t layer_count;
+	const uint32_t texWidth;
+	const uint32_t texHeight;
+
+	VkTextureArray(const VkRoot& root, uint32_t mipmap_count, uint32_t layer_count, uint32_t width, uint32_t height, const gfx_api::pixel_format& internal_pixel_format, const std::string& filename);
+
+	virtual ~VkTextureArray();
+
+	virtual void bind() override;
+	virtual unsigned id() override;
+
+	virtual bool upload_layer(const size_t& mip_level, const size_t& layer, const iV_BaseImage& image) override;
+
+	virtual void flush() override;
+
+	VkTextureArray( const VkTextureArray& other ) = delete; // non construction-copyable
+	VkTextureArray& operator=( const VkTextureArray& ) = delete; // non copyable
+
+private:
+	bool upload_internal(const size_t& mip_level, const size_t& layer, const iV_BaseImage& image);
+	const VkRoot* root;
+};
+
 struct QueueFamilyIndices
 {
 	optional<uint32_t> graphicsFamily;
@@ -504,6 +535,7 @@ public:
 	virtual void bind_streamed_vertex_buffers(const void* data, const std::size_t size) override;
 
 	virtual gfx_api::texture* create_texture(const std::size_t& mipmap_count, const std::size_t& width, const std::size_t& height, const gfx_api::pixel_format& internal_format, const std::string& filename = "") override;
+	virtual gfx_api::texture_array* create_texture_array(const std::size_t& mipmap_count, const std::size_t& layer_count, const std::size_t& width, const std::size_t& height, const gfx_api::pixel_format& internal_format, const std::string& filename = "") override;
 
 	virtual gfx_api::buffer * create_buffer_object(const gfx_api::buffer::usage &usage, const buffer_storage_hint& hint = buffer_storage_hint::static_draw) override;
 

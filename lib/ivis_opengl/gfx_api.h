@@ -102,6 +102,17 @@ namespace gfx_api
 		texture() {};
 	};
 
+	struct texture_array : abstract_texture
+	{
+		virtual bool upload_layer(const size_t& mip_level, const size_t& layer, const iV_BaseImage& image) = 0;
+		virtual unsigned id() = 0;
+		bool isArray() const { return true; }
+
+		texture_array( const texture_array& other ) = delete; // non construction-copyable
+		texture_array& operator=( const texture_array& ) = delete; // non copyable
+		texture_array() {}
+	};
+
 	// An abstract base that manages a single gfx buffer
 	struct buffer
 	{
@@ -282,6 +293,7 @@ namespace gfx_api
 
 		virtual ~context() {};
 		virtual texture* create_texture(const size_t& mipmap_count, const size_t& width, const size_t& height, const pixel_format& internal_format, const std::string& filename = "") = 0;
+		virtual texture_array* create_texture_array(const size_t& mipmap_count, const size_t& layer_count, const size_t& width, const size_t& height, const gfx_api::pixel_format& internal_format, const std::string& filename = "") = 0;
 		virtual buffer* create_buffer_object(const buffer::usage&, const buffer_storage_hint& = buffer_storage_hint::static_draw) = 0;
 		virtual pipeline_state_object* build_pipeline(const state_description&,
 													  const SHADER_MODE&,
@@ -329,6 +341,20 @@ namespace gfx_api
 		// High-level API for getting a texture object from file / uncompressed bitmap
 		gfx_api::texture* loadTextureFromFile(const char *filename, gfx_api::texture_type textureType, int maxWidth = -1, int maxHeight = -1);
 		gfx_api::texture* loadTextureFromUncompressedImage(iV_Image&& image, gfx_api::texture_type textureType, const std::string& filename, int maxWidth = -1, int maxHeight = -1);
+
+		// High-ish level API for loading a file into a texture array layer
+		bool uploadImageToTextureArray(const char* filename, size_t layer, gfx_api::texture_type textureType, gfx_api::texture_array& texture, int maxWidth = -1, int maxHeight = -1);
+		bool uploadImageToTextureArray(std::unique_ptr<iV_Image> image, size_t layer, gfx_api::texture_type textureType, gfx_api::pixel_format uploadFormat, gfx_api::texture_array& texture, size_t mipmap_levels, const std::string& filename);
+
+		// High-ish level API for loading all mip_levels of an image to memory in the ideal format for uploading to a GPU texture / texture_array
+		std::vector<std::unique_ptr<iV_BaseImage>> loadIdealFormatiVImagesFromFile(const char *filename, optional<gfx_api::texture_type> textureType = nullopt, uint32_t maxWidth = UINT32_MAX, uint32_t maxHeight = UINT32_MAX);
+
+		// ALTERNATIVES:
+		// High-ish level API for loading all mip_levels of an image to memory in the desired format for uploading to a GPU texture / texture_array
+		std::vector<std::unique_ptr<iV_BaseImage>> loadiVImagesFromFile(const char *filename, gfx_api::texture_type textureType, optional<gfx_api::pixel_format> desiredFormat = nullopt, uint32_t maxWidth = UINT32_MAX, uint32_t maxHeight = UINT32_MAX);
+
+		// High-level API for loading a series of files into a 2d texture array
+		gfx_api::texture_array* load2DTextureArrayFromFiles(std::vector<std::string> filenames, gfx_api::texture_type textureType, int maxWidth = -1, int maxHeight = -1);
 
 		optional<unsigned int> getClosestSupportedUncompressedImageFormatChannels(pixel_format_target target, unsigned int channels);
 		gfx_api::texture* createTextureForCompatibleImageUploads(const size_t& mipmap_count, const iV_Image& bitmap, const std::string& filename);

@@ -51,6 +51,19 @@ protected:
 	gfx_api::pixel_format internal_format = gfx_api::pixel_format::invalid;
 };
 
+struct null_texture_array final : public gfx_api::texture_array
+{
+private:
+	friend struct null_context;
+	friend struct VkRoot;
+	null_texture_array() {}
+	virtual ~null_texture_array() {}
+public:
+	virtual void bind() override {}
+	virtual bool upload_layer(const size_t& mip_level, const size_t& layer, const iV_BaseImage& image) override { return true; }
+	virtual unsigned id() override { return 0; }
+};
+
 struct null_buffer final : public gfx_api::buffer
 {
 	gfx_api::buffer::usage usage;
@@ -88,6 +101,7 @@ public:
 	~null_context();
 
 	virtual gfx_api::texture* create_texture(const size_t& mipmap_count, const size_t & width, const size_t & height, const gfx_api::pixel_format & internal_format, const std::string& filename) override;
+	virtual gfx_api::texture_array* create_texture_array(const size_t& mipmap_count, const size_t& layer_count, const size_t& width, const size_t& height, const gfx_api::pixel_format& internal_format, const std::string& filename) override;
 	virtual gfx_api::buffer * create_buffer_object(const gfx_api::buffer::usage &usage, const buffer_storage_hint& hint = buffer_storage_hint::static_draw) override;
 
 	virtual gfx_api::pipeline_state_object * build_pipeline(const gfx_api::state_description &state_desc,

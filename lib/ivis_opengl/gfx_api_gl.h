@@ -27,6 +27,7 @@
 #include <functional>
 #include <typeindex>
 #include <array>
+#include <unordered_map>
 
 namespace gfx_api
 {
@@ -74,6 +75,65 @@ public:
 	virtual unsigned id() override;
 private:
 	virtual bool upload_internal(const size_t& mip_level, const size_t& offset_x, const size_t& offset_y, const iV_BaseImage& image);
+};
+
+struct gl_texture_array_data_buffer
+{
+public:
+	typedef std::vector<uint8_t> LayerDataBuffer;
+	struct MipLevelData
+	{
+	public:
+		// returns true if data for every layer has been copied to the buffer
+		bool hasCompleteLayerData() const;
+		size_t layerCount() const;
+		const uint8_t* layerData() const;
+		size_t layerDataSize() const;
+	public:
+		MipLevelData() { }
+		MipLevelData(gfx_api::pixel_format internal_format, size_t width, size_t height, size_t layers);
+	public:
+		size_t width = 0;
+		size_t height = 0;
+		size_t layerSize = 0; // the size of each layer in the layersDataBuffer
+		LayerDataBuffer layersDataBuffer; // a contiguous buffer of the data for the textures in a mip level
+		std::vector<bool> layerDataSet; // true for each layer if full data was copied to it
+	};
+public:
+	gl_texture_array_data_buffer(gfx_api::pixel_format internal_format, size_t width, size_t height, size_t layers);
+//	void copy_buffer_data(const size_t& mip_level, const size_t& layer, const iV_BaseImage& image);
+	void copy_buffer_data(const size_t& mip_level, const size_t& layer, const unsigned char* data, size_t data_size);
+public:
+	const MipLevelData* get_mip_level_data(size_t mip_level);
+private:
+	gfx_api::pixel_format internal_format;
+	size_t width = 0;
+	size_t height = 0;
+	size_t layers = 0;
+	std::unordered_map<size_t, MipLevelData> perMipLevelData;
+};
+
+struct gl_texture_array final : public gfx_api::texture_array
+{
+private:
+	friend struct gl_context;
+	GLuint _id;
+	size_t mip_levels;
+	size_t width;
+	size_t height;
+	gfx_api::pixel_format internal_format = gfx_api::pixel_format::invalid;
+	std::unique_ptr<gl_texture_array_data_buffer> stagingBuffer;
+	bool gles = false;
+	std::vector<bool> mipLevelWasFullyInitialized;
+
+	gl_texture_array();
+	virtual ~gl_texture_array();
+public:
+	virtual void bind() override;
+	void unbind();
+	virtual bool upload_layer(const size_t& mip_level, const size_t& layer, const iV_BaseImage& image) override;
+	virtual unsigned id() override;
+	virtual void flush() override;
 };
 
 struct gl_buffer final : public gfx_api::buffer
@@ -185,6 +245,7 @@ struct gl_context final : public gfx_api::context
 	~gl_context();
 
 	virtual gfx_api::texture* create_texture(const size_t& mipmap_count, const size_t & width, const size_t & height, const gfx_api::pixel_format & internal_format, const std::string& filename) override;
+	virtual gfx_api::texture_array* create_texture_array(const size_t& mipmap_count, const size_t& layer_count, const size_t & width, const size_t & height, const gfx_api::pixel_format & internal_format, const std::string& filename) override;
 	virtual gfx_api::buffer * create_buffer_object(const gfx_api::buffer::usage &usage, const buffer_storage_hint& hint = buffer_storage_hint::static_draw) override;
 
 	virtual gfx_api::pipeline_state_object * build_pipeline(const gfx_api::state_description &state_desc,

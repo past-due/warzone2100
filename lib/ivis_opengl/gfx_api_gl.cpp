@@ -318,6 +318,171 @@ unsigned gl_texture::id()
 	return _id;
 }
 
+// MARK: gl_texture_array
+
+gl_texture_array::gl_texture_array()
+{
+	glGenTextures(1, &_id);
+}
+
+gl_texture_array::~gl_texture_array()
+{
+	glDeleteTextures(1, &_id);
+}
+
+void gl_texture_array::bind()
+{
+	glBindTexture(GL_TEXTURE_2D_ARRAY, _id);
+}
+
+void gl_texture_array::unbind()
+{
+	glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+}
+
+bool gl_texture_array::upload_layer(const size_t& mip_level, const size_t& layer, const iV_BaseImage& image)
+{
+	ASSERT_OR_RETURN(false, image.data() != nullptr, "Attempt to upload image without data");
+	ASSERT_OR_RETURN(false, image.pixel_format() == internal_format, "Uploading image to texture with different format");
+
+	ASSERT(image.width() > 0 && image.height() > 0, "Attempt to upload texture with width or height of 0 (width: %d, height: %d)", image.width(), image.height());
+	ASSERT(image.width() == width && image.height() == height, "Attempt to upload texture with width or height (%d x %d) that does not match expected dimensions (%zu x %zu)", image.width(), image.height(), width, height);
+
+	ASSERT(mip_level <= static_cast<size_t>(std::numeric_limits<GLint>::max()), "mip_level (%zu) exceeds GLint max", mip_level);
+	ASSERT(layer <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "layer (%zu) exceeds GLsizei max", layer);
+	ASSERT(width <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "width (%zu) exceeds GLsizei max", width);
+	ASSERT(height <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "height (%zu) exceeds GLsizei max", height);
+	ASSERT(image.data_size() <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "data_size (%zu) exceeds GLsizei max", image.data_size());
+	auto expectedDataSize = gfx_api::format_memory_size(image.pixel_format(), image.width(), image.height());
+	ASSERT(image.data_size() == expectedDataSize, "Image data size (%zu) does not match expected data size (%zu); [format: %d, size: %u x %u]", image.data_size(), expectedDataSize, static_cast<int>(image.pixel_format()), image.width(), image.height());
+	bind();
+	if (is_uncompressed_format(image.pixel_format()))
+	{
+		glTexSubImage3D(GL_TEXTURE_2D_ARRAY, static_cast<GLint>(mip_level), 0, 0, static_cast<GLsizei>(layer), static_cast<GLsizei>(image.width()), static_cast<GLsizei>(image.height()), 1, to_gl_format(image.pixel_format(), gles), GL_UNSIGNED_BYTE, image.data());
+	}
+	else
+	{
+		// TODO:
+		stagingBuffer->copy_buffer_data(mip_level, layer, image.data(), image.data_size());
+//		// TODO: THIS WON'T WORK
+//		// We either need to buffer the data in this case manually and then flush it, or
+//		glCompressedTexImage3D(GL_TEXTURE_2D_ARRAY, static_cast<GLint>(mip_level), to_gl_internalformat(image.pixel_format(), gles), static_cast<GLsizei>(image.width()), static_cast<GLsizei>(image.height()), static_cast<GLint>(layer), 0, static_cast<GLsizei>(image.data_size()), image.data());
+	}
+	unbind();
+	return true;
+}
+
+unsigned gl_texture_array::id()
+{
+	return _id;
+}
+
+void gl_texture_array::flush()
+{
+	if (!stagingBuffer) { return; }
+	// TODO:
+	for (size_t mip_level = 0; mip_level < mip_levels; mip_level++)
+	{
+		auto mip_level_data = stagingBuffer->get_mip_level_data(mip_level);
+		if (!mip_level_data)
+		{
+			continue;
+		}
+		if (mip_level_data->hasCompleteLayerData())
+		{
+			auto expectedLayerDataSize = gfx_api::format_memory_size(internal_format, mip_level_data->width, mip_level_data->height) * mip_level_data->layerCount();
+			ASSERT(mip_level_data->layerDataSize() == expectedLayerDataSize, "Layer data size (%zu) does not match expected size (%zu); [format: %d, size: %zu x %zu, layers: %zu]", mip_level_data->layerDataSize(), expectedLayerDataSize, static_cast<int>(internal_format), mip_level_data->width, mip_level_data->height, mip_level_data->layerCount());
+
+			if (is_uncompressed_format(internal_format))
+			{
+//				glTexSubImage3D(GL_TEXTURE_2D_ARRAY, static_cast<GLint>(mip_level), 0, 0, static_cast<GLint>(layer), static_cast<GLsizei>(image.width()), static_cast<GLsizei>(image.height()), 1, to_gl_format(image.pixel_format(), gles), GL_UNSIGNED_BYTE, image.data());
+				glTexImage3D(GL_TEXTURE_2D_ARRAY, static_cast<GLint>(mip_level), to_gl_internalformat(internal_format, gles), static_cast<GLsizei>(mip_level_data->width), static_cast<GLsizei>(mip_level_data->height), static_cast<GLsizei>(mip_level_data->layerCount()), 0, to_gl_format(internal_format, gles), GL_UNSIGNED_BYTE, mip_level_data->layerData());
+			}
+			else
+			{
+				glCompressedTexImage3D(GL_TEXTURE_2D_ARRAY, static_cast<GLint>(mip_level), to_gl_internalformat(internal_format, gles), static_cast<GLsizei>(mip_level_data->width), static_cast<GLsizei>(mip_level_data->height), static_cast<GLsizei>(mip_level_data->layerCount()), 0, static_cast<GLsizei>(mip_level_data->layerDataSize()), mip_level_data->layerData());
+			}
+			mipLevelWasFullyInitialized[mip_level] = true;
+		}
+		else
+		{
+			if (!mipLevelWasFullyInitialized[mip_level])
+			{
+				debug(LOG_ERROR, "Unable to update mip level (%zu) which was not fully initialized", mip_level);
+				continue;
+			}
+			// Possible future TODO: (If needed) Implement bufferSubData support for updating portions of mip_levels / layers
+			debug(LOG_WARNING, "Unimplemented buffer sub data support");
+		}
+	}
+}
+
+// MARK: gl_texture_array_data_buffer
+
+gl_texture_array_data_buffer::gl_texture_array_data_buffer(gfx_api::pixel_format internal_format, size_t width, size_t height, size_t layers)
+: internal_format(internal_format)
+, width(width)
+, height(height)
+, layers(layers)
+{ }
+
+void gl_texture_array_data_buffer::copy_buffer_data(const size_t& mip_level, const size_t& layer, const unsigned char* data, size_t data_size)
+{
+	ASSERT_OR_RETURN(, layer < layers, "layer (%zu) must be < layer count (%zu)", layer, layers);
+	auto it = perMipLevelData.find(mip_level);
+	if (it == perMipLevelData.end())
+	{
+		size_t mipmap_w = std::max<size_t>(1, width >> mip_level);
+		size_t mipmap_h = std::max<size_t>(1, height >> mip_level);
+		auto result = perMipLevelData.insert(std::pair<size_t, MipLevelData>(mip_level, MipLevelData(internal_format, mipmap_w, mipmap_h, layers)));
+		it = result.first;
+	}
+	ASSERT_OR_RETURN(, data_size == it->second.layerSize, "data_size (%zu) does not match expected size (%zu) for mip_level (%zu) [format: %d, top-level width x height: %zu x %zu]", data_size, it->second.layerSize, mip_level, static_cast<int>(internal_format), width, height);
+	ASSERT_OR_RETURN(, (it->second.layerSize * layer) + data_size < it->second.layersDataBuffer.size(), "Out of bounds: data_size (%zu), mip_level (%zu) [format: %d, top-level width x height: %zu x %zu]", data_size, mip_level, static_cast<int>(internal_format), width, height);
+	memcpy(&(it->second.layersDataBuffer[it->second.layerSize * layer]), data, data_size);
+}
+
+const gl_texture_array_data_buffer::MipLevelData* gl_texture_array_data_buffer::get_mip_level_data(size_t mip_level)
+{
+	auto it = perMipLevelData.find(mip_level);
+	if (it == perMipLevelData.end())
+	{
+		return nullptr;
+	}
+	return &(it->second);
+}
+
+gl_texture_array_data_buffer::MipLevelData::MipLevelData(gfx_api::pixel_format internal_format, size_t width, size_t height, size_t layers)
+: width(width)
+, height(height)
+{
+	layerDataSet.resize(layers, false);
+	layerSize = gfx_api::format_memory_size(internal_format, width, height);
+	size_t neededBufferSize = layerSize * layers;
+	layersDataBuffer.resize(neededBufferSize);
+}
+
+bool gl_texture_array_data_buffer::MipLevelData::hasCompleteLayerData() const
+{
+	return std::all_of(layerDataSet.begin(), layerDataSet.end(), [](bool val) { return val; });
+}
+
+size_t gl_texture_array_data_buffer::MipLevelData::layerCount() const
+{
+	return layerDataSet.size();
+}
+
+const uint8_t* gl_texture_array_data_buffer::MipLevelData::layerData() const
+{
+	return layersDataBuffer.data();
+}
+
+size_t gl_texture_array_data_buffer::MipLevelData::layerDataSize() const
+{
+	return layersDataBuffer.size();
+}
+
+
 // MARK: gl_buffer
 
 gl_buffer::gl_buffer(const gfx_api::buffer::usage& usage, const gfx_api::context::buffer_storage_hint& hint)
@@ -1491,6 +1656,46 @@ gfx_api::texture* gl_context::create_texture(const size_t& mipmap_count, const s
 			// For now, we don't allocate a buffer and instead: only the upload() function that uploads full images is supported
 		}
 	}
+	return new_texture;
+}
+
+gfx_api::texture_array* gl_context::create_texture_array(const size_t& mipmap_count, const size_t& layer_count, const size_t& width, const size_t& height, const gfx_api::pixel_format& internal_format, const std::string& filename)
+{
+	ASSERT(layer_count > 0 && width > 0 && height > 0, "0 layers/width/height textures are unsupported");
+	ASSERT(mipmap_count <= static_cast<size_t>(std::numeric_limits<GLint>::max()), "mipmap_count (%zu) exceeds GLint max", mipmap_count);
+	ASSERT(layer_count <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "layer_count (%zu) exceeds GLsizei max", layer_count);
+	ASSERT(width <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "width (%zu) exceeds GLsizei max", width);
+	ASSERT(height <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "height (%zu) exceeds GLsizei max", height);
+	ASSERT(static_cast<GLsizei>(layer_count) <= maxArrayTextureLayers, "layer_count (%zu) exceeds GL_MAX_ARRAY_TEXTURE_LAYERS (%" PRIi32 ")", layer_count, maxArrayTextureLayers);
+	auto* new_texture = new gl_texture_array();
+	new_texture->gles = gles;
+	new_texture->mip_levels = mipmap_count;
+	new_texture->width = width;
+	new_texture->height = height;
+	new_texture->internal_format = internal_format;
+	new_texture->bind();
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BASE_LEVEL, 0);
+	glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAX_LEVEL, static_cast<GLint>(mipmap_count - 1));
+	if (!filename.empty() && GLAD_GL_KHR_debug && glObjectLabel)
+	{
+		glObjectLabel(GL_TEXTURE, new_texture->id(), -1, filename.c_str());
+	}
+	for (GLint i = 0, e = static_cast<GLint>(mipmap_count); i < e; ++i)
+	{
+		if (is_uncompressed_format(internal_format))
+		{
+			// Allocate an empty buffer of the full size
+			glTexImage3D(GL_TEXTURE_2D_ARRAY, i, to_gl_internalformat(internal_format, gles), static_cast<GLsizei>(width >> i), static_cast<GLsizei>(height >> i), static_cast<GLsizei>(layer_count), 0, to_gl_format(internal_format, gles), GL_UNSIGNED_BYTE, nullptr);
+			new_texture->mipLevelWasFullyInitialized[i] = true;
+		}
+		else
+		{
+			// Can't use glCompressedTexImage3D with a null buffer (it's not permitted by the standard, and will crash depending on the driver)
+			// So allocate a local staging buffer, and rely on flush()
+			new_texture->stagingBuffer = std::unique_ptr<gl_texture_array_data_buffer>(new gl_texture_array_data_buffer(internal_format, width, height, layer_count));
+		}
+	}
+	new_texture->unbind();
 	return new_texture;
 }
 
