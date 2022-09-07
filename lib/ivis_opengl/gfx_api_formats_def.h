@@ -94,6 +94,8 @@ namespace gfx_api
 			return a = static_cast<flags> (a | b);
 		}
 		inline flags operator|(flags a, flags b) {
+	//		return static_cast<pixel_format_usage::value>((std::underlying_type_t<pixel_format_usage::value>(a) | std::underlying_type_t<pixel_format_usage::value>(b)));
+	//		return a = static_cast<pixel_format_usage::value> (a | b);
 			return static_cast<flags>(static_cast<uint32_t>(a) | static_cast<uint32_t>(b));
 		}
 		inline flags operator&(flags a, flags b) {
@@ -113,6 +115,7 @@ namespace gfx_api
 	{
 		user_interface,
 		game_texture, // a RGB / RGBA texture, possibly stored in a compressed format
+		// TODO: Add game_texture_rgb (for textures guaranteed not to have alpha)??
 		alpha_mask,	// a single-channel texture, containing the alpha values
 		normal_map,
 		specular_map // a single-channel texture, containing the specular / luma value

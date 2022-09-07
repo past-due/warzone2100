@@ -138,6 +138,14 @@ void gfx_api::initBasisTranscoder()
 		bestAvailableBasisCompressionFormat_SpecularMap[target] = nullopt;
 	}
 
+	// gfx_api::texture_type::user_interface: a RGB / RGBA texture
+	// Overall quality ranking:
+	//   FORMAT_ASTC_4x4_UNORM > FORMAT_RGBA_BPTC_UNORM > FORMAT_RGBA8_ETC2_EAC (/ FORMAT_RGB8_ETC2)
+//	constexpr std::array<gfx_api::pixel_format, 3> qualityOrderRGBA = {
+//		gfx_api::pixel_format::FORMAT_RGBA_BPTC_UNORM,
+//		gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC };
+//	constexpr std::array<gfx_api::pixel_format, 3> qualityOrderRGB = { gfx_api::pixel_format::FORMAT_RGB8_ETC2, gfx_api::pixel_format::FORMAT_RGB_BC1_UNORM };
+
 	// gfx_api::texture_type::game_texture: a RGB / RGBA texture, possibly stored in a compressed format
 	// Overall quality ranking:
 	//   FORMAT_ASTC_4x4_UNORM > FORMAT_RGBA_BPTC_UNORM > FORMAT_RGBA8_ETC2_EAC (/ FORMAT_RGB8_ETC2) > FORMAT_RGBA_BC3_UNORM (DXT5) / FORMAT_RGB_BC1_UNORM (for RGB - 4bpp) > ETC1 (only RGB) > PVRTC (is generally the lowest quality)
@@ -327,6 +335,9 @@ static std::vector<std::unique_ptr<iV_BaseImage>> loadiVImagesFromFile_Basis_Dat
 	}
 
 	std::vector<std::unique_ptr<iV_BaseImage>> outputImages;
+
+	// TODO: Check get_dfd_channel_id0
+	debug(LOG_WZ, "Dfd_channel_id0: %d", (int)transcoder.get_dfd_channel_id0());
 
 	uint32_t mipmapLevels = transcoder.get_levels();
 	uint32_t width = transcoder.get_width();

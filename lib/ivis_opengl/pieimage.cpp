@@ -131,6 +131,7 @@ const unsigned char* iV_Image::bmp() const
 // Get a pointer to the bitmap data that can be written to
 unsigned char* iV_Image::bmp_w()
 {
+	// TODO: Copy-on-write semantics
 	return m_bmp;
 }
 
@@ -311,6 +312,9 @@ bool iV_Image::convert_to_luma()
 bool iV_Image::resize(int output_w, int output_h)
 {
 	unsigned char *output_pixels = (unsigned char *)malloc(static_cast<size_t>(output_w) * static_cast<size_t>(output_h) * m_channels);
+//	stbir_resize_uint8(m_bmp, m_width, m_height, 0,
+//					   output_pixels, output_w, output_h, 0,
+//					   m_channels);
 	stbir_resize_uint8_generic(m_bmp, m_width, m_height, 0,
 							   output_pixels, output_w, output_h, 0,
 							   m_channels, m_channels == 4 ? 3 : STBIR_ALPHA_CHANNEL_NONE, 0,
@@ -348,6 +352,16 @@ bool iV_Image::scale_image_max_size(int maxWidth, int maxHeight)
 	int output_w = static_cast<int>(m_width * scalingRatio);
 	int output_h = static_cast<int>(m_height * scalingRatio);
 
+//	unsigned char *output_pixels = (unsigned char *)malloc(static_cast<size_t>(output_w) * static_cast<size_t>(output_h) * depth);
+//	stbir_resize_uint8(bmp, width, height, 0,
+//					   output_pixels, output_w, output_h, 0,
+//					   depth);
+//	free(bmp);
+//	width = output_w;
+//	height = output_h;
+//	bmp = output_pixels;
+//
+//	return true;
 	return resize(output_w, output_h);
 }
 

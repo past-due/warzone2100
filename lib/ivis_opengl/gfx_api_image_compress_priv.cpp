@@ -214,6 +214,20 @@ static std::unique_ptr<iV_CompressedImage> compressImageEtcPak(const iV_Image& i
 	uint32_t linesToProcess = pSourceImage->height();
 	uint32_t blocks = pSourceImage->width() * linesToProcess / 16;
 
+//	size_t originalW = 4;
+//	size_t originalH = 4;
+//	size_t outputWidth = (originalW + 3) & ~3;
+//	size_t outputHeight = (originalH + 3) & ~3;
+//	if (outputWidth != originalW || outputHeight != originalH)
+//	{
+//		debug(LOG_INFO, "Found one?");
+//	}
+//
+//	size_t sourceW = pSourceImage->width();
+//	size_t sourceH = pSourceImage->height();
+//	int destW = sourceW % block != 0 ? sourceW + (block - sourceW % block) : sourceW;
+//	int destH = sourceH % block != 0 ? sourceH + (block - sourceH % block) : sourceH;
+
 	size_t outputSize = pSourceImage->width() * pSourceImage->height() / 2;
 	if(desiredFormat == gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC || desiredFormat == gfx_api::pixel_format::FORMAT_RGBA_BC3_UNORM) outputSize *= 2;
 
@@ -287,6 +301,15 @@ optional<gfx_api::pixel_format> gfx_api::bestRealTimeCompressionFormatForImage(g
 		case gfx_api::texture_type::alpha_mask:	// a single-channel texture, containing the alpha values
 			// Do not run-time compress this - just store in a single-channel uncompressed texture
 			break;
+		case gfx_api::texture_type::normal_map:
+			// POSSIBLE FUTURE TODO:
+			// either FORMAT_RGBA_S3TC_DXT5 or FORMAT_RGBA8_ETC2_EAC
+			// Real-time: FORMAT_RGBA8_ETC2_EAC (with x,y in r,a) > FORMAT_RGBA_BC3_UNORM (DXT5nm) (with x,y in r,a)
+			break;
+		case gfx_api::texture_type::specular_map: // a single-channel texture, containing the specular / luma value
+			// could *potentially* use FORMAT_RGB8_ETC1 / DXT1
+			// but would need to first expand this to a 4-component with every RGB the same luma value, and opaque alpha
+			break;
 		default:
 			// unsupported
 			break;
@@ -311,6 +334,15 @@ optional<gfx_api::pixel_format> gfx_api::bestRealTimeCompressionFormat(gfx_api::
 			return bestAvailableCompressionFormat_GameTextureRGBA[target_idx];
 		case gfx_api::texture_type::alpha_mask:	// a single-channel texture, containing the alpha values
 			// Do not run-time compress this - just store in a single-channel uncompressed texture
+			break;
+		case gfx_api::texture_type::normal_map:
+			// POSSIBLE FUTURE TODO:
+			// either FORMAT_RGBA_S3TC_DXT5 or FORMAT_RGBA8_ETC2_EAC
+			// Real-time: FORMAT_RGBA8_ETC2_EAC (with x,y in r,a) > FORMAT_RGBA_BC3_UNORM (DXT5nm) (with x,y in r,a)
+			break;
+		case gfx_api::texture_type::specular_map: // a single-channel texture, containing the specular / luma value
+			// could *potentially* use FORMAT_RGB8_ETC1 / DXT1
+			// but would need to first expand this to a 4-component with every RGB the same luma value, and opaque alpha
 			break;
 		default:
 			// unsupported

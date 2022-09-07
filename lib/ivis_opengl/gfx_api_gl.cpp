@@ -2800,6 +2800,65 @@ void gl_context::initPixelFormatsSupport()
 		PIXEL_2D_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_ASTC_4x4_UNORM)
 		PIXEL_2D_TEXTURE_ARRAY_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_ASTC_4x4_UNORM)
 	}
+
+//	// Finally, calculate the best available real-time compression formats for each texture type
+//	bestAvailableRealTimeCompressionFormatForTextureType.clear();
+//	bestAvailableRealTimeCompressionFormatForTextureType.resize(gfx_api::TEXTURE_TYPE_COUNT);
+//	//auto builtInRealTimeCompressors = gfx_api::builtInRealTimeFormatCompressors();
+//	for (size_t textureTypeIdx = 0; textureTypeIdx < bestAvailableRealTimeCompressionFormatForTextureType.size(); textureTypeIdx++)
+//	{
+//		auto textureType = static_cast<gfx_api::texture_type>(textureTypeIdx);
+//		switch (textureType)
+//		{
+//			case gfx_api::texture_type::user_interface:
+//				// FUTURE TODO:
+//				// Real-time: FORMAT_RGBA8_ETC2_EAC
+//				// In general: FORMAT_ASTC_4x4_UNORM > FORMAT_RGBA_BPTC_UNORM > FORMAT_RGBA8_ETC2_EAC > ...
+//				// For now, always uncompressed
+//				break;
+//			case gfx_api::texture_type::game_texture: // a RGB / RGBA texture
+//				// Quality ranking:
+//				// FORMAT_ASTC_4x4_UNORM > FORMAT_RGBA_BPTC_UNORM > FORMAT_RGBA8_ETC2_EAC (/ FORMAT_RGB8_ETC2) > FORMAT_RGBA_BC3_UNORM (DXT5) / FORMAT_RGB_BC1_UNORM (for RGB - 4bpp) > ETC1 (only RGB) > PVRTC (is generally the lowest quality)
+//				// NOTE:
+//				//	- DXT5 (BC3) is better for gradient alpha
+//				//	- DXT3 (BC2) is better for sharp edge alpha
+//				//	See: https://en.wikipedia.org/wiki/S3_Texture_Compression#DXT4_and_DXT5
+//				// NOTE[2]:
+//				//	- Desktop OpenGL (especially 4.3+ where it's required) may claim support for ETC2/EAC, but may actually not have hardware support (so it'll just decompress in memory)
+//				//	- While theoretically the checks in getPixelFormatUsageSupport_gl should detect this, it seems GL_FULL_SUPPORT is sometimes returned instead of GL_CAVEAT_SUPPORT (even when there is no hardware support and the textures are decompressed by the driver in software)
+//				//	- As such, we should probably prioritize BC3/BC1 over ETC2 when !gles
+//			case gfx_api::texture_type::alpha_mask:	// a single-channel texture, containing the alpha values
+//				// For now, do not support real-time compression for this
+//				// In general: FORMAT_R11_EAC > FORMAT_R_BC4_UNORM
+//				// For Basis encoding:
+//				//	- will need to swizzle - possibly swizzle alpha to color components, and then full alpha or no alpha
+//				//	- example: -swizzle aaaa -no_alpha (??)
+//				// Not terrible to fall back to uncompressed single-channel
+//				break;
+//			case gfx_api::texture_type::normal_map:
+//				// Quality ranking:
+//				// Real-time: FORMAT_RGBA8_ETC2_EAC (with x,y in r,a) > FORMAT_RGBA_BC3_UNORM (DXT5nm) (with x,y in r,a)
+//				//	NOTE: According to: https://github.com/mosra/basis-universal
+//				//		  While we can use FORMAT_RGBA8_ETC2_EAC for good quality, we should probably swizzle RGBA -> RRRG before run-time compression
+//				//		  And DXT5nm doesn't really look good, so maybe we should skip it and just use RG uncompressed...
+//				// In general:
+//				//	- FORMAT_ASTC_4x4_UNORM (LA mode is automatic as long as it was properly encoded) <RA>
+//				//	- FORMAT_RG11_EAC <RG>
+//				//	- FORMAT_RG_BC5_UNORM <RG>
+//				//	- FORMAT_RGBA_BPTC_UNORM (slightly lower quality than BC5 for normal maps) <RA>
+//				//	- FORMAT_RGBA_BC3_UNORM (with x,y in r,a) <---- TODO: This last one should be DXT5nm, which requires moving r->a, keeping g.... and quality ends up not being good, so maybe don't support it <would be: AG>
+//				// Uncompressed format ranking: FORMAT_RG8_UNORM > FORMAT_RGB8_UNORM_PACK8 (wasted component)
+//			case gfx_api::texture_type::specular_map: // a single-channel texture, containing the specular / luma value
+//				// For now, do not support real-time compression for this
+//				// In general: FORMAT_R11_EAC (4bpp) > FORMAT_R_BC4_UNORM (4bpp)
+//				// For Basis encoding:
+//				//	-no_alpha
+//				// NOTES:
+//				//  We could also support FORMAT_ASTC_4x4_UNORM, but that's 8bpp... and so is uncompressed. Might as well just use uncompressed
+//				// Not terrible to fall back to uncompressed single-channel
+//				break;
+//		}
+//	}
 }
 
 void gl_context::flip(int clearMode)

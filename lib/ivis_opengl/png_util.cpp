@@ -391,6 +391,13 @@ bool iV_loadImage_PNG2(const char *fileName, iV_Image& image, bool forceRGBA8 /*
 
 	unsigned char *pData = image.bmp_w();
 
+//	png_read_png(png_ptr, info_ptr, PNG_TRANSFORM_IDENTITY, nullptr);
+//
+//	image->width = png_get_image_width(png_ptr, info_ptr);
+//	image->height = png_get_image_height(png_ptr, info_ptr);
+//	image->depth = png_get_channels(png_ptr, info_ptr);
+//	image->bmp = (unsigned char *)malloc(image->height * png_get_rowbytes(png_ptr, info_ptr));
+
 	// construct row pointers
 	row_pointers = (png_bytep*)malloc(sizeof(png_bytep) * height);
 	for (png_uint_32 i = 0; i < height; i++)
