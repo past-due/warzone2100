@@ -140,6 +140,12 @@ if(CMAKE_HOST_SYSTEM_NAME MATCHES "Darwin")
 endif()
 
 if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
+
+	# Check minimum Emscripten version
+	if (NOT "${EMSCRIPTEN_VERSION}" VERSION_GREATER 3.1.0)
+		message(FATAL_ERROR "Emscripten version must be at least 3.1.0")
+	endif()
+
 	# For Emscripten, we must currently get the following packages from Emscripten ports:
 	#	- SDL2
 	#	- Freetype
