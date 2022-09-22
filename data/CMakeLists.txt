@@ -95,6 +95,7 @@ if(WZ_ENABLE_BASIS_UNIVERSAL)
 		message(FATAL_ERROR "No basisu tool has been provided - set BASIS_UNIVERSAL_CLI to the path to basisu or disable WZ_ENABLE_BASIS_UNIVERSAL!")
 	endif()
 
+	# Terrain texturess
 	file(GLOB TEXPAGES_TERRAIN
 		"${CMAKE_CURRENT_SOURCE_DIR}/base/texpages/page-82-yellow-sand-arizona.png"
 		"${CMAKE_CURRENT_SOURCE_DIR}/base/texpages/page-83-red-earth-arizona.png"
@@ -145,14 +146,53 @@ if(WZ_ENABLE_BASIS_UNIVERSAL)
 		)
 		list(APPEND TEXTURE_LIST "${_output_dir}/${_output_name}")
 	endforeach()
-	add_custom_target(texture_encoding DEPENDS ${TEXTURE_LIST})
-	set_property(TARGET texture_encoding PROPERTY FOLDER "data")
 
 	set(PROCESSED_TEXTURE_FILES ${TEXPAGES_TERRAIN})
 
+	# Backdrops
+	file(GLOB TEXPAGES_BACKDROPS_ALL
+			"${CMAKE_CURRENT_SOURCE_DIR}/base/texpages/bdrops/*.png"
+	)
+	if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
+		# limit backdrops included on Emscripten (to save space)
+		file(GLOB TEXPAGES_BACKDROPS
+			"${CMAKE_CURRENT_SOURCE_DIR}/base/texpages/bdrops/backdrop0.png"
+		)
+	else()
+		set(TEXPAGES_BACKDROPS ${TEXPAGES_BACKDROPS_ALL})
+	endif()
+
+	set(_output_dir "${CMAKE_CURRENT_BINARY_DIR}/base/texpages/bdrops")
+	file(MAKE_DIRECTORY "${_output_dir}")
+	set(_bdrop_max_size 2048)
+	if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
+		set(_bdrop_max_size 1024)
+	endif()
+	foreach(TEXTURE ${TEXPAGES_BACKDROPS})
+		get_filename_component(TEXTURE_FILE_PATH ${TEXTURE} DIRECTORY)
+		get_filename_component(TEXTURE_FILE_NAME_WE ${TEXTURE} NAME_WE)
+		set(_output_name "${TEXTURE_FILE_NAME_WE}.ktx2")
+		add_custom_command(OUTPUT "${_output_dir}/${_output_name}"
+			COMMAND "${BASIS_UNIVERSAL_CLI}"
+			ARGS -ktx2 -uastc -uastc_level 2 -uastc_rdo_l 1.0 -resample ${_bdrop_max_size} ${_bdrop_max_size} -output_file "${_output_dir}/${_output_name}" -file "${TEXTURE}"
+			WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/base/texpages/bdrops"
+			DEPENDS "${TEXTURE}"
+			VERBATIM
+		)
+		list(APPEND TEXTURE_LIST "${_output_dir}/${_output_name}")
+	endforeach()
+	
+	list(APPEND PROCESSED_TEXTURE_FILES ${TEXPAGES_BACKDROPS})
+
+	add_custom_target(texture_encoding DEPENDS ${TEXTURE_LIST})
+	set_property(TARGET texture_encoding PROPERTY FOLDER "data")
+
+	# The rest of the texture files
+	set(_output_dir "${CMAKE_CURRENT_BINARY_DIR}/base/texpages")
 	file(GLOB_RECURSE ALL_TEXPAGES LIST_DIRECTORIES false CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/base/texpages/*.png" "${CMAKE_CURRENT_SOURCE_DIR}/base/texpages/compression_overrides.txt" "${CMAKE_CURRENT_SOURCE_DIR}/base/texpages/*.radar")
 	list(APPEND ALL_TEXPAGES_unprocessed ${ALL_TEXPAGES})
 	list(REMOVE_ITEM ALL_TEXPAGES_unprocessed ${PROCESSED_TEXTURE_FILES})
+	list(REMOVE_ITEM ALL_TEXPAGES_unprocessed ${TEXPAGES_BACKDROPS_ALL})
 	foreach(TEXPAGE_FILE ${ALL_TEXPAGES_unprocessed})
 		file(RELATIVE_PATH _output_name "${CMAKE_CURRENT_SOURCE_DIR}/base/texpages" "${TEXPAGE_FILE}")
 		message(STATUS "Copy unprocessed image file: ${_output_name}")
