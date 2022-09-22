@@ -26,6 +26,7 @@ using json = nlohmann::json;
 #include <unordered_map>
 #include <unordered_set>
 #include <functional>
+#include <chrono>
 
 #include "lib/framework/wzglobal.h" // required for config.h
 #include "lib/framework/frame.h"
@@ -328,7 +329,14 @@ ProcessResult WzUpdateManager::processUpdateJSONFile(const json& updateData, boo
 // May be called from a background thread
 void WzUpdateManager::initUpdateCheck()
 {
+#if !defined(__EMSCRIPTEN__)
 	std::vector<std::string> updateDataUrls = {"https://data.wz2100.net/wz2100.json", "https://warzone2100.github.io/update-data/wz2100.json"};
+#else
+	// Bypass browser cache (if needed) by appending a query string parameter
+	std::string queryStringParam = std::to_string(std::chrono::duration_cast<std::chrono::minutes>(std::chrono::system_clock::now().time_since_epoch()).count());
+	std::vector<std::string> updateDataUrls = {"https://data.wz2100.net/wz2100.json", "https://data.wz2100.net/wz2100.json?v=" + queryStringParam, "https://warzone2100.github.io/update-data/wz2100.json"};
+#endif
+
 	initProcessData(updateDataUrls, WzUpdateManager::processUpdateJSONFile, updatesCachePaths);
 }
 
@@ -483,7 +491,14 @@ ProcessResult WzCompatCheckManager::processCompatCheckJSONFile(const json& updat
 // May be called from a background thread
 void WzCompatCheckManager::initCompatCheck()
 {
+#if !defined(__EMSCRIPTEN__)
 	std::vector<std::string> updateDataUrls = {"https://data.wz2100.net/wz2100_compat.json", "https://warzone2100.github.io/update-data/wz2100_compat.json"};
+#else
+	// Bypass browser cache (if needed) by appending a query string parameter
+	std::string queryStringParam = std::to_string(std::chrono::duration_cast<std::chrono::minutes>(std::chrono::system_clock::now().time_since_epoch()).count());
+	std::vector<std::string> updateDataUrls = {"https://data.wz2100.net/wz2100_compat.json", "https://data.wz2100.net/wz2100_compat.json?v=" + queryStringParam, "https://warzone2100.github.io/update-data/wz2100_compat.json"};
+#endif
+
 	initProcessData(updateDataUrls, WzCompatCheckManager::processCompatCheckJSONFile, compatCachePaths);
 }
 
