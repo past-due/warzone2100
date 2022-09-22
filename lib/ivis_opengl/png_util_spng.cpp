@@ -81,13 +81,132 @@ bool iV_loadImage_PNG(const char *fileName, iV_Image *image)
 	ret = spng_decoded_image_size(ctx, SPNG_FMT_RGBA8, &image_size);
 	if (ret) goto err;
 
-	image->width = ihdr.width;
-	image->height = ihdr.height;
-	image->depth = 4;
-	image->bmp = (unsigned char *)malloc(image_size);
+	if (!image->allocate(ihdr.width, ihdr.height, 4))
+	{
+		ret = -1;
+		goto err;
+	}
+	if (image->data_size() != image_size)
+	{
+		ret = -1;
+		goto err;
+	}
 
 	/* Decode to 8-bit RGBA */
-	ret = spng_decode_image(ctx, image->bmp, image_size, SPNG_FMT_RGBA8, SPNG_DECODE_TRNS);
+	ret = spng_decode_image(ctx, image->bmp_w(), image->data_size(), SPNG_FMT_RGBA8, SPNG_DECODE_TRNS);
+	if (ret) goto err;
+
+err:
+	spng_ctx_free(ctx);
+
+	if (fileHandle != nullptr)
+	{
+		PHYSFS_close(fileHandle);
+	}
+
+	return ret == 0;
+}
+
+bool iV_loadImage_PNG2(const char *fileName, iV_Image& image, bool forceRGBA8 /*= false*/)
+{
+	spng_format fmt = SPNG_FMT_RGBA8;
+	int decode_flags = SPNG_DECODE_TRNS;
+	unsigned int channels = 4;
+	struct spng_ihdr ihdr;
+	struct spng_trns trns = {0};
+	int have_trns = 0;
+
+	// Open file
+	PHYSFS_file *fileHandle = PHYSFS_openRead(fileName);
+	ASSERT_OR_RETURN(false, fileHandle != nullptr, "Could not open %s: %s", fileName, WZ_PHYSFS_getLastError());
+	WZ_PHYSFS_SETBUFFER(fileHandle, 4096)//;
+
+	// Create SPNG context
+	spng_ctx *ctx = spng_ctx_new(SPNG_CTX_IGNORE_ADLER32);
+	if (ctx == NULL) return false;
+
+	int ret = 0;
+	// Set read stream function
+	ret = spng_set_png_stream(ctx, wzspng_read_data, fileHandle);
+	if (ret) goto err;
+
+	ret = spng_get_ihdr(ctx, &ihdr);
+	if (ret) goto err;
+
+	have_trns = !spng_get_trns(ctx, &trns);
+
+	/* Determine output image format */
+	switch (ihdr.color_type)
+	{
+		case SPNG_COLOR_TYPE_GRAYSCALE:
+			// WZ doesn't support 16-bit color, and libspng doesn't support converting 16-bit grayscale to anything but SPNG_FMT_G(A)16 or SPNG_FMT_RGB(A)8
+			if (!have_trns)
+			{
+				fmt = (ihdr.bit_depth <= 8) ? SPNG_FMT_G8 : SPNG_FMT_RGB8;
+			}
+			else
+			{
+				fmt = (ihdr.bit_depth <= 8) ? SPNG_FMT_GA8 : SPNG_FMT_RGBA8;
+			}
+			break;
+		case SPNG_COLOR_TYPE_TRUECOLOR:
+			fmt = (have_trns) ? SPNG_FMT_RGBA8 : SPNG_FMT_RGB8;
+			break;
+		case SPNG_COLOR_TYPE_INDEXED:
+			fmt = (have_trns) ? SPNG_FMT_RGBA8 : SPNG_FMT_RGB8;
+			break;
+		case SPNG_COLOR_TYPE_GRAYSCALE_ALPHA:
+			// WZ doesn't support 16-bit color, and libspng doesn't support converting 16-bit grayscale-alpha to anything but SPNG_FMT_GA16 or SPNG_FMT_RGB(A)8
+			fmt = (ihdr.bit_depth <= 8) ? SPNG_FMT_GA8 : SPNG_FMT_RGBA8;
+			break;
+		case SPNG_COLOR_TYPE_TRUECOLOR_ALPHA:
+			fmt = SPNG_FMT_RGBA8;
+			break;
+	}
+
+	if (forceRGBA8)
+	{
+		/* Must end up with 32bpp, 4 channel RGBA */
+		fmt = SPNG_FMT_RGBA8;
+	}
+
+	switch (fmt)
+	{
+		case SPNG_FMT_RGBA8:
+			channels = 4;
+			break;
+		case SPNG_FMT_RGB8:
+			channels = 3;
+			break;
+		case SPNG_FMT_GA8:
+			channels = 2;
+			break;
+		case SPNG_FMT_G8:
+			channels = 1;
+			break;
+		default:
+			ret = -1;
+			goto err;
+	}
+
+	/* Determine output image size */
+	size_t image_size;
+	ret = spng_decoded_image_size(ctx, fmt, &image_size);
+	if (ret) goto err;
+
+	if (!image.allocate(ihdr.width, ihdr.height, channels))
+	{
+		ret = -1;
+		goto err;
+	}
+	if (image.data_size() != image_size)
+	{
+		ret = -1;
+		goto err;
+	}
+
+	/* Decode to 8-bit RGBA */
+	ret = spng_decode_image(ctx, image.bmp_w(), image.data_size(), fmt, decode_flags);
 	if (ret) goto err;
 
 err:
