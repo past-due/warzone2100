@@ -32,11 +32,19 @@
 #include <regex>
 #include <limits>
 #include <typeindex>
+#include <sstream>
 
 #include <glm/gtc/type_ptr.hpp>
 
 #ifndef GL_GENERATE_MIPMAP
 #define GL_GENERATE_MIPMAP 0x8191
+#endif
+
+#if defined(__EMSCRIPTEN__)
+#include <emscripten/html5_webgl.h>
+# if defined(WZ_STATIC_GL_BINDINGS)
+#  include <GLES2/gl2ext.h>
+# endif
 #endif
 
 struct OPENGL_DATA
@@ -55,6 +63,31 @@ static bool perfStarted = false;
 static std::unordered_set<const gl_texture*> debugLiveTextures;
 #endif
 
+static bool WZ_WEB_GL_VERSION_2_0 = false;
+
+#if defined(__EMSCRIPTEN__) && defined(WZ_STATIC_GL_BINDINGS)
+static int GLAD_GL_KHR_debug = 0;
+static int GLAD_GL_EXT_texture_filter_anisotropic = 0;
+
+#ifndef GL_COMPRESSED_RGB8_ETC2
+# define GL_COMPRESSED_RGB8_ETC2 0x9274
+#endif
+#ifndef GL_COMPRESSED_RGBA8_ETC2_EAC
+# define GL_COMPRESSED_RGBA8_ETC2_EAC 0x9278
+#endif
+#ifndef GL_COMPRESSED_R11_EAC
+# define GL_COMPRESSED_R11_EAC 0x9270
+#endif
+#ifndef GL_COMPRESSED_RG11_EAC
+# define GL_COMPRESSED_RG11_EAC 0x9272
+#endif
+
+#ifndef GL_COMPRESSED_RGBA_ASTC_4x4_KHR
+# define GL_COMPRESSED_RGBA_ASTC_4x4_KHR 0x93B0
+#endif
+
+#endif
+
 static GLenum to_gl_internalformat(const gfx_api::pixel_format& format, bool gles)
 {
 	switch (format)
@@ -67,20 +100,26 @@ static GLenum to_gl_internalformat(const gfx_api::pixel_format& format, bool gle
 		case gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8:
 			return GL_RGB8;
 		case gfx_api::pixel_format::FORMAT_RG8_UNORM:
+#if !defined(__EMSCRIPTEN__)
 			if (gles && GLAD_GL_EXT_texture_rg)
 			{
 				// the internal format is GL_RG_EXT
 				return GL_RG_EXT;
 			}
 			else
+#endif
 			{
-				// for Desktop OpenGL, use GL_RG8 for the internal format
+				// for Desktop OpenGL (or WebGL 2.0), use GL_RG8 for the internal format
 				return GL_RG8;
 			}
 		case gfx_api::pixel_format::FORMAT_R8_UNORM:
+#if !defined(__EMSCRIPTEN__)
 			if ((!gles && GLAD_GL_VERSION_3_0) || (gles && GLAD_GL_ES_VERSION_3_0))
+#else
+			if (WZ_WEB_GL_VERSION_2_0)
+#endif
 			{
-				// OpenGL 3.0+ or OpenGL ES 3.0+
+				// OpenGL 3.0+ or OpenGL ES 3.0+ or WebGL 2.0
 				return GL_R8;
 			}
 			else
@@ -99,11 +138,23 @@ static GLenum to_gl_internalformat(const gfx_api::pixel_format& format, bool gle
 		case gfx_api::pixel_format::FORMAT_RGBA_BC3_UNORM:
 			return GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
 		case gfx_api::pixel_format::FORMAT_R_BC4_UNORM:
+#if GL_EXT_texture_compression_rgtc
+			return GL_COMPRESSED_RED_RGTC1_EXT;
+#else
 			return GL_COMPRESSED_RED_RGTC1;
+#endif
 		case gfx_api::pixel_format::FORMAT_RG_BC5_UNORM:
+#if GL_EXT_texture_compression_rgtc
+			return GL_COMPRESSED_RED_GREEN_RGTC2_EXT;
+#else
 			return GL_COMPRESSED_RG_RGTC2;
+#endif
 		case gfx_api::pixel_format::FORMAT_RGBA_BPTC_UNORM:
+#if defined(__EMSCRIPTEN__)
+			return GL_COMPRESSED_RGBA_BPTC_UNORM_EXT;
+#else
 			return GL_COMPRESSED_RGBA_BPTC_UNORM_ARB; // same value as GL_COMPRESSED_RGBA_BPTC_UNORM_EXT
+#endif
 		case gfx_api::pixel_format::FORMAT_RGB8_ETC1:
 			return GL_ETC1_RGB8_OES;
 		case gfx_api::pixel_format::FORMAT_RGB8_ETC2:
@@ -130,24 +181,34 @@ static GLenum to_gl_format(const gfx_api::pixel_format& format, bool gles)
 		case gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8:
 			return GL_RGBA;
 		case gfx_api::pixel_format::FORMAT_BGRA8_UNORM_PACK8:
+#if defined(__EMSCRIPTEN__)
+			return GL_INVALID_ENUM;
+#else
 			return GL_BGRA;
+#endif
 		case gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8:
 			return GL_RGB;
 		case gfx_api::pixel_format::FORMAT_RG8_UNORM:
+#if !defined(__EMSCRIPTEN__)
 			if (gles && GLAD_GL_EXT_texture_rg)
 			{
 				// the internal format is GL_RG_EXT
 				return GL_RG_EXT;
 			}
 			else
+#endif
 			{
 				// for Desktop OpenGL, use GL_RG for the format
 				return GL_RG;
 			}
 		case gfx_api::pixel_format::FORMAT_R8_UNORM:
+#if !defined(__EMSCRIPTEN__)
 			if ((!gles && GLAD_GL_VERSION_3_0) || (gles && GLAD_GL_ES_VERSION_3_0))
+#else
+			if (WZ_WEB_GL_VERSION_2_0)
+#endif
 			{
-				// OpenGL 3.0+ or OpenGL ES 3.0+
+				// OpenGL 3.0+ or OpenGL ES 3.0+ or WebGL 2.0
 				return GL_RED;
 			}
 			else
@@ -508,14 +569,18 @@ const char * shaderVersionString(SHADER_VERSION_ES version)
 GLint wz_GetGLIntegerv(GLenum pname, GLint defaultValue = 0)
 {
 	GLint retVal = defaultValue;
+#if !defined(WZ_STATIC_GL_BINDINGS)
 	ASSERT_OR_RETURN(retVal, glGetIntegerv != nullptr, "glGetIntegerv is null");
 	if (glGetError != nullptr)
+#endif
 	{
 		while(glGetError() != GL_NO_ERROR) { } // clear the OpenGL error queue
 	}
 	glGetIntegerv(pname, &retVal);
 	GLenum err = GL_NO_ERROR;
+#if !defined(WZ_STATIC_GL_BINDINGS)
 	if (glGetError != nullptr)
+#endif
 	{
 		err = glGetError();
 	}
@@ -830,13 +895,16 @@ void gl_pipeline_state_object::bind()
 			break;
 		case gfx_api::stencil_mode::stencil_shadow_silhouette:
 			glEnable(GL_STENCIL_TEST);
+#if !defined(WZ_STATIC_GL_BINDINGS)
 			if (GLAD_GL_VERSION_2_0 || GLAD_GL_ES_VERSION_2_0)
+#endif
 			{
 				glStencilMask(~0);
 				glStencilOpSeparate(GL_BACK, GL_KEEP, GL_KEEP, GL_INCR_WRAP);
 				glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_KEEP, GL_DECR_WRAP);
 				glStencilFunc(GL_ALWAYS, 0, ~0);
 			}
+#if GL_EXT_stencil_two_side && !defined(WZ_STATIC_GL_BINDINGS)
 			else if (GLAD_GL_EXT_stencil_two_side)
 			{
 				glEnable(GL_STENCIL_TEST_TWO_SIDE_EXT);
@@ -848,6 +916,8 @@ void gl_pipeline_state_object::bind()
 				glStencilOp(GL_KEEP, GL_KEEP, GL_INCR_WRAP);
 				glStencilFunc(GL_ALWAYS, 0, ~0);
 			}
+#endif
+#if GL_ATI_separate_stencil && !defined(WZ_STATIC_GL_BINDINGS)
 			else if (GLAD_GL_ATI_separate_stencil)
 			{
 				glStencilMask(~0);
@@ -855,6 +925,7 @@ void gl_pipeline_state_object::bind()
 				glStencilOpSeparateATI(GL_FRONT, GL_KEEP, GL_KEEP, GL_DECR_WRAP);
 				glStencilFunc(GL_ALWAYS, 0, ~0);
 			}
+#endif
 
 			break;
 		case gfx_api::stencil_mode::stencil_disabled:
@@ -1065,10 +1136,13 @@ void gl_pipeline_state_object::build_program(bool fragmentHighpFloatAvailable, b
 				glAttachShader(program, shader);
 				success = true;
 			}
+
+#if GL_KHR_debug && !defined(__EMSCRIPTEN__)
 			if ((/*GLEW_VERSION_4_3 ||*/ GLAD_GL_KHR_debug) && glObjectLabel)
 			{
 				glObjectLabel(GL_SHADER, shader, -1, vertexPath.c_str());
 			}
+#endif
 		}
 	}
 
@@ -1132,10 +1206,13 @@ void gl_pipeline_state_object::build_program(bool fragmentHighpFloatAvailable, b
 				glAttachShader(program, shader);
 				success = true;
 			}
+
+#if GL_KHR_debug && !defined(__EMSCRIPTEN__)
 			if ((/*GLEW_VERSION_4_3 ||*/ GLAD_GL_KHR_debug) && glObjectLabel)
 			{
 				glObjectLabel(GL_SHADER, shader, -1, fragmentPath.c_str());
 			}
+#endif
 		}
 	}
 
@@ -1161,10 +1238,13 @@ void gl_pipeline_state_object::build_program(bool fragmentHighpFloatAvailable, b
 		{
 			printProgramInfoLog(LOG_3D, program);
 		}
+
+#if GL_KHR_debug && !defined(__EMSCRIPTEN__)
 		if ((/*GLEW_VERSION_4_3 ||*/ GLAD_GL_KHR_debug) && glObjectLabel)
 		{
 			glObjectLabel(GL_PROGRAM, program, -1, programName.c_str());
 		}
+#endif
 	}
 	fetch_uniforms(uniformNames, duplicateFragmentUniformNames, programName);
 	getLocs();
@@ -1504,10 +1584,12 @@ gfx_api::texture* gl_context::create_texture(const size_t& mipmap_count, const s
 	new_texture->bind();
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, static_cast<GLint>(mipmap_count - 1));
+#if GL_KHR_debug && !defined(__EMSCRIPTEN__)
 	if (!filename.empty() && ((/*GLEW_VERSION_4_3 ||*/ GLAD_GL_KHR_debug) && glObjectLabel))
 	{
 		glObjectLabel(GL_TEXTURE, new_texture->id(), -1, filename.c_str());
 	}
+#endif
 	for (GLint i = 0, e = static_cast<GLint>(mipmap_count); i < e; ++i)
 	{
 		if (is_uncompressed_format(internal_format))
@@ -1743,11 +1825,13 @@ void gl_context::set_polygon_offset(const float& offset, const float& slope)
 
 void gl_context::set_depth_range(const float& min, const float& max)
 {
+#if !defined(__EMSCRIPTEN__)
 	if (!gles)
 	{
 		glDepthRange(min, max);
 	}
 	else
+#endif
 	{
 		glDepthRangef(min, max);
 	}
@@ -1761,6 +1845,8 @@ int32_t gl_context::get_context_value(const context_value property)
 }
 
 // MARK: gl_context - debug
+
+#if !defined(__EMSCRIPTEN__)
 
 void gl_context::debugStringMarker(const char *str)
 {
@@ -1842,6 +1928,30 @@ uint64_t gl_context::debugGetPerfValue(PERF_POINT pp)
 	return count;
 }
 
+#else // defined(__EMSCRIPTEN__)
+
+void gl_context::debugStringMarker(const char *str) { }
+void gl_context::debugSceneBegin(const char *descr) { }
+void gl_context::debugSceneEnd(const char *descr) { }
+bool gl_context::debugPerfAvailable()
+{
+	return false;
+}
+bool gl_context::debugPerfStart(size_t sample)
+{
+	return false;
+}
+void gl_context::debugPerfStop() { }
+void gl_context::debugPerfBegin(PERF_POINT pp, const char *descr) { }
+void gl_context::debugPerfEnd(PERF_POINT pp) { }
+uint64_t gl_context::debugGetPerfValue(PERF_POINT pp)
+{
+	return 0;
+}
+
+#endif // !defined(__EMSCRIPTEN__)
+
+#if !defined(__EMSCRIPTEN__)
 // Returns a space-separated list of OpenGL extensions
 static std::string getGLExtensions()
 {
@@ -1885,6 +1995,13 @@ static std::string getGLExtensions()
 	}
 	return extensions;
 }
+#else
+static std::string getGLExtensions()
+{
+	// TODO: Implement
+	return "";
+}
+#endif
 
 std::map<std::string, std::string> gl_context::getBackendGameInfo()
 {
@@ -2000,7 +2117,9 @@ bool gl_context::getScreenshot(std::function<void (std::unique_ptr<iV_Image>)> c
 	return true;
 }
 
-//
+// MARK: khr_callback
+
+#if !defined(__EMSCRIPTEN__)
 
 static const char *cbsource(GLenum source)
 {
@@ -2049,6 +2168,33 @@ static void GLAPIENTRY khr_callback(GLenum source, GLenum type, GLuint id, GLenu
 	debug(LOG_ERROR, "GL::%s(%s:%s) : %s", cbsource(source), cbtype(type), cbseverity(severity), message);
 }
 
+#endif // !defined(__EMSCRIPTEN__)
+
+#if defined(__EMSCRIPTEN__)
+static std::unordered_set<std::string> supportedWebGLExtensions;
+static bool getWebGLExtensions()
+{
+	supportedWebGLExtensions.clear();
+	char* spaceSeparatedExtensions = emscripten_webgl_get_supported_extensions();
+	if (!spaceSeparatedExtensions)
+	{
+		return false;
+	}
+
+	debug(LOG_INFO, "Supported WebGL extensions: %s", spaceSeparatedExtensions);
+
+	std::vector<std::string> strings;
+	std::istringstream str_stream(spaceSeparatedExtensions);
+	std::string s;
+	while (getline(str_stream, s, ' ')) {
+		supportedWebGLExtensions.insert(s);
+	}
+
+	free(spaceSeparatedExtensions);
+	return true;
+}
+#endif
+
 bool gl_context::_initialize(const gfx_api::backend_Impl_Factory& impl, int32_t antialiasing, swap_interval_mode mode)
 {
 	// obtain backend_OpenGL_Impl from impl
@@ -2070,6 +2216,16 @@ bool gl_context::_initialize(const gfx_api::backend_Impl_Factory& impl, int32_t 
 		backend_impl->destroyGLContext();
 		return false;
 	}
+
+#if defined(__EMSCRIPTEN__)
+	if (!getWebGLExtensions())
+	{
+		debug(LOG_ERROR, "Failed to get WebGL extensions");
+	}
+# if defined(WZ_STATIC_GL_BINDINGS)
+	GLAD_GL_EXT_texture_filter_anisotropic = supportedWebGLExtensions.count("EXT_texture_filter_anisotropic") > 0;
+# endif
+#endif
 
 	initPixelFormatsSupport();
 
@@ -2094,7 +2250,9 @@ bool gl_context::_initialize(const gfx_api::backend_Impl_Factory& impl, int32_t 
 static const GLubyte* wzSafeGlGetString(GLenum name)
 {
 	static const GLubyte emptyString[1] = {0};
+#if !defined(WZ_STATIC_GL_BINDINGS)
 	ASSERT_OR_RETURN(emptyString, glGetString != nullptr, "glGetString is null");
+#endif
 	auto result = glGetString(name);
 	if (result == nullptr)
 	{
@@ -2158,13 +2316,15 @@ bool gl_context::initGLContext()
 {
 	frameNum = 1;
 
+	gles = backend_impl->isOpenGLES();
+
+#if !defined(WZ_STATIC_GL_BINDINGS)
 	GLADloadproc func_GLGetProcAddress = backend_impl->getGLGetProcAddress();
 	if (!func_GLGetProcAddress)
 	{
 		debug(LOG_FATAL, "backend_impl->getGLGetProcAddress() returned NULL");
 		return false;
 	}
-	gles = backend_impl->isOpenGLES();
 	if (!gles)
 	{
 		if (!gladLoadGLLoader(func_GLGetProcAddress))
@@ -2181,6 +2341,7 @@ bool gl_context::initGLContext()
 			return false;
 		}
 	}
+#endif
 
 	/* Dump general information about OpenGL implementation to the console and the dump file */
 	ssprintf(opengl.vendor, "OpenGL Vendor: %s", wzSafeGlGetString(GL_VENDOR));
@@ -2202,7 +2363,11 @@ bool gl_context::initGLContext()
 		return false;
 	}
 
+#if !defined(__EMSCRIPTEN__)
 	khr_debug = GLAD_GL_KHR_debug;
+#else
+	khr_debug = false;
+#endif
 
 	std::string extensionsStr = getGLExtensions();
 	const char *extensionsBegin = extensionsStr.data();
@@ -2234,6 +2399,7 @@ bool gl_context::initGLContext()
 		line += word;
 	}
 	debug(LOG_3D, "OpenGL Extensions:%s", line.c_str());
+#if !defined(__EMSCRIPTEN__)
 	if (!gles)
 	{
 		debug(LOG_3D, "Notable OpenGL features:");
@@ -2286,6 +2452,33 @@ bool gl_context::initGLContext()
 		debug(LOG_POPUP, "OpenGL 2.1+ / OpenGL ES 2.0+ not supported! Please upgrade your drivers.");
 		return false;
 	}
+
+#else
+	// Emscripten-specific
+
+	const char* version = (const char*)wzSafeGlGetString(GL_VERSION);
+	WZ_WEB_GL_VERSION_2_0 = false;
+	if (strncmp(version, "OpenGL ES 2.0", 13) == 0)
+	{
+		// WebGL 1
+		WZ_WEB_GL_VERSION_2_0 = false;
+	}
+	else if (strncmp(version, "OpenGL ES 3.0", 13) == 0)
+	{
+		// WebGL 2
+		WZ_WEB_GL_VERSION_2_0 = true;
+	}
+	else
+	{
+		debug(LOG_POPUP, "Unsupported WebGL version string: %s", version);
+		return false;
+	}
+
+	debug(LOG_3D, "  * WebGL 2.0 %s supported!", WZ_WEB_GL_VERSION_2_0 ? "is" : "is NOT");
+
+	// TODO: Check other extensions
+
+#endif
 
 	fragmentHighpFloatAvailable = true;
 	fragmentHighpIntAvailable = true;
@@ -2349,6 +2542,7 @@ bool gl_context::initGLContext()
 	}
 	enabledVertexAttribIndexes.resize(static_cast<size_t>(glmaxVertexAttribs), false);
 
+#if !defined(__EMSCRIPTEN__)
 	if (khr_debug)
 	{
 		if (glDebugMessageCallback && glDebugMessageControl)
@@ -2382,6 +2576,7 @@ bool gl_context::initGLContext()
 	{
 		glGenQueries(PERF_COUNT, perfpos);
 	}
+#endif
 
 	glGenBuffers(1, &scratchbuffer);
 
@@ -2415,6 +2610,181 @@ void gl_context::endRenderPass()
 	_beginRenderPassImpl();
 #endif
 }
+
+bool gl_context::textureFormatIsSupported(gfx_api::pixel_format_target target, gfx_api::pixel_format format, gfx_api::pixel_format_usage::flags usage)
+{
+	size_t formatIdx = static_cast<size_t>(format);
+	ASSERT_OR_RETURN(false, formatIdx < textureFormatsSupport[static_cast<size_t>(target)].size(), "Invalid format index: %zu", formatIdx);
+	return (textureFormatsSupport[static_cast<size_t>(target)][formatIdx] & usage) == usage;
+}
+
+#if defined(__EMSCRIPTEN__)
+static gfx_api::pixel_format_usage::flags getPixelFormatUsageSupport_gl(GLenum target, gfx_api::pixel_format format, bool gles)
+{
+	gfx_api::pixel_format_usage::flags retVal = gfx_api::pixel_format_usage::none;
+
+	switch (format)
+	{
+		// UNCOMPRESSED FORMATS
+		case gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8:
+			retVal |= gfx_api::pixel_format_usage::sampled_image;
+			break;
+		case gfx_api::pixel_format::FORMAT_BGRA8_UNORM_PACK8:
+			retVal |= gfx_api::pixel_format_usage::sampled_image;
+			break;
+		case gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8:
+			retVal |= gfx_api::pixel_format_usage::sampled_image;
+			break;
+		case gfx_api::pixel_format::FORMAT_RG8_UNORM:
+			// supported in WebGL2
+			if (WZ_WEB_GL_VERSION_2_0)
+			{
+				retVal |= gfx_api::pixel_format_usage::sampled_image;
+			}
+			break;
+		case gfx_api::pixel_format::FORMAT_R8_UNORM:
+			retVal |= gfx_api::pixel_format_usage::sampled_image;
+			break;
+		// COMPRESSED FORMAT
+		case gfx_api::pixel_format::FORMAT_RGB_BC1_UNORM:
+		case gfx_api::pixel_format::FORMAT_RGBA_BC2_UNORM:
+		case gfx_api::pixel_format::FORMAT_RGBA_BC3_UNORM:
+			if (supportedWebGLExtensions.count("WEBGL_compressed_texture_s3tc") > 0)
+			{
+				retVal |= gfx_api::pixel_format_usage::sampled_image;
+			}
+			break;
+		case gfx_api::pixel_format::FORMAT_R_BC4_UNORM:
+		case gfx_api::pixel_format::FORMAT_RG_BC5_UNORM:
+			// not supported
+			break;
+		case gfx_api::pixel_format::FORMAT_RGBA_BPTC_UNORM:
+			// not supported
+			break;
+		case gfx_api::pixel_format::FORMAT_RGB8_ETC1:
+			// not supported
+			break;
+		case gfx_api::pixel_format::FORMAT_RGB8_ETC2:
+		case gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC:
+		case gfx_api::pixel_format::FORMAT_R11_EAC:
+		case gfx_api::pixel_format::FORMAT_RG11_EAC:
+			if (supportedWebGLExtensions.count("WEBGL_compressed_texture_etc") > 0)
+			{
+				retVal |= gfx_api::pixel_format_usage::sampled_image;
+			}
+			break;
+		case gfx_api::pixel_format::FORMAT_ASTC_4x4_UNORM:
+			if (supportedWebGLExtensions.count("WEBGL_compressed_texture_astc") > 0)
+			{
+				retVal |= gfx_api::pixel_format_usage::sampled_image;
+			}
+			break;
+		default:
+			debug(LOG_INFO, "Unrecognised pixel format");
+	}
+
+	return retVal;
+}
+
+void gl_context::initPixelFormatsSupport()
+{
+	// set any existing entries to false
+	for (size_t target = 0; target < gfx_api::PIXEL_FORMAT_TARGET_COUNT; target++)
+	{
+		for (size_t i = 0; i < textureFormatsSupport[target].size(); i++)
+		{
+			textureFormatsSupport[target][i] = gfx_api::pixel_format_usage::none;
+		}
+		textureFormatsSupport[target].resize(static_cast<size_t>(gfx_api::MAX_PIXEL_FORMAT) + 1, gfx_api::pixel_format_usage::none);
+	}
+
+	// check if 2D texture array support is available
+	has2DTextureArraySupport = (gles && WZ_WEB_GL_VERSION_2_0); // Texture arrays are supported in OpenGL ES 3.0+ / WebGL 2.0
+
+	#define PIXEL_2D_FORMAT_SUPPORT_SET(x) \
+	textureFormatsSupport[static_cast<size_t>(gfx_api::pixel_format_target::texture_2d)][static_cast<size_t>(x)] = getPixelFormatUsageSupport_gl(GL_TEXTURE_2D, x, gles);
+
+	#define PIXEL_2D_TEXTURE_ARRAY_FORMAT_SUPPORT_SET(x) \
+	if (has2DTextureArraySupport) { textureFormatsSupport[static_cast<size_t>(gfx_api::pixel_format_target::texture_2d_array)][static_cast<size_t>(x)] = getPixelFormatUsageSupport_gl(GL_TEXTURE_2D_ARRAY, x, gles); }
+
+	// The following are always guaranteed to be supported
+	PIXEL_2D_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8)
+	PIXEL_2D_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8)
+	PIXEL_2D_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_R8_UNORM)
+
+	PIXEL_2D_TEXTURE_ARRAY_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA8_UNORM_PACK8)
+	PIXEL_2D_TEXTURE_ARRAY_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8)
+	PIXEL_2D_TEXTURE_ARRAY_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_R8_UNORM)
+
+	// RG8
+	// WebGL: WebGL 2.0
+	if (gles && WZ_WEB_GL_VERSION_2_0)
+	{
+		PIXEL_2D_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RG8_UNORM)
+		PIXEL_2D_TEXTURE_ARRAY_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RG8_UNORM)
+	}
+
+	// S3TC
+	// WebGL: WEBGL_compressed_texture_s3tc
+	if (supportedWebGLExtensions.count("WEBGL_compressed_texture_s3tc") > 0)
+	{
+		PIXEL_2D_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB_BC1_UNORM) // DXT1
+		PIXEL_2D_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BC2_UNORM) // DXT3
+		PIXEL_2D_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BC3_UNORM) // DXT5
+
+		PIXEL_2D_TEXTURE_ARRAY_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB_BC1_UNORM) // DXT1
+		PIXEL_2D_TEXTURE_ARRAY_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BC2_UNORM) // DXT3
+		PIXEL_2D_TEXTURE_ARRAY_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA_BC3_UNORM) // DXT5
+	}
+
+	// BPTC
+	// WebGL: Theoretically could check EXT_texture_compression_bptc?
+
+	// ETC1
+
+	// ETC2
+	// WebGL: WEBGL_compressed_texture_etc
+	if (supportedWebGLExtensions.count("WEBGL_compressed_texture_etc") > 0)
+	{
+		// NOTES:
+		// WebGL 2.0 claims it is supported for 2d texture arrays
+		bool canSupport2DTextureArrays = WZ_WEB_GL_VERSION_2_0;
+
+		PIXEL_2D_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB8_ETC2)
+		if (canSupport2DTextureArrays)
+		{
+			PIXEL_2D_TEXTURE_ARRAY_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB8_ETC2)
+		}
+
+		PIXEL_2D_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC)
+		if (canSupport2DTextureArrays)
+		{
+			PIXEL_2D_TEXTURE_ARRAY_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGBA8_ETC2_EAC)
+		}
+
+		PIXEL_2D_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_R11_EAC)
+		if (canSupport2DTextureArrays)
+		{
+			PIXEL_2D_TEXTURE_ARRAY_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_R11_EAC)
+		}
+
+		PIXEL_2D_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RG11_EAC)
+		if (canSupport2DTextureArrays)
+		{
+			PIXEL_2D_TEXTURE_ARRAY_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RG11_EAC)
+		}
+	}
+
+	// ASTC (LDR)
+	// WebGL: WEBGL_compressed_texture_astc
+	if (supportedWebGLExtensions.count("WEBGL_compressed_texture_astc") > 0)
+	{
+		PIXEL_2D_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_ASTC_4x4_UNORM)
+		PIXEL_2D_TEXTURE_ARRAY_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_ASTC_4x4_UNORM)
+	}
+}
+
+#else // !defined(__EMSCRIPTEN__)
 
 static gfx_api::pixel_format_usage::flags getPixelFormatUsageSupport_gl(GLenum target, gfx_api::pixel_format format, bool gles)
 {
@@ -2467,13 +2837,6 @@ static gfx_api::pixel_format_usage::flags getPixelFormatUsageSupport_gl(GLenum t
 	}
 
 	return retVal;
-}
-
-bool gl_context::textureFormatIsSupported(gfx_api::pixel_format_target target, gfx_api::pixel_format format, gfx_api::pixel_format_usage::flags usage)
-{
-	size_t formatIdx = static_cast<size_t>(format);
-	ASSERT_OR_RETURN(false, formatIdx < textureFormatsSupport[static_cast<size_t>(target)].size(), "Invalid format index: %zu", formatIdx);
-	return (textureFormatsSupport[static_cast<size_t>(target)][formatIdx] & usage) == usage;
 }
 
 void gl_context::initPixelFormatsSupport()
@@ -2655,6 +3018,8 @@ void gl_context::initPixelFormatsSupport()
 	}
 }
 
+#endif // defined(__EMSCRIPTEN__)
+
 void gl_context::handleWindowSizeChange(unsigned int oldWidth, unsigned int oldHeight, unsigned int newWidth, unsigned int newHeight)
 {
 	// Update the viewport to use the new *drawable* size (which may be greater than the new window size
@@ -2670,9 +3035,16 @@ void gl_context::handleWindowSizeChange(unsigned int oldWidth, unsigned int oldH
 
 void gl_context::shutdown()
 {
-	if(glClear) glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+#if !defined(WZ_STATIC_GL_BINDINGS)
+	if (glClear)
+#endif
+	{
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+	}
 
+#if !defined(WZ_STATIC_GL_BINDINGS)
 	if (glDeleteBuffers) // glDeleteBuffers might be NULL (if initializing the OpenGL loader library fails)
+#endif
 	{
 		glDeleteBuffers(1, &scratchbuffer);
 		scratchbuffer = 0;
