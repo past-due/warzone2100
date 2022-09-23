@@ -2453,6 +2453,8 @@ bool gl_context::initGLContext()
 		return false;
 	}
 
+	WZ_WEB_GL_VERSION_2_0 = false;
+
 #else
 	// Emscripten-specific
 
