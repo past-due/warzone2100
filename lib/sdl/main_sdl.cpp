@@ -3017,10 +3017,18 @@ static void handleActiveEvent(SDL_Event *event)
 static SDL_Event event;
 #if defined(__EMSCRIPTEN__)
 std::function<void()> saved_onShutdown;
+unsigned lastLoopReturn = 0;
 #endif
 
 void wzEventLoopOneFrame(void* arg)
 {
+#if defined(__EMSCRIPTEN__)
+	if (lastLoopReturn > 0)
+	{
+		wz_emscripten_did_finish_render(lastLoopReturn - wzGetTicks());
+	}
+#endif
+
 	/* Deal with any windows messages */
 	while (SDL_PollEvent(&event))
 	{
@@ -3094,6 +3102,9 @@ void wzEventLoopOneFrame(void* arg)
 	processScreenSizeChangeNotificationIfNeeded();
 	mainLoop();				// WZ does its thing
 	inputNewFrame();			// reset input states
+#if defined(__EMSCRIPTEN__)
+	lastLoopReturn = wzGetTicks();
+#endif
 }
 
 // Actual mainloop
