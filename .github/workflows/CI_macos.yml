@@ -164,6 +164,7 @@ jobs:
          -configuration "Release" \
          -destination "platform=macOS" \
          -PBXBuildsContinueAfterErrors=NO \
+         -parallelizeBuildables=YES \
         | tee "xcodebuild.log" | xcpretty -c
         result=${?}
         if [ $result -ne 0 ]; then
