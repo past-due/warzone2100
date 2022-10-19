@@ -104,6 +104,16 @@ jobs:
         sudo xcode-select -s "${DESIRED_XCODE_DEV_DIR}"
 
         echo "MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}"
+        
+        defaults write com.apple.dt.Xcode IDEIndexDisable -bool YES
+        defaults write com.apple.dt.Xcode IDEDisableStateRestoration -bool YES
+        
+        defaults write com.apple.dt.xcodebuild PBXNumberOfParallelBuildSubtasks `sysctl -n hw.ncpu`
+        defaults write com.apple.dt.xcodebuild IDEBuildOperationMaxNumberOfConcurrentCompileTasks `sysctl -n hw.ncpu`
+        defaults write com.apple.dt.xcodebuild BuildSystemScheduleInherentlyParallelCommandsExclusively -bool NO
+        defaults write com.apple.dt.Xcode PBXNumberOfParallelBuildSubtasks `sysctl -n hw.ncpu`
+        defaults write com.apple.dt.Xcode IDEBuildOperationMaxNumberOfConcurrentCompileTasks `sysctl -n hw.ncpu`
+        defaults write com.apple.dt.Xcode BuildSystemScheduleInherentlyParallelCommandsExclusively -bool NO
     - name: configure_mac.cmake
       working-directory: ./build
       env:
