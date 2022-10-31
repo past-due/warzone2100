@@ -56,6 +56,10 @@ static bool perfStarted = false;
 static std::unordered_set<const gl_texture*> debugLiveTextures;
 #endif
 
+PFNGLDRAWARRAYSINSTANCEDPROC wz_dyn_glDrawArraysInstanced = nullptr;
+PFNGLDRAWELEMENTSINSTANCEDPROC wz_dyn_glDrawElementsInstanced = nullptr;
+PFNGLVERTEXATTRIBDIVISORPROC wz_dyn_glVertexAttribDivisor = nullptr;
+
 static GLenum to_gl_internalformat(const gfx_api::pixel_format& format, bool gles)
 {
 	switch (format)
@@ -1055,6 +1059,12 @@ void gl_pipeline_state_object::build_program(bool fragmentHighpFloatAvailable, b
 	bindVertexAttribLocationIfUsed(program, 2, "vertexColor");
 	bindVertexAttribLocationIfUsed(program, 3, "vertexNormal");
 	bindVertexAttribLocationIfUsed(program, 4, "vertexTangent");
+	// only needed for instanced mesh rendering
+	bindVertexAttribLocationIfUsed(program, gfx_api::instance_modelMatrix, "instanceModelMatrix"); // uses 4 slots
+	static_assert(gfx_api::instance_modelMatrix + 4 == gfx_api::instance_packedValues, "");
+	bindVertexAttribLocationIfUsed(program, gfx_api::instance_packedValues, "instancePackedValues");
+	bindVertexAttribLocationIfUsed(program, gfx_api::instance_Colour, "instanceColour");
+	bindVertexAttribLocationIfUsed(program, gfx_api::instance_TeamColour, "instanceTeamColour");
 	ASSERT_OR_RETURN(, program, "Could not create shader program!");
 
 	char* vertexShaderContents = nullptr;
@@ -1605,6 +1615,17 @@ void gl_context::bind_vertex_buffers(const std::size_t& first, const std::vector
 		{
 			enableVertexAttribArray(static_cast<GLuint>(attribute.id));
 			glVertexAttribPointer(static_cast<GLuint>(attribute.id), get_size(attribute.type), get_type(attribute.type), get_normalisation(attribute.type), static_cast<GLsizei>(buffer_desc.stride), reinterpret_cast<void*>(attribute.offset + std::get<1>(vertex_buffers_offset[i])));
+			if (attribute.rate == gfx_api::vertex_attribute_input_rate::instance)
+			{
+				if (hasInstancedRenderingSupport)
+				{
+					wz_dyn_glVertexAttribDivisor(static_cast<GLuint>(attribute.id), 1);
+				}
+				else
+				{
+					debug(LOG_ERROR, "Instanced rendering is unsupported, but instanced rendering attribute used");
+				}
+			}
 		}
 	}
 }
@@ -1617,6 +1638,13 @@ void gl_context::unbind_vertex_buffers(const std::size_t& first, const std::vect
 		const auto& buffer_desc = current_program->vertex_buffer_desc[first + i];
 		for (const auto& attribute : buffer_desc.attributes)
 		{
+			if (attribute.rate == gfx_api::vertex_attribute_input_rate::instance)
+			{
+				if (hasInstancedRenderingSupport)
+				{
+					wz_dyn_glVertexAttribDivisor(static_cast<GLuint>(attribute.id), 0); // reset
+				}
+			}
 			disableVertexAttribArray(static_cast<GLuint>(attribute.id));
 		}
 	}
@@ -1629,6 +1657,10 @@ void gl_context::disable_all_vertex_buffers()
 	{
 		if(enabledVertexAttribIndexes[index])
 		{
+			if (hasInstancedRenderingSupport)
+			{
+				wz_dyn_glVertexAttribDivisor(index, 0); // reset
+			}
 			disableVertexAttribArray(index);
 		}
 	}
@@ -1746,10 +1778,27 @@ void gl_context::draw(const size_t& offset, const size_t &count, const gfx_api::
 	glDrawArrays(to_gl(primitive), static_cast<GLint>(offset), static_cast<GLsizei>(count));
 }
 
+void gl_context::draw_instanced(const std::size_t& offset, const std::size_t &count, const gfx_api::primitive_type &primitive, std::size_t instance_count)
+{
+	ASSERT_OR_RETURN(, hasInstancedRenderingSupport, "Instanced rendering is unavailable");
+	ASSERT(offset <= static_cast<size_t>(std::numeric_limits<GLint>::max()), "offset (%zu) exceeds GLint max", offset);
+	ASSERT(count <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "count (%zu) exceeds GLsizei max", count);
+	ASSERT(instance_count <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "instance_count (%zu) exceeds GLsizei max", count);
+	wz_dyn_glDrawArraysInstanced(to_gl(primitive), static_cast<GLint>(offset), static_cast<GLsizei>(count), static_cast<GLsizei>(instance_count));
+}
+
 void gl_context::draw_elements(const size_t& offset, const size_t &count, const gfx_api::primitive_type &primitive, const gfx_api::index_type& index)
 {
 	ASSERT(count <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "count (%zu) exceeds GLsizei max", count);
 	glDrawElements(to_gl(primitive), static_cast<GLsizei>(count), to_gl(index), reinterpret_cast<void*>(offset));
+}
+
+void gl_context::draw_elements_instanced(const std::size_t& offset, const std::size_t &count, const gfx_api::primitive_type &primitive, const gfx_api::index_type& index, std::size_t instance_count)
+{
+	ASSERT_OR_RETURN(, hasInstancedRenderingSupport, "Instanced rendering is unavailable");
+	ASSERT(count <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "count (%zu) exceeds GLsizei max", count);
+	ASSERT(instance_count <= static_cast<size_t>(std::numeric_limits<GLsizei>::max()), "instance_count (%zu) exceeds GLsizei max", count);
+	wz_dyn_glDrawElementsInstanced(to_gl(primitive), static_cast<GLsizei>(count), to_gl(index), reinterpret_cast<void*>(offset),  static_cast<GLsizei>(instance_count));
 }
 
 void gl_context::set_polygon_offset(const float& offset, const float& slope)
@@ -2096,6 +2145,8 @@ bool gl_context::_initialize(const gfx_api::backend_Impl_Factory& impl, int32_t 
 	}
 
 	initPixelFormatsSupport();
+	hasInstancedRenderingSupport = initInstancedFunctions();
+	debug(LOG_INFO, "  * Instanced rendering support %s detected", hasInstancedRenderingSupport ? "was" : "was NOT");
 
 	int width, height = 0;
 	backend_impl->getDrawableSize(&width, &height);
@@ -2456,6 +2507,11 @@ void gl_context::endRenderPass()
 #endif
 }
 
+bool gl_context::supportsInstancedRendering()
+{
+	return hasInstancedRenderingSupport;
+}
+
 static gfx_api::pixel_format_usage::flags getPixelFormatUsageSupport_gl(GLenum target, gfx_api::pixel_format format, bool gles)
 {
 	gfx_api::pixel_format_usage::flags retVal = gfx_api::pixel_format_usage::none;
@@ -2693,6 +2749,66 @@ void gl_context::initPixelFormatsSupport()
 		PIXEL_2D_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_ASTC_4x4_UNORM)
 		PIXEL_2D_TEXTURE_ARRAY_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_ASTC_4x4_UNORM)
 	}
+}
+
+bool gl_context::initInstancedFunctions()
+{
+	wz_dyn_glDrawArraysInstanced = nullptr;
+	wz_dyn_glDrawElementsInstanced = nullptr;
+	wz_dyn_glVertexAttribDivisor = nullptr;
+
+	if (!gles)
+	{
+		if (GLAD_GL_VERSION_3_1)
+		{
+			wz_dyn_glDrawArraysInstanced = glDrawArraysInstanced;
+			wz_dyn_glDrawElementsInstanced = glDrawElementsInstanced;
+		}
+//		else if (GLAD_GL_ARB_draw_instanced)
+//		{
+//			wz_dyn_glDrawArraysInstanced = glDrawArraysInstancedARB;
+//			wz_dyn_glDrawElementsInstanced = glDrawElementsInstancedARB;
+//		}
+		if (GLAD_GL_VERSION_3_3)
+		{
+			wz_dyn_glVertexAttribDivisor = glVertexAttribDivisor;
+		}
+		else if (GLAD_GL_ARB_instanced_arrays)
+		{
+			wz_dyn_glVertexAttribDivisor = glVertexAttribDivisorARB;
+		}
+	}
+	else
+	{
+		if (GLAD_GL_ES_VERSION_3_0)
+		{
+			wz_dyn_glDrawArraysInstanced = glDrawArraysInstanced;
+			wz_dyn_glDrawElementsInstanced = glDrawElementsInstanced;
+			wz_dyn_glVertexAttribDivisor = glVertexAttribDivisor;
+		}
+		else if (GLAD_GL_EXT_instanced_arrays)
+		{
+			wz_dyn_glDrawArraysInstanced = glDrawArraysInstancedEXT;
+			wz_dyn_glDrawElementsInstanced = glDrawElementsInstancedEXT;
+			wz_dyn_glVertexAttribDivisor = glVertexAttribDivisorEXT;
+		}
+		else if (GLAD_GL_ANGLE_instanced_arrays)
+		{
+			wz_dyn_glDrawArraysInstanced = glDrawArraysInstancedANGLE;
+			wz_dyn_glDrawElementsInstanced = glDrawElementsInstancedANGLE;
+			wz_dyn_glVertexAttribDivisor = glVertexAttribDivisorANGLE;
+		}
+	}
+
+	if (!wz_dyn_glDrawArraysInstanced || !wz_dyn_glDrawElementsInstanced || !wz_dyn_glVertexAttribDivisor)
+	{
+		wz_dyn_glDrawArraysInstanced = nullptr;
+		wz_dyn_glDrawElementsInstanced = nullptr;
+		wz_dyn_glVertexAttribDivisor = nullptr;
+		return false;
+	}
+
+	return true;
 }
 
 void gl_context::handleWindowSizeChange(unsigned int oldWidth, unsigned int oldHeight, unsigned int newWidth, unsigned int newHeight)
