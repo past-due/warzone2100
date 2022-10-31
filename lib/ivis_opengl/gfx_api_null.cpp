@@ -231,7 +231,17 @@ void null_context::draw(const size_t& offset, const size_t &count, const gfx_api
 	// no-op
 }
 
+void null_context::draw_instanced(const std::size_t& offset, const std::size_t &count, const gfx_api::primitive_type &primitive, std::size_t instance_count)
+{
+	// no-op
+}
+
 void null_context::draw_elements(const size_t& offset, const size_t &count, const gfx_api::primitive_type &primitive, const gfx_api::index_type& index)
+{
+	// no-op
+}
+
+void null_context::draw_elements_instanced(const std::size_t& offset, const std::size_t &count, const gfx_api::primitive_type &primitive, const gfx_api::index_type& index, std::size_t instance_count)
 {
 	// no-op
 }
@@ -401,3 +411,7 @@ bool null_context::supportsMipLodBias() const
 	return true;
 }
 
+bool null_context::supportsInstancedRendering()
+{
+	return false;
+}
