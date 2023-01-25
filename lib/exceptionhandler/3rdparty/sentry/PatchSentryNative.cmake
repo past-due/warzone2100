@@ -28,3 +28,8 @@ execute_process(
    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
  )
 
+# Patch for mingw targeting arm64
+execute_process(
+   COMMAND ${CMAKE_COMMAND} -E copy "${_scriptFolder}/crashpad/util/CMakeLists.txt" "${SOURCE_DIR}/external/crashpad/util/CMakeLists.txt"
+   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+ )
