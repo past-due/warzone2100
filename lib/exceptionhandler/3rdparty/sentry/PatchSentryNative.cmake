@@ -21,3 +21,10 @@ execute_process(
    COMMAND ${CMAKE_COMMAND} -E copy "${_scriptFolder}/crashpad/dbghelp.h" "${SOURCE_DIR}/external/crashpad/compat/mingw/dbghelp.h"
    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
  )
+
+# Patch for mingw compilation
+execute_process(
+   COMMAND ${CMAKE_COMMAND} -E copy "${_scriptFolder}/crashpad/snapshot/CMakeLists.txt" "${SOURCE_DIR}/external/crashpad/snapshot/CMakeLists.txt"
+   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+ )
+
