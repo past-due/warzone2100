@@ -27,8 +27,9 @@ function(sentry_apply_patches)
     find_package(Git REQUIRED)
     set(PATCHNUM 0)
     foreach(PATCH ${_ap_PATCHES})
-        get_filename_component(ABSOLUTE_PATCH "${PATCH}" ABSOLUTE BASE_DIR "${_directoryOfThisScript}")
+        get_filename_component(ABSOLUTE_PATCH "${PATCH}" ABSOLUTE BASE_DIR "${_scriptFolder}")
         message(STATUS "Applying patch ${PATCH}")
+        execute_process(COMMAND ${CMAKE_COMMAND} -E echo "++Applying patch ${PATCH}")
         set(LOGNAME patch-${TARGET_TRIPLET}-${PATCHNUM})
         execute_process(
             COMMAND ${GIT_EXECUTABLE} --work-tree=. apply "${ABSOLUTE_PATCH}" --ignore-whitespace --whitespace=nowarn --verbose
@@ -51,10 +52,11 @@ function(sentry_apply_patches)
     endforeach()
 endfunction()
 
+execute_process(COMMAND ${CMAKE_COMMAND} -E echo "++Applying sentry-native patches")
+
 # Patch compat/mingw/dbghelp.h
 sentry_apply_patches(
-	QUIET
 	SOURCE_PATH "${SOURCE_DIR}/external/crashpad"
 	PATCHES
-		"${_scriptFolder}/crashpad/dbghelp.h.patch"
+		"crashpad/dbghelp.h.patch"
 )
