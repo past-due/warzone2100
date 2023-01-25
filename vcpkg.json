@@ -44,10 +44,6 @@
 			"platform": "!windows & !mingw & !osx"
 		},
 		{
-			"name": "angle",
-			"platform": "windows | mingw"
-		},
-		{
 			"name": "basisu",
 			"host": true
 		}
