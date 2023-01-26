@@ -16,9 +16,13 @@ file(READ "${_sentry_sync_h_path}" FILE_CONTENTS)
 string(REPLACE "${_sentry_sync_find_text}" "${_sentry_sync_replace_text}" FILE_CONTENTS "${FILE_CONTENTS}")
 file(WRITE "${_sentry_sync_h_path}" "${FILE_CONTENTS}")
 
-# Patch compat/mingw/dbghelp.h
+# Patch compat/mingw files
 execute_process(
    COMMAND ${CMAKE_COMMAND} -E copy "${_scriptFolder}/crashpad/dbghelp.h" "${SOURCE_DIR}/external/crashpad/compat/mingw/dbghelp.h"
+   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+ )
+execute_process(
+   COMMAND ${CMAKE_COMMAND} -E copy "${_scriptFolder}/crashpad/winnt.h" "${SOURCE_DIR}/external/crashpad/compat/mingw/winnt.h"
    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
  )
 
