@@ -57,6 +57,8 @@ struct PROCESSOR_POWER_INFORMATION {
 #define PROCESSOR_ARCHITECTURE_ARM32_ON_WIN64 13
 #endif
 
+#include <apisetcconv.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
