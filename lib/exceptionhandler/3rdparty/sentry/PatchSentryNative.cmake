@@ -35,6 +35,11 @@ execute_process(
    COMMAND ${CMAKE_COMMAND} -E copy "${_scriptFolder}/crashpad/snapshot/CMakeLists.txt" "${SOURCE_DIR}/external/crashpad/snapshot/CMakeLists.txt"
    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
  )
+execute_process(
+   COMMAND ${CMAKE_COMMAND} -E copy "${_scriptFolder}/src/backends/sentry_backend_crashpad.cpp" "${SOURCE_DIR}/src/backends/sentry_backend_crashpad.cpp"
+   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+ )
+
 
 # Patch for mingw targeting arm64
 execute_process(
