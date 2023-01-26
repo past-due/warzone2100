@@ -371,10 +371,10 @@ if(WIN32)
         else()
             # As a workaround, use a prebuilt .obj file when the Microsoft-dialect assembler isn't available.
             target_sources(crashpad_util PUBLIC
-                misc/capture_context_win_arm64.obj
+                "${CMAKE_CURRENT_SOURCE_DIR}/misc/capture_context_win_arm64.obj"
             )
             set_source_files_properties(
-                misc/capture_context_win_arm64.obj
+                "${CMAKE_CURRENT_SOURCE_DIR}/misc/capture_context_win_arm64.obj"
                 PROPERTIES
                 EXTERNAL_OBJECT true
                 GENERATED true
