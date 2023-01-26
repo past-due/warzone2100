@@ -373,6 +373,12 @@ if(WIN32)
             target_sources(crashpad_util PRIVATE
                 misc/capture_context_win_arm64.obj
             )
+            set_source_files_properties(
+                misc/capture_context_win_arm64.obj
+                PROPERTIES
+                EXTERNAL_OBJECT true
+                GENERATED true
+            )
         endif()
     else()
         target_sources(crashpad_util PRIVATE
