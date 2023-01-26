@@ -377,6 +377,7 @@ if(WIN32)
                 misc/capture_context_win_arm64.obj
                 PROPERTIES
                 EXTERNAL_OBJECT true
+                GENERATED true
             )
         endif()
     else()
