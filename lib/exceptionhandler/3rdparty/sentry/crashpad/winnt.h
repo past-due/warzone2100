@@ -17,7 +17,6 @@
 
 #include_next <winnt.h>
 #include <minwindef.h>
-#include <processthreadsapi.h>
 
 // https://msdn.microsoft.com/library/aa373184.aspx: "Note that this structure
 // definition was accidentally omitted from WinNT.h."
@@ -57,5 +56,7 @@ struct PROCESSOR_POWER_INFORMATION {
 #ifndef PROCESSOR_ARCHITECTURE_ARM32_ON_WIN64
 #define PROCESSOR_ARCHITECTURE_ARM32_ON_WIN64 13
 #endif
+
+WINBASEAPI HRESULT WINAPI GetThreadDescription(HANDLE,PWSTR *);
 
 #endif  // CRASHPAD_COMPAT_MINGW_WINNT_H_
