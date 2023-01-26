@@ -25,6 +25,10 @@ execute_process(
    COMMAND ${CMAKE_COMMAND} -E copy "${_scriptFolder}/crashpad/winnt.h" "${SOURCE_DIR}/external/crashpad/compat/mingw/winnt.h"
    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
  )
+execute_process(
+   COMMAND ${CMAKE_COMMAND} -E copy "${_scriptFolder}/crashpad/werapi.h" "${SOURCE_DIR}/external/crashpad/compat/mingw/werapi.h"
+   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+ )
 
 # Patch for mingw compilation
 execute_process(
