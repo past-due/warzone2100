@@ -139,7 +139,6 @@ jobs:
             # llvm-ml does not support arm64
             # Will need to use a similar workaround as Chromium's build process
             # and use the armasm64.exe tool from MSVC
-            $WZ_ASM_MASM_COMPILER = "aarch64-w64-mingw32-clang"
           }
         }
         else {
