@@ -363,7 +363,7 @@ if(WIN32)
         win/traits.h
         win/xp_compat.h
     )
-    if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "[Aa][Rr][Mm]|[Aa][Aa][Rr][Cc][Hh]64" OR (MINGW AND CMAKE_CXX_COMPILER MATCHES "^aarch64-"))
+    if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "[Aa][Rr][Mm]|[Aa][Aa][Rr][Cc][Hh]64" OR (MINGW AND CMAKE_CXX_COMPILER MATCHES "aarch64-"))
         if(NOT MINGW)
             target_sources(crashpad_util PRIVATE
                 misc/capture_context_win_arm64.asm
