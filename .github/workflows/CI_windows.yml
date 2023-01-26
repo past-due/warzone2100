@@ -493,6 +493,8 @@ jobs:
             $ADDITIONAL_CMAKE_PARAMS = "-DSENTRY_IO_DSN:STRING=${env:SENTRY_IO_DSN}"
           }
         }
+        . "${env:WZ_REPO_PATH}\.ci\powershell\importVCvars.ps1"
+        Import-VCVarsEnv "${env:WZ_VISUAL_STUDIO_INSTALL_PATH}" "-arch=${env:WZ_TARGET_ARCH} -host_arch=x64"
         # Use CMake to configure with the appropriate Visual Studio (MSBUILD) generator, toolchain, and target platform
         echo "::add-matcher::${{ github.workspace }}\src\.ci\githubactions\pattern_matchers\cmake.json"
         cmake -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}\build\vcpkg\scripts\buildsystems\vcpkg.cmake" -DCPACK_PACKAGE_FILE_NAME:STRING="warzone2100_portable" -DWZ_DISTRIBUTOR:STRING="${env:WZ_DISTRIBUTOR}" -DCMAKE_GENERATOR_INSTANCE="${env:WZ_VISUAL_STUDIO_INSTALL_PATH}" -DDISCORD_RPC_APPID:STRING="${env:DISCORD_RPC_APPID}" -DWZ_BUILD_SENTRY:BOOL="${WZ_BUILD_SENTRY_VALUE}" ${ADDITIONAL_CMAKE_PARAMS} -G "${env:WZ_VC_GENERATOR}" -A "${env:WZ_VC_TARGET_PLATFORMNAME}" "${env:WZ_REPO_PATH}"
