@@ -371,7 +371,7 @@ if(WIN32)
         else()
             # As a workaround, use a prebuilt .obj file when the Microsoft-dialect assembler isn't available.
             file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/misc")
-            configure_file("${CMAKE_CURRENT_SOURCE_DIR}/misc/capture_context_win_arm64.obj" "${CMAKE_CURRENT_BINARY_DIR}/misc/capture_context_win_arm64.obj")
+            configure_file("${CMAKE_CURRENT_SOURCE_DIR}/misc/capture_context_win_arm64.obj" "${CMAKE_CURRENT_BINARY_DIR}/misc/capture_context_win_arm64.obj" COPYONLY)
             target_sources(crashpad_util PUBLIC
                 "${CMAKE_CURRENT_BINARY_DIR}/misc/capture_context_win_arm64.obj"
             )
