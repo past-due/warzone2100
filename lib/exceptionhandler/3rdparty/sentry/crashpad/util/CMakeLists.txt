@@ -364,22 +364,9 @@ if(WIN32)
         win/xp_compat.h
     )
     if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "[Aa][Rr][Mm]|[Aa][Aa][Rr][Cc][Hh]64" OR (MINGW AND CMAKE_CXX_COMPILER MATCHES "aarch64-"))
-        if(NOT MINGW)
-            target_sources(crashpad_util PRIVATE
-                misc/capture_context_win_arm64.asm
-            )
-        else()
-            # As a workaround, use a prebuilt .obj file when the Microsoft-dialect assembler isn't available.
-            target_sources(crashpad_util PUBLIC
-                misc/capture_context_win_arm64.obj
-            )
-            set_source_files_properties(
-                misc/capture_context_win_arm64.obj
-                PROPERTIES
-                EXTERNAL_OBJECT true
-                GENERATED true
-            )
-        endif()
+        target_sources(crashpad_util PRIVATE
+            misc/capture_context_win_arm64.asm
+        )
     else()
         target_sources(crashpad_util PRIVATE
             misc/capture_context_win.asm
