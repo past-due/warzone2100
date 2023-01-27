@@ -1,4 +1,6 @@
+extern "C" {
 #include "sentry_windows_dbghelp.h"
+}
 
 #include <dbghelp.h>
 
@@ -6,6 +8,8 @@
 typedef WORD(NTAPI *RtlCaptureStackBackTraceProc)(DWORD FramesToSkip,
     DWORD FramesToCapture, PVOID *BackTrace, PDWORD BackTraceHash);
 #endif
+
+extern "C" {
 
 size_t
 sentry__unwind_stack_dbghelp(
@@ -86,4 +90,5 @@ sentry__unwind_stack_dbghelp(
     }
 
     return size;
+}
 }

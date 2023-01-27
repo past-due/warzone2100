@@ -42,6 +42,15 @@ execute_process(
 
 # Patch for ARM64 support
 execute_process(
-   COMMAND ${CMAKE_COMMAND} -E copy "${_scriptFolder}/src/unwinder/sentry_unwinder_dbghelp.c" "${SOURCE_DIR}/src/unwinder/sentry_unwinder_dbghelp.c"
+   COMMAND ${CMAKE_COMMAND} -E copy "${_scriptFolder}/src/unwinder/sentry_unwinder_dbghelp.cpp" "${SOURCE_DIR}/src/unwinder/sentry_unwinder_dbghelp.cpp"
    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
  )
+
+# Patch for MSVC support
+# unwinder/sentry_unwinder_dbghelp.c -> unwinder/sentry_unwinder_dbghelp.cpp
+set(_sentry_src_cmakelists_path "${SOURCE_DIR}/src/CMakeLists.txt")
+set(_sentry_src_cmakelist_find_text "unwinder/sentry_unwinder_dbghelp.c")
+set(_sentry_src_cmakelist_replace_text "unwinder/sentry_unwinder_dbghelp.cpp")
+file(READ "${_sentry_src_cmakelists_path}" FILE_CONTENTS)
+string(REPLACE "${_sentry_src_cmakelist_find_text}" "${_sentry_src_cmakelist_replace_text}" FILE_CONTENTS "${FILE_CONTENTS}")
+file(WRITE "${_sentry_src_cmakelists_path}" "${FILE_CONTENTS}")
