@@ -405,6 +405,13 @@ static const std::map<SHADER_MODE, program_data> shader_to_file_table =
 			// per-instance uniforms
 			"ModelViewMatrix", "NormalMatrix", "colour", "teamcolour", "stretch", "animFrameNumber", "ecmEffect", "alphaTest"
 		} }),
+	std::make_pair(SHADER_COMPONENT_INSTANCED, program_data{ "Component program", "shaders/tcmask_instanced.vert", "shaders/tcmask_instanced.frag",
+		{
+			// per-frame global uniforms
+			"ProjectionMatrix", "lightPosition", "sceneColor", "ambient", "diffuse", "specular", "fogColor", "fogEnd", "fogStart", "graphicsCycle", "fogEnabled",
+			// per-mesh uniforms
+			"tcmask", "normalmap", "specularmap", "hasTangents"
+		} }),
 	std::make_pair(SHADER_NOLIGHT, program_data{ "Plain program", "shaders/nolight.vert", "shaders/nolight.frag",
 		{
 			// per-frame global uniforms
@@ -413,6 +420,13 @@ static const std::map<SHADER_MODE, program_data> shader_to_file_table =
 			"tcmask", "normalmap", "specularmap", "hasTangents",
 			// per-instance uniforms
 			"ModelViewMatrix", "NormalMatrix", "colour", "teamcolour", "stretch", "animFrameNumber", "ecmEffect", "alphaTest"
+		} }),
+	std::make_pair(SHADER_NOLIGHT_INSTANCED, program_data{ "Plain program", "shaders/nolight_instanced.vert", "shaders/nolight_instanced.frag",
+		{
+			// per-frame global uniforms
+			"ProjectionMatrix", "lightPosition", "sceneColor", "ambient", "diffuse", "specular", "fogColor", "fogEnd", "fogStart", "graphicsCycle", "fogEnabled",
+			// per-mesh uniforms
+			"tcmask", "normalmap", "specularmap", "hasTangents",
 		} }),
 	std::make_pair(SHADER_TERRAIN, program_data{ "terrain program", "shaders/terrain_water.vert", "shaders/terrain.frag",
 		{ "ModelViewProjectionMatrix", "paramx1", "paramy1", "paramx2", "paramy2", "tex", "lightmap_tex", "textureMatrix1", "textureMatrix2",
@@ -2919,4 +2933,9 @@ bool gl_context::supportsMipLodBias() const
 		}
 		return false;
 	}
+}
+
+size_t gl_context::maxFramesInFlight() const
+{
+	return 2;
 }

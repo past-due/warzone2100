@@ -4526,4 +4526,9 @@ bool VkRoot::supportsMipLodBias() const
 	return lodBiasMethod != LodBiasMethod::Unsupported;
 }
 
+size_t VkRoot::maxFramesInFlight() const
+{
+	return MAX_FRAMES_IN_FLIGHT;
+}
+
 #endif // defined(WZ_VULKAN_ENABLED)

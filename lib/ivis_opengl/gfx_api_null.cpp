@@ -421,6 +421,11 @@ bool null_context::supportsMipLodBias() const
 	return true;
 }
 
+size_t null_context::maxFramesInFlight() const
+{
+	return 1;
+}
+
 bool null_context::supportsInstancedRendering()
 {
 	return false;

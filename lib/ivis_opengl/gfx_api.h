@@ -337,6 +337,7 @@ namespace gfx_api
 		virtual swap_interval_mode getSwapInterval() const = 0;
 		virtual bool textureFormatIsSupported(pixel_format_target target, pixel_format format, pixel_format_usage::flags usage) = 0;
 		virtual bool supportsMipLodBias() const = 0;
+		virtual size_t maxFramesInFlight() const = 0;
 		// instanced rendering APIs
 		virtual bool supportsInstancedRendering() = 0;
 		virtual void draw_instanced(const std::size_t& offset, const std::size_t &count, const primitive_type &primitive, std::size_t instance_count) = 0;
@@ -660,19 +661,19 @@ namespace gfx_api
 	{
 		alignas(16) glm::mat4 ModelViewMatrix; // 16 bytes * 4 = 64 bytes
 		// glm::mat4 NormalMatrix; // can be calculated in the shader
-		alignas(16) glm::vec4 shaderStretch_ecmState_alphaTest; // 12 bytes (+ 4 bytes padding? - can just use a vec4 and then ignore the last component for now)
+		alignas(16) glm::vec4 shaderStretch_ecmState_alphaTest_animFrameNumber; // 16 bytes
 		alignas(4) uint32_t colour; // 4 bytes (stored as u8x4_norm)
 		alignas(4) uint32_t teamcolour; // 4 bytes (stored as u8x4_norm)
 		// (+ 8?? bytes padding for overall struct)
 	};
 	static_assert(alignof(Draw3DShapePerInstanceInterleavedData) == 16, "Unexpected alignment");
 	static_assert(sizeof(Draw3DShapePerInstanceInterleavedData) == 96, "Unexpected size");
-	static_assert(offsetof(Draw3DShapePerInstanceInterleavedData, shaderStretch_ecmState_alphaTest) == 64, "Unexpected offset");
+	static_assert(offsetof(Draw3DShapePerInstanceInterleavedData, shaderStretch_ecmState_alphaTest_animFrameNumber) == 64, "Unexpected offset");
 	static_assert(offsetof(Draw3DShapePerInstanceInterleavedData, colour) == 80, "Unexpected offset");
 	static_assert(offsetof(Draw3DShapePerInstanceInterleavedData, teamcolour) == 84, "Unexpected offset");
 
-	template<REND_MODE render_mode, SHADER_MODE shader>
-	using Draw3DShapeInstanced = typename gfx_api::pipeline_state_helper<rasterizer_state<render_mode, DEPTH_CMP_LEQ_WRT_ON, 255, polygon_offset::disabled, stencil_mode::stencil_disabled, cull_mode::back>, primitive_type::triangles, index_type::u16,
+	template<REND_MODE render_mode, SHADER_MODE shader, DEPTH_MODE depth_mode>
+	using Draw3DShapeInstanced = typename gfx_api::pipeline_state_helper<rasterizer_state<render_mode, depth_mode, 255, polygon_offset::disabled, stencil_mode::stencil_disabled, cull_mode::back>, primitive_type::triangles, index_type::u16,
 	std::tuple<
 	Draw3DShapeGlobalUniforms,
 	Draw3DShapePerMeshUniforms
@@ -680,7 +681,7 @@ namespace gfx_api
 	std::tuple<
 	vertex_buffer_description<12, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>>,
 	vertex_buffer_description<12, vertex_attribute_description<normal, gfx_api::vertex_attribute_type::float3, 0>>,
-	vertex_buffer_description<8, vertex_attribute_description<texcoord, gfx_api::vertex_attribute_type::float2, 0>>,
+	vertex_buffer_description<16, vertex_attribute_description<texcoord, gfx_api::vertex_attribute_type::float4, 0>>,
 	vertex_buffer_description<16, vertex_attribute_description<tangent, gfx_api::vertex_attribute_type::float4, 0>>,
 	// instance data
 	vertex_buffer_description<sizeof(Draw3DShapePerInstanceInterleavedData),
@@ -688,7 +689,7 @@ namespace gfx_api
 		vertex_attribute_description<instance_modelMatrix + 1, gfx_api::vertex_attribute_type::float4, sizeof(glm::vec4), gfx_api::vertex_attribute_input_rate::instance>,
 		vertex_attribute_description<instance_modelMatrix + 2, gfx_api::vertex_attribute_type::float4, sizeof(glm::vec4)*2, gfx_api::vertex_attribute_input_rate::instance>,
 		vertex_attribute_description<instance_modelMatrix + 3, gfx_api::vertex_attribute_type::float4, sizeof(glm::vec4)*3, gfx_api::vertex_attribute_input_rate::instance>,
-		vertex_attribute_description<instance_packedValues, gfx_api::vertex_attribute_type::float4, offsetof(Draw3DShapePerInstanceInterleavedData, shaderStretch_ecmState_alphaTest), gfx_api::vertex_attribute_input_rate::instance>,
+		vertex_attribute_description<instance_packedValues, gfx_api::vertex_attribute_type::float4, offsetof(Draw3DShapePerInstanceInterleavedData, shaderStretch_ecmState_alphaTest_animFrameNumber), gfx_api::vertex_attribute_input_rate::instance>,
 		vertex_attribute_description<instance_Colour, gfx_api::vertex_attribute_type::u8x4_norm, offsetof(Draw3DShapePerInstanceInterleavedData, colour), gfx_api::vertex_attribute_input_rate::instance>,
 		vertex_attribute_description<instance_TeamColour, gfx_api::vertex_attribute_type::u8x4_norm, offsetof(Draw3DShapePerInstanceInterleavedData, teamcolour), gfx_api::vertex_attribute_input_rate::instance>
 		>
@@ -700,10 +701,19 @@ namespace gfx_api
 	texture_description<3, sampler_type::anisotropic> // specular map
 	>, shader>;
 
-	using Draw3DShapeOpaque_Instanced = Draw3DShapeInstanced<REND_OPAQUE, SHADER_COMPONENT>;
-	using Draw3DShapeAlpha_Instanced = Draw3DShapeInstanced<REND_ALPHA, SHADER_COMPONENT>;
-	using Draw3DShapePremul_Instanced = Draw3DShapeInstanced<REND_PREMULTIPLIED, SHADER_COMPONENT>;
-	using Draw3DShapeAdditive_Instanced = Draw3DShapeInstanced<REND_ADDITIVE, SHADER_COMPONENT>;
+	using Draw3DShapeOpaque_Instanced = Draw3DShapeInstanced<REND_OPAQUE, SHADER_COMPONENT_INSTANCED, DEPTH_CMP_LEQ_WRT_ON>;
+	using Draw3DShapeAlpha_Instanced = Draw3DShapeInstanced<REND_ALPHA, SHADER_COMPONENT_INSTANCED, DEPTH_CMP_LEQ_WRT_ON>;
+	using Draw3DShapePremul_Instanced = Draw3DShapeInstanced<REND_PREMULTIPLIED, SHADER_COMPONENT_INSTANCED, DEPTH_CMP_LEQ_WRT_ON>;
+	using Draw3DShapeAdditive_Instanced = Draw3DShapeInstanced<REND_ADDITIVE, SHADER_COMPONENT_INSTANCED, DEPTH_CMP_LEQ_WRT_ON>;
+	using Draw3DShapeNoLightOpaque_Instanced = Draw3DShapeInstanced<REND_OPAQUE, SHADER_NOLIGHT_INSTANCED, DEPTH_CMP_LEQ_WRT_ON>;
+	using Draw3DShapeNoLightAlpha_Instanced = Draw3DShapeInstanced<REND_ALPHA, SHADER_NOLIGHT_INSTANCED, DEPTH_CMP_LEQ_WRT_ON>;
+	using Draw3DShapeNoLightPremul_Instanced = Draw3DShapeInstanced<REND_PREMULTIPLIED, SHADER_NOLIGHT_INSTANCED, DEPTH_CMP_LEQ_WRT_ON>;
+	using Draw3DShapeNoLightAdditive_Instanced = Draw3DShapeInstanced<REND_ADDITIVE, SHADER_NOLIGHT_INSTANCED, DEPTH_CMP_LEQ_WRT_ON>;
+
+	using Draw3DShapeAlphaNoDepthWRT_Instanced = Draw3DShapeInstanced<REND_ALPHA, SHADER_COMPONENT_INSTANCED, DEPTH_CMP_LEQ_WRT_OFF>;
+	using Draw3DShapeNoLightAlphaNoDepthWRT_Instanced = Draw3DShapeInstanced<REND_ALPHA, SHADER_NOLIGHT_INSTANCED, DEPTH_CMP_LEQ_WRT_OFF>;
+	using Draw3DShapeAdditiveNoDepthWRT_Instanced = Draw3DShapeInstanced<REND_ADDITIVE, SHADER_COMPONENT_INSTANCED, DEPTH_CMP_LEQ_WRT_OFF>;
+	using Draw3DShapeNoLightAdditiveNoDepthWRT_Instanced = Draw3DShapeInstanced<REND_ADDITIVE, SHADER_NOLIGHT_INSTANCED, DEPTH_CMP_LEQ_WRT_OFF>;
 
 	template<>
 	struct constant_buffer_type<SHADER_GENERIC_COLOR>
