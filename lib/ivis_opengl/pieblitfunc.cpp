@@ -257,6 +257,106 @@ void pie_DrawMultiRect(std::vector<PIERECT_DrawRequest> rects)
 	gfx_api::BoxFillPSO::get().unbind_vertex_buffers(pie_internal::rectBuffer);
 }
 
+void BatchedMultiRectRenderer::addRect(PIERECT_DrawRequest rect)
+{
+	rects.push_back(rect);
+}
+
+void BatchedMultiRectRenderer::drawAllRects(glm::mat4 projectionMatrix /*= defaultProjectionMatrix()*/)
+{
+	if (rects.empty()) { return; }
+
+	if (!useInstancedRendering)
+	{
+		pie_DrawMultiRect(rects);
+		return;
+	}
+
+	// otherwise, use instanced rendering
+	instancesData.clear();
+	instancesData.reserve(rects.size());
+	for (auto it = rects.begin(); it != rects.end(); ++it)
+	{
+		if (it->x0 > it->x1)
+		{
+			std::swap(it->x0, it->x1);
+		}
+		if (it->y0 > it->y1)
+		{
+			std::swap(it->y0, it->y1);
+		}
+		const auto center = Vector2f(it->x0, it->y0);
+		const glm::mat4 mvp = projectionMatrix * glm::translate(Vector3f(center, 0.f)) * glm::scale(glm::vec3(it->x1 - it->x0, it->y1 - it->y0, 1.f));
+
+		instancesData.push_back(gfx_api::MultiRectPerInstanceInterleavedData { mvp, glm::vec4(0.f, 0.f, 0.f, 0.f), it->color.rgba } );
+	}
+
+	// Upload buffer
+	++currInstanceBufferIdx;
+	if (currInstanceBufferIdx >= instanceDataBuffers.size())
+	{
+		currInstanceBufferIdx = 0;
+	}
+	instanceDataBuffers[currInstanceBufferIdx]->upload(instancesData.size() * sizeof(gfx_api::MultiRectPerInstanceInterleavedData), instancesData.data());
+
+	// draw instances
+	gfx_api::BoxFillPSO_Instanced::get().bind();
+	gfx_api::BoxFillPSO_Instanced::get().bind_constants({ glm::vec4(0.f, 0.f, 0.f, 0.f) });
+	gfx_api::BoxFillPSO_Instanced::get().bind_vertex_buffers(pie_internal::rectBuffer, instanceDataBuffers[currInstanceBufferIdx]);
+	gfx_api::BoxFillPSO_Instanced::get().draw_instanced(4, 0, rects.size());
+	gfx_api::BoxFillPSO_Instanced::get().unbind_vertex_buffers(pie_internal::rectBuffer, instanceDataBuffers[currInstanceBufferIdx]);
+}
+
+bool BatchedMultiRectRenderer::initialize()
+{
+	if (!gfx_api::context::get().supportsInstancedRendering())
+	{
+		useInstancedRendering = false;
+		return true;
+	}
+
+	// check for minimum required vertex attributes (and vertex outputs) for the instanced shaders
+	int32_t max_vertex_attribs = gfx_api::context::get().get_context_value(gfx_api::context::context_value::MAX_VERTEX_ATTRIBS);
+	int32_t max_vertex_output_components = gfx_api::context::get().get_context_value(gfx_api::context::context_value::MAX_VERTEX_OUTPUT_COMPONENTS);
+	size_t maxInstancedMeshShaderVertexAttribs = std::max({gfx_api::instance_modelMatrix, gfx_api::instance_packedValues, gfx_api::instance_Colour, gfx_api::instance_TeamColour}) + 1;
+	constexpr size_t min_required_vertex_output_components = 11 * 4; // from the shaders - see tcmask_instanced.vert / nolight_instanced.vert
+	if (max_vertex_attribs < maxInstancedMeshShaderVertexAttribs)
+	{
+		debug(LOG_INFO, "Disabling instanced rendering - Insufficient MAX_VERTEX_ATTRIBS (%" PRIi32 "; need: %zu)", max_vertex_attribs, maxInstancedMeshShaderVertexAttribs);
+		useInstancedRendering = false;
+		return true;
+	}
+	if (max_vertex_output_components < min_required_vertex_output_components)
+	{
+		debug(LOG_INFO, "Disabling instanced rendering - Insufficient MAX_VERTEX_OUTPUT_COMPONENTS (%" PRIi32 "; need: %zu)", max_vertex_output_components, min_required_vertex_output_components);
+		useInstancedRendering = false;
+		return true;
+	}
+
+	instanceDataBuffers.resize(gfx_api::context::get().maxFramesInFlight() + 1);
+	for (size_t i = 0; i < instanceDataBuffers.size(); ++i)
+	{
+		instanceDataBuffers[i] = gfx_api::context::get().create_buffer_object(gfx_api::buffer::usage::vertex_buffer, gfx_api::context::buffer_storage_hint::stream_draw);
+	}
+	return true;
+}
+
+void BatchedMultiRectRenderer::clear()
+{
+	rects.clear();
+	instancesData.clear();
+}
+
+void BatchedMultiRectRenderer::reset()
+{
+	clear();
+	for (auto buffer : instanceDataBuffers)
+	{
+		delete buffer;
+	}
+	instanceDataBuffers.clear();
+}
+
 void iV_ShadowBox(int x0, int y0, int x1, int y1, int pad, PIELIGHT first, PIELIGHT second, PIELIGHT fill)
 {
 	pie_DrawRect<gfx_api::ShadowBox2DPSO>(x0 + pad, y0 + pad, x1 - pad, y1 - pad, fill);

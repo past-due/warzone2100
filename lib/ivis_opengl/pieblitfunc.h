@@ -161,6 +161,23 @@ struct PIERECT_DrawRequest
 	PIELIGHT color;
 };
 void pie_DrawMultiRect(std::vector<PIERECT_DrawRequest> rects);
+class BatchedMultiRectRenderer
+{
+public:
+	void addRect(PIERECT_DrawRequest rectRequest);
+	void drawAllRects(glm::mat4 projectionMatrix = defaultProjectionMatrix());
+public:
+	bool initialize();
+	void clear();
+	void reset();
+private:
+	bool useInstancedRendering = true;
+	std::vector<PIERECT_DrawRequest> rects;
+
+	std::vector<gfx_api::MultiRectPerInstanceInterleavedData> instancesData;
+	std::vector<gfx_api::buffer*> instanceDataBuffers;
+	size_t currInstanceBufferIdx = 0;
+};
 struct PIERECT  ///< Screen rectangle.
 {
 	float x, y, w, h;

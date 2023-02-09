@@ -287,6 +287,8 @@ static BASE_OBJECT *psSensorObj = nullptr;
 static UDWORD	destTargetX, destTargetY;
 static UDWORD	destTileX = 0, destTileY = 0;
 
+static BatchedMultiRectRenderer batchedDroidSelectionRectRenderer;
+
 struct Blueprint
 {
 	Blueprint()
@@ -1297,6 +1299,8 @@ bool init3DView()
 	txtLevelName.setText(WzString::fromUtf8(mapNameWithoutTechlevel(getLevelName())), font_small);
 	txtDebugStatus.setText("DEBUG ", font_small);
 
+	batchedDroidSelectionRectRenderer.initialize();
+
 	return true;
 }
 
@@ -1315,6 +1319,8 @@ void shutdown3DView()
 	txtShowOrders = WzText();
 	// show Droid visible/draw counts text
 	droidText = WzText();
+
+	batchedDroidSelectionRectRenderer.reset();
 }
 
 /// set the view position from save game
@@ -3065,7 +3071,8 @@ bool	eitherSelected(DROID *psDroid)
 	return retVal;
 }
 
-void drawDroidSelection(DROID *psDroid, bool drawBox){
+void drawDroidSelection(DROID *psDroid, bool drawBox, BatchedMultiRectRenderer& batchedMultiRectRenderer)
+{
 	if (psDroid->sDisplay.frameNumber != currentGameFrame)
 	{
 		return;  // Not visible, anyway. Don't bother with health bars.
@@ -3100,22 +3107,20 @@ void drawDroidSelection(DROID *psDroid, bool drawBox){
 
 	damage *= 2;
 
-	std::vector<PIERECT_DrawRequest> rectsToDraw;
 	if (drawBox)
 	{
-		rectsToDraw.push_back(PIERECT_DrawRequest(psDroid->sDisplay.screenX - psDroid->sDisplay.screenR, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR - 7, psDroid->sDisplay.screenX - psDroid->sDisplay.screenR + 1, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR, WZCOL_WHITE));
-		rectsToDraw.push_back(PIERECT_DrawRequest(psDroid->sDisplay.screenX - psDroid->sDisplay.screenR, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR, psDroid->sDisplay.screenX - psDroid->sDisplay.screenR + 7, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR + 1, WZCOL_WHITE));
-		rectsToDraw.push_back(PIERECT_DrawRequest(psDroid->sDisplay.screenX + psDroid->sDisplay.screenR - 7, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR, psDroid->sDisplay.screenX + psDroid->sDisplay.screenR, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR + 1, WZCOL_WHITE));
-		rectsToDraw.push_back(PIERECT_DrawRequest(psDroid->sDisplay.screenX + psDroid->sDisplay.screenR, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR - 7, psDroid->sDisplay.screenX + psDroid->sDisplay.screenR + 1, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR + 1, WZCOL_WHITE));
+		batchedMultiRectRenderer.addRect(PIERECT_DrawRequest(psDroid->sDisplay.screenX - psDroid->sDisplay.screenR, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR - 7, psDroid->sDisplay.screenX - psDroid->sDisplay.screenR + 1, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR, WZCOL_WHITE));
+		batchedMultiRectRenderer.addRect(PIERECT_DrawRequest(psDroid->sDisplay.screenX - psDroid->sDisplay.screenR, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR, psDroid->sDisplay.screenX - psDroid->sDisplay.screenR + 7, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR + 1, WZCOL_WHITE));
+		batchedMultiRectRenderer.addRect(PIERECT_DrawRequest(psDroid->sDisplay.screenX + psDroid->sDisplay.screenR - 7, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR, psDroid->sDisplay.screenX + psDroid->sDisplay.screenR, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR + 1, WZCOL_WHITE));
+		batchedMultiRectRenderer.addRect(PIERECT_DrawRequest(psDroid->sDisplay.screenX + psDroid->sDisplay.screenR, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR - 7, psDroid->sDisplay.screenX + psDroid->sDisplay.screenR + 1, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR + 1, WZCOL_WHITE));
 	}
 
 	/* Power bars */
-	rectsToDraw.push_back(PIERECT_DrawRequest(psDroid->sDisplay.screenX - psDroid->sDisplay.screenR - 1, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR + 2, psDroid->sDisplay.screenX + psDroid->sDisplay.screenR + 1, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR + 6, WZCOL_RELOAD_BACKGROUND));
-	rectsToDraw.push_back(PIERECT_DrawRequest(psDroid->sDisplay.screenX - psDroid->sDisplay.screenR, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR + 3, psDroid->sDisplay.screenX - psDroid->sDisplay.screenR + damage, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR + 4, powerCol));
-	rectsToDraw.push_back(PIERECT_DrawRequest(psDroid->sDisplay.screenX - psDroid->sDisplay.screenR, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR + 4, psDroid->sDisplay.screenX - psDroid->sDisplay.screenR + damage, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR + 5, powerColShadow));
+	batchedMultiRectRenderer.addRect(PIERECT_DrawRequest(psDroid->sDisplay.screenX - psDroid->sDisplay.screenR - 1, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR + 2, psDroid->sDisplay.screenX + psDroid->sDisplay.screenR + 1, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR + 6, WZCOL_RELOAD_BACKGROUND));
+	batchedMultiRectRenderer.addRect(PIERECT_DrawRequest(psDroid->sDisplay.screenX - psDroid->sDisplay.screenR, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR + 3, psDroid->sDisplay.screenX - psDroid->sDisplay.screenR + damage, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR + 4, powerCol));
+	batchedMultiRectRenderer.addRect(PIERECT_DrawRequest(psDroid->sDisplay.screenX - psDroid->sDisplay.screenR, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR + 4, psDroid->sDisplay.screenX - psDroid->sDisplay.screenR + damage, psDroid->sDisplay.screenY + psDroid->sDisplay.screenR + 5, powerColShadow));
 
-	pie_DrawMultiRect(rectsToDraw);
-
+	// TOOD: Make these instanced as well
 
 	/* Write the droid rank out */
 	if ((psDroid->sDisplay.screenX + psDroid->sDisplay.screenR) > 0
@@ -3157,6 +3162,8 @@ static void	drawDroidSelections()
 	}
 	const bool isSpectator = bMultiPlayer && NetPlay.players[selectedPlayer].isSpectator;
 
+	batchedDroidSelectionRectRenderer.clear();
+
 	if (isSpectator)
 	{ 
 		for (int player = 0; player < MAX_PLAYERS; player++)
@@ -3167,10 +3174,12 @@ static void	drawDroidSelections()
 				/* If it's selected and on screen or it's the one the mouse is over */
 				if (barMode == BAR_DROIDS || barMode == BAR_DROIDS_AND_STRUCTURES)
 				{
-					drawDroidSelection(psDroid, psDroid->selected);
+					drawDroidSelection(psDroid, psDroid->selected, batchedDroidSelectionRectRenderer);
 				}
 			}
 		}
+
+		batchedDroidSelectionRectRenderer.drawAllRects();
 		return;
 	}
 
@@ -3186,9 +3195,11 @@ static void	drawDroidSelections()
 		    barMode == BAR_DROIDS || barMode == BAR_DROIDS_AND_STRUCTURES
 		   )
 		{
-			drawDroidSelection(psDroid, psDroid->selected);
+			drawDroidSelection(psDroid, psDroid->selected, batchedDroidSelectionRectRenderer);
 		}
 	}
+
+	batchedDroidSelectionRectRenderer.drawAllRects();
 
 	/* Are we over an enemy droid */
 	if (bMouseOverDroid && !bMouseOverOwnDroid)
