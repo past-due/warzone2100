@@ -257,53 +257,161 @@ void pie_DrawMultiRect(std::vector<PIERECT_DrawRequest> rects)
 	gfx_api::BoxFillPSO::get().unbind_vertex_buffers(pie_internal::rectBuffer);
 }
 
-void BatchedMultiRectRenderer::addRect(PIERECT_DrawRequest rect)
+void BatchedMultiRectRenderer::resizeRectGroups(size_t count)
 {
-	rects.push_back(rect);
+	groupsData.resize(count);
+}
+
+void BatchedMultiRectRenderer::addRect(PIERECT_DrawRequest rect, size_t rectGroup /*= 0*/)
+{
+	if (rect.x0 > rect.x1)
+	{
+		std::swap(rect.x0, rect.x1);
+	}
+	if (rect.y0 > rect.y1)
+	{
+		std::swap(rect.y0, rect.y1);
+	}
+	const auto center = Vector2f(rect.x0, rect.y0);
+	const glm::mat4 matrix = glm::translate(Vector3f(center, 0.f)) * glm::scale(glm::vec3(rect.x1 - rect.x0, rect.y1 - rect.y0, 1.f));
+
+	groupsData[rectGroup].push_back(gfx_api::MultiRectPerInstanceInterleavedData { matrix, glm::vec4(0.f, 0.f, 0.f, 0.f), rect.color.rgba } );
+	++totalAddedRects;
+}
+
+void BatchedMultiRectRenderer::addRectF(PIERECT_DrawRequest_f rect, size_t rectGroup /*= 0*/)
+{
+	if (rect.x0 > rect.x1)
+	{
+		std::swap(rect.x0, rect.x1);
+	}
+	if (rect.y0 > rect.y1)
+	{
+		std::swap(rect.y0, rect.y1);
+	}
+	const auto center = Vector2f(rect.x0, rect.y0);
+	const glm::mat4 matrix = glm::translate(Vector3f(center, 0.f)) * glm::scale(glm::vec3(rect.x1 - rect.x0, rect.y1 - rect.y0, 1.f));
+
+	groupsData[rectGroup].push_back(gfx_api::MultiRectPerInstanceInterleavedData { matrix, glm::vec4(0.f, 0.f, 0.f, 0.f), rect.color.rgba } );
+	++totalAddedRects;
 }
 
 void BatchedMultiRectRenderer::drawAllRects(glm::mat4 projectionMatrix /*= defaultProjectionMatrix()*/)
 {
-	if (rects.empty()) { return; }
+	drawRects(nullopt, projectionMatrix);
+}
+
+BatchedMultiRectRenderer::UploadedRectsInstanceBufferInfo BatchedMultiRectRenderer::uploadAllRectInstances()
+{
+	UploadedRectsInstanceBufferInfo result;
+
+	instancesData.clear();
+	instancesData.reserve(totalAddedRects);
+	for (size_t i = 0; i < groupsData.size(); ++i)
+	{
+		auto& groupInstanceData = groupsData[i];
+		size_t startIdxOfGroupInstances = instancesData.size();
+		instancesData.insert(instancesData.end(), groupInstanceData.begin(), groupInstanceData.end());
+		result.groupInfo.push_back(UploadedRectsInstanceBufferInfo::GroupBufferInfo(startIdxOfGroupInstances * sizeof(gfx_api::MultiRectPerInstanceInterleavedData), groupInstanceData.size()));
+	}
+
+	ASSERT(totalAddedRects == instancesData.size(), "totalAddedRects not up-to-date!");
+	result.totalInstances = instancesData.size();
+
+	if (result.totalInstances != 0)
+	{
+		// Upload buffer
+		++currInstanceBufferIdx;
+		if (currInstanceBufferIdx >= instanceDataBuffers.size())
+		{
+			currInstanceBufferIdx = 0;
+		}
+		instanceDataBuffers[currInstanceBufferIdx]->upload(instancesData.size() * sizeof(gfx_api::MultiRectPerInstanceInterleavedData), instancesData.data());
+		result.buffer = instanceDataBuffers[currInstanceBufferIdx];
+	}
+	else
+	{
+		result.buffer = nullptr;
+	}
+
+	return result;
+}
+
+void pie_DrawMultiRect_NonInstanced(const std::vector<gfx_api::MultiRectPerInstanceInterleavedData>& instances)
+{
+	if (instances.empty()) { return; }
+
+	const auto projectionMatrix = defaultProjectionMatrix();
+	bool didEnableRect = false;
+	gfx_api::BoxFillPSO::get().bind();
+
+	for (auto it = instances.begin(); it != instances.end(); ++it)
+	{
+		const auto mvp = projectionMatrix * it->TransformationMatrix;
+		gfx_api::BoxFillPSO::get().bind_constants({ mvp, glm::vec2(0.f), glm::vec2(0.f),
+			glm::vec4((it->colour & 0xff) / 255.f, ((it->colour >> 8) & 0xff) / 255.f, ((it->colour >> 16) & 0xff) / 255.f, ((it->colour >> 24) & 0xff) / 255.f) });
+		if (!didEnableRect)
+		{
+			gfx_api::BoxFillPSO::get().bind_vertex_buffers(pie_internal::rectBuffer);
+			didEnableRect = true;
+		}
+
+		gfx_api::BoxFillPSO::get().draw(4, 0);
+	}
+	gfx_api::BoxFillPSO::get().unbind_vertex_buffers(pie_internal::rectBuffer);
+}
+
+void BatchedMultiRectRenderer::drawRects(optional<size_t> rectGroup, glm::mat4 projectionMatrix /*= defaultProjectionMatrix()*/)
+{
+	if (groupsData.empty()) { return; }
 
 	if (!useInstancedRendering)
 	{
-		pie_DrawMultiRect(rects);
+		for (size_t i = rectGroup.value_or(0); i < groupsData.size(); ++i)
+		{
+			if (rectGroup.has_value() && rectGroup.value() != i) { break; }
+			auto& rectsData = groupsData[i];
+			if (rectsData.empty()) { continue; }
+			pie_DrawMultiRect_NonInstanced(rectsData);
+		}
+
 		return;
 	}
 
 	// otherwise, use instanced rendering
-	instancesData.clear();
-	instancesData.reserve(rects.size());
-	for (auto it = rects.begin(); it != rects.end(); ++it)
+	if (!currentUploadedRectInfo.has_value())
 	{
-		if (it->x0 > it->x1)
-		{
-			std::swap(it->x0, it->x1);
-		}
-		if (it->y0 > it->y1)
-		{
-			std::swap(it->y0, it->y1);
-		}
-		const auto center = Vector2f(it->x0, it->y0);
-		const glm::mat4 mvp = projectionMatrix * glm::translate(Vector3f(center, 0.f)) * glm::scale(glm::vec3(it->x1 - it->x0, it->y1 - it->y0, 1.f));
-
-		instancesData.push_back(gfx_api::MultiRectPerInstanceInterleavedData { mvp, glm::vec4(0.f, 0.f, 0.f, 0.f), it->color.rgba } );
+		currentUploadedRectInfo = uploadAllRectInstances();
 	}
 
-	// Upload buffer
-	++currInstanceBufferIdx;
-	if (currInstanceBufferIdx >= instanceDataBuffers.size())
+	auto& uploadedInfo = currentUploadedRectInfo.value();
+	if (uploadedInfo.totalInstances == 0)
 	{
-		currInstanceBufferIdx = 0;
+		return;
 	}
-	instanceDataBuffers[currInstanceBufferIdx]->upload(instancesData.size() * sizeof(gfx_api::MultiRectPerInstanceInterleavedData), instancesData.data());
+	ASSERT_OR_RETURN(, uploadedInfo.totalInstances == totalAddedRects, "Rects were added after instance data was uploaded - make sure to call clear() before adding rects after draw!");
+
+	size_t instanceBufferOffset = 0;
+	size_t instancesCount = uploadedInfo.totalInstances;
+
+	if (rectGroup.has_value())
+	{
+		instanceBufferOffset = uploadedInfo.groupInfo[rectGroup.value()].bufferOffset;
+		instancesCount = uploadedInfo.groupInfo[rectGroup.value()].instancesCount;
+	}
+
+	if (instancesCount == 0)
+	{
+		return;
+	}
 
 	// draw instances
 	gfx_api::BoxFillPSO_Instanced::get().bind();
-	gfx_api::BoxFillPSO_Instanced::get().bind_constants({ glm::vec4(0.f, 0.f, 0.f, 0.f) });
-	gfx_api::BoxFillPSO_Instanced::get().bind_vertex_buffers(pie_internal::rectBuffer, instanceDataBuffers[currInstanceBufferIdx]);
-	gfx_api::BoxFillPSO_Instanced::get().draw_instanced(4, 0, rects.size());
+	gfx_api::BoxFillPSO_Instanced::get().bind_constants({ projectionMatrix });
+	gfx_api::context::get().bind_vertex_buffers(0, {
+		std::make_tuple(pie_internal::rectBuffer, 0),
+		std::make_tuple(uploadedInfo.buffer, instanceBufferOffset)});
+	gfx_api::BoxFillPSO_Instanced::get().draw_instanced(4, 0, instancesCount);
 	gfx_api::BoxFillPSO_Instanced::get().unbind_vertex_buffers(pie_internal::rectBuffer, instanceDataBuffers[currInstanceBufferIdx]);
 }
 
@@ -343,13 +451,19 @@ bool BatchedMultiRectRenderer::initialize()
 
 void BatchedMultiRectRenderer::clear()
 {
-	rects.clear();
+	for (auto& rects : groupsData)
+	{
+		rects.clear();
+	}
+	totalAddedRects = 0;
+	currentUploadedRectInfo.reset();
 	instancesData.clear();
 }
 
 void BatchedMultiRectRenderer::reset()
 {
 	clear();
+	groupsData.clear();
 	for (auto buffer : instanceDataBuffers)
 	{
 		delete buffer;

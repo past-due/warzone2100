@@ -963,7 +963,7 @@ namespace gfx_api
 	template<>
 	struct constant_buffer_type<SHADER_RECT_INSTANCED>
 	{
-		glm::vec4 unused;
+		glm::mat4 ProjectionMatrix;
 	};
 
 	// interleaved vertex data

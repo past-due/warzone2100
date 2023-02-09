@@ -444,7 +444,7 @@ static const std::map<SHADER_MODE, program_data> shader_to_file_table =
 	std::make_pair(SHADER_RECT, program_data{ "Rect program", "shaders/rect.vert", "shaders/rect.frag",
 		{ "transformationMatrix", "color" } }),
 	std::make_pair(SHADER_RECT_INSTANCED, program_data{ "Rect program", "shaders/rect_instanced.vert", "shaders/rect_instanced.frag",
-		{ } }),
+		{ "ProjectionMatrix" } }),
 	std::make_pair(SHADER_TEXRECT, program_data{ "Textured rect program", "shaders/rect.vert", "shaders/texturedrect.frag",
 		{ "transformationMatrix", "tuv_offset", "tuv_scale", "color", "texture" } }),
 	std::make_pair(SHADER_GFX_COLOUR, program_data{ "gfx_color program", "shaders/gfx.vert", "shaders/gfx.frag",
@@ -1468,7 +1468,7 @@ void gl_pipeline_state_object::set_constants(const gfx_api::constant_buffer_type
 
 void gl_pipeline_state_object::set_constants(const gfx_api::constant_buffer_type<SHADER_RECT_INSTANCED>& cbuf)
 {
-	// currently unused
+	setUniforms(0, cbuf.ProjectionMatrix);
 }
 
 void gl_pipeline_state_object::set_constants(const gfx_api::constant_buffer_type<SHADER_LINE>& cbuf)

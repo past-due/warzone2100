@@ -7,6 +7,8 @@
 #define NEWGL
 #endif
 
+uniform mat4 ProjectionMatrix;
+
 #ifdef NEWGL
 #define VERTEX_INPUT in
 #define VERTEX_OUTPUT out
@@ -30,7 +32,7 @@ void main()
 //	vec2 tuv_offset = instancePackedValues.xy;
 //	vec2 tuv_scale = instancePackedValues.zw;
 
-	gl_Position = transformationMatrix * vertex;
+	gl_Position = ProjectionMatrix * transformationMatrix * vertex;
 //	uv = tuv_scale * vertex.xy + tuv_offset;
 
 	// pack outputs for fragment shader
