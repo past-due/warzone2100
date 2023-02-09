@@ -22,18 +22,18 @@ VERTEX_INPUT mat4 instanceModelMatrix;
 VERTEX_INPUT vec4 instancePackedValues; // vec2 (offset), vec2 (scale)
 VERTEX_INPUT vec4 instanceColour;
 
-//VERTEX_OUTPUT vec2 uv;
+VERTEX_OUTPUT vec2 uv;
 VERTEX_OUTPUT vec4 colour;
 
 void main()
 {
 	// unpack inputs
 	#define transformationMatrix instanceModelMatrix
-//	vec2 tuv_offset = instancePackedValues.xy;
-//	vec2 tuv_scale = instancePackedValues.zw;
+	vec2 tuv_offset = instancePackedValues.xy;
+	vec2 tuv_scale = instancePackedValues.zw;
 
 	gl_Position = ProjectionMatrix * transformationMatrix * vertex;
-//	uv = tuv_scale * vertex.xy + tuv_offset;
+	uv = tuv_scale * vertex.xy + tuv_offset;
 
 	// pack outputs for fragment shader
 	colour = instanceColour;
