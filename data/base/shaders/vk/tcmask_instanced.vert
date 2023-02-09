@@ -1,49 +1,46 @@
-// Version directive is set by Warzone when loading the shader
-// (This shader supports GLSL 1.20 - 1.50 core.)
-
+#version 450
 //#pragma debug(on)
 
-#if (!defined(GL_ES) && (__VERSION__ >= 130)) || (defined(GL_ES) && (__VERSION__ >= 300))
-#define NEWGL
-#endif
+layout(std140, set = 0, binding = 0) uniform globaluniforms
+{
+	mat4 ProjectionMatrix;
+	vec4 lightPosition;
+	vec4 sceneColor;
+	vec4 ambient;
+	vec4 diffuse;
+	vec4 specular;
+	vec4 fogColor;
+	float fogEnd;
+	float fogStart;
+	float graphicsCycle;
+	int fogEnabled;
+};
 
-#if !defined(NEWGL) && defined(GL_EXT_gpu_shader4)
-#extension GL_EXT_gpu_shader4 : enable
-#endif
+layout(std140, set = 1, binding = 0) uniform meshuniforms
+{
+	int tcmask;
+	int normalmap;
+	int specularmap;
+	int hasTangents;
+};
 
-uniform mat4 ProjectionMatrix;
-uniform int hasTangents; // whether tangents were calculated for model
-uniform vec4 lightPosition;
+layout(location = 0) in vec4 vertex;
+layout(location = 3) in vec3 vertexNormal;
+layout(location = 1) in vec4 vertexTexCoordAndTexAnim;
+layout(location = 4) in vec4 vertexTangent;
+layout(location = 5) in mat4 instanceModelMatrix;
+layout(location = 9) in vec4 instancePackedValues; // shaderStretch_ecmState_alphaTest_animFrameNumber
+layout(location = 10) in vec4 instanceColour;
+layout(location = 11) in vec4 instanceTeamColour;
 
-#if defined(NEWGL) || defined(GL_EXT_gpu_shader4)
-#define intMod(a, b) a % b
-#else
-#define intMod(a, b) floor((a - floor((a + 0.5) / b) * b) + 0.5)
-#endif
-
-#ifdef NEWGL
-#define VERTEX_INPUT in
-#define VERTEX_OUTPUT out
-#else
-#define VERTEX_INPUT attribute
-#define VERTEX_OUTPUT varying
-#endif
-
-VERTEX_INPUT vec4 vertex;
-VERTEX_INPUT vec3 vertexNormal;
-VERTEX_INPUT vec4 vertexTexCoordAndTexAnim;
-VERTEX_INPUT vec4 vertexTangent;
-VERTEX_INPUT mat4 instanceModelMatrix;
-VERTEX_INPUT vec4 instancePackedValues; // shaderStretch_ecmState_alphaTest_animFrameNumber
-VERTEX_INPUT vec4 instanceColour;
-VERTEX_INPUT vec4 instanceTeamColour;
-
-VERTEX_OUTPUT vec4 texCoord_vertexDistance; // vec(2) texCoord, float vertexDistance, (unused float)
-VERTEX_OUTPUT vec3 normal, lightDir, halfVec;
-VERTEX_OUTPUT mat4 NormalMatrix;
-VERTEX_OUTPUT vec4 colour;
-VERTEX_OUTPUT vec4 teamcolour;
-VERTEX_OUTPUT vec4 packed_ecmState_alphaTest;
+layout(location = 0) out vec4 texCoord_vertexDistance; // vec(2) texCoord, float vertexDistance, (unused float)
+layout(location = 1) out vec3 normal;
+layout(location = 2) out vec3 lightDir;
+layout(location = 3) out vec3 halfVec;
+layout(location = 4) out mat4 NormalMatrix;
+layout(location = 8) out vec4 colour;
+layout(location = 9) out vec4 teamcolour;
+layout(location = 10) out vec4 packed_ecmState_alphaTest;
 
 void main()
 {
@@ -59,7 +56,7 @@ void main()
 	vec2 texCoord = vertexTexCoordAndTexAnim.xy;
 	int framesPerLine = int(1.f / min(vertexTexCoordAndTexAnim.z, 1.f)); // texAnim.x
 	int frame = int(animFrameNumber);
-	float uFrame = float(intMod(frame, framesPerLine)) * vertexTexCoordAndTexAnim.z; // texAnim.x
+	float uFrame = float(frame % framesPerLine) * vertexTexCoordAndTexAnim.z; // texAnim.x
 	float vFrame = float(frame / framesPerLine) * vertexTexCoordAndTexAnim.w; // texAnim.y
 	texCoord = vec2(texCoord.x + uFrame, texCoord.y + vFrame);
 
@@ -98,6 +95,8 @@ void main()
 
 	// Remember vertex distance
 	float vertexDistance = gposition.z;
+	gl_Position.y *= -1.;
+	gl_Position.z = (gl_Position.z + gl_Position.w) / 2.0;
 
 	// pack outputs for fragment shader
 	colour = instanceColour;

@@ -1629,7 +1629,7 @@ void gl_context::bind_vertex_buffers(const std::size_t& first, const std::vector
 		{
 			enableVertexAttribArray(static_cast<GLuint>(attribute.id));
 			glVertexAttribPointer(static_cast<GLuint>(attribute.id), get_size(attribute.type), get_type(attribute.type), get_normalisation(attribute.type), static_cast<GLsizei>(buffer_desc.stride), reinterpret_cast<void*>(attribute.offset + std::get<1>(vertex_buffers_offset[i])));
-			if (attribute.rate == gfx_api::vertex_attribute_input_rate::instance)
+			if (buffer_desc.rate == gfx_api::vertex_attribute_input_rate::instance)
 			{
 				if (hasInstancedRenderingSupport)
 				{
@@ -1652,7 +1652,7 @@ void gl_context::unbind_vertex_buffers(const std::size_t& first, const std::vect
 		const auto& buffer_desc = current_program->vertex_buffer_desc[first + i];
 		for (const auto& attribute : buffer_desc.attributes)
 		{
-			if (attribute.rate == gfx_api::vertex_attribute_input_rate::instance)
+			if (buffer_desc.rate == gfx_api::vertex_attribute_input_rate::instance)
 			{
 				if (hasInstancedRenderingSupport)
 				{

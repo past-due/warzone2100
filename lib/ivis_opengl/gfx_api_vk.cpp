@@ -1003,7 +1003,9 @@ struct shader_infos
 static const std::map<SHADER_MODE, shader_infos> spv_files
 {
 	std::make_pair(SHADER_COMPONENT, shader_infos{ "shaders/vk/tcmask.vert.spv", "shaders/vk/tcmask.frag.spv", true }),
+	std::make_pair(SHADER_COMPONENT_INSTANCED, shader_infos{ "shaders/vk/tcmask_instanced.vert.spv", "shaders/vk/tcmask_instanced.frag.spv", true }),
 	std::make_pair(SHADER_NOLIGHT, shader_infos{ "shaders/vk/nolight.vert.spv", "shaders/vk/nolight.frag.spv", true }),
+	std::make_pair(SHADER_NOLIGHT_INSTANCED, shader_infos{ "shaders/vk/nolight_instanced.vert.spv", "shaders/vk/nolight_instanced.frag.spv", true }),
 	std::make_pair(SHADER_TERRAIN, shader_infos{ "shaders/vk/terrain.vert.spv", "shaders/vk/terrain.frag.spv", true }),
 	std::make_pair(SHADER_TERRAIN_DEPTH, shader_infos{ "shaders/vk/terrain_depth.vert.spv", "shaders/vk/terraindepth.frag.spv" }),
 	std::make_pair(SHADER_DECALS, shader_infos{ "shaders/vk/decals.vert.spv", "shaders/vk/decals.frag.spv", true }),
@@ -1467,7 +1469,7 @@ VkPSO::VkPSO(vk::Device _dev,
 			vk::VertexInputBindingDescription()
 			.setBinding(buffer_id)
 			.setStride(static_cast<uint32_t>(buffer.stride))
-			.setInputRate(vk::VertexInputRate::eVertex)
+			.setInputRate((buffer.rate == gfx_api::vertex_attribute_input_rate::instance) ? vk::VertexInputRate::eInstance : vk::VertexInputRate::eVertex)
 		);
 		for (const auto& attribute : buffer.attributes)
 		{
@@ -3730,7 +3732,9 @@ void VkRoot::draw(const std::size_t& offset, const std::size_t& count, const gfx
 
 void VkRoot::draw_instanced(const std::size_t& offset, const std::size_t &count, const gfx_api::primitive_type &primitive, std::size_t instance_count)
 {
-	// TODO: Implement
+	ASSERT(offset <= static_cast<size_t>(std::numeric_limits<uint32_t>::max()), "offset (%zu) exceeds uint32_t max", offset);
+	ASSERT(count <= static_cast<size_t>(std::numeric_limits<uint32_t>::max()), "count (%zu) exceeds uint32_t max", count);
+	buffering_mechanism::get_current_resources().cmdDraw.draw(static_cast<uint32_t>(count), static_cast<uint32_t>(instance_count), static_cast<uint32_t>(offset), 0, vkDynLoader);
 }
 
 void VkRoot::draw_elements(const std::size_t& offset, const std::size_t& count, const gfx_api::primitive_type&, const gfx_api::index_type&)
@@ -3743,7 +3747,10 @@ void VkRoot::draw_elements(const std::size_t& offset, const std::size_t& count, 
 
 void VkRoot::draw_elements_instanced(const std::size_t& offset, const std::size_t &count, const gfx_api::primitive_type &primitive, const gfx_api::index_type& index, std::size_t instance_count)
 {
-	// TODO: Implement
+	ASSERT_OR_RETURN(, currentPSO != nullptr, "currentPSO == NULL");
+	ASSERT(offset <= static_cast<size_t>(std::numeric_limits<uint32_t>::max()), "offset (%zu) exceeds uint32_t max", offset);
+	ASSERT(count <= static_cast<size_t>(std::numeric_limits<uint32_t>::max()), "count (%zu) exceeds uint32_t max", count);
+	buffering_mechanism::get_current_resources().cmdDraw.drawIndexed(static_cast<uint32_t>(count), static_cast<uint32_t>(instance_count), static_cast<uint32_t>(offset) >> 2, 0, 0, vkDynLoader);
 }
 
 void VkRoot::bind_vertex_buffers(const std::size_t& first, const std::vector<std::tuple<gfx_api::buffer*, std::size_t>>& vertex_buffers_offset)
@@ -3936,8 +3943,7 @@ bool VkRoot::textureFormatIsSupported(gfx_api::pixel_format_target target, gfx_a
 
 bool VkRoot::supportsInstancedRendering()
 {
-	// TODO: Implement for Vulkan
-	return false;
+	return true;
 }
 
 gfx_api::texture* VkRoot::create_texture(const std::size_t& mipmap_count, const std::size_t& width, const std::size_t& height, const gfx_api::pixel_format& internal_format, const std::string& filename)

@@ -221,19 +221,19 @@ namespace gfx_api
 		const std::size_t id;
 		const vertex_attribute_type type;
 		const std::size_t offset;
-		const vertex_attribute_input_rate rate;
 
-		constexpr vertex_buffer_input(std::size_t _id, vertex_attribute_type _type, std::size_t _offset, vertex_attribute_input_rate _rate)
-		: id(_id), type(_type), offset(_offset), rate(_rate)
+		constexpr vertex_buffer_input(std::size_t _id, vertex_attribute_type _type, std::size_t _offset)
+		: id(_id), type(_type), offset(_offset)
 		{}
 	};
 
 	struct vertex_buffer
 	{
 		const std::size_t stride;
+		const vertex_attribute_input_rate rate;
 		const std::vector<vertex_buffer_input> attributes;
-		vertex_buffer(std::size_t _stride, std::vector<vertex_buffer_input>&& _attributes)
-		: stride(_stride), attributes(std::forward<std::vector<vertex_buffer_input>>(_attributes))
+		vertex_buffer(std::size_t _stride, vertex_attribute_input_rate _rate, std::vector<vertex_buffer_input>&& _attributes)
+		: stride(_stride), rate(_rate), attributes(std::forward<std::vector<vertex_buffer_input>>(_attributes))
 		{}
 	};
 
@@ -360,12 +360,12 @@ namespace gfx_api
 	bool loadTextureCompressionOverrides();
 	optional<max_texture_compression_level> getMaxTextureCompressionLevelOverride(const std::string& filename);
 
-	template<std::size_t id, vertex_attribute_type type, std::size_t offset, vertex_attribute_input_rate rate = vertex_attribute_input_rate::vertex>
+	template<std::size_t id, vertex_attribute_type type, std::size_t offset>
 	struct vertex_attribute_description
 	{
 		static vertex_buffer_input get_desc()
 		{
-			return vertex_buffer_input{id, type, offset, rate};
+			return vertex_buffer_input{id, type, offset};
 		}
 	};
 
@@ -374,12 +374,12 @@ namespace gfx_api
 	 * Describes a buffer input.
 	 * input_description describes the various vertex attributes fetched from this buffer.
 	 */
-	template<std::size_t stride, typename... input_description>
+	template<std::size_t stride, vertex_attribute_input_rate rate, typename... input_description>
 	struct vertex_buffer_description
 	{
 		static vertex_buffer get_desc()
 		{
-			return { stride, { input_description::get_desc()...} };
+			return { stride, rate, { input_description::get_desc()...} };
 		}
 	};
 
@@ -632,10 +632,10 @@ namespace gfx_api
 	Draw3DShapePerInstanceUniforms
 	>,
 	std::tuple<
-	vertex_buffer_description<12, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>>,
-	vertex_buffer_description<12, vertex_attribute_description<normal, gfx_api::vertex_attribute_type::float3, 0>>,
-	vertex_buffer_description<16, vertex_attribute_description<texcoord, gfx_api::vertex_attribute_type::float4, 0>>,
-	vertex_buffer_description<16, vertex_attribute_description<tangent, gfx_api::vertex_attribute_type::float4, 0>>
+	vertex_buffer_description<12, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>>,
+	vertex_buffer_description<12, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<normal, gfx_api::vertex_attribute_type::float3, 0>>,
+	vertex_buffer_description<16, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<texcoord, gfx_api::vertex_attribute_type::float4, 0>>,
+	vertex_buffer_description<16, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<tangent, gfx_api::vertex_attribute_type::float4, 0>>
 	>,
 	std::tuple<
 	texture_description<0, sampler_type::anisotropic>, // diffuse
@@ -679,19 +679,19 @@ namespace gfx_api
 	Draw3DShapePerMeshUniforms
 	>,
 	std::tuple<
-	vertex_buffer_description<12, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>>,
-	vertex_buffer_description<12, vertex_attribute_description<normal, gfx_api::vertex_attribute_type::float3, 0>>,
-	vertex_buffer_description<16, vertex_attribute_description<texcoord, gfx_api::vertex_attribute_type::float4, 0>>,
-	vertex_buffer_description<16, vertex_attribute_description<tangent, gfx_api::vertex_attribute_type::float4, 0>>,
+	vertex_buffer_description<12, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>>,
+	vertex_buffer_description<12, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<normal, gfx_api::vertex_attribute_type::float3, 0>>,
+	vertex_buffer_description<16, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<texcoord, gfx_api::vertex_attribute_type::float4, 0>>,
+	vertex_buffer_description<16, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<tangent, gfx_api::vertex_attribute_type::float4, 0>>,
 	// instance data
-	vertex_buffer_description<sizeof(Draw3DShapePerInstanceInterleavedData),
-		vertex_attribute_description<instance_modelMatrix, gfx_api::vertex_attribute_type::float4, 0, gfx_api::vertex_attribute_input_rate::instance>,
-		vertex_attribute_description<instance_modelMatrix + 1, gfx_api::vertex_attribute_type::float4, sizeof(glm::vec4), gfx_api::vertex_attribute_input_rate::instance>,
-		vertex_attribute_description<instance_modelMatrix + 2, gfx_api::vertex_attribute_type::float4, sizeof(glm::vec4)*2, gfx_api::vertex_attribute_input_rate::instance>,
-		vertex_attribute_description<instance_modelMatrix + 3, gfx_api::vertex_attribute_type::float4, sizeof(glm::vec4)*3, gfx_api::vertex_attribute_input_rate::instance>,
-		vertex_attribute_description<instance_packedValues, gfx_api::vertex_attribute_type::float4, offsetof(Draw3DShapePerInstanceInterleavedData, shaderStretch_ecmState_alphaTest_animFrameNumber), gfx_api::vertex_attribute_input_rate::instance>,
-		vertex_attribute_description<instance_Colour, gfx_api::vertex_attribute_type::u8x4_norm, offsetof(Draw3DShapePerInstanceInterleavedData, colour), gfx_api::vertex_attribute_input_rate::instance>,
-		vertex_attribute_description<instance_TeamColour, gfx_api::vertex_attribute_type::u8x4_norm, offsetof(Draw3DShapePerInstanceInterleavedData, teamcolour), gfx_api::vertex_attribute_input_rate::instance>
+	vertex_buffer_description<sizeof(Draw3DShapePerInstanceInterleavedData), gfx_api::vertex_attribute_input_rate::instance,
+		vertex_attribute_description<instance_modelMatrix, gfx_api::vertex_attribute_type::float4, 0>,
+		vertex_attribute_description<instance_modelMatrix + 1, gfx_api::vertex_attribute_type::float4, sizeof(glm::vec4)>,
+		vertex_attribute_description<instance_modelMatrix + 2, gfx_api::vertex_attribute_type::float4, sizeof(glm::vec4)*2>,
+		vertex_attribute_description<instance_modelMatrix + 3, gfx_api::vertex_attribute_type::float4, sizeof(glm::vec4)*3>,
+		vertex_attribute_description<instance_packedValues, gfx_api::vertex_attribute_type::float4, offsetof(Draw3DShapePerInstanceInterleavedData, shaderStretch_ecmState_alphaTest_animFrameNumber)>,
+		vertex_attribute_description<instance_Colour, gfx_api::vertex_attribute_type::u8x4_norm, offsetof(Draw3DShapePerInstanceInterleavedData, colour)>,
+		vertex_attribute_description<instance_TeamColour, gfx_api::vertex_attribute_type::u8x4_norm, offsetof(Draw3DShapePerInstanceInterleavedData, teamcolour)>
 		>
 	>,
 	std::tuple<
@@ -727,12 +727,12 @@ namespace gfx_api
 	using TransColouredTrianglePSO = typename gfx_api::pipeline_state_helper<rasterizer_state<REND_ADDITIVE, DEPTH_CMP_LEQ_WRT_ON, 255, polygon_offset::disabled, stencil_mode::stencil_disabled, cull_mode::back>, primitive_type::triangle_strip, index_type::u16,
 	std::tuple<constant_buffer_type<SHADER_GENERIC_COLOR>>,
 	std::tuple<
-	vertex_buffer_description<12, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>>
+	vertex_buffer_description<12, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>>
 	>, notexture, SHADER_GENERIC_COLOR>;
 	using DrawStencilShadow = typename gfx_api::pipeline_state_helper<rasterizer_state<REND_OPAQUE, DEPTH_CMP_LEQ_WRT_OFF, 0, polygon_offset::disabled, stencil_mode::stencil_shadow_silhouette, cull_mode::none>, primitive_type::triangles, index_type::u16,
 	std::tuple<constant_buffer_type<SHADER_GENERIC_COLOR>>,
 	std::tuple<
-	vertex_buffer_description<12, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>>
+	vertex_buffer_description<12, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>>
 	>, notexture, SHADER_GENERIC_COLOR>;
 
 	template<>
@@ -756,7 +756,7 @@ namespace gfx_api
 	using TerrainDepth = typename gfx_api::pipeline_state_helper<rasterizer_state<REND_OPAQUE, DEPTH_CMP_LEQ_WRT_ON, 0, polygon_offset::enabled, stencil_mode::stencil_disabled, cull_mode::back>, primitive_type::triangles, index_type::u32,
 	std::tuple<constant_buffer_type<SHADER_TERRAIN_DEPTH>>,
 	std::tuple<
-	vertex_buffer_description<12, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>>
+	vertex_buffer_description<12, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>>
 	>, std::tuple<texture_description<0, sampler_type::bilinear_repeat>>, SHADER_TERRAIN_DEPTH>;
 
 	template<>
@@ -780,8 +780,8 @@ namespace gfx_api
 	using TerrainLayer = typename gfx_api::pipeline_state_helper<rasterizer_state<REND_ADDITIVE, DEPTH_CMP_LEQ_WRT_OFF, 255, polygon_offset::disabled, stencil_mode::stencil_disabled, cull_mode::back>, primitive_type::triangles, index_type::u32,
 	std::tuple<constant_buffer_type<SHADER_TERRAIN>>,
 	std::tuple<
-	vertex_buffer_description<12, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>>,
-	vertex_buffer_description<4, vertex_attribute_description<color, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
+	vertex_buffer_description<12, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>>,
+	vertex_buffer_description<4, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<color, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
 	>, std::tuple<texture_description<0, sampler_type::anisotropic_repeat>, texture_description<1, sampler_type::bilinear>>, SHADER_TERRAIN>;
 
 	template<>
@@ -802,7 +802,7 @@ namespace gfx_api
 	using TerrainDecals = typename gfx_api::pipeline_state_helper<rasterizer_state<REND_ALPHA, DEPTH_CMP_LEQ_WRT_OFF, 255, polygon_offset::disabled, stencil_mode::stencil_disabled, cull_mode::back>, primitive_type::triangles, index_type::u16,
 	std::tuple<constant_buffer_type<SHADER_DECALS>>,
 	std::tuple<
-	vertex_buffer_description<sizeof(glm::vec3) + sizeof(glm::vec2),
+	vertex_buffer_description<sizeof(glm::vec3) + sizeof(glm::vec2), gfx_api::vertex_attribute_input_rate::vertex,
 	vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>,
 	vertex_attribute_description<texcoord, gfx_api::vertex_attribute_type::float2, sizeof(glm::vec3)>
 	>
@@ -829,13 +829,13 @@ namespace gfx_api
 	using WaterPSO = typename gfx_api::pipeline_state_helper<rasterizer_state<REND_MULTIPLICATIVE, DEPTH_CMP_LEQ_WRT_OFF, 255, polygon_offset::disabled, stencil_mode::stencil_disabled, cull_mode::back>, primitive_type::triangles, index_type::u32,
 	std::tuple<constant_buffer_type<SHADER_WATER>>,
 	std::tuple<
-	vertex_buffer_description<12, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>>
+	vertex_buffer_description<12, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>>
 	>, std::tuple<texture_description<0, sampler_type::anisotropic_repeat>, texture_description<1, sampler_type::anisotropic_repeat>>, SHADER_WATER>;
 
-	using gfx_tc = vertex_buffer_description<8, vertex_attribute_description<texcoord, gfx_api::vertex_attribute_type::float2, 0>>;
-	using gfx_colour = vertex_buffer_description<4, vertex_attribute_description<color, gfx_api::vertex_attribute_type::u8x4_norm, 0>>;
-	using gfx_vtx2 = vertex_buffer_description<8, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float2, 0>>;
-	using gfx_vtx3 = vertex_buffer_description<12, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>>;
+	using gfx_tc = vertex_buffer_description<8, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<texcoord, gfx_api::vertex_attribute_type::float2, 0>>;
+	using gfx_colour = vertex_buffer_description<4, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<color, gfx_api::vertex_attribute_type::u8x4_norm, 0>>;
+	using gfx_vtx2 = vertex_buffer_description<8, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float2, 0>>;
+	using gfx_vtx3 = vertex_buffer_description<12, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<position, gfx_api::vertex_attribute_type::float3, 0>>;
 
 	template<>
 	struct constant_buffer_type<SHADER_GFX_TEXT>
@@ -901,7 +901,7 @@ namespace gfx_api
 	using DrawImageTextPSO = typename gfx_api::pipeline_state_helper<rasterizer_state<REND_TEXT, DEPTH_CMP_ALWAYS_WRT_OFF, 255, polygon_offset::disabled, stencil_mode::stencil_disabled, cull_mode::none>, primitive_type::triangle_strip, index_type::u16,
 	std::tuple<constant_buffer_type<SHADER_TEXT>>,
 	std::tuple<
-	vertex_buffer_description<4, vertex_attribute_description<position, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
+	vertex_buffer_description<4, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<position, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
 	>,
 	std::tuple<texture_description<0, sampler_type::bilinear>>, SHADER_TEXT>;
 
@@ -917,12 +917,12 @@ namespace gfx_api
 	using ShadowBox2DPSO = typename gfx_api::pipeline_state_helper<rasterizer_state<REND_OPAQUE, DEPTH_CMP_ALWAYS_WRT_OFF, 255, polygon_offset::disabled, stencil_mode::stencil_disabled, cull_mode::back>, primitive_type::triangle_strip, index_type::u16,
 	std::tuple<constant_buffer_type<SHADER_RECT>>,
 	std::tuple<
-	vertex_buffer_description<4, vertex_attribute_description<position, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
+	vertex_buffer_description<4, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<position, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
 	>, notexture, SHADER_RECT>;
 	using UniTransBoxPSO = typename gfx_api::pipeline_state_helper<rasterizer_state<REND_ALPHA, DEPTH_CMP_ALWAYS_WRT_OFF, 255, polygon_offset::disabled, stencil_mode::stencil_disabled, cull_mode::back>, primitive_type::triangle_strip, index_type::u16,
 	std::tuple<constant_buffer_type<SHADER_RECT>>,
 	std::tuple<
-	vertex_buffer_description<4, vertex_attribute_description<position, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
+	vertex_buffer_description<4, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<position, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
 	>, notexture, SHADER_RECT>;
 
 	template<>
@@ -938,24 +938,24 @@ namespace gfx_api
 	using DrawImagePSO = typename gfx_api::pipeline_state_helper<rasterizer_state<REND_ALPHA, DEPTH_CMP_ALWAYS_WRT_OFF, 255, polygon_offset::disabled, stencil_mode::stencil_disabled, cull_mode::back>, primitive_type::triangle_strip, index_type::u16,
 	std::tuple<constant_buffer_type<SHADER_TEXRECT>>,
 	std::tuple<
-	vertex_buffer_description<4, vertex_attribute_description<position, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
+	vertex_buffer_description<4, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<position, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
 	>, std::tuple<texture_description<0, sampler_type::bilinear>>, SHADER_TEXRECT>;
 
 	using DrawImageAnisotropicPSO = typename gfx_api::pipeline_state_helper<rasterizer_state<REND_ALPHA, DEPTH_CMP_ALWAYS_WRT_OFF, 255, polygon_offset::disabled, stencil_mode::stencil_disabled, cull_mode::back>, primitive_type::triangle_strip, index_type::u16,
 	std::tuple<constant_buffer_type<SHADER_TEXRECT>>,
 	std::tuple<
-	vertex_buffer_description<4, vertex_attribute_description<position, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
+	vertex_buffer_description<4, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<position, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
 	>, std::tuple<texture_description<0, sampler_type::anisotropic>>, SHADER_TEXRECT>;
 
 	using BoxFillPSO = typename gfx_api::pipeline_state_helper<rasterizer_state<REND_OPAQUE, DEPTH_CMP_ALWAYS_WRT_OFF, 255, polygon_offset::disabled, stencil_mode::stencil_disabled, cull_mode::back>, primitive_type::triangle_strip, index_type::u16,
 	std::tuple<constant_buffer_type<SHADER_RECT>>,
 	std::tuple<
-	vertex_buffer_description<4, vertex_attribute_description<position, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
+	vertex_buffer_description<4, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<position, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
 	>, notexture, SHADER_RECT>;
 	using BoxFillAlphaPSO = typename gfx_api::pipeline_state_helper<rasterizer_state<REND_ALPHA, DEPTH_CMP_ALWAYS_WRT_OFF, 255, polygon_offset::disabled, stencil_mode::stencil_shadow_quad, cull_mode::back>, primitive_type::triangle_strip, index_type::u16,
 	std::tuple<constant_buffer_type<SHADER_RECT>>,
 	std::tuple<
-	vertex_buffer_description<4, vertex_attribute_description<position, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
+	vertex_buffer_description<4, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<position, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
 	>, notexture, SHADER_RECT>;
 
 	template<>
@@ -970,7 +970,7 @@ namespace gfx_api
 	using LinePSO = typename gfx_api::pipeline_state_helper<rasterizer_state<REND_ALPHA, DEPTH_CMP_ALWAYS_WRT_OFF, 255, polygon_offset::disabled, stencil_mode::stencil_disabled, cull_mode::back>, primitive_type::lines, index_type::u16,
 	std::tuple<constant_buffer_type<SHADER_LINE>>,
 	std::tuple<
-	vertex_buffer_description<4, vertex_attribute_description<position, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
+	vertex_buffer_description<4, gfx_api::vertex_attribute_input_rate::vertex, vertex_attribute_description<position, gfx_api::vertex_attribute_type::u8x4_norm, 0>>
 	>, notexture, SHADER_LINE>;
 }
 
