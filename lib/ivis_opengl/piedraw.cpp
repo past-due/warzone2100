@@ -814,6 +814,24 @@ bool InstancedMeshRenderer::initialize()
 		return true;
 	}
 
+	// check for minimum required vertex attributes (and vertex outputs) for the instanced shaders
+	int32_t max_vertex_attribs = gfx_api::context::get().get_context_value(gfx_api::context::context_value::MAX_VERTEX_ATTRIBS);
+	int32_t max_vertex_output_components = gfx_api::context::get().get_context_value(gfx_api::context::context_value::MAX_VERTEX_OUTPUT_COMPONENTS);
+	size_t maxInstancedMeshShaderVertexAttribs = std::max({gfx_api::instance_modelMatrix, gfx_api::instance_packedValues, gfx_api::instance_Colour, gfx_api::instance_TeamColour}) + 1;
+	constexpr size_t min_required_vertex_output_components = 11 * 4; // from the shaders - see tcmask_instanced.vert / nolight_instanced.vert
+	if (max_vertex_attribs < maxInstancedMeshShaderVertexAttribs)
+	{
+		debug(LOG_INFO, "Disabling instanced rendering - Insufficient MAX_VERTEX_ATTRIBS (%" PRIi32 "; need: %zu)", max_vertex_attribs, maxInstancedMeshShaderVertexAttribs);
+		useInstancedRendering = false;
+		return true;
+	}
+	if (max_vertex_output_components < min_required_vertex_output_components)
+	{
+		debug(LOG_INFO, "Disabling instanced rendering - Insufficient MAX_VERTEX_OUTPUT_COMPONENTS (%" PRIi32 "; need: %zu)", max_vertex_output_components, min_required_vertex_output_components);
+		useInstancedRendering = false;
+		return true;
+	}
+
 	instanceDataBuffers.resize(gfx_api::context::get().maxFramesInFlight() + 1);
 	for (size_t i = 0; i < instanceDataBuffers.size(); ++i)
 	{

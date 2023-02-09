@@ -4425,6 +4425,10 @@ int32_t VkRoot::get_context_value(const gfx_api::context::context_value property
 			return static_cast<std::underlying_type<vk::SampleCountFlagBits>::type>(getMaxUsableSampleCount(physDeviceProps));
 		case gfx_api::context::context_value::MAX_ARRAY_TEXTURE_LAYERS:
 			return physDeviceProps.limits.maxImageArrayLayers;
+		case gfx_api::context::context_value::MAX_VERTEX_ATTRIBS:
+			return physDeviceProps.limits.maxVertexInputAttributes;
+		case gfx_api::context::context_value::MAX_VERTEX_OUTPUT_COMPONENTS:
+			return std::min(physDeviceProps.limits.maxVertexOutputComponents, physDeviceProps.limits.maxFragmentInputComponents);
 	}
 	debug(LOG_FATAL, "Unsupported property");
 	return 0;

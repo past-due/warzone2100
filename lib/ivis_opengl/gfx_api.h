@@ -276,7 +276,9 @@ namespace gfx_api
 			MAX_ELEMENTS_INDICES,
 			MAX_TEXTURE_SIZE,
 			MAX_SAMPLES, // max antialiasing
-			MAX_ARRAY_TEXTURE_LAYERS
+			MAX_ARRAY_TEXTURE_LAYERS,
+			MAX_VERTEX_ATTRIBS,
+			MAX_VERTEX_OUTPUT_COMPONENTS,
 		};
 
 		enum class swap_interval_mode

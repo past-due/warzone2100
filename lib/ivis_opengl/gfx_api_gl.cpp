@@ -246,6 +246,8 @@ static GLenum to_gl(const gfx_api::context::context_value property)
 			return GL_MAX_SAMPLES;
 		case gfx_api::context::context_value::MAX_ARRAY_TEXTURE_LAYERS:
 			return GL_MAX_ARRAY_TEXTURE_LAYERS;
+		case gfx_api::context::context_value::MAX_VERTEX_ATTRIBS:
+			return GL_MAX_VERTEX_ATTRIBS;
 		default:
 			debug(LOG_FATAL, "Unrecognised property type");
 	}
@@ -1835,7 +1837,39 @@ void gl_context::set_depth_range(const float& min, const float& max)
 int32_t gl_context::get_context_value(const context_value property)
 {
 	GLint value = 0;
-	glGetIntegerv(to_gl(property), &value);
+	if (property != gfx_api::context::context_value::MAX_VERTEX_OUTPUT_COMPONENTS)
+	{
+		glGetIntegerv(to_gl(property), &value);
+	}
+	else
+	{
+		// special-handling for MAX_VERTEX_OUTPUT_COMPONENTS
+		if (!gles)
+		{
+			if (GLAD_GL_VERSION_3_0)
+			{
+				glGetIntegerv(GL_MAX_VERTEX_OUTPUT_COMPONENTS, &value);
+			}
+			else
+			{
+				// for earlier OpenGL, just default to MAX_VARYING_FLOATS
+				glGetIntegerv(GL_MAX_VARYING_FLOATS, &value);
+			}
+		}
+		else
+		{
+			if (GLAD_GL_ES_VERSION_3_0)
+			{
+				glGetIntegerv(GL_MAX_VERTEX_OUTPUT_COMPONENTS, &value);
+			}
+			else
+			{
+				// for OepnGL ES 2.0, use GL_MAX_VARYING_VECTORS * 4 ...
+				glGetIntegerv(GL_MAX_VARYING_VECTORS, &value);
+				value *= 4;
+			}
+		}
+	}
 	return value;
 }
 

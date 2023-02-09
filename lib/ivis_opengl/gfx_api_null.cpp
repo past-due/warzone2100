@@ -271,6 +271,10 @@ int32_t null_context::get_context_value(const context_value property)
 			return 0;
 		case gfx_api::context::context_value::MAX_ARRAY_TEXTURE_LAYERS:
 			return 2048;
+		case gfx_api::context::context_value::MAX_VERTEX_ATTRIBS:
+			return 16;
+		case gfx_api::context::context_value::MAX_VERTEX_OUTPUT_COMPONENTS:
+			return 64;
 	}
 	debug(LOG_FATAL, "Unsupported property");
 	return 0;
