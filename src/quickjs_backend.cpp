@@ -939,7 +939,11 @@ JSValue convDroid(const DROID *psDroid, JSContext *ctx)
 	{
 		if (psDroid->asWeaps[i].nStat)
 		{
-			ASSERT(psDroid->asWeaps[i].nStat < numWeaponStats, "Invalid nStat (%d) referenced for asWeaps[%d]; numWeaponStats (%d); droid: \"%s\" (numWeaps: %u)", psDroid->asWeaps[i].nStat, i, numWeaponStats, psDroid->aName, psDroid->numWeaps);
+			if (psDroid->asWeaps[i].nStat >= numWeaponStats)
+			{
+				ASSERT(psDroid->asWeaps[i].nStat < numWeaponStats, "Invalid nStat (%d) referenced for asWeaps[%d]; numWeaponStats (%d); droid: \"%s\" (numWeaps: %u)", psDroid->asWeaps[i].nStat, i, numWeaponStats, psDroid->aName, psDroid->numWeaps);
+				continue;
+			}
 			WEAPON_STATS *psWeap = &asWeaponStats[psDroid->asWeaps[i].nStat];
 			aa = aa || psWeap->surfaceToAir & SHOOT_IN_AIR;
 			ga = ga || psWeap->surfaceToAir & SHOOT_ON_GROUND;
