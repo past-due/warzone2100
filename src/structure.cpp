@@ -4534,6 +4534,7 @@ bool destroyStruct(STRUCTURE *psDel, unsigned impactTime)
 				if (TEST_TILE_VISIBLE_TO_SELECTEDPLAYER(psTile))
 				{
 					psTile->illumination /= 2;
+					psTile->ambientOcclusion /= 2;
 				}
 			}
 		}
