@@ -815,6 +815,8 @@ private:
 
 bool InstancedMeshRenderer::initialize()
 {
+	reset();
+
 	if (!gfx_api::context::get().supportsInstancedRendering())
 	{
 		useInstancedRendering = false;
