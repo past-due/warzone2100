@@ -576,7 +576,7 @@ bool loadConfig()
 		}
 		else
 		{
-			debug(LOG_WARNING, "Unsupported / invalid terrainShaderQuality value: %d; defaulting to: %d", intValue, static_cast<int>(terrainShaderQuality));
+			debug(LOG_WARNING, "Unsupported / invalid terrainShaderQuality value: %d; defaulting to: %d", intValue, static_cast<int>(getTerrainShaderQuality()));
 		}
 	}
 	ActivityManager::instance().endLoadingSettings();
