@@ -478,7 +478,7 @@ optional<std::string> getCurrentTerrainOverrideBaseSourcePath()
 bool rebuildSearchPath(searchPathMode mode, bool force, const char *current_map, const char* current_map_mount_point)
 {
 	std::string tmpstr;
-	searchPathMode& current_mode = lastCommand.mode;
+	static searchPathMode current_mode = mod_clean;
 	auto currentTerrainShaderQuality = getTerrainShaderQuality();
 
 	if (mode != current_mode
@@ -493,6 +493,7 @@ bool rebuildSearchPath(searchPathMode mode, bool force, const char *current_map,
 		}
 
 		current_mode = mode;
+		lastCommand.mode = mode; // store this separately, so it doesn't get overridden with mod_override below
 		lastCommand.force = force;
 		lastCommand.current_map.reset();
 		if (current_map != nullptr)
