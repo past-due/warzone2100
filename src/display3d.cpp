@@ -1425,16 +1425,12 @@ static void drawTiles(iView *player)
 	// now we are about to draw the terrain
 	wzPerfBegin(PERF_TERRAIN, "3D scene - terrain");
 	pie_SetFogStatus(true);
-
-	// draw it
 	drawTerrain(perspectiveViewMatrix, cameraPos, -getTheSun());
-
 	wzPerfEnd(PERF_TERRAIN);
 
 	wzPerfBegin(PERF_WATER, "3D scene - water");
 	// prepare for the water and the lightmap
 	pie_SetFogStatus(true);
-
 	// also, make sure we can use world coordinates directly
 	drawWater(perspectiveViewMatrix, cameraPos, -getTheSun());
 	wzPerfEnd(PERF_WATER);
