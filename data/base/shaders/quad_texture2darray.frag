@@ -1,11 +1,6 @@
 // Version directive is set by Warzone when loading the shader
 // (This shader supports GLSL 1.20 - 1.50 core.)
 
-uniform ivec4 swizzle;
-uniform vec4 color;
-uniform int layer;
-uniform sampler2DArray theTexture;
-
 // Texture arrays are supported in:
 // 1. core OpenGL 3.0+ (and earlier with EXT_texture_array)
 #if (!defined(GL_ES) && (__VERSION__ < 130))
@@ -15,6 +10,11 @@ uniform sampler2DArray theTexture;
 #if (defined(GL_ES) && (__VERSION__ < 300))
 #error "Unsupported version of GLES"
 #endif
+
+uniform ivec4 swizzle;
+uniform vec4 color;
+uniform int layer;
+uniform sampler2DArray theTexture;
 
 #if (!defined(GL_ES) && (__VERSION__ >= 130)) || (defined(GL_ES) && (__VERSION__ >= 300))
 #define NEWGL
