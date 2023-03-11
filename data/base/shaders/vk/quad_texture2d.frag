@@ -23,7 +23,7 @@ float getVecComponent(vec4 v, int c)
 
 void main()
 {
-	vec4 texColour = texture(tex, uv);
+	vec4 texColour = texture(tex, uv, 0.f);
 
 	vec4 fragColour = vec4(getVecComponent(texColour, swizzle.x), getVecComponent(texColour, swizzle.y), getVecComponent(texColour, swizzle.z), getVecComponent(texColour, swizzle.w));
 
