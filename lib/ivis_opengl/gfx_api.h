@@ -199,6 +199,7 @@ namespace gfx_api
 	{
 		back,
 		front,
+		shadow_mapping,
 		none,
 	};
 
