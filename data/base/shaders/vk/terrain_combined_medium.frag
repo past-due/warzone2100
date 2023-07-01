@@ -3,6 +3,7 @@
 #include "terrain_combined.glsl"
 
 layout (constant_id = 0) const float WZ_MIP_LOAD_BIAS = 0.f;
+layout (constant_id = 1) const uint WZ_EXTRA_SHADOW_TAPS = 4;
 
 layout(set = 1, binding = 0) uniform sampler2D lightmap_tex;
 
@@ -27,8 +28,6 @@ layout(location = 12) flat in FragFlatData fragf;
 layout(location = 0) out vec4 FragColor;
 
 
-#define WZ_EXTRA_SHADOW_TAPS 4
-
 float getShadowVisibility()
 {
 	vec4 pos = frag.shadowPos / frag.shadowPos.w;
@@ -41,19 +40,19 @@ float getShadowVisibility()
 
 	float visibility = texture( shadowMap, vec3(pos.xy, (pos.z+bias)) );
 
-  // PCF
-  const float edgeVal = 0.5+float((WZ_EXTRA_SHADOW_TAPS-1)/2);
-  const float startVal = -edgeVal;
-  const float endVal = edgeVal + 0.5;
-  const float texelIncrement = 1.0/float(4096);
-  const float visibilityIncrement = 0.1; //0.5 / WZ_EXTRA_SHADOW_TAPS;
-  for (float y=startVal; y<endVal; y+=1.0)
-  {
-    for (float x=startVal; x<endVal; x+=1.0)
-    {
-      visibility -= visibilityIncrement*(1.0-texture( shadowMap, vec3(frag.shadowPos.xy + vec2(x*texelIncrement, y*texelIncrement), (frag.shadowPos.z+bias)/frag.shadowPos.w) ));
-    }
-  }
+	// PCF
+	const float edgeVal = 0.5+float((WZ_EXTRA_SHADOW_TAPS-1)/2);
+	const float startVal = -edgeVal;
+	const float endVal = edgeVal + 0.5;
+	const float texelIncrement = 1.0/float(4096);
+	const float visibilityIncrement = 0.1; //0.5 / WZ_EXTRA_SHADOW_TAPS;
+	for (float y=startVal; y<endVal; y+=1.0)
+	{
+		for (float x=startVal; x<endVal; x+=1.0)
+		{
+			visibility -= visibilityIncrement*(1.0-texture( shadowMap, vec3(pos.xy + vec2(x*texelIncrement, y*texelIncrement), (pos.z+bias)) ));
+		}
+	}
 
 	visibility = clamp(visibility, 0.3, 1.0);
 

@@ -79,9 +79,10 @@ out vec4 FragColor;
 // Uses gl_FragColor
 #endif
 
-float getShadowVisibility() {
-
-	if (shadowPos.z > 1.0f)
+float getShadowVisibility()
+{
+	vec4 pos = shadowPos / shadowPos.w;
+	if (pos.z > 1.0f)
 	{
 		return 1.0;
 	}
@@ -91,9 +92,9 @@ float getShadowVisibility() {
 //	float bias = max(0.0002 * (1.0 - dot(normal, lightDir)), 0.0002);
 	float bias = 0.0001f;
 
-	float visibility = texture( shadowMap, vec3(shadowPos.xy, (shadowPos.z+bias)/shadowPos.w) );
+	float visibility = texture( shadowMap, vec3(pos.xy, (pos.z+bias)) );
 
-	// Nice PCF effect - works well!
+	// PCF
 	const float edgeVal = 0.5+float((WZ_EXTRA_SHADOW_TAPS-1)/2);
 	const float startVal = -edgeVal;
 	const float endVal = edgeVal + 0.5;
@@ -103,7 +104,7 @@ float getShadowVisibility() {
 	{
 		for (float x=startVal; x<endVal; x+=1.0)
 		{
-			visibility -= visibilityIncrement*(1.0-texture( shadowMap, vec3(shadowPos.xy + vec2(x*texelIncrement, y*texelIncrement), (shadowPos.z+bias)/shadowPos.w) ));
+			visibility -= visibilityIncrement*(1.0-texture( shadowMap, vec3(pos.xy + vec2(x*texelIncrement, y*texelIncrement), (pos.z+bias)) ));
 		}
 	}
 

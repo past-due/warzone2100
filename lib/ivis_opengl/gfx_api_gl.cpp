@@ -954,7 +954,7 @@ typename std::pair<std::type_index, std::function<void(const void*, size_t)>>gl_
 	});
 }
 
-gl_pipeline_state_object::gl_pipeline_state_object(bool gles, bool fragmentHighpFloatAvailable, bool fragmentHighpIntAvailable, bool patchFragmentShaderMipLodBias, const gfx_api::state_description& _desc, const SHADER_MODE& shader, const std::vector<std::type_index>& uniform_blocks, const std::vector<gfx_api::vertex_buffer>& _vertex_buffer_desc, optional<float> mipLodBias) :
+gl_pipeline_state_object::gl_pipeline_state_object(bool gles, bool fragmentHighpFloatAvailable, bool fragmentHighpIntAvailable, bool patchFragmentShaderMipLodBias, const gfx_api::state_description& _desc, const SHADER_MODE& shader, const std::vector<std::type_index>& uniform_blocks, const std::vector<gfx_api::vertex_buffer>& _vertex_buffer_desc, optional<float> mipLodBias, uint32_t extraShadowTaps) :
 desc(_desc), vertex_buffer_desc(_vertex_buffer_desc)
 {
 	std::string vertexShaderHeader;
@@ -995,7 +995,7 @@ desc(_desc), vertex_buffer_desc(_vertex_buffer_desc)
 				  shader_to_file_table.at(shader).fragment_file,
 				  shader_to_file_table.at(shader).uniform_names,
 				  shader_to_file_table.at(shader).additional_samplers,
-				  mipLodBias);
+				  mipLodBias, extraShadowTaps);
 
 	const std::unordered_map < std::type_index, std::function<void(const void*, size_t)>> uniforms_bind_table =
 	{
@@ -1366,6 +1366,15 @@ static void patchFragmentShaderTextureLodBias(std::string& fragmentShaderStr, fl
 	fragmentShaderStr = std::regex_replace(fragmentShaderStr, re, astringf("#define WZ_MIP_LOAD_BIAS %s", floatAsString.c_str()));
 }
 
+static void patchFragmentShaderExtraShadowTaps(std::string& fragmentShaderStr, uint32_t extraShadowTaps)
+{
+	// Look for:
+	// #define WZ_EXTRA_SHADOW_TAPS 4
+	const auto re = std::regex("#define WZ_EXTRA_SHADOW_TAPS .*", std::regex_constants::ECMAScript);
+
+	fragmentShaderStr = std::regex_replace(fragmentShaderStr, re, astringf("#define WZ_EXTRA_SHADOW_TAPS %u", extraShadowTaps));
+}
+
 void gl_pipeline_state_object::build_program(bool fragmentHighpFloatAvailable, bool fragmentHighpIntAvailable,
 											 bool patchFragmentShaderMipLodBias,
 											 const std::string& programName,
@@ -1373,7 +1382,7 @@ void gl_pipeline_state_object::build_program(bool fragmentHighpFloatAvailable, b
 											 const char * fragment_header, const std::string& fragmentPath,
 											 const std::vector<std::string> &uniformNames,
 											 const std::vector<std::tuple<std::string, GLint>> &samplersToBind,
-											 optional<float> mipLodBias)
+											 optional<float> mipLodBias, uint32_t extraShadowTaps)
 {
 	GLint status;
 	bool success = true; // Assume overall success
@@ -1495,6 +1504,7 @@ void gl_pipeline_state_object::build_program(bool fragmentHighpFloatAvailable, b
 			{
 				patchFragmentShaderTextureLodBias(fragmentShaderStr, mipLodBias.value());
 			}
+			patchFragmentShaderExtraShadowTaps(fragmentShaderStr, extraShadowTaps);
 
 			const char* ShaderStrings[2] = { fragment_header, fragmentShaderStr.c_str() };
 
@@ -2130,7 +2140,7 @@ gfx_api::pipeline_state_object* gl_context::build_pipeline(gfx_api::pipeline_sta
 	}
 
 	bool patchFragmentShaderMipLodBias = true; // provide the constant to the shader directly
-	auto pipeline = new gl_pipeline_state_object(gles, fragmentHighpFloatAvailable, fragmentHighpIntAvailable, patchFragmentShaderMipLodBias, state_desc, shader_mode, uniform_blocks, attribute_descriptions, mipLodBias);
+	auto pipeline = new gl_pipeline_state_object(gles, fragmentHighpFloatAvailable, fragmentHighpIntAvailable, patchFragmentShaderMipLodBias, state_desc, shader_mode, uniform_blocks, attribute_descriptions, mipLodBias, extraShadowTaps);
 	if (!psoID.has_value())
 	{
 		createdPipelines.emplace_back(pipeline);
