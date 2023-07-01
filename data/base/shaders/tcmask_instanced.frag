@@ -5,6 +5,7 @@
 
 // constants overridden by WZ when loading shaders (do not modify here in the shader source!)
 #define WZ_MIP_LOAD_BIAS 0.f
+#define WZ_EXTRA_SHADOW_TAPS 4
 //
 
 uniform sampler2D Texture; // diffuse map
@@ -56,8 +57,6 @@ out vec4 FragColor;
 #else
 // Uses gl_FragColor
 #endif
-
-#define WZ_EXTRA_SHADOW_TAPS 4
 
 float getShadowVisibility()
 {

@@ -2,6 +2,7 @@
 //#pragma debug(on)
 
 layout (constant_id = 0) const float WZ_MIP_LOAD_BIAS = 0.f;
+layout (constant_id = 1) const uint WZ_EXTRA_SHADOW_TAPS = 4;
 
 layout(set = 2, binding = 0) uniform sampler2D Texture; // diffuse
 layout(set = 2, binding = 1) uniform sampler2D TextureTcmask; // tcmask
@@ -48,8 +49,6 @@ layout(location = 12) in vec3 fragPos;
 //layout(location = 13) in vec3 fragNormal;
 
 layout(location = 0) out vec4 FragColor;
-
-#define WZ_EXTRA_SHADOW_TAPS 4
 
 float getShadowVisibility()
 {
