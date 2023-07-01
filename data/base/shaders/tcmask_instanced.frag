@@ -66,7 +66,7 @@ float getShadowVisibility()
 		return 1.0;
 	}
 
-	float bias = 0.0005f;
+	float bias = 0.0002f;
 
 	float visibility = texture( shadowMap, vec3(shadowPos.xy, (shadowPos.z+bias)/shadowPos.w) );
 
