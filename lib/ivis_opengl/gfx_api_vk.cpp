@@ -5829,7 +5829,7 @@ bool VkRoot::setExtraShadowTaps(uint32_t val)
 			ASSERT(pipeline->renderpass_compat, "Pipeline has no associated renderpass compat structure");
 			if (pipeline->hasSpecializationConstant_ExtraShadowTaps)
 			{
-				delete pipeline;
+				buffering_mechanism::get_current_resources().pso_to_delete.emplace_back(pipeline);
 				pipelineInfo.renderPassPSO[renderPassId] = new VkPSO(dev, physDeviceProps.limits, pipelineInfo.createInfo, renderPass.rp, renderPass.rp_compat_info, msaaSamples, vkDynLoader, *this);
 			}
 		}
