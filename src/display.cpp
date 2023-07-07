@@ -79,6 +79,7 @@
 #include "input/manager.h"
 #include "input/keyconfig.h"
 #include "mapgrid.h"
+#include "main.h"
 
 InputManager gInputManager;
 KeyFunctionConfiguration gKeyFuncConfig;
@@ -330,7 +331,7 @@ bool	getDrawShadows()
 void	setDrawShadows(bool val)
 {
 	bDrawShadows = val;
-	pie_setShadows(val);
+	pie_setShadows(val, GetGameMode() == GS_NORMAL);
 }
 
 void ProcessRadarInput()
