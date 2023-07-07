@@ -25,8 +25,6 @@ uniform vec4 ambient;
 uniform vec4 diffuse;
 uniform vec4 specular;
 
-uniform vec4 sunPos; // in modelSpace, normalized
-
 uniform int fogEnabled; // whether fog is enabled
 uniform float fogEnd;
 uniform float fogStart;
@@ -60,14 +58,6 @@ out vec4 FragColor;
 // Uses gl_FragColor
 #endif
 
-float when_gt(float x, float y) {
-  return max(sign(x - y), 0.0);
-}
-
-float when_lt(float x, float y) {
-  return max(sign(y - x), 0.0);
-}
-
 float getShadowVisibility()
 {
 #if WZ_EXTRA_SHADOW_TAPS > 0
@@ -76,44 +66,25 @@ float getShadowVisibility()
 		return 1.0;
 	}
 
-	vec3 normal = normalize(fragNormal);
-	vec3 lightDir = normalize(sunPos.xyz - fragPos);
-	float dotProd = dot(normal, lightDir);
-//	float bias = max(0.0005 * (1.0 - dotProd), 0.0002);
 	float bias = 0.0002f;
-//	float bias = 0.001f;
 
-//	float visibility = 1.0; //texture( shadowMap, vec3(shadowPos.xy, (shadowPos.z+bias)/shadowPos.w) );
-	float shadowFactor = 0.0;
+	float visibility = texture( shadowMap, vec3(shadowPos.xy, (shadowPos.z+bias)/shadowPos.w) );
 
 	// PCF
-#if WZ_EXTRA_SHADOW_TAPS >= 4
-	const int extraShadowTaps = WZ_EXTRA_SHADOW_TAPS;
-#else
-//	int extraShadowTaps = WZ_EXTRA_SHADOW_TAPS + int(2.f * when_gt(dotProd, 0.4));
-	const int extraShadowTaps = 4; // always use a minimum of 4 for meshes (for now)
-#endif
-	float edgeVal = 0.5+float((extraShadowTaps-1)/2);
-	int count = 0;
-	if (extraShadowTaps > 0)
+	const float edgeVal = 0.5+float((WZ_EXTRA_SHADOW_TAPS-1)/2);
+	const float startVal = -edgeVal;
+	const float endVal = edgeVal + 0.5;
+	const float texelIncrement = 1.0/float(4096);
+	const float visibilityIncrement = 0.1; //0.5 / WZ_EXTRA_SHADOW_TAPS;
+	for (float y=startVal; y<endVal; y+=1.0)
 	{
-		float startVal = -edgeVal;
-		float endVal = edgeVal + 0.5;
-		const float texelIncrement = 1.0/float(4096);
-//		float visibilityIncrement = 0.5 / extraShadowTaps; //0.5 / WZ_EXTRA_SHADOW_TAPS;
-//		float visibilityIncrement = 1.0 / float((extraShadowTaps + 1) * (extraShadowTaps + 1));
-		for (float y=startVal; y<endVal; y+=1.0)
+		for (float x=startVal; x<endVal; x+=1.0)
 		{
-			for (float x=startVal; x<endVal; x+=1.0)
-			{
-//				visibility -= visibilityIncrement*(1.0-texture( shadowMap, vec3(shadowPos.xy + vec2(x*texelIncrement, y*texelIncrement), (shadowPos.z+bias)/shadowPos.w) ));
-				shadowFactor += texture( shadowMap, vec3(shadowPos.xy + vec2(x*texelIncrement, y*texelIncrement), (shadowPos.z+bias)/shadowPos.w));
-				count++;
-			}
+			visibility -= visibilityIncrement*(1.0-texture( shadowMap, vec3(shadowPos.xy + vec2(x*texelIncrement, y*texelIncrement), (shadowPos.z+bias)/shadowPos.w) ));
 		}
 	}
 
-	float visibility = clamp(shadowFactor/float(count), 0.3, 1.0);
+	visibility = clamp(visibility, 0.3, 1.0);
 
 	return visibility;
 #else
