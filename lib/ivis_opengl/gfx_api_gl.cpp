@@ -1344,15 +1344,34 @@ static std::tuple<std::string, std::unordered_map<std::string, std::string>> ren
 	return std::tuple<std::string, std::unordered_map<std::string, std::string>>(modifiedFragmentShaderSource, duplicateFragmentUniformNameMap);
 }
 
-static bool regex_replace_wrapper(std::string& input, const std::regex& re, const std::string& replace)
+static bool regex_replace_wrapper(std::string& input, const std::regex& re, const std::string& replace, std::regex_constants::match_flag_type flags = std::regex_constants::match_default)
 {
-	std::string modifiedInput = std::regex_replace(input, re, replace);
-	bool found = (modifiedInput != input);
-	if (found)
+	std::string result;
+	auto m = std::sregex_iterator(input.begin(), input.end(), re, flags);
+	auto end = std::sregex_iterator();
+	auto last_m = m;
+	size_t num_replacements = 0;
+
+	auto out = std::back_inserter(result);
+
+	for (; m != end; ++m)
 	{
-		input = std::move(modifiedInput);
+		out = std::copy(m->prefix().first, m->prefix().second, out);
+		out = m->format(out, replace, flags);
+		last_m = m;
+		++num_replacements;
 	}
-	return found;
+
+	if (num_replacements == 0)
+	{
+		return false;
+	}
+
+	out = std::copy(last_m->suffix().first, last_m->suffix().second, out);
+
+	input = std::move(result);
+
+	return true;
 }
 
 static void patchFragmentShaderTextureLodBias(std::string& fragmentShaderStr, float mipLodBias)
