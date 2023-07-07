@@ -101,7 +101,7 @@ void main()
 	vec4 positionModelSpace = instanceModelMatrix * position;
 	shadowPos = ShadowMapMVPMatrix * vec4(positionModelSpace.xyz, 1.f);
 	fragPos = positionModelSpace.xyz;
-	fragNormal = vertexNormal;
+	fragNormal = transpose(inverse(mat3(instanceModelMatrix))) * vertexNormal;
 
 	// Translate every vertex according to the Model View and Projection Matrix
 	mat4 ModelViewProjectionMatrix = ProjectionMatrix * ModelViewMatrix;

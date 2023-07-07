@@ -406,6 +406,7 @@ namespace gfx_api
 		virtual bool supportsInstancedRendering() = 0;
 		virtual void draw_instanced(const std::size_t& offset, const std::size_t &count, const primitive_type &primitive, std::size_t instance_count) = 0;
 		virtual void draw_elements_instanced(const std::size_t& offset, const std::size_t& count, const primitive_type& primitive, const index_type& index, std::size_t instance_count) = 0;
+
 	public:
 		// High-level API for getting a texture object from file / uncompressed bitmap
 		gfx_api::texture* loadTextureFromFile(const char *filename, gfx_api::texture_type textureType, int maxWidth = -1, int maxHeight = -1);
@@ -803,7 +804,7 @@ namespace gfx_api
 	texture_description<1, sampler_type::bilinear>, // team color mask
 	texture_description<2, sampler_type::anisotropic>, // normal map
 	texture_description<3, sampler_type::anisotropic>, // specular map
-	texture_description<4, sampler_type::nearest_border, pixel_format_target::depth_map, border_color::opaque_white>  // depth / shadow map
+	texture_description<4, sampler_type::bilinear_border, pixel_format_target::depth_map, border_color::opaque_white>  // depth / shadow map
 	>, shader>;
 
 	using Draw3DShapeOpaque_Instanced = Draw3DShapeInstanced<REND_OPAQUE, SHADER_COMPONENT_INSTANCED, DEPTH_CMP_LEQ_WRT_ON>;

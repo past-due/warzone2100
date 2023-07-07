@@ -258,7 +258,7 @@ struct gl_context final : public gfx_api::context
 	size_t scratchbuffer_size = 0;
 	bool khr_debug = false;
 	optional<float> mipLodBias;
-	uint32_t extraShadowTaps = 4;
+	uint32_t extraShadowTaps = 2;
 
 	bool gles = false;
 	bool fragmentHighpFloatAvailable = true;
