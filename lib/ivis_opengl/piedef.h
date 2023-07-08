@@ -50,7 +50,7 @@ void pie_GetResetCounts(size_t *pPieCount, size_t *pPolyCount);
 
 /** Setup shadows and OpenGL lighting. */
 void pie_BeginLighting(const Vector3f &light);
-void pie_setShadows(bool drawShadows, bool forceShaderRefresh);
+void pie_setShadows(bool drawShadows);
 
 /** Set light parameters */
 void pie_InitLighting();
@@ -70,5 +70,6 @@ enum class ShadowMode
 	Shadow_Mapping
 };
 void pie_setShadowMode(ShadowMode mode);
+ShadowMode pie_getShadowMode();
 
 #endif // _piedef_h

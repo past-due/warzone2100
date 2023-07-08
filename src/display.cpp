@@ -331,7 +331,7 @@ bool	getDrawShadows()
 void	setDrawShadows(bool val)
 {
 	bDrawShadows = val;
-	pie_setShadows(val, GetGameMode() == GS_NORMAL);
+	pie_setShadows(val);
 }
 
 void ProcessRadarInput()

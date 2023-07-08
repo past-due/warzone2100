@@ -101,18 +101,33 @@ void pie_Lighting0(LIGHTING_TYPE entry, const float value[4])
 	lighting0[entry][3] = value[3];
 }
 
-void pie_setShadows(bool drawShadows, bool forceShaderRefresh)
+static void refreshShadowShaders()
+{
+	if (gfx_api::context::isInitialized())
+	{
+		gfx_api::context::get().setExtraShadowTaps((shadows && shadowMode == ShadowMode::Shadow_Mapping) ? /* TODO: Get this value from settings */ 2 : 0);
+	}
+}
+
+void pie_setShadows(bool drawShadows)
 {
 	shadows = drawShadows;
-	if (forceShaderRefresh)
-	{
-		gfx_api::context::get().setExtraShadowTaps((drawShadows) ? /* TODO: Get this value from settings */ 2 : 0);
-	}
+	refreshShadowShaders();
 }
 
 void pie_setShadowMode(ShadowMode mode)
 {
+	if (mode == shadowMode)
+	{
+		return;
+	}
 	shadowMode = mode;
+	refreshShadowShaders();
+}
+
+ShadowMode pie_getShadowMode()
+{
+	return shadowMode;
 }
 
 static Vector3f currentSunPosition(0.f, 0.f, 0.f);
