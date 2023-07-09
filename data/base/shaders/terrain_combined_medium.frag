@@ -140,7 +140,7 @@ float getShadowVisibility()
 	const float edgeVal = 0.5+float((WZ_EXTRA_SHADOW_TAPS-1)/2);
 	const float startVal = -edgeVal;
 	const float endVal = edgeVal + 0.5;
-	const float texelIncrement = 1.0/float(ShadowMapSize);
+	float texelIncrement = 1.0/float(ShadowMapSize);
 	const float visibilityIncrement = 0.1; //0.5 / WZ_EXTRA_SHADOW_TAPS;
 	for (float y=startVal; y<endVal; y+=1.0)
 	{
