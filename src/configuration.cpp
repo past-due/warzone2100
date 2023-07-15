@@ -600,6 +600,8 @@ bool loadConfig()
 			debug(LOG_WARNING, "Unsupported / invalid terrainShaderQuality value: %d; defaulting to: %d", intValue, static_cast<int>(getTerrainShaderQuality()));
 		}
 	}
+	war_setShadowFilterSize(iniGetInteger("shadowFilterSize", (int)war_getShadowFilterSize()).value());
+	war_setShadowMapResolution(iniGetInteger("shadowMapResolution", (int)war_getShadowMapResolution()).value());
 	ActivityManager::instance().endLoadingSettings();
 	return true;
 }
@@ -774,6 +776,8 @@ bool saveConfig()
 	iniSetInteger("fogEnd", war_getFogEnd());
 	iniSetInteger("fogStart", war_getFogStart());
 	iniSetInteger("terrainShaderQuality", getTerrainShaderQuality());
+	iniSetInteger("shadowFilterSize", (int)war_getShadowFilterSize());
+	iniSetInteger("shadowMapResolution", (int)war_getShadowMapResolution());
 	iniSetInteger("configVersion", CURRCONFVERSION);
 
 	// write out ini file changes
