@@ -52,7 +52,8 @@ How to get the latest Windows development builds:
 2. Select the latest workflow run in the table / list.
    This should display a list of **Artifacts** from the run.
 3. Download the `warzone2100_win_x86_portable` or `warzone2100_win_x86_installer` artifact (depending on whether you want the portable build or the full / regular installer).
-> Note: A free GitHub account is currently required to download the artifacts.
+> **Note**
+> A free GitHub account is currently required to download the artifacts.
 
 ### macOS
 
@@ -61,7 +62,8 @@ How to get the latest macOS development builds:
 2. Select the latest workflow run in the table / list.
    This should display a list of **Artifacts** from the run.
 3. Download the `warzone2100_macOS_universal` or `warzone2100_macOS_universal_novideos` artifact (depending on whether you want the full app bundle or not).
-> Note: A free GitHub account is currently required to download the artifacts.
+> **Note**
+> A free GitHub account is currently required to download the artifacts.
 
 ### Ubuntu
 
@@ -187,7 +189,8 @@ Notes: These options all have two dashes (--), not one dash only (-). Also,
 if the option has an argument, you need to separate the option and its argument
 with a '=' sign - spaces do not work.
 
-Note: Some options have corresponding entries in the configuration file and will
+> **Note**
+> Some options have corresponding entries in the configuration file and will
 persist from one start of Warzone 2100 to the next.
 
 Multiplaying via internet
@@ -298,7 +301,8 @@ To properly build the game, either:
   git fetch --tags
   git submodule update --init --recursive
   ```
-  > Note: Initializing submodules is required.
+  > **Note**
+  > Initializing submodules is required.
 
 Do **not** use GitHub's "Download Zip" option, as it **does not contain submodules** or the Git-based autorevision information.
 
