@@ -127,6 +127,7 @@ enum MESSAGE_TYPES
 	GAME_DEBUG_REMOVE_FEATURE,      ///< Remove feature.
 	GAME_DEBUG_FINISH_RESEARCH,     ///< Research has been completed.
 	// End of debug messages.
+	GAME_FORMATION_OPT,				///< Change formation options for a player
 	GAME_MAX_TYPE,                  ///< Maximum+1 valid GAME_ type, *MUST* be last.
 
 	// The following messages are used for playing back replays.

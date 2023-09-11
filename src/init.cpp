@@ -58,6 +58,7 @@
 #include "display3d.h"
 #include "edit3d.h"
 #include "effects.h"
+#include "formation.h"
 #include "fpath.h"
 #include "frend.h"
 #include "frontend.h"
@@ -1548,6 +1549,11 @@ bool stageOneInitialise()
 		return false;
 	}
 
+	if (!formationInitialise())		// Initialise the formation system
+	{
+		return false;
+	}
+
 	// initialise the visibility stuff
 	if (!visInitialise())
 	{
@@ -1608,6 +1614,8 @@ bool stageOneShutDown()
 	}
 
 	grpShutDown();
+
+	formationShutDown();
 
 	ResearchRelease();
 

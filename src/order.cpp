@@ -35,6 +35,8 @@
 #include "order.h"
 #include "action.h"
 #include "map.h"
+#include "formationdef.h"
+#include "formation.h"
 #include "projectile.h"
 #include "effects.h"	// for waypoint display
 #include "lib/gamelib/gtime.h"
@@ -872,6 +874,13 @@ void orderUpdateDroid(DROID *psDroid)
 			}
 			else
 			{
+				// don't want the droids to go into a formation for this order
+				if (psDroid->sMove.psFormation != NULL)
+				{
+					formationLeave(psDroid->sMove.psFormation, psDroid);
+					psDroid->sMove.psFormation = NULL;
+				}
+
 				// Wait for the action to finish then assign to Transporter (if not already flying)
 				if (psDroid->order.psObj == nullptr || transporterFlying((DROID *)psDroid->order.psObj))
 				{
@@ -1083,6 +1092,12 @@ void orderUpdateDroid(DROID *psDroid)
 		}
 		break;
 	case DORDER_RECYCLE:
+		// don't bother with formations for this order
+		if (psDroid->sMove.psFormation)
+		{
+			formationLeave(psDroid->sMove.psFormation, psDroid);
+			psDroid->sMove.psFormation = NULL;
+		}
 		if (psDroid->order.psObj == nullptr)
 		{
 			psDroid->order = DroidOrder(DORDER_NONE);
@@ -1645,6 +1660,11 @@ void orderDroidBase(DROID *psDroid, DROID_ORDER_DATA *psOrder)
 					actionVTOLLandingPos(psDroid, &pos);
 				}
 				actionDroid(psDroid, DACTION_MOVE, pos.x, pos.y);
+				if (psDroid->sMove.psFormation)
+				{
+					formationLeave(psDroid->sMove.psFormation, psDroid);
+					psDroid->sMove.psFormation = NULL;
+				}
 				break;
 			}
 		}

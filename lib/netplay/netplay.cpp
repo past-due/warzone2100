@@ -5302,6 +5302,7 @@ const char *messageTypeToString(unsigned messageType_)
 	case GAME_DEBUG_REMOVE_FEATURE:     return "GAME_DEBUG_REMOVE_FEATURE";
 	case GAME_DEBUG_FINISH_RESEARCH:    return "GAME_DEBUG_FINISH_RESEARCH";
 	// End of redundant messages.
+	case GAME_FORMATION_OPT:			return "GAME_FORMATION_OPT";
 	case GAME_MAX_TYPE:                 return "GAME_MAX_TYPE";
 
 	// The following messages are used for playing back replays.

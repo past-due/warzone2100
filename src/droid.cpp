@@ -53,6 +53,8 @@
 #include "component.h"
 #include "lighting.h"
 #include "multiplay.h"
+#include "formationdef.h"
+#include "formation.h"
 #include "warcam.h"
 #include "display3d.h"
 #include "group.h"
@@ -161,6 +163,8 @@ bool droidInit()
 		recycled_experience[i] = std::priority_queue <int>(); // clear it
 	}
 	psLastDroidHit = nullptr;
+
+	moveInit();
 
 	return true;
 }
@@ -454,6 +458,12 @@ DROID::~DROID()
 
 	fpathRemoveDroidData(psDroid->id);
 
+	// leave the current formation if any
+	if (psDroid->sMove.psFormation)
+	{
+		formationLeave(psDroid->sMove.psFormation, psDroid);
+	}
+
 	// leave the current group if any
 	if (psDroid->psGroup)
 	{
@@ -522,6 +532,13 @@ bool removeDroidBase(DROID *psDel)
 	}
 
 	syncDebugDroid(psDel, '#');
+
+	// leave the current formation if any
+	if (psDel->sMove.psFormation)
+	{
+		formationLeave(psDel->sMove.psFormation, psDel);
+		psDel->sMove.psFormation = NULL;
+	}
 
 	//kill all the droids inside the transporter
 	if (isTransporter(psDel))
@@ -682,6 +699,13 @@ bool droidRemove(DROID *psDroid, DROID *pList[MAX_PLAYERS])
 	{
 		// droid has already been killed, quit
 		return false;
+	}
+
+	// leave the current formation if any
+	if (psDroid->sMove.psFormation)
+	{
+		formationLeave(psDroid->sMove.psFormation, psDroid);
+		psDroid->sMove.psFormation = NULL;
 	}
 
 	// leave the current group if any - not if its a Transporter droid
