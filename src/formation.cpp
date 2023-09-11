@@ -59,7 +59,7 @@ static SDWORD	fmLtRad = 80, fmMedRad = 100, fmHvyRad = 110;
 #define FORMATION_SPEED_INIT	100000L
 
 // The list of allocated formations
-static FORMATION	*psFormationList = nullptr;
+static std::list<FORMATION *> psFormationList;
 
 static SDWORD formationObjRadius(const DROID* psDroid);
 
@@ -67,7 +67,7 @@ static SDWORD formationObjRadius(const DROID* psDroid);
  */
 bool formationInitialise()
 {
-	psFormationList = nullptr;
+	psFormationList.clear();
 
 	return true;
 }
@@ -76,15 +76,12 @@ bool formationInitialise()
  */
 void formationShutDown()
 {
-	FORMATION	*psNext;
-
-	while (psFormationList)
+	for (const auto& psCurr : psFormationList)
 	{
-		debug(LOG_NEVER, "formation with %d units still attached", psFormationList->refCount);
-		psNext = psFormationList->psNext;
-		delete psFormationList;
-		psFormationList = psNext;
+		debug(LOG_NEVER, "formation with %d units still attached", psCurr->refCount);
+		delete psCurr;
 	}
+	psFormationList.clear();
 }
 
 /** Create a new formation
@@ -143,8 +140,7 @@ bool formationNew(FORMATION **ppsFormation, FORMATION_TYPE type,
 		return false;
 	}
 
-	psNew->psNext = psFormationList;
-	psFormationList = psNew;
+	psFormationList.push_front(psNew);
 
 	*ppsFormation = psNew;
 
@@ -156,9 +152,7 @@ bool formationNew(FORMATION **ppsFormation, FORMATION_TYPE type,
  */
 FORMATION* formationFind(int x, int y)
 {
-	FORMATION* psFormation;
-
-	for (psFormation = psFormationList; psFormation; psFormation = psFormation->psNext)
+	for (auto psFormation : psFormationList)
 	{
 		// see if the position is close to the formation
 		const int xdiff = psFormation->x - x;
@@ -237,7 +231,6 @@ void formationLeave(FORMATION *psFormation, const DROID* psDroid)
 	SDWORD		prev, curr, unit, line;
 	F_LINE		*asLines;
 	F_MEMBER	*asMembers;
-	FORMATION	*psCurr, *psPrev;
 
 	ASSERT_OR_RETURN(, psFormation != NULL, "Invalid formation");
 	if (!psDroid)
@@ -289,19 +282,7 @@ void formationLeave(FORMATION *psFormation, const DROID* psDroid)
 	psFormation->refCount -= 1;
 	if (psFormation->refCount == 0)
 	{
-		if (psFormation == psFormationList)
-		{
-			psFormationList = psFormationList->psNext;
-		}
-		else
-		{
-			psPrev = NULL;
-			for(psCurr=psFormationList; psCurr && psCurr!= psFormation; psCurr=psCurr->psNext)
-			{
-				psPrev = psCurr;
-			}
-			psPrev->psNext = psFormation->psNext;
-		}
+		psFormationList.remove(psFormation);
 		delete psFormation;
 	}
 }
