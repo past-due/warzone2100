@@ -101,6 +101,7 @@ modules:
       - '*'
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
+      - -DSHADERC_SKIP_COPYRIGHT_CHECK=ON
       - -DSHADERC_SKIP_INSTALL=OFF
       - -DSHADERC_SKIP_TESTS=ON
       - -DSHADERC_SKIP_EXAMPLES=ON
