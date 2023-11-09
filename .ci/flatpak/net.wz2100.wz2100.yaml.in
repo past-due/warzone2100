@@ -91,41 +91,42 @@ modules:
         sha512: @WZ_PREBUILT_TERRAIN_HIGH_DL_SHA512@
         dest-filename: high.wz
 
-  - name: glslc
-    buildsystem: cmake-ninja
-    builddir: true
-    build-options:
-      no-debuginfo: true
-    # Always build for host - do not include WZ_CROSS_BUILD_OPTIONS
-    cleanup:
-      - '*'
-    config-opts:
-      - -DCMAKE_BUILD_TYPE=Release
-      - -DSHADERC_SKIP_INSTALL=OFF
-      - -DSHADERC_SKIP_TESTS=ON
-      - -DSHADERC_SKIP_EXAMPLES=ON
-      - -DENABLE_CODE_COVERAGE=OFF
-      - -DSKIP_SPIRV_TOOLS_INSTALL=ON
-      - -DSKIP_GLSLANG_INSTALL=ON
-    sources:
-      - type: git
-        url: https://github.com/google/shaderc.git
-        tag: v2023.7
-        commit: 3882b16417077aa8eaa7b5775920e7ba4b8a224d
-      # Replicate the needed functionality of utils/git-sync-deps
-      # To avoid having to break the build sandbox to download files
-      - type: git
-        url: https://github.com/KhronosGroup/SPIRV-Headers.git
-        commit: 4183b260f4cccae52a89efdfcdd43c4897989f42 # retrieved from DEPS in https://github.com/google/shaderc @ tag
-        dest: third_party/spirv-headers
-      - type: git
-        url: https://github.com/KhronosGroup/SPIRV-Tools.git
-        commit: 360d469b9eac54d6c6e20f609f9ec35e3a5380ad # retrieved from DEPS in https://github.com/google/shaderc @ tag
-        dest: third_party/spirv-tools
-      - type: git
-        url: https://github.com/KhronosGroup/glslang.git
-        commit: 48f9ed8b08be974f4e463ef38136c8f23513b2cf # retrieved from DEPS in https://github.com/google/shaderc @ tag
-        dest: third_party/glslang
+  ## If the SDK's shaderc doesn't work, uncomment the below to manually build and install glslc from source
+  # - name: glslc
+  #   buildsystem: cmake-ninja
+  #   builddir: true
+  #   build-options:
+  #     no-debuginfo: true
+  #   # Always build for host - do not include WZ_CROSS_BUILD_OPTIONS
+  #   cleanup:
+  #     - '*'
+  #   config-opts:
+  #     - -DCMAKE_BUILD_TYPE=Release
+  #     - -DSHADERC_SKIP_INSTALL=OFF
+  #     - -DSHADERC_SKIP_TESTS=ON
+  #     - -DSHADERC_SKIP_EXAMPLES=ON
+  #     - -DENABLE_CODE_COVERAGE=OFF
+  #     - -DSKIP_SPIRV_TOOLS_INSTALL=ON
+  #     - -DSKIP_GLSLANG_INSTALL=ON
+  #   sources:
+  #     - type: git
+  #       url: https://github.com/google/shaderc.git
+  #       tag: v2023.7
+  #       commit: 3882b16417077aa8eaa7b5775920e7ba4b8a224d
+  #     # Replicate the needed functionality of utils/git-sync-deps
+  #     # To avoid having to break the build sandbox to download files
+  #     - type: git
+  #       url: https://github.com/KhronosGroup/SPIRV-Headers.git
+  #       commit: 4183b260f4cccae52a89efdfcdd43c4897989f42 # retrieved from DEPS in https://github.com/google/shaderc @ tag
+  #       dest: third_party/spirv-headers
+  #     - type: git
+  #       url: https://github.com/KhronosGroup/SPIRV-Tools.git
+  #       commit: 360d469b9eac54d6c6e20f609f9ec35e3a5380ad # retrieved from DEPS in https://github.com/google/shaderc @ tag
+  #       dest: third_party/spirv-tools
+  #     - type: git
+  #       url: https://github.com/KhronosGroup/glslang.git
+  #       commit: 48f9ed8b08be974f4e463ef38136c8f23513b2cf # retrieved from DEPS in https://github.com/google/shaderc @ tag
+  #       dest: third_party/glslang
 
   - name: physfs
     buildsystem: cmake-ninja
