@@ -67,8 +67,8 @@ jobs:
         echo "::endgroup::"
         
         echo "::group::fetch flat-manager-client"
-        curl -Lf https://raw.githubusercontent.com/flatpak/flat-manager/master/flat-manager-client --output /usr/bin/flat-manager-client
-        chmod +x /usr/bin/flat-manager-client
+        sudo curl -Lf https://raw.githubusercontent.com/flatpak/flat-manager/master/flat-manager-client --output /usr/bin/flat-manager-client
+        sudo chmod +x /usr/bin/flat-manager-client
         echo "::endgroup::"
     - uses: actions/checkout@v4
       with:
