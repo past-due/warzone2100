@@ -1,6 +1,43 @@
 #!/bin/bash
 # This requires a bunch of environment variables to be set. See the CI workflow
 
+if [ -z "$WZ_FLATPAK_BUILD_DIR" ]; then
+  echo "Missing WZ_FLATPAK_BUILD_DIR environment variable"
+  exit 1
+fi
+if [ -z "$WZ_FLATPAK_TARGET_ARCH" ]; then
+  echo "Missing WZ_FLATPAK_TARGET_ARCH environment variable"
+  exit 1
+fi
+if [ -z "$WZ_FLATPAK_BUILD_ARCH" ]; then
+  echo "Missing WZ_FLATPAK_BUILD_ARCH environment variable"
+  exit 1
+fi
+if [ -z "$WZ_FLATPAK_MIRROR_SCREENSHOTS_URL" ]; then
+  echo "Missing WZ_FLATPAK_MIRROR_SCREENSHOTS_URL environment variable"
+  exit 1
+fi
+if [ -z "$WZ_FLATPAK_LOCAL_REPO_NAME" ]; then
+  echo "Missing WZ_FLATPAK_LOCAL_REPO_NAME environment variable"
+  exit 1
+fi
+if [ -z "$WZ_FLATPAK_BRANCH" ]; then
+  echo "Missing WZ_FLATPAK_BRANCH environment variable"
+  exit 1
+fi
+if [ -z "$WZ_FLATPAK_MANIFEST_PATH" ]; then
+  echo "Missing WZ_FLATPAK_MANIFEST_PATH environment variable"
+  exit 1
+fi
+if [ -z "$WZ_FLATPAK_APPID" ]; then
+  echo "Missing WZ_FLATPAK_APPID environment variable"
+  exit 1
+fi
+if [ -z "$WZ_FLATPAK_BUNDLE" ]; then
+  echo "Missing WZ_FLATPAK_BUNDLE environment variable"
+  exit 1
+fi
+
 echo "::group::flatpak-builder"
 flatpak-builder --repo=${WZ_FLATPAK_LOCAL_REPO_NAME} --disable-rofiles-fuse --force-clean --default-branch=${WZ_FLATPAK_BRANCH} --mirror-screenshots-url=${WZ_FLATPAK_MIRROR_SCREENSHOTS_URL} "${WZ_FLATPAK_BUILD_DIR}" ${WZ_FLATPAK_MANIFEST_PATH}
 echo "::endgroup::"

@@ -48,46 +48,13 @@ jobs:
       WZ_FLATPAK_TARGET_ARCH: ${{ matrix.flatpak-arch }}
       WZ_FLATPAK_BUILD_ARCH: x86_64
       WZ_FREEDESKTOP_RUNTIME_VERSION: 23.08 # should match runtime-version in .ci/flatpak/net.wz2100.wz2100.yaml.in
-    container:
-      image: fedora:latest
-      options: --privileged
     outputs:
       # Needed by the release job - despite this being a matrix job, this should be the same for all, so we can allow whatever is last to persist it
       WZ_GITHUB_REF: ${{ steps.checkout-config.outputs.WZ_GITHUB_REF }}
       WZ_FLATPAK_BRANCH: ${{ steps.settings.outputs.WZ_FLATPAK_BRANCH }}
       WZ_FLATPAK_APPID: ${{ steps.settings.outputs.WZ_FLATPAK_APPID }}
     steps:
-    - name: Install Dependencies
-      run: |
-        cat /etc/fedora-release
-        
-        echo "::group::dnf update"
-        dnf update -y
-        echo "::endgroup::"
-        echo "::group::dnf install dependencies"
-        dnf install -y cmake git git-lfs dbus-daemon flatpak flatpak-builder python3-aiohttp python3-tenacity python3-gobject ccache zstd curl appstream
-        echo "::endgroup::"
-        
-        echo "::group::flatpak remote-add"
-        flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-        flatpak remote-add --if-not-exists flathub-beta https://flathub.org/beta-repo/flathub-beta.flatpakrepo
-        flatpak remote-add --if-not-exists gnome-nightly https://nightly.gnome.org/gnome-nightly.flatpakrepo
-        echo "::endgroup::"
-        
-        echo "::group::fetch flat-manager-client"
-        curl -Lf https://raw.githubusercontent.com/flatpak/flat-manager/master/flat-manager-client --output /usr/bin/flat-manager-client
-        chmod +x /usr/bin/flat-manager-client
-        echo "::endgroup::"
-    - name: Install QEMU deps
-      if: ${{ matrix.arch != 'x86_64' }}
-      run: |
-        dnf -y install docker
-    - name: Set up QEMU
-      if: ${{ matrix.arch != 'x86_64' }}
-      uses: docker/setup-qemu-action@v2
-      with:
-        platforms: ${{ matrix.arch }}
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
         path: 'src'
@@ -198,22 +165,10 @@ jobs:
         echo "::group::Output manifest"
         cat ".ci/flatpak/net.wz2100.wz2100.yaml"
         echo "::endgroup::"
-    - name: Install Flatpak manifest deps
+    - name: Build the Docker image
+      working-directory: '${{ github.workspace }}/src'
       run: |
-        # Build SDK
-        flatpak --system install -y --noninteractive flathub org.freedesktop.Sdk//${WZ_FREEDESKTOP_RUNTIME_VERSION}
-        # Target runtime
-        flatpak --system install -y --noninteractive flathub org.freedesktop.Platform/${WZ_FLATPAK_TARGET_ARCH}/${WZ_FREEDESKTOP_RUNTIME_VERSION}
-        
-        if [[ "$WZ_FLATPAK_TARGET_ARCH" != "$WZ_FLATPAK_BUILD_ARCH" ]]; then
-          # Cross compiler
-          flatpak --system install -y --noninteractive flathub org.freedesktop.Sdk.Extension.toolchain-${WZ_FLATPAK_TARGET_ARCH}//${WZ_FREEDESKTOP_RUNTIME_VERSION}
-          # SDK For target runtime
-          flatpak --system install -y --noninteractive flathub org.freedesktop.Sdk.Compat.${WZ_FLATPAK_TARGET_ARCH}//${WZ_FREEDESKTOP_RUNTIME_VERSION}
-        fi
-        
-        # Builder (which includes flatpak-builder-lint)
-        flatpak install flathub -y --noninteractive org.flatpak.Builder
+        docker build --build-arg UID=$UID -f .ci/flatpak/Dockerfile --pull --no-cache -t flatpackimg .
     - name: Build Flatpak
       id: build
       env:
@@ -223,7 +178,27 @@ jobs:
         SENTRY_IO_DSN: '${{ secrets.CRASHREPORTING_SENTRY_IO_DSN }}'
         DISCORD_RPC_APPID: '${{ secrets.DISCORD_RPC_APPID }}'
       run: |
-        . src/.ci/flatpak/build.sh
+        docker run --privileged --rm -w "${GITHUB_WORKSPACE}/" \
+          -e WZ_FLATPAK_BUILD_DIR \
+          -e WZ_FLATPAK_TARGET_ARCH \
+          -e WZ_FLATPAK_BUILD_ARCH \
+          -e WZ_FREEDESKTOP_RUNTIME_VERSION \
+          -e WZ_FLATPAK_MIRROR_SCREENSHOTS_URL \
+          -e WZ_FLATPAK_LOCAL_REPO_NAME \
+          -e WZ_FLATPAK_BRANCH \
+          -e WZ_FLATPAK_MANIFEST_PATH \
+          -e WZ_FLATPAK_APPID \
+          -e WZ_FLATPAK_BUNDLE \
+          -e WZ_DISTRIBUTOR \
+          -e SENTRY_IO_DSN \
+          -e DISCORD_RPC_APPID \
+          -e WZ_OUTPUT_NAME_SUFFIX \
+          -e WZ_NAME_SUFFIX \
+          -e "CI=true" -e GITHUB_WORKFLOW -e GITHUB_ACTIONS -e GITHUB_REPOSITORY -e GITHUB_WORKSPACE -e GITHUB_SHA -e GITHUB_REF -e GITHUB_HEAD_REF -e GITHUB_BASE_REF \
+          -v "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}" \
+          flatpackimg \
+          src/.ci/flatpak/install_manifest_dependencies.sh && src/.ci/flatpak/build.sh && src/.ci/flatpak/collect_debug_info.sh
+        
         echo "WZ_FLATPAK_LOCAL_REPO_NAME=${WZ_FLATPAK_LOCAL_REPO_NAME}"
         echo "WZ_FLATPAK_LOCAL_REPO_NAME=${WZ_FLATPAK_LOCAL_REPO_NAME}" >> $GITHUB_OUTPUT
     - name: Output generated files listing
@@ -236,22 +211,21 @@ jobs:
       env:
         WZ_FLATPAK_LOCAL_REPO_NAME: ${{ steps.build.outputs.WZ_FLATPAK_LOCAL_REPO_NAME }}
       run: |
-        # Start a dbus session within the container to allow flatpaks to run
-        # See: https://discussion.fedoraproject.org/t/cannot-run-flatpaks-in-a-fedora-container/73867/2
-        mkdir /run/dbus
-        dbus-send --system /org/freedesktop/DBus org.freedesktop.DBus || dbus-daemon --system --fork
-        
+        docker run --rm -w "${GITHUB_WORKSPACE}/" \
+        -v "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}" \
+        flatpackimg \
         flatpak run --command=flatpak-builder-lint org.flatpak.Builder --exceptions repo "${WZ_FLATPAK_LOCAL_REPO_NAME}"
+        
         echo "flatpak-builder-lint - OK"
     ###############################################################
     # Upload the .flatpak and debugsymbols artifacts
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: 'warzone2100_linux_flatpak_${{ matrix.arch }}'
         path: ${{ steps.settings.outputs.WZ_FLATPAK_BUNDLE }}
     - name: Upload debug info
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: 'debugsymbols_linux_flatpak_${{ matrix.arch }}'
         path: |
@@ -260,22 +234,8 @@ jobs:
           flatpak_app/files/lib/debug/bin
           flatpak_app/files/lib/debug/lib
         if-no-files-found: 'error'
-    - name: Collect additional debug dependency info
-      shell: bash
-      run: |
-        mkdir output_debug_dependency_snapshot
-        set +e
-        # Note: These libraries will be from the runtime that is installed at the time of the build
-        ldd flatpak_app/files/bin/warzone2100 | grep -E -v 'linux-vdso|ld-linux-' | awk 'NF == 4 { system("echo " $1) }'
-        ret="$?"
-        if [ $ret -eq 0 ]; then
-          ldd flatpak_app/files/bin/warzone2100 | grep -E -v 'linux-vdso|ld-linux-' | awk 'NF == 4 { system("cp /var/lib/flatpak/runtime/org.freedesktop.Platform/${WZ_FLATPAK_TARGET_ARCH}/${WZ_FREEDESKTOP_RUNTIME_VERSION}/active/files/lib/${WZ_FLATPAK_TARGET_ARCH}-linux-gnu/" $1 " output_debug_dependency_snapshot") }'
-        else
-          # ldd fails for non-native architecture, so use objdump for cross-compiled builds
-          objdump -p flatpak_app/files/bin/warzone2100 | grep NEEDED | grep -E -v 'linux-vdso|ld-linux-' | awk 'NF == 2 { system("echo " $2 " && cp /var/lib/flatpak/runtime/org.freedesktop.Platform/${WZ_FLATPAK_TARGET_ARCH}/${WZ_FREEDESKTOP_RUNTIME_VERSION}/active/files/lib/${WZ_FLATPAK_TARGET_ARCH}-linux-gnu/" $2 " output_debug_dependency_snapshot") }'
-        fi
     - name: Upload additional debug dependency info
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: 'debugdependencylibsnapshot_linux_flatpak_${{ matrix.arch }}'
         path: |
@@ -299,7 +259,7 @@ jobs:
         echo "  -> Size (bytes): $(stat -c %s "${REPO_TAR_FILE}")"
     - name: Upload ostree repo
       if: success() && (github.event_name == 'release' && github.event.action == 'published')
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: 'ostree_repo_flatpak_${{ matrix.arch }}_${{ steps.settings.outputs.WZ_FLATPAK_BRANCH }}'
         path: '${{ steps.repo-tar.outputs.REPO_TAR_FILE }}'
@@ -327,12 +287,12 @@ jobs:
           mkdir -p dl-debug/symbols
           mkdir -p dl-debug/additional
       - name: Download Debug Symbols
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: 'debugsymbols_linux_flatpak_${{ matrix.arch }}'
           path: ./dl-debug/symbols
       - name: Download Additional Debug Files
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: 'debugdependencylibsnapshot_linux_flatpak_${{ matrix.arch }}'
           path: ./dl-debug/additional
@@ -372,7 +332,7 @@ jobs:
         run: |
           mkdir dl-artifacts
       - name: Download Artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: 'warzone2100_linux_flatpak_${{ matrix.arch }}'
           path: ./dl-artifacts
@@ -444,7 +404,7 @@ jobs:
           curl -Lf https://raw.githubusercontent.com/flatpak/flat-manager/master/flat-manager-client --output /usr/bin/flat-manager-client
           chmod +x /usr/bin/flat-manager-client
           echo "::endgroup::"
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           path: 'src'
           set-safe-directory: true
@@ -452,7 +412,7 @@ jobs:
         run: |
           mkdir dl-artifacts
       - name: Download Artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: 'ostree_repo_flatpak_${{ matrix.arch }}_${{ needs.build-flatpak.outputs.WZ_FLATPAK_BRANCH }}'
           path: ./dl-artifacts
