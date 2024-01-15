@@ -179,6 +179,7 @@ jobs:
         DISCORD_RPC_APPID: '${{ secrets.DISCORD_RPC_APPID }}'
       run: |
         docker run --privileged --rm -w "${GITHUB_WORKSPACE}/" \
+          --user="$(id --user):$(id --group)" \
           -e WZ_FLATPAK_BUILD_DIR \
           -e WZ_FLATPAK_TARGET_ARCH \
           -e WZ_FLATPAK_BUILD_ARCH \
