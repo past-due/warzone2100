@@ -180,7 +180,7 @@ jobs:
           # Cross compiler
           echo "RUN --security=insecure flatpak install -y --noninteractive flathub org.freedesktop.Sdk.Extension.toolchain-${WZ_FLATPAK_TARGET_ARCH}//${WZ_FREEDESKTOP_RUNTIME_VERSION}" >> Dockerfile
           # SDK For target runtime
-          echo "RUN --security=insecure flatpak nstall -y --noninteractive flathub org.freedesktop.Sdk.Compat.${WZ_FLATPAK_TARGET_ARCH}//${WZ_FREEDESKTOP_RUNTIME_VERSION}" >> Dockerfile
+          echo "RUN --security=insecure flatpak install -y --noninteractive flathub org.freedesktop.Sdk.Compat.${WZ_FLATPAK_TARGET_ARCH}//${WZ_FREEDESKTOP_RUNTIME_VERSION}" >> Dockerfile
         fi
         cat Dockerfile
     - name: Set up Docker Buildx
@@ -202,7 +202,7 @@ jobs:
         echo $PATH
         docker run --privileged --rm \
           flatpackimg \
-          echo $PATH
+          echo "\$PATH"
         docker run --privileged --rm -w "${GITHUB_WORKSPACE}/" \
           flatpackimg \
           git -v
