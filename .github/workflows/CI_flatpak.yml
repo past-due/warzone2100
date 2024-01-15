@@ -189,7 +189,7 @@ jobs:
         buildkitd-flags: '--allow-insecure-entitlement security.insecure'
     - name: Build the Docker image
       run: |
-        docker buildx build --allow security.insecure --output type=docker -f Dockerfile --pull --no-cache -t flatpackimg .
+        docker buildx build --allow security.insecure --load -f Dockerfile --pull --no-cache -t flatpackimg .
     - name: Build Flatpak
       id: build
       env:
@@ -202,7 +202,7 @@ jobs:
         echo $PATH
         docker run --privileged --rm \
           flatpackimg \
-          git -v
+          echo $PATH
         docker run --privileged --rm -w "${GITHUB_WORKSPACE}/" \
           flatpackimg \
           git -v
