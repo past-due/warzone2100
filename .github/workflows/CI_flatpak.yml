@@ -167,6 +167,9 @@ jobs:
         echo "::endgroup::"
     - name: Write the Dockerfile
       run: |
+        # Must opt-in to syntax to use "RUN --security=insecure"
+        echo "# syntax = docker/dockerfile:1.3-labs" >> Dockerfile
+        # Base Dockerfile
         cat src/.ci/flatpak/Dockerfile >> Dockerfile
         # Build SDK
         echo "RUN --security=insecure flatpak install -y --noninteractive flathub org.freedesktop.Sdk//${WZ_FREEDESKTOP_RUNTIME_VERSION}" >> Dockerfile
