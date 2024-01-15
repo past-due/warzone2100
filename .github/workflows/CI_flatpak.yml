@@ -57,7 +57,7 @@ jobs:
     - name: Install Dependencies
       run: |
         echo "::group::apt install dependencies"
-        sudo apt install flatpak ostree appstream
+        sudo apt install flatpak ostree python3-aiohttp python3-tenacity appstream
         echo "::endgroup::"
         
         echo "::group::flatpak remote-add"
@@ -184,15 +184,15 @@ jobs:
     - name: Install Flatpak manifest deps
       run: |
         # Build SDK
-        sudo flatpak --system install -y --noninteractive flathub org.freedesktop.Sdk//${WZ_FREEDESKTOP_RUNTIME_VERSION}
+        sudo flatpak install -y --noninteractive flathub org.freedesktop.Sdk//${WZ_FREEDESKTOP_RUNTIME_VERSION}
         # Target runtime
-        sudo flatpak --system install -y --noninteractive flathub org.freedesktop.Platform/${WZ_FLATPAK_TARGET_ARCH}/${WZ_FREEDESKTOP_RUNTIME_VERSION}
+        sudo flatpak install -y --noninteractive flathub org.freedesktop.Platform/${WZ_FLATPAK_TARGET_ARCH}/${WZ_FREEDESKTOP_RUNTIME_VERSION}
         
         if [[ "$WZ_FLATPAK_TARGET_ARCH" != "$WZ_FLATPAK_BUILD_ARCH" ]]; then
           # Cross compiler
-          sudo flatpak --system install -y --noninteractive flathub org.freedesktop.Sdk.Extension.toolchain-${WZ_FLATPAK_TARGET_ARCH}//${WZ_FREEDESKTOP_RUNTIME_VERSION}
+          sudo flatpak install -y --noninteractive flathub org.freedesktop.Sdk.Extension.toolchain-${WZ_FLATPAK_TARGET_ARCH}//${WZ_FREEDESKTOP_RUNTIME_VERSION}
           # SDK For target runtime
-          sudo flatpak --system install -y --noninteractive flathub org.freedesktop.Sdk.Compat.${WZ_FLATPAK_TARGET_ARCH}//${WZ_FREEDESKTOP_RUNTIME_VERSION}
+          sudo flatpak install -y --noninteractive flathub org.freedesktop.Sdk.Compat.${WZ_FLATPAK_TARGET_ARCH}//${WZ_FREEDESKTOP_RUNTIME_VERSION}
         fi
         
         # Builder (which includes flatpak-builder-lint)
