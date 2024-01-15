@@ -189,7 +189,7 @@ jobs:
         buildkitd-flags: '--allow-insecure-entitlement security.insecure'
     - name: Build the Docker image
       run: |
-        docker buildx build --allow security.insecure -f Dockerfile --pull --no-cache -t flatpackimg .
+        docker buildx build --allow security.insecure --output type=docker -f Dockerfile --pull --no-cache -t flatpackimg .
     - name: Build Flatpak
       id: build
       env:
