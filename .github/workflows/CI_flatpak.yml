@@ -206,6 +206,7 @@ jobs:
         SENTRY_IO_DSN: '${{ secrets.CRASHREPORTING_SENTRY_IO_DSN }}'
         DISCORD_RPC_APPID: '${{ secrets.DISCORD_RPC_APPID }}'
       run: |
+        sudo chown 1001:1001 /run/user/1001/dconf/user
         . src/.ci/flatpak/build.sh
         echo "WZ_FLATPAK_LOCAL_REPO_NAME=${WZ_FLATPAK_LOCAL_REPO_NAME}"
         echo "WZ_FLATPAK_LOCAL_REPO_NAME=${WZ_FLATPAK_LOCAL_REPO_NAME}" >> $GITHUB_OUTPUT

@@ -1,6 +1,8 @@
 #!/bin/bash
 # This requires a bunch of environment variables to be set. See the CI workflow
 
+flatpak info --arch=$WZ_FLATPAK_TARGET_ARCH --show-commit org.freedesktop.Sdk 23.08
+
 echo "::group::flatpak-builder"
 flatpak run org.flatpak.Builder --repo=${WZ_FLATPAK_LOCAL_REPO_NAME} --disable-rofiles-fuse --force-clean --default-branch=${WZ_FLATPAK_BRANCH} --mirror-screenshots-url=${WZ_FLATPAK_MIRROR_SCREENSHOTS_URL} "${WZ_FLATPAK_BUILD_DIR}" ${WZ_FLATPAK_MANIFEST_PATH}
 echo "::endgroup::"
