@@ -180,9 +180,13 @@ jobs:
           echo "RUN --security=insecure flatpak nstall -y --noninteractive flathub org.freedesktop.Sdk.Compat.${WZ_FLATPAK_TARGET_ARCH}//${WZ_FREEDESKTOP_RUNTIME_VERSION}" >> Dockerfile
         fi
         cat Dockerfile
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        buildkitd-flags: '--allow-insecure-entitlement security.insecure'
     - name: Build the Docker image
       run: |
-        docker build -f Dockerfile --pull --no-cache -t flatpackimg .
+        docker buildx build --allow security.insecure -f Dockerfile --pull --no-cache -t flatpackimg .
     - name: Build Flatpak
       id: build
       env:
