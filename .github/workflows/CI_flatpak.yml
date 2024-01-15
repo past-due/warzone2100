@@ -49,7 +49,7 @@ jobs:
       WZ_FLATPAK_BUILD_ARCH: x86_64
       WZ_FREEDESKTOP_RUNTIME_VERSION: 23.08 # should match runtime-version in .ci/flatpak/net.wz2100.wz2100.yaml.in
     container:
-      image: fedora:latest
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-23.08
       options: --privileged
     outputs:
       # Needed by the release job - despite this being a matrix job, this should be the same for all, so we can allow whatever is last to persist it
@@ -59,20 +59,20 @@ jobs:
     steps:
     - name: Install Dependencies
       run: |
-        cat /etc/fedora-release
+        # cat /etc/fedora-release
         
-        echo "::group::dnf update"
-        dnf update -y
-        echo "::endgroup::"
-        echo "::group::dnf install dependencies"
-        dnf install -y cmake git git-lfs dbus-daemon flatpak flatpak-builder python3-aiohttp python3-tenacity python3-gobject ccache zstd curl appstream
-        echo "::endgroup::"
+        # echo "::group::dnf update"
+        # dnf update -y
+        # echo "::endgroup::"
+        # echo "::group::dnf install dependencies"
+        # dnf install -y cmake git git-lfs dbus-daemon flatpak flatpak-builder python3-aiohttp python3-tenacity python3-gobject ccache zstd curl appstream
+        # echo "::endgroup::"
         
-        echo "::group::flatpak remote-add"
-        flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-        flatpak remote-add --if-not-exists flathub-beta https://flathub.org/beta-repo/flathub-beta.flatpakrepo
-        flatpak remote-add --if-not-exists gnome-nightly https://nightly.gnome.org/gnome-nightly.flatpakrepo
-        echo "::endgroup::"
+        # echo "::group::flatpak remote-add"
+        # flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+        # flatpak remote-add --if-not-exists flathub-beta https://flathub.org/beta-repo/flathub-beta.flatpakrepo
+        # flatpak remote-add --if-not-exists gnome-nightly https://nightly.gnome.org/gnome-nightly.flatpakrepo
+        # echo "::endgroup::"
         
         echo "::group::fetch flat-manager-client"
         curl -Lf https://raw.githubusercontent.com/flatpak/flat-manager/master/flat-manager-client --output /usr/bin/flat-manager-client
