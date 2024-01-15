@@ -48,9 +48,6 @@ jobs:
       WZ_FLATPAK_TARGET_ARCH: ${{ matrix.flatpak-arch }}
       WZ_FLATPAK_BUILD_ARCH: x86_64
       WZ_FREEDESKTOP_RUNTIME_VERSION: 23.08 # should match runtime-version in .ci/flatpak/net.wz2100.wz2100.yaml.in
-    container:
-      image: fedora:latest
-      options: --privileged
     outputs:
       # Needed by the release job - despite this being a matrix job, this should be the same for all, so we can allow whatever is last to persist it
       WZ_GITHUB_REF: ${{ steps.checkout-config.outputs.WZ_GITHUB_REF }}
@@ -59,13 +56,8 @@ jobs:
     steps:
     - name: Install Dependencies
       run: |
-        cat /etc/fedora-release
-        
-        echo "::group::dnf update"
-        dnf update -y
-        echo "::endgroup::"
-        echo "::group::dnf install dependencies"
-        dnf install -y cmake git git-lfs dbus-daemon flatpak flatpak-builder python3-aiohttp python3-tenacity python3-gobject ccache zstd curl appstream
+        echo "::group::apt install dependencies"
+        sudo apt install flatpak ostree appstream
         echo "::endgroup::"
         
         echo "::group::flatpak remote-add"
@@ -78,16 +70,7 @@ jobs:
         curl -Lf https://raw.githubusercontent.com/flatpak/flat-manager/master/flat-manager-client --output /usr/bin/flat-manager-client
         chmod +x /usr/bin/flat-manager-client
         echo "::endgroup::"
-    - name: Install QEMU deps
-      if: ${{ matrix.arch != 'x86_64' }}
-      run: |
-        dnf -y install docker
-    - name: Set up QEMU
-      if: ${{ matrix.arch != 'x86_64' }}
-      uses: docker/setup-qemu-action@v2
-      with:
-        platforms: ${{ matrix.arch }}
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
         path: 'src'

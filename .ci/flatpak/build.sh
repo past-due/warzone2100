@@ -2,7 +2,7 @@
 # This requires a bunch of environment variables to be set. See the CI workflow
 
 echo "::group::flatpak-builder"
-flatpak-builder --repo=${WZ_FLATPAK_LOCAL_REPO_NAME} --disable-rofiles-fuse --force-clean --default-branch=${WZ_FLATPAK_BRANCH} --mirror-screenshots-url=${WZ_FLATPAK_MIRROR_SCREENSHOTS_URL} "${WZ_FLATPAK_BUILD_DIR}" ${WZ_FLATPAK_MANIFEST_PATH}
+flatpak run org.flatpak.Builder --repo=${WZ_FLATPAK_LOCAL_REPO_NAME} --disable-rofiles-fuse --force-clean --default-branch=${WZ_FLATPAK_BRANCH} --mirror-screenshots-url=${WZ_FLATPAK_MIRROR_SCREENSHOTS_URL} "${WZ_FLATPAK_BUILD_DIR}" ${WZ_FLATPAK_MANIFEST_PATH}
 echo "::endgroup::"
 
 if [[ "$WZ_FLATPAK_TARGET_ARCH" != "$WZ_FLATPAK_BUILD_ARCH" ]]; then
