@@ -165,10 +165,24 @@ jobs:
         echo "::group::Output manifest"
         cat ".ci/flatpak/net.wz2100.wz2100.yaml"
         echo "::endgroup::"
-    - name: Build the Docker image
-      working-directory: '${{ github.workspace }}/src'
+    - name: Write the Dockerfile
       run: |
-        docker build --build-arg UID=$UID -f .ci/flatpak/Dockerfile --pull --no-cache -t flatpackimg .
+        cat src/.ci/flatpak/Dockerfile >> Dockerfile
+        # Build SDK
+        echo "RUN --security=insecure flatpak install -y --noninteractive flathub org.freedesktop.Sdk//${WZ_FREEDESKTOP_RUNTIME_VERSION}" >> Dockerfile
+        # Target runtime
+        echo "RUN --security=insecure flatpak install -y --noninteractive flathub org.freedesktop.Platform/${WZ_FLATPAK_TARGET_ARCH}/${WZ_FREEDESKTOP_RUNTIME_VERSION}" >> Dockerfile
+        # Cross-compilation:
+        if [[ "$WZ_FLATPAK_TARGET_ARCH" != "$WZ_FLATPAK_BUILD_ARCH" ]]; then
+          # Cross compiler
+          echo "RUN --security=insecure flatpak install -y --noninteractive flathub org.freedesktop.Sdk.Extension.toolchain-${WZ_FLATPAK_TARGET_ARCH}//${WZ_FREEDESKTOP_RUNTIME_VERSION}" >> Dockerfile
+          # SDK For target runtime
+          echo "RUN --security=insecure flatpak nstall -y --noninteractive flathub org.freedesktop.Sdk.Compat.${WZ_FLATPAK_TARGET_ARCH}//${WZ_FREEDESKTOP_RUNTIME_VERSION}" >> Dockerfile
+        fi
+        cat Dockerfile
+    - name: Build the Docker image
+      run: |
+        docker build -f Dockerfile --pull --no-cache -t flatpackimg .
     - name: Build Flatpak
       id: build
       env:
@@ -198,7 +212,7 @@ jobs:
           -e "CI=true" -e GITHUB_WORKFLOW -e GITHUB_ACTIONS -e GITHUB_REPOSITORY -e GITHUB_WORKSPACE -e GITHUB_SHA -e GITHUB_REF -e GITHUB_HEAD_REF -e GITHUB_BASE_REF \
           -v "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}" \
           flatpackimg \
-          src/.ci/flatpak/install_manifest_dependencies.sh && src/.ci/flatpak/build.sh && src/.ci/flatpak/collect_debug_info.sh
+          src/.ci/flatpak/build.sh && src/.ci/flatpak/collect_debug_info.sh
         
         echo "WZ_FLATPAK_LOCAL_REPO_NAME=${WZ_FLATPAK_LOCAL_REPO_NAME}"
         echo "WZ_FLATPAK_LOCAL_REPO_NAME=${WZ_FLATPAK_LOCAL_REPO_NAME}" >> $GITHUB_OUTPUT
