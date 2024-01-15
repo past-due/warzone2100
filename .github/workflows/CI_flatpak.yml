@@ -199,6 +199,33 @@ jobs:
         SENTRY_IO_DSN: '${{ secrets.CRASHREPORTING_SENTRY_IO_DSN }}'
         DISCORD_RPC_APPID: '${{ secrets.DISCORD_RPC_APPID }}'
       run: |
+        echo $PATH
+        docker run --privileged --rm \
+          flatpackimg \
+          git -v
+        docker run --privileged --rm -w "${GITHUB_WORKSPACE}/" \
+          flatpackimg \
+          git -v
+        docker run --privileged --rm -w "${GITHUB_WORKSPACE}/" \
+          -e WZ_FLATPAK_BUILD_DIR \
+          -e WZ_FLATPAK_TARGET_ARCH \
+          -e WZ_FLATPAK_BUILD_ARCH \
+          -e WZ_FREEDESKTOP_RUNTIME_VERSION \
+          -e WZ_FLATPAK_MIRROR_SCREENSHOTS_URL \
+          -e WZ_FLATPAK_LOCAL_REPO_NAME \
+          -e WZ_FLATPAK_BRANCH \
+          -e WZ_FLATPAK_MANIFEST_PATH \
+          -e WZ_FLATPAK_APPID \
+          -e WZ_FLATPAK_BUNDLE \
+          -e WZ_DISTRIBUTOR \
+          -e SENTRY_IO_DSN \
+          -e DISCORD_RPC_APPID \
+          -e WZ_OUTPUT_NAME_SUFFIX \
+          -e WZ_NAME_SUFFIX \
+          -e "CI=true" -e GITHUB_WORKFLOW -e GITHUB_ACTIONS -e GITHUB_REPOSITORY -e GITHUB_WORKSPACE -e GITHUB_SHA -e GITHUB_REF -e GITHUB_HEAD_REF -e GITHUB_BASE_REF \
+          -v "${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}" \
+          flatpackimg \
+          git -v
         docker run --privileged --rm -w "${GITHUB_WORKSPACE}/" \
           --user="$(id --user):$(id --group)" \
           -e WZ_FLATPAK_BUILD_DIR \
