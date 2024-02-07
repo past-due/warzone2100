@@ -741,12 +741,51 @@ else()
 	# For Emscripten: install the generated files
 	install(FILES
 			"$<TARGET_FILE_DIR:warzone2100>/warzone2100.html"
+			COMPONENT Core
+			DESTINATION "${WZ_APP_INSTALL_DEST}"
+			RENAME "index.html")
+	install(FILES
 			"$<TARGET_FILE_DIR:warzone2100>/warzone2100.js"
 			"$<TARGET_FILE_DIR:warzone2100>/warzone2100.worker.js"
 			"$<TARGET_FILE_DIR:warzone2100>/warzone2100.wasm"
 			"$<TARGET_FILE_DIR:warzone2100>/warzone2100.data"
 			COMPONENT Core
 			DESTINATION "${WZ_APP_INSTALL_DEST}")
+
+	# Install manifest file
+	install(FILES
+		"${CMAKE_SOURCE_DIR}/platforms/emscripten/manifest.json"
+		COMPONENT Core
+		DESTINATION "${WZ_APP_INSTALL_DEST}")
+
+	# Install static assets
+	file(GLOB static_assets "${CMAKE_SOURCE_DIR}/platforms/emscripten/assets/*.*")
+	if (static_assets)
+		install(DIRECTORY DESTINATION "${WZ_APP_INSTALL_DEST}/assets" COMPONENT Core)
+		install(FILES
+			${static_assets}
+			COMPONENT Core
+			DESTINATION "${WZ_APP_INSTALL_DEST}/assets")
+	endif()
+
+	if (WZ_EMSCRIPTEN_COMPRESS_OUTPUT AND NOT CMAKE_VERSION VERSION_LESS "3.18.0")
+		install(CODE "
+			execute_process(COMMAND \${CMAKE_COMMAND} -E echo \"++install CODE: CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}\")
+
+			file(GLOB _files_to_compress LIST_DIRECTORIES false \"\${CMAKE_INSTALL_PREFIX}/${WZ_APP_INSTALL_DEST}/*.js\" \"\${CMAKE_INSTALL_PREFIX}/${WZ_APP_INSTALL_DEST}/*.wasm\" \"\${CMAKE_INSTALL_PREFIX}/${WZ_APP_INSTALL_DEST}/*.data\" \"\${CMAKE_INSTALL_PREFIX}/${WZ_APP_INSTALL_DEST}/*.html\")
+
+			list(LENGTH _files_to_compress _num_files_to_compress)
+			if (_num_files_to_compress GREATER 0)
+				foreach(_input_file IN LISTS _files_to_compress)
+					get_filename_component(_input_file_filename \"\${_input_file}\" NAME)
+					execute_process(COMMAND \${CMAKE_COMMAND} -E echo \"++install CODE: Compressing file: \${_input_file_filename} -> \${_input_file_filename}.gz\")
+					file(ARCHIVE_CREATE OUTPUT \"\${CMAKE_INSTALL_PREFIX}/${WZ_APP_INSTALL_DEST}/\${_input_file_filename}.gz\" PATHS \"\${_input_file}\" FORMAT raw COMPRESSION GZip COMPRESSION_LEVEL 7)
+				endforeach()
+			else()
+				message(WARNING \"Did not find any files to compress in: \${CMAKE_INSTALL_PREFIX}/${WZ_APP_INSTALL_DEST}/\")
+			endif()
+		" COMPONENT Core)
+	endif()
 
 endif()
 

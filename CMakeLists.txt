@@ -27,6 +27,7 @@ if(NOT CMAKE_SYSTEM_NAME MATCHES "Emscripten")
 else()
 	set(WZ_SKIP_ADDITIONAL_FONTS ON CACHE BOOL "Skip additional fonts (used to display CJK glyphs)" FORCE)
 	set(WZ_USE_STACK_PROTECTION OFF CACHE BOOL "Use Stack Protection hardening." FORCE)
+	OPTION(WZ_EMSCRIPTEN_COMPRESS_OUTPUT "Compress Emscripten output (generate .gz files)" ON)
 endif()
 
 # Dev options
