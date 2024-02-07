@@ -11,12 +11,12 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" integrity="sha512-dPXYcDub/aeb08c63jRq/k6GaKccl256JQy/AnOq7CAnEZ9FzSL9wSbcZkMp4R26vBsMLFYH4kQ67/bbV8XaCQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     
     <!-- Favicons -->
-  <link rel="apple-touch-icon" href="/docs/5.3/assets/img/favicons/apple-touch-icon.png" sizes="180x180">
-  <link rel="icon" href="/docs/5.3/assets/img/favicons/favicon-32x32.png" sizes="32x32" type="image/png">
-  <link rel="icon" href="/docs/5.3/assets/img/favicons/favicon-16x16.png" sizes="16x16" type="image/png">
-  <link rel="manifest" href="/docs/5.3/assets/img/favicons/manifest.json">
-  <link rel="mask-icon" href="/docs/5.3/assets/img/favicons/safari-pinned-tab.svg" color="#000000">
-  <link rel="icon" href="/docs/5.3/assets/img/favicons/favicon.ico">
+  <link rel="apple-touch-icon" href="/assets/img/favicons/apple-touch-icon.png" sizes="180x180">
+  <link rel="icon" href="/ssets/img/favicons/favicon-32x32.png" sizes="32x32" type="image/png">
+  <link rel="icon" href="/assets/img/favicons/favicon-16x16.png" sizes="16x16" type="image/png">
+  <link rel="manifest" href="manifest.json">
+  <link rel="mask-icon" href="/assets/img/favicons/safari-pinned-tab.svg" color="#000000">
+  <link rel="icon" href="/assets/img/favicons/favicon.ico">
   <meta name="theme-color" content="#000000">
 
 
@@ -244,10 +244,6 @@
   		}
   	  }
   	</style>
-
-    
-    <!-- Custom styles for this template -->
-    <link href="custom.css" rel="stylesheet">
   </head>
   <body class="d-flex text-center text-bg-dark">
   <div id="gameloadingspinner">
@@ -541,7 +537,7 @@
   	  var statusElement = document.getElementById('status');
   	  var progressElement = document.getElementById('progress');
 		
-  		// Monkeypatch WebAssembly to have a progress bar
+  		// Monkeypatch WebAssembly downloading to have a progress bar
   		// inspired from: https://github.com/WordPress/wordpress-playground/pull/46 (but had to be modified)
   		function monkeyPatch(progressFun) {
   			const _instantiateStreaming = WebAssembly.instantiateStreaming;
@@ -595,20 +591,9 @@
   		preRun: [],
   		postRun: [],
   		print: (function() {
-  		  var element = document.getElementById('output');
-  		  if (element) element.value = ''; // clear browser cache
   		  return function(text) {
   			if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
-  			// These replacements are necessary if you render to raw HTML
-  			//text = text.replace(/&/g, "&amp;");
-  			//text = text.replace(/</g, "&lt;");
-  			//text = text.replace(/>/g, "&gt;");
-  			//text = text.replace('\n', '<br>', 'g');
   			console.log(text);
-  			if (element) {
-  			  element.value += text + "\n";
-  			  element.scrollTop = element.scrollHeight; // focus on bottom
-  			}
   		  };
   		})(),
   		canvas: (function() {

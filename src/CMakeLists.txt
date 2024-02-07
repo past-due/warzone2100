@@ -248,6 +248,8 @@ if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
 
 	target_link_options(warzone2100 PRIVATE "SHELL:-s ENVIRONMENT=web,worker") # Worker must also be enabled because multithreading is enabled
 
+	target_link_options(warzone2100 PRIVATE "SHELL:-s MINIFY_HTML=0") # Disable MINIFY_HTML
+
 	target_link_options(warzone2100 PRIVATE "SHELL:-s TOTAL_STACK=10485760")
 	target_link_options(warzone2100 PRIVATE "SHELL:-s INITIAL_MEMORY=268435456")
 	target_link_options(warzone2100 PRIVATE "SHELL:-s ALLOW_MEMORY_GROWTH=1")
