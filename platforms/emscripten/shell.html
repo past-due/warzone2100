@@ -375,6 +375,23 @@
         return "";
       }
     })();
+    let WZ_DATA_FILES_URL_SUBDIR = (() => {
+      return window.location.pathname.replace(/[^/]*$/, '');
+    })();
+    let WZ_DATA_FILES_URL_HOST = (() => {
+      if (window.location.hostname == 'play.wz2100.net') {
+        return 'https://data.'+window.location.hostname;
+      } else {
+        return null;
+      }
+    })();
+    let WZ_VIDEO_SEQUENCES_BASE_URL = (() => {
+      if (window.location.hostname == 'play.wz2100.net') {
+        return 'https://data.play.wz2100.net/sequences/';
+      } else {
+        return 'sequences/'; // default is just relative to current path
+      }
+    })();
 
     function wz_js_get_config_dir_suffix()
     {
@@ -641,13 +658,30 @@
       }
     
       Module['preRun'].push(wz_pre_run_fixup_canvas);
-      Module.arguments = ['--videourl=sequences/', '--configdir=/warzone2100'+wz_js_get_config_dir_suffix()];
+      Module.arguments = ['--configdir=/warzone2100'+wz_js_get_config_dir_suffix()];
+      if (WZ_VIDEO_SEQUENCES_BASE_URL !== null) {
+        Module.arguments.push('--videourl='+WZ_VIDEO_SEQUENCES_BASE_URL);
+      }
       window.onerror = function() {
         Module.setStatus('Exception thrown, see JavaScript console');
         Module.setStatus = function(text) {
           if (text) console.log('[post-exception status] ' + text);
         };
       };
+      
+      Module['locateFile'] = function(path, prefix) {
+        // If it's a data file, and a custom data files host is specified
+        if (path.endsWith(".data") && WZ_DATA_FILES_URL_HOST !== null) {
+          // Prefix is not guaranteed to be set for these by the preloader, so construct the path manually
+          var subPath = WZ_DATA_FILES_URL_SUBDIR;
+          if (!subPath.endsWith('/')) { subPath += '/'; }
+          subPath += path;
+          var dataURL = new URL(subPath, WZ_DATA_FILES_URL_HOST);
+          console.log(dataURL.toString());
+        }
+        // otherwise, use the default, the prefix (JS file's dir) + the path
+        return prefix + path;
+      }
       
       function wz_detect_platform() {
         
