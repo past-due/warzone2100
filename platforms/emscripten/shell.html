@@ -75,16 +75,14 @@
       }
       
       #gameloadingspinner {
-      z-index: 999;
-      position: absolute;
-      display: none;
-/*      width: 100px;
-      height: 100px;*/
+        z-index: 999;
+        position: absolute;
+        display: none;
       }
       #gameloadingspinner .spin-figure-container {
-      width: 100px;
-      height: 100px;
-      margin: 1em;
+        width: 100px;
+        height: 100px;
+        margin: 1em;
       }
       
       #gameloadingspinner .spin-loading-text {
@@ -141,11 +139,6 @@
           height: 1em;
       }
       
-      /* The device does not include any pointing device. */
-      @media (any-pointer: none) {
-        
-      }
-      
       @media (max-width: 640px) {
          .small-screen-blocker {
              display: block;
@@ -159,7 +152,7 @@
       }
       
       @media all and (display-mode: standalone) {
-          /* Here goes the CSS rules that will only apply if app is running standalone */
+          /* CSS rules that will only apply if app is running standalone */
           .hide-on-standalone {
             display: none;
           }
@@ -740,27 +733,21 @@
       document.getElementById('loading-game').style.display = 'block';
       document.getElementById('launch-game').style.display = 'none';
       document.getElementById('footer').style.display = 'none';
-      // document.body.scrollTop = document.documentElement.scrollTop = 0;
       window.scroll({
         top: 0,
         left: 0,
         behavior: "instant",
       });
-      // document.getElementById('emscripten_container').style.display = 'block';
       var startButton = document.getElementById('start-button');
       startButton.disabled = false;
       startButton.hidden = true;
-      //document.body.style.background = 'black';
       wz_js_display_loading_indicator(1);
-      // Execute main()
+      
       function actuallyStartGame() {
         setTimeout( function() {
           createWZModule(Module).then(function(Module) {
             // this is reached when everything is ready, and you can call methods on Module
-            // bring the canvas container to the very top
-            // let canvasContainer = document.getElementById('emscripten_container');
-            // canvasContainer.style.display = 'block';
-            // canvasContainer.parentNode.appendChild(canvasContainer);
+            // Hide the loading-game panel
             document.getElementById('loading-game').style.display = 'none';
             // Since some browsers (i.e. Safari) won't show the spinner animation when WZ's main thread is blocked
             // Also display "Loading ..." text
