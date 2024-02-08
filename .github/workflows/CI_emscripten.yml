@@ -29,11 +29,8 @@ env:
 
 jobs:
   build:
-    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
-    # You can convert this to a matrix build if you need cross-platform coverage.
-    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+    name: 'wasm32'
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v3
       with:
@@ -57,6 +54,11 @@ jobs:
       run: |
         mkdir -p "${{ github.workspace }}/build"
         mkdir -p "${{ github.workspace }}/installed"
+
+    - name: Prep Build Environment
+      run: |
+        # Install additional host tools
+        DEBIAN_FRONTEND=noninteractive apt-get -y install cmake git zip unzip gettext asciidoctor
 
     - name: Install EMSDK
       id: emsdk
