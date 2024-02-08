@@ -463,26 +463,96 @@
         </p>
       </footer>
     </div>
-    <!-- Launch Options Modal -->
-    <div class="modal fade text-start" id="launchOptions" data-bs-backdrop="static" data-bs-keyboard="false" data-bs-theme="dark" tabindex="-1" aria-labelledby="launchOptionsLabel" aria-hidden="true">
-      <div class="modal-dialog">
+    <!-- Reset Data Prompt Modal -->
+    <div class="modal fade" id="resetDataPrompt" data-bs-theme="dark" aria-hidden="true" aria-labelledby="resetDataPromptLabel" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
           <div class="modal-header">
-            <h1 class="modal-title fs-5" id="launchOptionsLabel">Launch Options</h1>
+            <h1 class="modal-title fs-5" id="resetDataPromptLabel">Reset All Configuration and Data?</h1>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-warning" role="alert">
+              This will <strong>erase all saved games &amp; data</strong>, and reset all configuration &amp; settings.
+            </div>
+            <p>
+              Are you sure you want to continue?<br/>(This operation is irreversible.)
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-danger" onclick="wz_js_reset_config_dir(); wz_dismiss_reset_data_prompt_modal();">Yes, Reset All Saved Data</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Launch Options Modal -->
+    <div class="modal fade text-start" id="launchOptions" data-bs-backdrop="static" data-bs-keyboard="false" data-bs-theme="dark" tabindex="-1" aria-labelledby="launchOptionsLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h1 class="modal-title fs-5" id="launchOptionsLabel">Options</h1>
             <button type="button" class="btn-close" onclick="wz_dismiss_options_modal()" aria-label="Close"></button>
           </div>
           <div class="modal-body">
-            <form id="optional-data-form">
-              <label for="optional-data-form" class="form-label">Optional Data:</label>
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" role="switch" id="launchOption_loadMusic" checked>
-                <label class="form-check-label" for="launchOption_loadMusic">Load Music</label>
+            <div class="accordion accordion-flush" id="optionsAccordion">
+              <div class="accordion-item">
+                <h2 class="accordion-header">
+                  <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#flush-collapseLaunchOptions" aria-expanded="true" aria-controls="flush-collapseLaunchOptions">
+                    Launch Options
+                  </button>
+                </h2>
+                <div id="flush-collapseLaunchOptions" class="accordion-collapse collapse show" data-bs-parent="#optionsAccordion">
+                  <div class="accordion-body">
+                    <form id="optional-data-form">
+                      <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="launchOption_loadMusic" checked>
+                        <label class="form-check-label" for="launchOption_loadMusic">Load Music</label>
+                      </div>
+                      <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="launchOption_loadClassicTerrain">
+                        <label class="form-check-label" for="launchOption_loadClassicTerrain">Load Classic Terrain Pack</label>
+                      </div>
+                    </form>
+                  </div>
+                </div>
               </div>
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" role="switch" id="launchOption_loadClassicTerrain">
-                <label class="form-check-label" for="launchOption_loadClassicTerrain">Load Classic Terrain Pack</label>
+              <div class="accordion-item">
+                <h2 class="accordion-header">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#flush-advancedOptions" aria-expanded="false" aria-controls="flush-advancedOptions">
+                    Advanced Options
+                  </button>
+                </h2>
+                <div id="flush-advancedOptions" class="accordion-collapse collapse" data-bs-parent="#optionsAccordion">
+                  <div class="accordion-body">
+                    <p>
+                      <button type="button" class="btn btn-sm btn-danger" data-bs-target="#resetDataPrompt" data-bs-toggle="modal">Reset Configuration &amp; Saved Data</button>
+                    </p>
+                    <form id="debug-flags-form">
+                      <label for="optional-data-form" class="form-label">Debug Log Options:</label>
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="" id="launchOption_DebugWarning">
+                        <label class="form-check-label" for="flexCheckDefault">
+                          Warnings
+                        </label>
+                      </div>
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="" id="launchOption_DebugInfo">
+                        <label class="form-check-label" for="flexCheckChecked">
+                          Info
+                        </label>
+                      </div>
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="" id="launchOption_Debug3D">
+                        <label class="form-check-label" for="flexCheckChecked">
+                          3D
+                        </label>
+                      </div>
+                    </form>
+                  </div>
+                </div>
               </div>
-            </form>
+            </div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-primary" onclick="wz_dismiss_options_modal()">OK</button>
@@ -494,7 +564,10 @@
     
     let WZ_LAUNCH_OPTIONS_MAPPING = {
       'load_music': 'launchOption_loadMusic',
-      'load_classic_terrain': 'launchOption_loadClassicTerrain'
+      'load_classic_terrain': 'launchOption_loadClassicTerrain',
+      'debug_warning': 'launchOption_DebugWarning',
+      'debug_info': 'launchOption_DebugInfo',
+      'debug_3d': 'launchOption_Debug3D'
     }
 
     var WZ_CONFIG_DIR_SUFFIX = (() => {
@@ -609,10 +682,38 @@
       const modal = bootstrap.Modal.getInstance(launchoptions_modal);
       modal.hide();
     }
+    
+    function wz_dismiss_reset_data_prompt_modal() {
+      const resetdataprompt_modal = document.querySelector('#resetDataPrompt');
+      const modal = bootstrap.Modal.getInstance(resetdataprompt_modal);
+      modal.hide();
+    }
 
-    function wz_js_get_config_dir_suffix()
+    function wz_js_get_config_dir_path()
     {
-      return WZ_CONFIG_DIR_SUFFIX;
+      return '/warzone2100' + WZ_CONFIG_DIR_SUFFIX;
+    }
+    
+    function wz_js_reset_config_dir() {
+      let databaseName = wz_js_get_config_dir_path();
+      // Emscripten's IDBFS FS uses the path as the database name
+      try {
+        var req = indexedDB.deleteDatabase(databaseName);
+        req.onsuccess = function () {
+          console.log("Database deleted");
+        };
+        req.onerror = function () {
+          console.log("Couldn't delete database - error");
+          alert('Failed to clear / reset Warzone 2100 configuration directory');
+        };
+        req.onblocked = function () {
+          console.log("Couldn't delete database - operation blocked");
+          alert('Failed to clear / reset Warzone 2100 configuration directory - operation blocked');
+        };
+      }
+      catch (e) {
+        console.error(e);
+      }
     }
     
     function wz_display_loading_error(errorStr) {
@@ -679,6 +780,13 @@
       })
       wz_save_launch_options();
       var data_load_promises = [];
+      
+      // additional debug flags
+      Object.entries(WZ_LAUNCH_OPTIONS).forEach(([k,v]) => {
+        if (k.startsWith('debug_') && v) {
+          Module.arguments.push('--debug='+k.substring(k.indexOf('_') + 1));
+        }
+      })
       
       // optional data file loads
       let start_optional_promises = data_load_promises.length;
@@ -943,7 +1051,7 @@
       }
     
       Module['preRun'].push(wz_pre_run_fixup_canvas);
-      Module.arguments = ['--configdir=/warzone2100'+wz_js_get_config_dir_suffix()];
+      Module.arguments = ['--configdir='+wz_js_get_config_dir_path()];
       if (WZ_VIDEO_SEQUENCES_BASE_URL !== null) {
         Module.arguments.push('--videourl='+WZ_VIDEO_SEQUENCES_BASE_URL);
       }

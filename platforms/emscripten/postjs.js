@@ -2,15 +2,16 @@
 /* Setup persistent config dir */
 function wzSetupPersistentConfigDir() {
 
-	Module['WZVAL_configDirSuffix'] = '';
-	if (typeof wz_js_get_config_dir_suffix === "function") {
-		Module['WZVAL_configDirSuffix'] = wz_js_get_config_dir_suffix();
+	Module['WZVAL_configDirPath'] = '';
+	if (typeof wz_js_get_config_dir_path === "function") {
+		Module['WZVAL_configDirPath'] = wz_js_get_config_dir_path();
 	}
 	else {
 		console.log('Unable to get config dir suffix');
+		Module['WZVAL_configDirPath'] = '/warzone2100';
 	}
 
-	let configDirPath = '/warzone2100' + Module['WZVAL_configDirSuffix'];
+	let configDirPath = Module['WZVAL_configDirPath'];
 
 	// Create a directory in IDBFS to store the config dir
 	FS.mkdir(configDirPath);
@@ -21,12 +22,12 @@ function wzSetupPersistentConfigDir() {
 	// Synchronize IDBFS -> Emscripten virtual filesystem
 	Module["addRunDependency"]("persistent_warzone2100_config_dir");
 	FS.syncfs(true, (err) => {
-		console.log(FS.readdir(configDirPath));
+		console.log('loaded from idbfs', FS.readdir(configDirPath));
 		Module["removeRunDependency"]("persistent_warzone2100_config_dir");
 	})
 }
 function wzSaveConfigDirToPersistentStore(callback) {
-	let configDirPath = '/warzone2100' + Module['WZVAL_configDirSuffix'];
+	let configDirPath = Module['WZVAL_configDirPath'];
 	FS.syncfs(false, (err) => {
 		console.log('saved to idbfs', FS.readdir(configDirPath));
 		if (callback) callback();
