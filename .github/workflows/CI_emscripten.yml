@@ -58,7 +58,7 @@ jobs:
     - name: Prep Build Environment
       run: |
         # Install additional host tools
-        DEBIAN_FRONTEND=noninteractive apt-get -y install cmake git zip unzip gettext asciidoctor
+        DEBIAN_FRONTEND=noninteractive sudo apt-get -y install cmake git zip unzip gettext asciidoctor
 
     - name: Install EMSDK
       id: emsdk
