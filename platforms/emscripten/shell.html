@@ -590,7 +590,6 @@
       
       Promise.allSettled(data_load_promises)
       .then((values) => {
-        console.log(values);
         var failedRequiredLoad = false;
         for (let i = 0; i < values.length; i++) {
           if (values[i].status != 'fulfilled') {
