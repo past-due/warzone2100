@@ -330,11 +330,24 @@
       </figure>
   </div>
   
+  <main class="px-3" style="display: none;" id="loading-error">
+    <h1 class="mb-3"><svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-emoji-frown" viewBox="0 0 16 16">
+  <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"></path>
+  <path d="M4.285 12.433a.5.5 0 0 0 .683-.183A3.5 3.5 0 0 1 8 10.5c1.295 0 2.426.703 3.032 1.75a.5.5 0 0 0 .866-.5A4.5 4.5 0 0 0 8 9.5a4.5 4.5 0 0 0-3.898 2.25.5.5 0 0 0 .183.683M7 6.5C7 7.328 6.552 8 6 8s-1-.672-1-1.5S5.448 5 6 5s1 .672 1 1.5m4 0c0 .828-.448 1.5-1 1.5s-1-.672-1-1.5S9.448 5 10 5s1 .672 1 1.5"></path>
+</svg></h1>
+    <p class="lead">An error occurred trying to load Warzone 2100.</p>
+    <p class="mb-1">Please check your Internet connection, and reload to try again.</p>
+    <p class="text-white" style="--bs-text-opacity: .5;">Error Message: <span id="loading-error-message"></span></p>
+    <p class="lead">
+      <button type="button" class="btn btn-lg btn-outline-secondary fw-bold" id="reload-err-button" onclick="window.location.reload();"><i class="bi bi-arrow-clockwise pe-1"></i>Reload</button>
+    </p>
+  </main>
+  
   <main class="px-3" style="display: none;" id="post-exit">
     <h1>Thanks for playing!</h1>
     <p class="lead">If you'd like to play again, simply reload.</p>
     <p class="lead">
-      <button type="button" class="btn btn-lg btn-outline-secondary fw-bold" id="start-button" onclick="window.location.reload();"><i class="bi bi-arrow-clockwise pe-1"></i>Reload</button>
+      <button type="button" class="btn btn-lg btn-outline-secondary fw-bold" id="reload-button" onclick="window.location.reload();"><i class="bi bi-arrow-clockwise pe-1"></i>Reload</button>
     </p>
     <p class="lead">Or help us out by donating:</p>
     <a class="btn btn-sm btn-outline-secondary btn-block" title="Donate" href="https://donations.wz2100.net" target="_blank" rel="noopener"><i class="bi bi-heart pe-1"></i>Donate</a>
@@ -522,6 +535,13 @@
       return WZ_CONFIG_DIR_SUFFIX;
     }
     
+    function wz_display_loading_error(errorStr) {
+      document.getElementById('loading-error').style.display = 'block';
+      document.getElementById('loading-error-message').innerText = errorStr;
+      document.getElementById('loading-game').style.display = 'none';
+      wz_js_display_loading_indicator(0);
+    }
+    
     async function loadScriptAsync(url) {
       return new Promise((resolve, reject) => {
         const element = document.createElement('script');
@@ -564,6 +584,11 @@
             // Since some browsers (i.e. Safari) won't show the spinner animation when WZ's main thread is blocked
             // Also display "Loading ..." text
             document.getElementById('spin-loading-text').style.display = 'inline-block';
+          })
+          .catch((error) => {
+            // Failed to create / load
+            console.error(error);
+            wz_display_loading_error(error.message);
           });
         }, 10);
       }
@@ -841,11 +866,14 @@
       if (WZ_VIDEO_SEQUENCES_BASE_URL !== null) {
         Module.arguments.push('--videourl='+WZ_VIDEO_SEQUENCES_BASE_URL);
       }
-      window.onerror = function() {
+      window.onerror = function(event) {
         Module.setStatus('Exception thrown, see JavaScript console');
         Module.setStatus = function(text) {
           if (text) console.log('[post-exception status] ' + text);
         };
+        if (!Module.hasOwnProperty('calledRun') || !Module.calledRun) {
+          wz_display_loading_error(event);
+        }
       };
       
       Module['locateFile'] = function(path, prefix) {
