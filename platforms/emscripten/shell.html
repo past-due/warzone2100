@@ -8,7 +8,6 @@
     <title>Warzone 2100 - Web Edition</title>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" integrity="sha512-b2QcS5SsA8tZodcDtGRELiGv5SaKSk1vDHDaQRda0htPYWZ6046lr3kJ5bAAQdpV2mmA/4v0wQF9MyU6/pDIAg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" integrity="sha512-dPXYcDub/aeb08c63jRq/k6GaKccl256JQy/AnOq7CAnEZ9FzSL9wSbcZkMp4R26vBsMLFYH4kQ67/bbV8XaCQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     
     <!-- Favicons -->  
     <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
@@ -19,7 +18,6 @@
     <meta name="apple-mobile-web-app-title" content="Warzone 2100">
     <meta name="application-name" content="Warzone 2100">
     <meta name="theme-color" content="#000000">
-
 
     <style>
       body {
@@ -112,6 +110,16 @@
         font-size: .75em;
       }
       
+      .lead {
+        font-size: inherit!important;
+      }
+      
+      @media (min-height: 800px) {
+        .lead {
+          font-size: 1.25rem!important;
+        }
+      }
+      
       .small-screen-blocker {
          position: fixed;
          top: 0;
@@ -123,6 +131,14 @@
          color: #fff;
          text-align: center;
          display: none;
+      }
+      
+      .bi {
+          display: inline-block;
+          vertical-align: -.125em;
+          fill: currentcolor;
+          width: 1em;
+          height: 1em;
       }
       
       /* The device does not include any pointing device. */
@@ -273,6 +289,48 @@
     </style>
   </head>
   <body class="d-flex text-center text-bg-dark">
+    <svg xmlns="http://www.w3.org/2000/svg" class="d-none">
+      <symbol id="bi-heart" viewBox="0 0 16 16">
+        <path d="m8 2.748-.717-.737C5.6.281 2.514.878 1.4 3.053c-.523 1.023-.641 2.5.314 4.385.92 1.815 2.834 3.989 6.286 6.357 3.452-2.368 5.365-4.542 6.286-6.357.955-1.886.838-3.362.314-4.385C13.486.878 10.4.28 8.717 2.01zM8 15C-7.333 4.868 3.279-3.04 7.824 1.143q.09.083.176.171a3 3 0 0 1 .176-.17C12.72-3.042 23.333 4.867 8 15"/>
+      </symbol>
+      <symbol id="bi-discord" viewBox="0 0 16 16">
+        <path d="M13.545 2.907a13.2 13.2 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.2 12.2 0 0 0-3.658 0 8 8 0 0 0-.412-.833.05.05 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.04.04 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032q.003.022.021.037a13.3 13.3 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019q.463-.63.818-1.329a.05.05 0 0 0-.01-.059l-.018-.011a9 9 0 0 1-1.248-.595.05.05 0 0 1-.02-.066l.015-.019q.127-.095.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.05.05 0 0 1 .053.007q.121.1.248.195a.05.05 0 0 1-.004.085 8 8 0 0 1-1.249.594.05.05 0 0 0-.03.03.05.05 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.2 13.2 0 0 0 4.001-2.02.05.05 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.03.03 0 0 0-.02-.019m-8.198 7.307c-.789 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612m5.316 0c-.788 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612"/>
+      </symbol>
+      <symbol id="bi-gear" viewBox="0 0 16 16">
+        <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492M5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0"/>
+        <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115z"/>
+      </symbol>
+      <symbol id="bi-check-circle" viewBox="0 0 16 16">
+        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+        <path d="m10.97 4.97-.02.022-3.473 4.425-2.093-2.094a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05"/>
+      </symbol>
+      <symbol id="bi-mouse2" viewBox="0 0 16 16">
+        <path d="M3 5.188C3 2.341 5.22 0 8 0s5 2.342 5 5.188v5.625C13 13.658 10.78 16 8 16s-5-2.342-5-5.188V5.189zm4.5-4.155C5.541 1.289 4 3.035 4 5.188V5.5h3.5zm1 0V5.5H12v-.313c0-2.152-1.541-3.898-3.5-4.154M12 6.5H4v4.313C4 13.145 5.81 15 8 15s4-1.855 4-4.188z"/>
+      </symbol>
+      <symbol id="bi-keyboard" viewBox="0 0 16 16">
+        <path d="M14 5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM2 4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/>
+        <path d="M13 10.25a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25zm0-2a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25zm-5 0A.25.25 0 0 1 8.25 8h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 8 8.75zm2 0a.25.25 0 0 1 .25-.25h1.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-1.5a.25.25 0 0 1-.25-.25zm1 2a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25zm-5-2A.25.25 0 0 1 6.25 8h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 6 8.75zm-2 0A.25.25 0 0 1 4.25 8h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 4 8.75zm-2 0A.25.25 0 0 1 2.25 8h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 2 8.75zm11-2a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25zm-2 0a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25zm-2 0A.25.25 0 0 1 9.25 6h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 9 6.75zm-2 0A.25.25 0 0 1 7.25 6h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 7 6.75zm-2 0A.25.25 0 0 1 5.25 6h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5A.25.25 0 0 1 5 6.75zm-3 0A.25.25 0 0 1 2.25 6h1.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-1.5A.25.25 0 0 1 2 6.75zm0 4a.25.25 0 0 1 .25-.25h.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-.5a.25.25 0 0 1-.25-.25zm2 0a.25.25 0 0 1 .25-.25h5.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-5.5a.25.25 0 0 1-.25-.25z"/>
+      </symbol>
+      <symbol id="bi-arrow-clockwise" viewBox="0 0 16 16">
+        <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2z"/>
+        <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466"/>
+      </symbol>
+      <symbol id="bi-emoji-frown" viewBox="0 0 16 16">
+        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"></path>
+        <path d="M4.285 12.433a.5.5 0 0 0 .683-.183A3.5 3.5 0 0 1 8 10.5c1.295 0 2.426.703 3.032 1.75a.5.5 0 0 0 .866-.5A4.5 4.5 0 0 0 8 9.5a4.5 4.5 0 0 0-3.898 2.25.5.5 0 0 0 .183.683M7 6.5C7 7.328 6.552 8 6 8s-1-.672-1-1.5S5.448 5 6 5s1 .672 1 1.5m4 0c0 .828-.448 1.5-1 1.5s-1-.672-1-1.5S9.448 5 10 5s1 .672 1 1.5"></path>
+      </symbol>
+      <symbol id="bi-badge-hd-fill" viewBox="0 0 16 16">
+        <path d="M10.53 5.968h-.843v4.06h.843c1.117 0 1.622-.667 1.622-2.02 0-1.354-.51-2.04-1.622-2.04"/>
+        <path d="M2 2a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm5.396 3.001V11H6.209V8.43H3.687V11H2.5V5.001h1.187v2.44h2.522V5h1.187zM8.5 11V5.001h2.188c1.824 0 2.685 1.09 2.685 2.984C13.373 9.893 12.5 11 10.69 11z"/>
+      </symbol>
+      <symbol id="bi-globe2" viewBox="0 0 16 16">
+        <path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m7.5-6.923c-.67.204-1.335.82-1.887 1.855q-.215.403-.395.872c.705.157 1.472.257 2.282.287zM4.249 3.539q.214-.577.481-1.078a7 7 0 0 1 .597-.933A7 7 0 0 0 3.051 3.05q.544.277 1.198.49zM3.509 7.5c.036-1.07.188-2.087.436-3.008a9 9 0 0 1-1.565-.667A6.96 6.96 0 0 0 1.018 7.5zm1.4-2.741a12.3 12.3 0 0 0-.4 2.741H7.5V5.091c-.91-.03-1.783-.145-2.591-.332M8.5 5.09V7.5h2.99a12.3 12.3 0 0 0-.399-2.741c-.808.187-1.681.301-2.591.332zM4.51 8.5c.035.987.176 1.914.399 2.741A13.6 13.6 0 0 1 7.5 10.91V8.5zm3.99 0v2.409c.91.03 1.783.145 2.591.332.223-.827.364-1.754.4-2.741zm-3.282 3.696q.18.469.395.872c.552 1.035 1.218 1.65 1.887 1.855V11.91c-.81.03-1.577.13-2.282.287zm.11 2.276a7 7 0 0 1-.598-.933 9 9 0 0 1-.481-1.079 8.4 8.4 0 0 0-1.198.49 7 7 0 0 0 2.276 1.522zm-1.383-2.964A13.4 13.4 0 0 1 3.508 8.5h-2.49a6.96 6.96 0 0 0 1.362 3.675c.47-.258.995-.482 1.565-.667m6.728 2.964a7 7 0 0 0 2.275-1.521 8.4 8.4 0 0 0-1.197-.49 9 9 0 0 1-.481 1.078 7 7 0 0 1-.597.933M8.5 11.909v3.014c.67-.204 1.335-.82 1.887-1.855q.216-.403.395-.872A12.6 12.6 0 0 0 8.5 11.91zm3.555-.401c.57.185 1.095.409 1.565.667A6.96 6.96 0 0 0 14.982 8.5h-2.49a13.4 13.4 0 0 1-.437 3.008M14.982 7.5a6.96 6.96 0 0 0-1.362-3.675c-.47.258-.995.482-1.565.667.248.92.4 1.938.437 3.008zM11.27 2.461q.266.502.482 1.078a8.4 8.4 0 0 0 1.196-.49 7 7 0 0 0-2.275-1.52c.218.283.418.597.597.932m-.488 1.343a8 8 0 0 0-.395-.872C9.835 1.897 9.17 1.282 8.5 1.077V4.09c.81-.03 1.577-.13 2.282-.287z"/>
+      </symbol>
+      <symbol id="bi-speedometer" viewBox="0 0 16 16">
+        <path d="M8 2a.5.5 0 0 1 .5.5V4a.5.5 0 0 1-1 0V2.5A.5.5 0 0 1 8 2M3.732 3.732a.5.5 0 0 1 .707 0l.915.914a.5.5 0 1 1-.708.708l-.914-.915a.5.5 0 0 1 0-.707M2 8a.5.5 0 0 1 .5-.5h1.586a.5.5 0 0 1 0 1H2.5A.5.5 0 0 1 2 8m9.5 0a.5.5 0 0 1 .5-.5h1.5a.5.5 0 0 1 0 1H12a.5.5 0 0 1-.5-.5m.754-4.246a.39.39 0 0 0-.527-.02L7.547 7.31A.91.91 0 1 0 8.85 8.569l3.434-4.297a.39.39 0 0 0-.029-.518z"/>
+        <path fill-rule="evenodd" d="M6.664 15.889A8 8 0 1 1 9.336.11a8 8 0 0 1-2.672 15.78zm-4.665-4.283A11.95 11.95 0 0 1 8 10c2.186 0 4.236.585 6.001 1.606a7 7 0 1 0-12.002 0"/>
+      </symbol>
+    </svg>
   <div id="gameloadingspinner">
     <figure style="overflow:visible;" class="spin-figure-container">
       <div class="loader">
@@ -300,9 +358,9 @@
       <span class="h3 float-md-start mb-0">Warzone 2100 <span class="web-edition-badge d-inline-flex mb-3 px-2 py-1 fw-semibold border rounded-2 align-middle">Web Edition</span></span>
       <nav class="nav nav-masthead justify-content-center float-md-end">
         <a class="nav-link fw-bold py-1 px-0 hide-on-standalone" href="https://wz2100.net" target="_blank" rel="noopener">Get the Full Version</a>
-        <a class="nav-link fw-bold py-1 px-0" title="Donate" href="https://donations.wz2100.net" target="_blank" rel="noopener"><i class="bi bi-heart pe-1"></i>Donate</a>
-        <a class="nav-link fw-bold py-1 px-0" title="Discord Server" href="https://discord.com/invite/ZvRVQ8g" target="_blank" rel="noopener"><i class="bi bi-discord"></i></a>
-        <a class="nav-link fw-bold py-1 px-0" title="Options" data-bs-toggle="modal" data-bs-target="#launchOptions" href="#"><i class="bi bi-gear"></i><span class="d-none show-on-standalone ps-1">Options</span></a>
+        <a class="nav-link fw-bold py-1 px-0" title="Donate" href="https://donations.wz2100.net" target="_blank" rel="noopener"><svg class="bi me-1"><use href="#bi-heart"></use></svg>Donate</a>
+        <a class="nav-link fw-bold py-1 px-0" title="Discord Server" href="https://discord.com/invite/ZvRVQ8g" target="_blank" rel="noopener"><svg class="bi"><use href="#bi-discord"></use></svg></a>
+        <a class="nav-link fw-bold py-1 px-0" title="Options" data-bs-toggle="modal" data-bs-target="#launchOptions" href="#"><svg class="bi"><use href="#bi-gear"></use></svg><span class="d-none show-on-standalone ps-1">Options</span></a>
       </nav>
     </div>
   </header>
@@ -325,12 +383,12 @@
 
   <main class="px-3" style="display: none;" id="launch-game">
     <h1>Launch the Web Edition</h1>
-    <p class="lead"><i class="bi bi-check-circle pe-1"></i>Classic look, <i class="bi bi-check-circle pe-1"></i>Medium-quality textures, <i class="bi bi-check-circle pe-1"></i>Campaign &amp; skirmish</p>
+    <p class="lead"><svg class="bi me-1"><use href="#bi-check-circle"></use></svg>Classic look, <svg class="bi me-1"><use href="#bi-check-circle"></use></svg>Medium-quality textures, <svg class="bi me-1"><use href="#bi-check-circle"></use></svg>Campaign &amp; skirmish</p>
     <p class="lead">
       <button type="button" class="btn btn-lg btn-primary fw-bold" id="start-button" onclick="startGame()">Play Now</button>
     </p>
     <p class="mb-0 text-white" style="--bs-text-opacity: .4;">If this is your first time, this will download approximately 60MiB of data.</p>
-    <p class="pb-2 text-white small" style="--bs-text-opacity: .5;">Plays Best With: <i class="bi bi-mouse2 pe-1"></i><i class="bi bi-keyboard pe-1"></i>Mouse &amp; Keyboard<span class="px-2">|</span><a class="options-link" data-bs-toggle="modal" data-bs-target="#launchOptions" href="#"><i class="bi bi-gear pe-1"></i>View Options</a></p>
+    <p class="pb-2 text-white small" style="--bs-text-opacity: .5;">Plays Best With: <svg class="bi me-1"><use href="#bi-mouse2"></use></svg><svg class="bi me-1"><use href="#bi-keyboard"></use></svg>Mouse &amp; Keyboard<span class="px-2">|</span><a class="options-link" data-bs-toggle="modal" data-bs-target="#launchOptions" href="#"><svg class="bi me-1"><use href="#bi-gear"></use></svg>View Options</a></p>
   </main>
   
   <main class="px-3" style="display: none;" id="loading-game">
@@ -354,15 +412,14 @@
   </div>
   
   <main class="px-3" style="display: none;" id="loading-error">
-    <h1 class="mb-3"><svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="bi bi-emoji-frown" viewBox="0 0 16 16">
-  <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"></path>
-  <path d="M4.285 12.433a.5.5 0 0 0 .683-.183A3.5 3.5 0 0 1 8 10.5c1.295 0 2.426.703 3.032 1.75a.5.5 0 0 0 .866-.5A4.5 4.5 0 0 0 8 9.5a4.5 4.5 0 0 0-3.898 2.25.5.5 0 0 0 .183.683M7 6.5C7 7.328 6.552 8 6 8s-1-.672-1-1.5S5.448 5 6 5s1 .672 1 1.5m4 0c0 .828-.448 1.5-1 1.5s-1-.672-1-1.5S9.448 5 10 5s1 .672 1 1.5"></path>
-</svg></h1>
+    <h1 class="mb-3">
+      <svg class="bi"><use href="#bi-emoji-frown"></use></svg>
+    </h1>
     <p class="lead">An error occurred trying to load Warzone 2100.</p>
     <p class="mb-1">Please check your Internet connection, and reload to try again.</p>
     <p class="text-white" style="--bs-text-opacity: .5;">Error Message: <span id="loading-error-message"></span></p>
     <p class="lead">
-      <button type="button" class="btn btn-lg btn-outline-secondary fw-bold" id="reload-err-button" onclick="window.location.reload();"><i class="bi bi-arrow-clockwise pe-1"></i>Reload</button>
+      <button type="button" class="btn btn-lg btn-outline-secondary fw-bold" id="reload-err-button" onclick="window.location.reload();"><svg class="bi me-1"><use href="#bi-arrow-clockwise"></use></svg>Reload</button>
     </p>
   </main>
   
@@ -370,16 +427,16 @@
     <h1>Thanks for playing!</h1>
     <p class="lead">If you'd like to play again, simply reload.</p>
     <p class="lead">
-      <button type="button" class="btn btn-lg btn-outline-secondary fw-bold" id="reload-button" onclick="window.location.reload();"><i class="bi bi-arrow-clockwise pe-1"></i>Reload</button>
+      <button type="button" class="btn btn-lg btn-outline-secondary fw-bold" id="reload-button" onclick="window.location.reload();"><svg class="bi me-1"><use href="#bi-arrow-clockwise"></use></svg>Reload</button>
     </p>
     <p class="lead">Or help us out by donating:</p>
-    <a class="btn btn-sm btn-outline-secondary btn-block" title="Donate" href="https://donations.wz2100.net" target="_blank" rel="noopener"><i class="bi bi-heart pe-1"></i>Donate</a>
+    <a class="btn btn-sm btn-outline-secondary btn-block" title="Donate" href="https://donations.wz2100.net" target="_blank" rel="noopener"><svg class="bi me-1"><use href="#bi-heart"></use></svg>Donate</a>
   </main>
 
   <footer class="mt-auto text-white" style="--bs-text-opacity: .5;">
     <div id="footer">
       <div id="full-version-footer-notice" class="hide-on-standalone">
-        <p class="lead">Or download the Full Version, with:<br /><small><i class="bi bi-badge-hd-fill pe-1"></i>HQ remastered graphics, <i class="bi bi-globe2 pe-1"></i>Online multiplayer, <i class="bi bi-speedometer pe-1"></i>Better performance</small></p>
+        <p class="lead">Or download the Full Version, with:<br /><small><svg class="bi me-1"><use href="#bi-badge-hd-fill"></use></svg>HQ remastered graphics, <svg class="bi me-1"><use href="#bi-globe2"></use></svg>Online multiplayer, <svg class="bi me-1"><use href="#bi-speedometer"></use></svg>Better performance</small></p>
         <p class="lead">
           <a href="https://wz2100.net" class="btn btn-sm btn-outline-primary">Download Warzone 2100</a>
         </p>
