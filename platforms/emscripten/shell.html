@@ -35,6 +35,14 @@
         max-width: 42em;
       }
       
+      .options-link {
+        color: rgba(255, 255, 255, .5);
+        text-decoration: none;
+      }
+      .options-link:hover{
+        text-decoration: underline!important;
+      }
+      
       .nav-masthead .nav-link {
         color: rgba(255, 255, 255, .5);
         border-bottom: .25rem solid transparent;
@@ -123,6 +131,9 @@
           /* Here goes the CSS rules that will only apply if app is running standalone */
           .hide-on-standalone {
             display: none;
+          }
+          .show-on-standalone {
+            display: block!important;
           }
       }
       
@@ -265,8 +276,9 @@
     <div>
       <span class="h3 float-md-start mb-0">Warzone 2100 <span class="web-edition-badge d-inline-flex mb-3 px-2 py-1 fw-semibold border rounded-2 align-middle">Web Edition</span></span>
       <nav class="nav nav-masthead justify-content-center float-md-end">
-        <a class="nav-link fw-bold py-1 px-0" href="https://wz2100.net" target="_blank" rel="noopener">Get the Full Version</a>
-        <a class="nav-link fw-bold py-1 px-0" title="Donate" href="https://donations.wz2100.net" target="_blank" rel="noopener"><i class="bi bi-heart"></i> Donate</a>
+        <a class="nav-link fw-bold py-1 px-0 hide-on-standalone" href="https://wz2100.net" target="_blank" rel="noopener">Get the Full Version</a>
+        <a class="nav-link fw-bold py-1 px-0 d-none show-on-standalone" data-bs-toggle="modal" data-bs-target="#launchOptions" href="#"><i class="bi bi-gear pe-1"></i>Options</a>
+        <a class="nav-link fw-bold py-1 px-0" title="Donate" href="https://donations.wz2100.net" target="_blank" rel="noopener"><i class="bi bi-heart pe-1"></i>Donate</a>
         <a class="nav-link fw-bold py-1 px-0" title="Discord Server" href="https://discord.com/invite/ZvRVQ8g" target="_blank" rel="noopener"><i class="bi bi-discord"></i></a>
       </nav>
     </div>
@@ -290,12 +302,12 @@
 
   <main class="px-3" style="display: none;" id="launch-game">
     <h1>Launch the Web Edition</h1>
-    <p class="lead"><i class="bi bi-check-circle"></i> Classic look, <i class="bi bi-check-circle"></i> Medium-quality textures, <i class="bi bi-check-circle"></i> Campaign &amp; skirmish</p>
+    <p class="lead"><i class="bi bi-check-circle pe-1"></i>Classic look, <i class="bi bi-check-circle pe-1"></i>Medium-quality textures, <i class="bi bi-check-circle pe-1"></i>Campaign &amp; skirmish</p>
     <p class="lead">
       <button type="button" class="btn btn-lg btn-primary fw-bold" id="start-button" onclick="startGame()">Play Now</button>
     </p>
     <p class="mb-0 text-white" style="--bs-text-opacity: .4;">If this is your first time, this will download approximately 60MiB of data.</p>
-    <p class="pb-2 text-white" style="--bs-text-opacity: .5;">Plays Best With: <i class="bi bi-mouse2"></i> <i class="bi bi-keyboard"></i> <small>Mouse &amp; Keyboard</small></p>
+    <p class="pb-2 text-white small" style="--bs-text-opacity: .5;">Plays Best With: <i class="bi bi-mouse2 pe-1"></i><i class="bi bi-keyboard pe-1"></i>Mouse &amp; Keyboard<span class="px-2">|</span><a class="options-link" data-bs-toggle="modal" data-bs-target="#launchOptions" href="#"><i class="bi bi-gear pe-1"></i>Configure Options</a></p>
   </main>
   
   <main class="px-3" style="display: none;" id="loading-game">
@@ -322,16 +334,16 @@
     <h1>Thanks for playing!</h1>
     <p class="lead">If you'd like to play again, simply reload.</p>
     <p class="lead">
-      <button type="button" class="btn btn-lg btn-outline-secondary fw-bold" id="start-button" onclick="window.location.reload();"><i class="bi bi-arrow-clockwise"></i> Reload</button>
+      <button type="button" class="btn btn-lg btn-outline-secondary fw-bold" id="start-button" onclick="window.location.reload();"><i class="bi bi-arrow-clockwise pe-1"></i>Reload</button>
     </p>
     <p class="lead">Or help us out by donating:</p>
-    <a class="btn btn-sm btn-outline-secondary btn-block" title="Donate" href="https://donations.wz2100.net" target="_blank" rel="noopener"><i class="bi bi-heart"></i> Donate</a>
+    <a class="btn btn-sm btn-outline-secondary btn-block" title="Donate" href="https://donations.wz2100.net" target="_blank" rel="noopener"><i class="bi bi-heart pe-1"></i>Donate</a>
   </main>
 
   <footer class="mt-auto text-white" style="--bs-text-opacity: .5;">
     <div id="footer">
       <div id="full-version-footer-notice" class="hide-on-standalone">
-        <p class="lead">Or download the Full Version, with:<br /><small><i class="bi bi-badge-hd-fill"></i> HQ remastered graphics, <i class="bi bi-globe2"></i> Online multiplayer, <i class="bi bi-speedometer"></i> Better performance</small></p>
+        <p class="lead">Or download the Full Version, with:<br /><small><i class="bi bi-badge-hd-fill pe-1"></i>HQ remastered graphics, <i class="bi bi-globe2 pe-1"></i>Online multiplayer, <i class="bi bi-speedometer pe-1"></i>Better performance</small></p>
         <p class="lead">
           <a href="https://wz2100.net" class="btn btn-sm btn-outline-primary">Download Warzone 2100</a>
         </p>
@@ -358,7 +370,39 @@
         </p>
       </footer>
     </div>
+    <!-- Launch Options Modal -->
+    <div class="modal fade text-start" id="launchOptions" data-bs-backdrop="static" data-bs-keyboard="false" data-bs-theme="dark" tabindex="-1" aria-labelledby="launchOptionsLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h1 class="modal-title fs-5" id="launchOptionsLabel">Launch Options</h1>
+            <button type="button" class="btn-close" onclick="wz_dismiss_options_modal()" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <form id="optional-data-form">
+              <label for="optional-data-form" class="form-label">Optional Data:</label>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="launchOption_loadMusic" checked>
+                <label class="form-check-label" for="launchOption_loadMusic">Load Music</label>
+              </div>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="launchOption_loadClassicTerrain">
+                <label class="form-check-label" for="launchOption_loadClassicTerrain">Load Classic Terrain Pack</label>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" onclick="wz_dismiss_options_modal()">OK</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <script type='text/javascript'>
+    
+    let WZ_LAUNCH_OPTIONS_MAPPING = {
+      'load_music': 'launchOption_loadMusic',
+      'load_classic_terrain': 'launchOption_loadClassicTerrain'
+    }
 
     var WZ_CONFIG_DIR_SUFFIX = (() => {
       // Determine default config dir suffix based on window.location, to ensure that separate branches get separate config directories
@@ -392,10 +436,102 @@
         return 'sequences/'; // default is just relative to current path
       }
     })();
+    let WZ_MUSIC_BASE_URL = (() => {
+      if (window.location.hostname == 'play.wz2100.net') {
+        return 'https://data.play.wz2100.net/music/';
+      } else {
+        return 'music/'; // default is just relative to current path
+      }
+    })();
+    let WZ_DATA_TERRAIN_BASE_URL = (() => {
+      if (window.location.hostname == 'play.wz2100.net') {
+        return 'https://data.play.wz2100.net/terrain_overrides/';
+      } else {
+        return 'terrain_overrides/'; // default is just relative to current path
+      }
+    })();
+    
+    function storageAvailable(type) {
+      let storage;
+      try {
+        storage = window[type];
+        const x = "__storage_test__";
+        storage.setItem(x, x);
+        storage.removeItem(x);
+        return true;
+      } catch (e) {
+        return (
+          e instanceof DOMException &&
+          // everything except Firefox
+          (e.code === 22 ||
+            // Firefox
+            e.code === 1014 ||
+            // test name field too, because code might not be present
+            // everything except Firefox
+            e.name === "QuotaExceededError" ||
+            // Firefox
+            e.name === "NS_ERROR_DOM_QUOTA_REACHED") &&
+          // acknowledge QuotaExceededError only if there's something already stored
+          storage &&
+          storage.length !== 0
+        );
+      }
+    }
+    let LOCALSTORAGE_AVAILABLE = storageAvailable("localStorage");
+    
+    function wz_save_launch_options() {
+      if (!LOCALSTORAGE_AVAILABLE) {
+        console.log('localStorage is not available - launch options not persisted');
+        return;
+      }
+      Object.entries(WZ_LAUNCH_OPTIONS_MAPPING).forEach(([k,v]) => {
+        localStorage.setItem(k, document.getElementById(v)?.checked);
+      })
+    }
+    
+    function wz_restore_launch_options() {
+      if (!LOCALSTORAGE_AVAILABLE) {
+        console.log('localStorage is not available - launch options not restored');
+        return;
+      }
+      Object.entries(WZ_LAUNCH_OPTIONS_MAPPING).forEach(([k,v]) => {
+        let el = document.getElementById(v);
+        if (!el) {
+          return;
+        }
+        let checkedValue = localStorage.getItem(k);
+        if (checkedValue !== null) {
+          if (checkedValue && checkedValue !== "false") {
+            el.checked = true;
+          } else {
+            el.checked = false;
+          }
+        }
+      })
+    }
+    
+    function wz_dismiss_options_modal() {
+      wz_save_launch_options();
+      const launchoptions_modal = document.querySelector('#launchOptions');
+      const modal = bootstrap.Modal.getInstance(launchoptions_modal);
+      modal.hide();
+    }
 
     function wz_js_get_config_dir_suffix()
     {
       return WZ_CONFIG_DIR_SUFFIX;
+    }
+    
+    async function loadScriptAsync(url) {
+      return new Promise((resolve, reject) => {
+        const element = document.createElement('script');
+        element.src = url;
+        element.type = 'text/javascript';
+        element.async = true;
+        element.onload = () => resolve();
+        element.onerror = () => reject();
+        document.head.appendChild(element);
+      });
     }
 
     function startGame() {
@@ -416,20 +552,63 @@
       //document.body.style.background = 'black';
       wz_js_display_loading_indicator(1);
       // Execute main()
-      setTimeout( function() {
-        createWZModule(Module).then(function(Module) {
-          // this is reached when everything is ready, and you can call methods on Module
-          // bring the canvas container to the very top
-          // let canvasContainer = document.getElementById('emscripten_container');
-          // canvasContainer.style.display = 'block';
-          // canvasContainer.parentNode.appendChild(canvasContainer);
-          document.getElementById('loading-game').style.display = 'none';
-          // Since some browsers (i.e. Safari) won't show the spinner animation when WZ's main thread is blocked
-          // Also display "Loading ..." text
-          document.getElementById('spin-loading-text').style.display = 'inline-block';
-        });
-      }, 10);
+      function actuallyStartGame() {
+        setTimeout( function() {
+          createWZModule(Module).then(function(Module) {
+            // this is reached when everything is ready, and you can call methods on Module
+            // bring the canvas container to the very top
+            // let canvasContainer = document.getElementById('emscripten_container');
+            // canvasContainer.style.display = 'block';
+            // canvasContainer.parentNode.appendChild(canvasContainer);
+            document.getElementById('loading-game').style.display = 'none';
+            // Since some browsers (i.e. Safari) won't show the spinner animation when WZ's main thread is blocked
+            // Also display "Loading ..." text
+            document.getElementById('spin-loading-text').style.display = 'inline-block';
+          });
+        }, 10);
+      }
+      
+      var WZ_LAUNCH_OPTIONS = {};
+      Object.entries(WZ_LAUNCH_OPTIONS_MAPPING).forEach(([k,v]) => {
+        WZ_LAUNCH_OPTIONS[k] = document.getElementById(v)?.checked;
+      })
+      wz_save_launch_options();
+      var data_load_promises = [];
+      
+      // optional data file loads
+      let start_optional_promises = data_load_promises.length;
+      if (WZ_LAUNCH_OPTIONS['load_music']) {
+        // music data file
+        let musicJSURL = WZ_MUSIC_BASE_URL + 'warzone2100-music.js';
+        data_load_promises.push(loadScriptAsync(musicJSURL));
+      }
+      if (WZ_LAUNCH_OPTIONS['load_classic_terrain']) {
+        // classic terrain pack
+        let terrainJSURL = WZ_DATA_TERRAIN_BASE_URL + 'warzone2100-terrain-classic.js';
+        data_load_promises.push(loadScriptAsync(terrainJSURL));
+      }
+      
+      Promise.allSettled(data_load_promises)
+      .then((values) => {
+        console.log(values);
+        var failedRequiredLoad = false;
+        for (let i = 0; i < values.length; i++) {
+          if (values[i].status != 'fulfilled') {
+            if (i < start_optional_promises) {
+              // Failed a required promise
+              console.error('Failed a required data-file load');
+              failedRequiredLoad = true;
+            }
+          }
+        }
+        if (failedRequiredLoad) {
+          console.error('Failed to load at least one required data file');
+          return;
+        }
+        actuallyStartGame();
+      });
     }
+    
     function wz_js_display_loading_indicator(enabled) {
       var loadingElement = document.getElementById('gameloadingspinner');
       if (enabled) {
@@ -539,6 +718,7 @@
         }
       }
       function wz_everything_is_loaded() {
+        wz_restore_launch_options();
         checkWZBrowserSupport();
       }
       function wz_js_handle_app_exit() {
@@ -671,13 +851,30 @@
       
       Module['locateFile'] = function(path, prefix) {
         // If it's a data file, and a custom data files host is specified
-        if (path.endsWith(".data") && WZ_DATA_FILES_URL_HOST !== null) {
-          // Prefix is not guaranteed to be set for these by the preloader, so construct the path manually
-          var subPath = WZ_DATA_FILES_URL_SUBDIR;
-          if (!subPath.endsWith('/')) { subPath += '/'; }
-          subPath += path;
-          var dataURL = new URL(subPath, WZ_DATA_FILES_URL_HOST);
-          console.log(dataURL.toString());
+        if (path.endsWith(".data")) {
+          // Shared data files
+          // - music
+          if (path === 'warzone2100-music.data') {
+            let musicDataURL = WZ_MUSIC_BASE_URL + path;
+            console.log(musicDataURL);
+            return musicDataURL;
+          }
+          // - terrain_overrides
+          if (path.startsWith('warzone2100-terrain-')) {
+            let terrainDataURL = WZ_DATA_TERRAIN_BASE_URL + path;
+            console.log(terrainDataURL);
+            return terrainDataURL;
+          }
+          
+          if (WZ_DATA_FILES_URL_HOST !== null) {
+            // Regular build-specific data files
+            // Prefix is not guaranteed to be set for these by the preloader, so construct the path manually
+            var subPath = WZ_DATA_FILES_URL_SUBDIR;
+            if (!subPath.endsWith('/')) { subPath += '/'; }
+            subPath += path;
+            var dataURL = new URL(subPath, WZ_DATA_FILES_URL_HOST);
+            console.log(dataURL.toString());
+          }
         }
         // otherwise, use the default, the prefix (JS file's dir) + the path
         return prefix + path;

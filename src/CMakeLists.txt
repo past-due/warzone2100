@@ -307,6 +307,18 @@ if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
 	# Cache preload data in browser (if possible)
 	target_link_options(warzone2100 PRIVATE "SHELL:--use-preload-cache")
 
+	# Add dependencies on optional packages (if available)
+	if (TARGET data_music_empackage)
+		add_dependencies(warzone2100 data_music_empackage)
+	else()
+		message(WARNING "Missing data_music package - Emscripten build will not ship with music")
+	endif()
+	if (TARGET data_terrain_overrides_classic_packaging)
+		add_dependencies(warzone2100 data_terrain_overrides_classic_packaging)
+	else()
+		message(WARNING "Missing data_terrain_overrides_classic package - Emscripten build will not ship with classic terrain overrides")
+	endif()
+
 	# Install the app files directly in the destination root
 	set(WZ_APP_INSTALL_DEST ".")
 
@@ -753,6 +765,7 @@ else()
 			DESTINATION "${WZ_APP_INSTALL_DEST}")
 
 	# Install manifest file
+	configure_file("${CMAKE_SOURCE_DIR}/platforms/emscripten/manifest.json" "${CMAKE_CURRENT_BINARY_DIR}/manifest.json" COPYONLY)
 	install(FILES
 		"${CMAKE_SOURCE_DIR}/platforms/emscripten/manifest.json"
 		COMPONENT Core
@@ -766,7 +779,19 @@ else()
 			${static_assets}
 			COMPONENT Core
 			DESTINATION "${WZ_APP_INSTALL_DEST}/assets")
+		# Also place assets in build dir so it can be run directly
+		foreach(asset IN LISTS static_assets)
+			configure_file("${asset}" "${CMAKE_CURRENT_BINARY_DIR}/" COPYONLY)
+		endforeach()
 	endif()
+
+	# Install additional (optional) file packages
+	foreach(_empackage_dir IN LISTS DATA_ADDITIONAL_EMPACKAGE_DIRS)
+		install(DIRECTORY
+			${_empackage_dir}
+			COMPONENT Core
+			DESTINATION "${WZ_APP_INSTALL_DEST}")
+	endforeach()
 
 	if (WZ_EMSCRIPTEN_COMPRESS_OUTPUT AND NOT CMAKE_VERSION VERSION_LESS "3.18.0")
 		install(CODE "

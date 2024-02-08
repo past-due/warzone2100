@@ -650,6 +650,51 @@ if(NOT CMAKE_SYSTEM_NAME MATCHES "Emscripten")
 		)
 	endforeach()
 
+else()
+	# Emscripten:
+
+	if (NOT DEFINED EMSCRIPTEN_ROOT_PATH OR NOT EMSCRIPTEN_ROOT_PATH)
+		message(WARNING "Invalid EMSCRIPTEN_ROOT_PATH? (=${EMSCRIPTEN_ROOT_PATH})")
+	endif()
+	find_file(EMSCRIPTEN_FILE_PACKAGER_PY NAMES "file_packager.py" PATHS "${EMSCRIPTEN_ROOT_PATH}/tools" NO_CMAKE_FIND_ROOT_PATH)
+	if (NOT EMSCRIPTEN_FILE_PACKAGER_PY)
+		message(FATAL_ERROR "Unable to find Emscripten file_packager.py")
+	endif()
+	find_package (Python3 COMPONENTS Interpreter REQUIRED)
+
+	# Bundle the classic terrain into a separate package
+	file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/empackaged/terrain_overrides")
+	add_custom_target(
+		data_terrain_overrides_classic_packaging ALL
+		${Python3_EXECUTABLE} "${EMSCRIPTEN_FILE_PACKAGER_PY}" warzone2100-terrain-classic.data --preload "${CMAKE_CURRENT_BINARY_DIR}/terrain_overrides/classic.wz@/data/terrain_overrides/classic/" --js-output=warzone2100-terrain-classic.js --use-preload-cache --indexedDB-name=EM_PRELOAD_TERRAIN_CLASSIC_CACHE --no-node
+		WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/empackaged/terrain_overrides"
+		DEPENDS data_terrain_overrides_classic
+		VERBATIM
+	)
+	list(APPEND DATA_ADDITIONAL_EMPACKAGE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/empackaged/terrain_overrides")
+
+	# Bundle the original music into a separate package
+	file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/music_staging")
+	file(GLOB DATA_ORIG_MUSIC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/music/*.opus" "${CMAKE_CURRENT_SOURCE_DIR}/music/albums/original_soundtrack/*.*")
+	foreach(_music_file ${DATA_ORIG_MUSIC_FILES})
+		file(RELATIVE_PATH _music_file_relative_path "${CMAKE_CURRENT_SOURCE_DIR}/music" "${_music_file}")
+		get_filename_component(_music_file_subdir_path "${_music_file_relative_path}" DIRECTORY)
+		file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/music_staging/${_music_file_subdir_path}")
+		configure_file("${_music_file}" "${CMAKE_CURRENT_BINARY_DIR}/music_staging/${_music_file_subdir_path}" COPYONLY)
+	endforeach()
+	file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/empackaged/music")
+	add_custom_target(
+		data_music_empackage ALL
+		${Python3_EXECUTABLE} "${EMSCRIPTEN_FILE_PACKAGER_PY}" warzone2100-music.data --preload "${CMAKE_CURRENT_BINARY_DIR}/music_staging@/data/music/" --js-output=warzone2100-music.js --use-preload-cache --indexedDB-name=EM_PRELOAD_MUSIC_CACHE --no-node
+		WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/empackaged/music"
+		VERBATIM
+	)
+	list(APPEND DATA_ADDITIONAL_EMPACKAGE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/empackaged/music")
+
+	set(DATA_ADDITIONAL_EMPACKAGE_DIRS ${DATA_ADDITIONAL_EMPACKAGE_DIRS} PARENT_SCOPE)
+	set(DATA_ADDITIONAL_EMPACKAGE_BASEDIR "${CMAKE_CURRENT_BINARY_DIR}" PARENT_SCOPE)
+
+
 endif()
 
 set(DATA_FILES ${DATA_FILES} PARENT_SCOPE)
