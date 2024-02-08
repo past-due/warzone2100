@@ -297,7 +297,7 @@ if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
 	endforeach()
 
 	# Bundle the translations
-	if(ENABLE_NLS)
+	if(ENABLE_NLS AND TARGET translations AND DEFINED wz2100_translations_LOCALE_FOLDER)
 		if (NOT WZ_LOCALEDIR_ISABSOLUTE)
 			message(FATAL_ERROR "Expected absolute path for WZ_LOCALEDIR: ${WZ_LOCALEDIR}")
 		endif()
