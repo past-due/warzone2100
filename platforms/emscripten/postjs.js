@@ -32,6 +32,7 @@ function wzSaveConfigDirToPersistentStore(callback) {
 		if (callback) callback();
 	})
 }
+Module.wzSaveConfigDirToPersistentStore = wzSaveConfigDirToPersistentStore;
 
 if (!Module['preRun'])
 {

@@ -21,6 +21,7 @@
 
 #include "emscripten_helpers.h"
 #include <emscripten.h>
+#include <emscripten/eventloop.h>
 #include <cstdlib>
 
 /* Older Emscriptens don't have this, but it's needed for wasm64 compatibility. */
@@ -53,6 +54,36 @@ void initWZEmscriptenHelpers()
 	});
 	windowLocationURL = (str) ? str : "";
 	free(str); // Each call to _malloc() must be paired with free(), or heap memory will leak!
+}
+
+void WZ_EmscriptenSyncPersistFSChanges()
+{
+	emscripten_runtime_keepalive_push(); // Must be used so that onExit handlers aren't called
+	emscripten_pause_main_loop();
+
+	// Note: Module.resumeMainLoop() is equivalent to emscripten_resume_main_loop()
+	MAIN_THREAD_EM_ASM({
+		if (typeof wz_js_display_saving_indicator === "function") {
+			wz_js_display_saving_indicator(true);
+		}
+		let handleFinished = function() {
+			if (typeof wz_js_display_saving_indicator === "function") {
+				wz_js_display_saving_indicator(false);
+			}
+			Module.resumeMainLoop();
+			runtimeKeepalivePop();
+		};
+		try {
+			Module.wzSaveConfigDirToPersistentStore(() => {
+				handleFinished();
+			});
+		}
+		catch (error) {
+			console.error(error);
+			// Always resume the main loop on error
+			handleFinished();
+		}
+	});
 }
 
 #endif

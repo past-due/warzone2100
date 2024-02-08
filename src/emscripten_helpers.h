@@ -25,6 +25,8 @@
 
 std::string WZ_GetEmscriptenWindowLocationURL();
 
+void WZ_EmscriptenSyncPersistFSChanges();
+
 // must be called on the main thread
 void initWZEmscriptenHelpers();
 

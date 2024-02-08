@@ -55,7 +55,7 @@ bool loadScriptState(char *pFileName);
 /// Load the terrain types
 bool loadTerrainTypeMap(const char *pFilePath);
 
-bool saveGame(const char *aFileName, GAME_TYPE saveType);
+bool saveGame(const char *aFileName, GAME_TYPE saveType, bool isAutoSave = false);
 
 // Get the campaign number for loadGameInit game
 UDWORD getCampaign(const char *fileName);
