@@ -322,6 +322,11 @@ if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
 	# Install the app files directly in the destination root
 	set(WZ_APP_INSTALL_DEST ".")
 
+	# Rename output warzone2100.html -> index.html
+	add_custom_command(TARGET warzone2100 POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E rename "$<TARGET_FILE:warzone2100>" "$<TARGET_FILE_DIR:warzone2100>/index.html"
+		VERBATIM)
+
 endif()
 
 #######################
@@ -752,7 +757,7 @@ else()
 
 	# For Emscripten: install the generated files
 	install(FILES
-			"$<TARGET_FILE_DIR:warzone2100>/warzone2100.html"
+			"$<TARGET_FILE_DIR:warzone2100>/index.html"
 			COMPONENT Core
 			DESTINATION "${WZ_APP_INSTALL_DEST}"
 			RENAME "index.html")
