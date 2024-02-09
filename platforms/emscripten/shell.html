@@ -30,7 +30,7 @@
         box-shadow: inset 0 0 5rem rgba(0, 0, 0, .5);
       }
       .cover-container {
-        max-width: 42em;
+        max-width: 43em;
       }
       
       .options-link {
@@ -70,8 +70,25 @@
       
       .web-edition-badge {
         font-size: 0.75rem;
-        color: rgba(255, 255, 255, 0.5);
+        color: rgba(255,255,255,0.5);
         border-color: rgba(255,255,255,0.5)!important;
+        display: inline-block!important;
+        max-width: 9em;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      body.prerelease .web-edition-badge {
+        color: rgba(154,103,0,1.0)!important;
+        border-color: rgba(154,103,0,1.0)!important;
+      }
+      body.dev-preview .web-edition-badge {
+        color: rgba(252,111,3,0.9)!important;
+        border-color: rgba(252,111,3,0.9)!important;
+      }
+      body.branch-build .web-edition-badge {
+        color: rgba(132,3,252,0.9)!important;
+        border-color: rgba(132,3,252,0.9)!important;
       }
       
       #gameloadingspinner {
@@ -348,7 +365,7 @@
 <div class="cover-container d-flex w-100 h-100 p-3 mx-auto flex-column">
   <header class="mb-auto">
     <div>
-      <span class="h3 float-md-start mb-0">Warzone 2100 <span class="web-edition-badge d-inline-flex mb-3 px-2 py-1 fw-semibold border rounded-2 align-middle">Web Edition</span></span>
+      <span class="h3 float-md-start mb-0"><img src="assets/android-chrome-192x192.png" width="42px" class="me-2">Warzone 2100 <span class="web-edition-badge d-inline-flex mb-3 px-2 py-1 fw-semibold border rounded-2 align-text-top" id="wz-title-badge">Web Edition</span></span>
       <nav class="nav nav-masthead justify-content-center float-md-end">
         <a class="nav-link fw-bold py-1 px-0 hide-on-standalone" href="https://wz2100.net" target="_blank" rel="noopener">Get the Full Version</a>
         <a class="nav-link fw-bold py-1 px-0" title="Donate" href="https://donations.wz2100.net" target="_blank" rel="noopener"><svg class="bi me-1"><use href="#bi-heart"></use></svg>Donate</a>
@@ -378,7 +395,7 @@
     <h1>Launch the Web Edition</h1>
     <p class="lead"><svg class="bi me-1"><use href="#bi-check-circle"></use></svg>Classic look, <svg class="bi me-1"><use href="#bi-check-circle"></use></svg>Medium-quality textures, <svg class="bi me-1"><use href="#bi-check-circle"></use></svg>Campaign &amp; skirmish</p>
     <p class="lead">
-      <button type="button" class="btn btn-lg btn-primary fw-bold" id="start-button" onclick="startGame()">Play Now</button>
+      <button type="button" class="btn btn-lg btn-primary fw-bold btn-wz-start-game" id="start-button" onclick="startGame()">Play Now</button>
     </p>
     <p class="mb-0 text-white" style="--bs-text-opacity: .4;">If this is your first time, this will download approximately 60MiB of data.</p>
     <p class="pb-2 text-white small" style="--bs-text-opacity: .5;">Plays Best With: <svg class="bi me-1"><use href="#bi-mouse2"></use></svg><svg class="bi me-1"><use href="#bi-keyboard"></use></svg>Mouse &amp; Keyboard<span class="px-2">|</span><a class="options-link" data-bs-toggle="modal" data-bs-target="#launchOptions" href="#"><svg class="bi me-1"><use href="#bi-gear"></use></svg>View Options</a></p>
@@ -422,7 +439,7 @@
     <p class="lead">
       <button type="button" class="btn btn-lg btn-outline-secondary fw-bold" id="reload-button" onclick="window.location.reload();"><svg class="bi me-1"><use href="#bi-arrow-clockwise"></use></svg>Reload</button>
     </p>
-    <p class="lead">Or help us out by donating:</p>
+    <p class="lead">Or help support by donating:</p>
     <a class="btn btn-sm btn-outline-secondary btn-block" title="Donate" href="https://donations.wz2100.net" target="_blank" rel="noopener"><svg class="bi me-1"><use href="#bi-heart"></use></svg>Donate</a>
   </main>
 
@@ -466,7 +483,7 @@
           </div>
           <div class="modal-body">
             <div class="alert alert-warning" role="alert">
-              This will <strong>erase all saved games &amp; data</strong>, and reset all Warzone 2100 configuration &amp; settings.
+              This will <strong>erase all Warzone 2100 saved games / data, configuration &amp; settings</strong>.
             </div>
             <p>
               Are you sure you want to continue?<br/>(This operation is irreversible.)
@@ -474,7 +491,7 @@
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="button" class="btn btn-danger" onclick="wz_js_reset_config_dir(); wz_dismiss_reset_data_prompt_modal();">Yes, Reset All Saved Data</button>
+            <button type="button" class="btn btn-danger" onclick="wz_reset_config_dir(); wz_dismiss_reset_data_prompt_modal();">Yes, Reset All Saved Data</button>
           </div>
         </div>
       </div>
@@ -571,7 +588,22 @@
         </div>
       </div>
     </div>
-    <script type='text/javascript'>
+  <script type='text/javascript'>
+      // JS APIs called from WZ code
+      function wz_js_display_loading_indicator(enabled) {
+        var loadingElement = document.getElementById('gameloadingspinner');
+        loadingElement.style.display = (enabled ? 'inline' : 'none');
+      }
+      function wz_js_display_saving_indicator(enabled) {
+        var savingElement = document.getElementById('gamesavingspinner');
+        savingElement.style.display = (enabled ? 'inline' : 'none');
+      }
+      function wz_js_display_canvas() {
+        let canvasContainer = document.getElementById('emscripten_container');
+        canvasContainer.style.display = 'block';
+      }
+  </script>
+  <script type='text/javascript'>
     
     let WZ_LAUNCH_OPTIONS_MAPPING = {
       'load_music': 'launchOption_loadMusic',
@@ -580,6 +612,10 @@
       'debug_info': 'launchOption_DebugInfo',
       'debug_3d': 'launchOption_Debug3D'
     }
+    
+    var statusElement = document.getElementById('status');
+    var progressElement = document.getElementById('progress');
+    const originalStartButtonContents = document.getElementById('start-button').innerHTML;
 
     var WZ_CONFIG_DIR_SUFFIX = (() => {
       // Determine default config dir suffix based on window.location, to ensure that separate branches get separate config directories
@@ -628,6 +664,29 @@
       }
     })();
     
+    // Initialize title badge (based on location pathname)
+    (function() {
+      var el = document.getElementById('wz-title-badge');
+      if (/\/(latest|stable|web)[\/]?$/.test(WZ_DATA_FILES_URL_SUBDIR) || WZ_DATA_FILES_URL_SUBDIR === '/' || WZ_DATA_FILES_URL_SUBDIR.length === 0) {
+         el.innerText = 'Web Edition';
+      }
+      else if (/([\-\_]beta[\d]?|preview|prerelease|pre-release)[\/]?$/.test(WZ_DATA_FILES_URL_SUBDIR)) {
+        document.body.classList.add('prerelease');
+        el.innerText = 'Pre-release';
+      }
+      else if (/\/(dev|development|master|main)[\/]?$/.test(WZ_DATA_FILES_URL_SUBDIR)) {
+        document.body.classList.add('dev-preview');
+        el.innerText = 'Dev Preview';
+      }
+      else {
+        document.body.classList.add('branch-build');
+        let displayValue = WZ_DATA_FILES_URL_SUBDIR.replace(/^\/+|\/+$/g, '');
+        el.innerText = displayValue;
+        el.title = displayValue;
+      }
+    })();
+    
+    // Localstorage persistence of launch (and other) options
     function storageAvailable(type) {
       let storage;
       try {
@@ -686,26 +745,14 @@
         }
       })
     }
-    
-    function wz_dismiss_options_modal() {
-      wz_save_launch_options();
-      const launchoptions_modal = document.querySelector('#launchOptions');
-      const modal = bootstrap.Modal.getInstance(launchoptions_modal);
-      modal.hide();
-    }
-    
-    function wz_dismiss_reset_data_prompt_modal() {
-      const resetdataprompt_modal = document.querySelector('#resetDataPrompt');
-      const modal = bootstrap.Modal.getInstance(resetdataprompt_modal);
-      modal.hide();
-    }
 
     function wz_js_get_config_dir_path()
     {
       return '/warzone2100' + WZ_CONFIG_DIR_SUFFIX;
     }
     
-    function wz_js_reset_config_dir() {
+    // Deletes the current configuration directory
+    function wz_reset_config_dir() {
       let databaseName = wz_js_get_config_dir_path();
       // Emscripten's IDBFS FS uses the path as the database name
       try {
@@ -727,6 +774,21 @@
       }
     }
     
+    // DOM manipulation functions
+    
+    function wz_dismiss_options_modal() {
+      wz_save_launch_options();
+      const launchoptions_modal = document.querySelector('#launchOptions');
+      const modal = bootstrap.Modal.getInstance(launchoptions_modal);
+      modal.hide();
+    }
+    
+    function wz_dismiss_reset_data_prompt_modal() {
+      const resetdataprompt_modal = document.querySelector('#resetDataPrompt');
+      const modal = bootstrap.Modal.getInstance(resetdataprompt_modal);
+      modal.hide();
+    }
+    
     function wz_display_loading_error(errorStr) {
       document.getElementById('loading-error').style.display = 'block';
       document.getElementById('loading-error-message').innerText = errorStr;
@@ -742,6 +804,31 @@
       const myModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('refreshForUpdate'), {keyboard: false, backdrop: 'static'});
       myModal.show();
     }
+    
+    function displayUnsupportedBrowserMsg(missingFeatures) {
+      document.getElementById('unsupported-browser').style.display = 'block';
+      document.getElementById('missing-features').innerText = missingFeatures.join(', ');
+      document.getElementById('initial-load-spinner').style.display = 'none';
+      document.getElementById('launch-game').style.display = 'none';
+    }
+    function displayLaunchGameMsg() {
+      document.getElementById('launch-game').style.display = 'block';
+      document.getElementById('initial-load-spinner').style.display = 'none';
+    }
+    
+    function wz_block_start_now_button_for_pending_update() {
+      var startButton = document.getElementById('start-button');
+      startButton.disabled = true;
+      startButton.innerHTML = `<span id="start-button-spinner" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Loading`;
+    }
+    
+    function wz_unblock_start_now_button() {
+      var startButton = document.getElementById('start-button');
+      startButton.disabled = false;
+      startButton.innerHTML = originalStartButtonContents;
+    }
+    
+    // Loading data / starting the game
     
     async function loadScriptAsync(url) {
       return new Promise((resolve, reject) => {
@@ -844,38 +931,13 @@
         actuallyStartGame();
       });
     }
+      
+    function isRunningStandalone() {
+        return (window.matchMedia('(display-mode: standalone)').matches);
+    }
     
-    function wz_js_display_loading_indicator(enabled) {
-      var loadingElement = document.getElementById('gameloadingspinner');
-      loadingElement.style.display = (enabled ? 'inline' : 'none');
-    }
-    function wz_js_display_saving_indicator(enabled) {
-      var savingElement = document.getElementById('gamesavingspinner');
-      savingElement.style.display = (enabled ? 'inline' : 'none');
-    }
-    function wz_js_display_canvas() {
-      let canvasContainer = document.getElementById('emscripten_container');
-      canvasContainer.style.display = 'block';
-    }
-    </script>
-    <script>
-      function displayUnsupportedBrowserMsg(missingFeatures) {
-        document.getElementById('unsupported-browser').style.display = 'block';
-        document.getElementById('missing-features').innerText = missingFeatures.join(', ');
-        document.getElementById('initial-load-spinner').style.display = 'none';
-        document.getElementById('launch-game').style.display = 'none';
-      }
-      function displayLaunchGameMsg() {
-        document.getElementById('launch-game').style.display = 'block';
-        document.getElementById('initial-load-spinner').style.display = 'none';
-      }
-      
-      function isRunningStandalone() {
-          return (window.matchMedia('(display-mode: standalone)').matches);
-      }
-      
-      // Check browser support
-      function wasmSupported() {
+    // Check browser WASM support
+    function wasmSupported() {
       try {
         if (typeof WebAssembly === "object" && typeof WebAssembly.instantiate === "function") {
           // Smallest possible WebAssembly module
@@ -883,318 +945,299 @@
           if (module instanceof WebAssembly.Module)
             return new WebAssembly.Instance(module) instanceof WebAssembly.Instance;
         }
-      } catch (e) {
-      }
+      } catch (e) { }
       return false;
-      }
+    }
 
-      /* wasm-feature-detect
-       https://github.com/GoogleChromeLabs/wasm-feature-detect
-       License: License Apache-2.0 */
-      !function(e,n){"object"==typeof exports&&"undefined"!=typeof module?module.exports=n():"function"==typeof define&&define.amd?define(n):(e="undefined"!=typeof globalThis?globalThis:e||self).wasmFeatureDetect=n()}(this,(function(){"use strict";return{bigInt:()=>(async e=>{try{return(await WebAssembly.instantiate(e)).instance.exports.b(BigInt(0))===BigInt(0)}catch(e){return!1}})(new Uint8Array([0,97,115,109,1,0,0,0,1,6,1,96,1,126,1,126,3,2,1,0,7,5,1,1,98,0,0,10,6,1,4,0,32,0,11])),bulkMemory:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,5,3,1,0,1,10,14,1,12,0,65,0,65,0,65,0,252,10,0,0,11])),exceptions:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,10,8,1,6,0,6,64,25,11,11])),extendedConst:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,5,3,1,0,1,11,9,1,0,65,1,65,2,106,11,0])),gc:()=>(async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,95,1,120,0])))(),jspi:()=>(async()=>"Suspender"in WebAssembly)(),memory64:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,5,3,1,4,1])),multiMemory:()=>(async()=>{try{return new WebAssembly.Module(new Uint8Array([0,97,115,109,1,0,0,0,5,5,2,0,0,0,0])),!0}catch(e){return!1}})(),multiValue:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,6,1,96,0,2,127,127,3,2,1,0,10,8,1,6,0,65,0,65,0,11])),mutableGlobals:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,2,8,1,1,97,1,98,3,127,1,6,6,1,127,1,65,0,11,7,5,1,1,97,3,1])),referenceTypes:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,10,7,1,5,0,208,112,26,11])),relaxedSimd:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,15,1,13,0,65,1,253,15,65,2,253,15,253,128,2,11])),saturatedFloatToInt:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,10,12,1,10,0,67,0,0,0,0,252,0,26,11])),signExtensions:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,10,8,1,6,0,65,0,192,26,11])),simd:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,10,1,8,0,65,0,253,15,253,98,11])),streamingCompilation:()=>(async()=>"compileStreaming"in WebAssembly)(),tailCall:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,10,6,1,4,0,18,0,11])),threads:()=>(async e=>{try{return"undefined"!=typeof MessageChannel&&(new MessageChannel).port1.postMessage(new SharedArrayBuffer(1)),WebAssembly.validate(e)}catch(e){return!1}})(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,5,4,1,3,1,1,10,11,1,9,0,65,0,254,16,2,0,26,11])),typeReflection:()=>(async()=>"Function"in WebAssembly)()}}));
-      
-      class CustomWZBrowserUnsupportedError extends Error {
-        constructor(missingFeatures = [], ...params) {
-          // Pass remaining arguments (including vendor specific ones) to parent constructor
-          super(...params);
+    /* wasm-feature-detect
+     https://github.com/GoogleChromeLabs/wasm-feature-detect
+     License: License Apache-2.0 */
+    !function(e,n){"object"==typeof exports&&"undefined"!=typeof module?module.exports=n():"function"==typeof define&&define.amd?define(n):(e="undefined"!=typeof globalThis?globalThis:e||self).wasmFeatureDetect=n()}(this,(function(){"use strict";return{bigInt:()=>(async e=>{try{return(await WebAssembly.instantiate(e)).instance.exports.b(BigInt(0))===BigInt(0)}catch(e){return!1}})(new Uint8Array([0,97,115,109,1,0,0,0,1,6,1,96,1,126,1,126,3,2,1,0,7,5,1,1,98,0,0,10,6,1,4,0,32,0,11])),bulkMemory:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,5,3,1,0,1,10,14,1,12,0,65,0,65,0,65,0,252,10,0,0,11])),exceptions:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,10,8,1,6,0,6,64,25,11,11])),extendedConst:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,5,3,1,0,1,11,9,1,0,65,1,65,2,106,11,0])),gc:()=>(async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,95,1,120,0])))(),jspi:()=>(async()=>"Suspender"in WebAssembly)(),memory64:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,5,3,1,4,1])),multiMemory:()=>(async()=>{try{return new WebAssembly.Module(new Uint8Array([0,97,115,109,1,0,0,0,5,5,2,0,0,0,0])),!0}catch(e){return!1}})(),multiValue:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,6,1,96,0,2,127,127,3,2,1,0,10,8,1,6,0,65,0,65,0,11])),mutableGlobals:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,2,8,1,1,97,1,98,3,127,1,6,6,1,127,1,65,0,11,7,5,1,1,97,3,1])),referenceTypes:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,10,7,1,5,0,208,112,26,11])),relaxedSimd:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,15,1,13,0,65,1,253,15,65,2,253,15,253,128,2,11])),saturatedFloatToInt:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,10,12,1,10,0,67,0,0,0,0,252,0,26,11])),signExtensions:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,10,8,1,6,0,65,0,192,26,11])),simd:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,10,1,8,0,65,0,253,15,253,98,11])),streamingCompilation:()=>(async()=>"compileStreaming"in WebAssembly)(),tailCall:async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,10,6,1,4,0,18,0,11])),threads:()=>(async e=>{try{return"undefined"!=typeof MessageChannel&&(new MessageChannel).port1.postMessage(new SharedArrayBuffer(1)),WebAssembly.validate(e)}catch(e){return!1}})(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,5,4,1,3,1,1,10,11,1,9,0,65,0,254,16,2,0,26,11])),typeReflection:()=>(async()=>"Function"in WebAssembly)()}}));
+    
+    class CustomWZBrowserUnsupportedError extends Error {
+      constructor(missingFeatures = [], ...params) {
+        // Pass remaining arguments (including vendor specific ones) to parent constructor
+        super(...params);
 
-          // Maintains proper stack trace for where our error was thrown (only available on V8)
-          if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, CustomWZBrowserUnsupportedError);
-          }
-
-          this.name = "CustomWZBrowserUnsupportedError";
-          // Custom debugging information
-          this.missingFeatures = missingFeatures;
+        // Maintains proper stack trace for where our error was thrown (only available on V8)
+        if (Error.captureStackTrace) {
+          Error.captureStackTrace(this, CustomWZBrowserUnsupportedError);
         }
+
+        this.name = "CustomWZBrowserUnsupportedError";
+        // Custom debugging information
+        this.missingFeatures = missingFeatures;
       }
+    }
 
-      function checkWZBrowserSupport() {
-        return new Promise((resolve, reject) => {
-          var missingFeatures = [];
-          let hasWASMSupport = wasmSupported();
-          if (!hasWASMSupport) {
-            missingFeatures.push('WebAssembly');
-          }
+    // Check whether the browser supports the basic required functionality to run the webassembly port of WZ
+    function checkWZBrowserSupport() {
+      return new Promise((resolve, reject) => {
+        var missingFeatures = [];
+        let hasWASMSupport = wasmSupported();
+        if (!hasWASMSupport) {
+          missingFeatures.push('WebAssembly');
+        }
 
-          // Check WebGL 2.0
-          const gl = document.createElement('canvas').getContext('webgl2');
-          if (!gl) {
-            if (typeof WebGL2RenderingContext !== 'undefined') {
-              // Browser appears as thought it might support WebGL, but support might be disabled.
-              // Try checking browser settings, and updating your OS and/or video card drivers.
-              console.log('Your browser appears to possibly support WebGL2, but support may be disabled.\nMake sure WebGL2 is enabled in your browser settings, and try updating your OS and/or graphics drivers.');
-              missingFeatures.push('WebGL2 (disabled?)');
-            } else {
-              console.log('Your browser has no WebGL2 support. Please try updating to the latest version of a supported browser (ex. Chrome, Edge, Firefox, or Safari).');
-              missingFeatures.push('WebGL2');
-            }
+        // Check WebGL 2.0
+        const gl = document.createElement('canvas').getContext('webgl2');
+        if (!gl) {
+          if (typeof WebGL2RenderingContext !== 'undefined') {
+            // Browser appears as thought it might support WebGL, but support might be disabled.
+            // Try checking browser settings, and updating your OS and/or video card drivers.
+            console.log('Your browser appears to possibly support WebGL2, but support may be disabled.\nMake sure WebGL2 is enabled in your browser settings, and try updating your OS and/or graphics drivers.');
+            missingFeatures.push('WebGL2 (disabled?)');
           } else {
-            // Initial test for WebGL2 context succeeded
+            console.log('Your browser has no WebGL2 support. Please try updating to the latest version of a supported browser (ex. Chrome, Edge, Firefox, or Safari).');
+            missingFeatures.push('WebGL2');
           }
-        
-          if (missingFeatures.length > 0) {
-            reject(
-              new CustomWZBrowserUnsupportedError(missingFeatures, "Unsupported Browser")
-            );
-            return;
-          }
-
-          if (hasWASMSupport) {
-            // WebAssembly feature checks
-            Promise.all([wasmFeatureDetect.bigInt(), wasmFeatureDetect.bulkMemory(), wasmFeatureDetect.exceptions(), wasmFeatureDetect.saturatedFloatToInt(), wasmFeatureDetect.threads()]).then((values) => {
-              if (values.every(element => element === true)) {
-                // All required features available
-                resolve(true);
-              } else {
-                var missingWASMFeaturesStr = '';
-                if (!values[0]) {
-                  missingFeatures.push('Wasm:BigInt');
-                }
-                if (!values[1]) {
-                  missingFeatures.push('Wasm:BulkMemory');
-                }
-                if (!values[2]) {
-                  missingFeatures.push('Wasm:Exceptions');
-                }
-                if (!values[3]) {
-                  missingFeatures.push('Wasm:FloatToInt');
-                }
-                if (!values[4]) {
-                  missingFeatures.push('Wasm:Threads');
-                }
-                reject(
-                  new CustomWZBrowserUnsupportedError(missingFeatures, "Unsupported Browser")
-                );
-              }
-            });
-          }
-        });
-      }
-      
-      var originalStartButtonContents = document.getElementById('start-button').innerHTML;
-      
-      function wz_block_start_now_button_for_pending_update() {
-        var startButton = document.getElementById('start-button');
-        startButton.disabled = true;
-        startButton.innerHTML = `<span id="start-button-spinner" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Loading`;
-      }
-      
-      function wz_unblock_start_now_button() {
-        var startButton = document.getElementById('start-button');
-        startButton.disabled = false;
-        startButton.innerHTML = originalStartButtonContents;
-      }
-      
-      function wz_serviceworker_skip_waiting(waiting) {
-        wz_block_start_now_button_for_pending_update();
-        window.wz_update_pending = true;
-        
-        console.debug(
-          "A new service worker is waiting to be activated: ",
-          waiting,
-        );
-        waiting.addEventListener('statechange', () => {
-          if (waiting.state === 'activated') {
-            console.debug('Waiting service worker activated - refresh needed');
-            //wz_display_update_available_refresh_needed(); // handled by global controllerchange event listener
-          } else {
-            console.debug('Waiting service worker -> ' + waiting.state);
-          }
-        });
-        waiting.postMessage({type: 'SKIP_WAITING'});
-      }
-      
-      function wz_serviceworker_register() {
-        if (!('serviceWorker' in navigator)) {
-          console.log('serviceWorker not available');
-          return;
+        } else {
+          // Initial test for WebGL2 context succeeded
         }
-        if (window.wz_already_registered_serviceworker) {
-          console.debug('Ignoring duplicate call to register service worker - already registered this run');
-          return;
-        }
-        try {
-          navigator.serviceWorker.register("/service-worker.js").then(
-            (reg) => {
-              console.debug("Service worker registration succeeded:", reg);
-              
-              if (reg.waiting) {
-                wz_serviceworker_skip_waiting(reg.waiting);
-                return;
-              }
-              
-              reg.addEventListener('updatefound', () => {
-                // A new service worker has appeared in reg.installing
-                const newWorker = reg.installing;
-                
-                wz_block_start_now_button_for_pending_update();
-                
-                console.debug(
-                  "A new service worker is being installed:",
-                  newWorker,
-                );
-
-                newWorker.addEventListener('statechange', () => {
-                  console.debug('New service worker -> ' + newWorker.state);
-                  if (newWorker.state === 'installed') {
-                    if (reg.active) {
-                      // There is already an active service worker, so trigger skipWaiting (if game hasn't already started)
-                      if (reg.waiting && !window.wz_starting_game) {
-                        wz_serviceworker_skip_waiting(reg.waiting);
-                      } else {
-                        console.log('There is an update waiting - please close all tabs to install');
-                      }
-                    }
-                    else {
-                      // The newly-installed service worker will soon become the active one
-                    }
-                  } else if (newWorker.state === 'activated' || newWorker.state === 'redundant') {
-                    wz_unblock_start_now_button();
-                  }
-                });
-              });
-              
-              if (isRunningStandalone()) {
-                // automatically trigger a run in standalone mode
-                startGame();
-              }
-            },
-            (error) => {
-              console.warn(`Service worker registration failed: ${error}`);
-              // despite the service worker not being installed, auto-start the game if in standalone mode
-              if (isRunningStandalone()) {
-                startGame();
-              }
-            },
+      
+        if (missingFeatures.length > 0) {
+          reject(
+            new CustomWZBrowserUnsupportedError(missingFeatures, "Unsupported Browser")
           );
-          window.wz_already_registered_serviceworker = true;
+          return;
         }
-        catch (err) {
-          console.error('serviceWorker.register failed:', err);
-        }
-      }
-      
-      function wz_serviceworker_register_early_if_possible() {
-        // Register the service worker early if either:
-        // (a) running standalone
-        // (b) there is already a service worker installed
-        // (i.e. This basically prevents precaching immediately on first-visit, until the user starts the game - which also triggers service worker install)
-        
-        const standaloneCheck = (isRunningStandalone()) ? Promise.resolve(true) : Promise.reject(false);
-        const existingServiceWorkerCheck = new Promise((resolve, reject) => {
-          if (!('serviceWorker' in navigator)) {
-            reject(false);
-            return;
-          }
-          navigator.serviceWorker.getRegistration().then((reg) => {
-            if (reg) {
+
+        if (hasWASMSupport) {
+          // WebAssembly feature checks
+          Promise.all([wasmFeatureDetect.bigInt(), wasmFeatureDetect.bulkMemory(), wasmFeatureDetect.exceptions(), wasmFeatureDetect.saturatedFloatToInt(), wasmFeatureDetect.threads()]).then((values) => {
+            if (values.every(element => element === true)) {
+              // All required features available
               resolve(true);
             } else {
-              reject(false);
+              var missingWASMFeaturesStr = '';
+              if (!values[0]) {
+                missingFeatures.push('Wasm:BigInt');
+              }
+              if (!values[1]) {
+                missingFeatures.push('Wasm:BulkMemory');
+              }
+              if (!values[2]) {
+                missingFeatures.push('Wasm:Exceptions');
+              }
+              if (!values[3]) {
+                missingFeatures.push('Wasm:FloatToInt');
+              }
+              if (!values[4]) {
+                missingFeatures.push('Wasm:Threads');
+              }
+              reject(
+                new CustomWZBrowserUnsupportedError(missingFeatures, "Unsupported Browser")
+              );
             }
           });
-        });
-        
-        Promise.any([standaloneCheck, existingServiceWorkerCheck]).then((value) => {
-          if (value) {
-            console.debug('Registering service worker early');
-            wz_serviceworker_register();
-          }
-        }).catch(() => {
-          // ignore
-        });
-      }
-      
-      function wz_everything_is_loaded() {
-        wz_restore_launch_options();
-        checkWZBrowserSupport().then((r) => {
-          // All required features are available
-          displayLaunchGameMsg();
-          try {
-            // Register service worker early if possible / needed
-            wz_serviceworker_register_early_if_possible();
-          } catch (err) {
-            console.warn('Failed to check / attempt early service worker registration:', err);
-          }
-        }).catch((err) => {
-          var missingFeatures = [];
-          if (err instanceof CustomWZBrowserUnsupportedError) {
-            missingFeatures = err.missingFeatures;
-          }
-          displayUnsupportedBrowserMsg(missingFeatures);
-        });
-      }
-      function wz_js_handle_app_exit() {
-        document.getElementById('emscripten_container').style.display = 'none';
-        document.getElementById('post-exit').style.display = 'block';
-        document.getElementById('footer').style.display = 'block';
-      }
-      // Detect when everything - including async scripts - is loaded
-      window.addEventListener('load', () => {
-        var everythingLoadedTimer = setInterval(function() {
-          if (/loaded|complete/.test(document.readyState)) {
-            clearInterval(everythingLoadedTimer);
-            wz_everything_is_loaded();
-          }
-        }, 10);
-      });
-    </script>
-    <script type='text/javascript'>
-      var statusElement = document.getElementById('status');
-      var progressElement = document.getElementById('progress');
-    
-      // Monkeypatch WebAssembly downloading to have a progress bar
-      // inspired from: https://github.com/WordPress/wordpress-playground/pull/46 (but had to be modified)
-      function monkeyPatch(progressFun) {
-        const _instantiateStreaming = WebAssembly.instantiateStreaming;
-        WebAssembly.instantiateStreaming = (response, ...args) => {
-          const file = response.url.substring(
-            new URL(response.url).origin.length + 1
-          );
-          const reportingResponse = new Response(
-            new ReadableStream({
-              async start(controller) {
-                const contentLength = response.headers.get("content-length");
-                const total = parseInt(contentLength, 10);
-                const reader = response.clone().body.getReader();
-                let loaded = 0;
-                for (; ;) {
-                  const { done, value } = await reader.read();
-                  if (done) {
-                    progressFun(file, total, total);
-                    break;
-                  }
-                  loaded += value.byteLength;
-                  progressFun(file, loaded, total);
-                  controller.enqueue(value);
-                }
-                controller.close();
-              }
-            },
-              {
-                status: response.status,
-                statusText: response.statusText
-              }
-            )
-          );
-          for (const pair of response.headers.entries()) {
-            reportingResponse.headers.set(pair[0], pair[1]);
-          }
-
-          return _instantiateStreaming(reportingResponse, ...args);
         }
-      }
-      monkeyPatch((file, done, total) => {
-        let percent = ((done/total)*100).toFixed(2);
-        let mib = (done/1024**2).toFixed(2);
-        statusElement.innerHTML = `Downloading app: ${percent}% (${mib}MiB)`;
-        progressElement.value = (done / 1024);
-        progressElement.max = (total / 1024);
-        progressElement.hidden = false;
       });
+    }
+      
+    // Service worker functions
+    
+    function wz_serviceworker_skip_waiting(waiting) {
+      wz_block_start_now_button_for_pending_update();
+      window.wz_update_pending = true;
+      
+      console.debug(
+        "A new service worker is waiting to be activated: ",
+        waiting,
+      );
+      waiting.addEventListener('statechange', () => {
+        if (waiting.state === 'activated') {
+          console.debug('Waiting service worker activated - refresh needed');
+          //wz_display_update_available_refresh_needed(); // handled by global controllerchange event listener
+        } else {
+          console.debug('Waiting service worker -> ' + waiting.state);
+        }
+      });
+      waiting.postMessage({type: 'SKIP_WAITING'});
+    }
+    
+    function wz_serviceworker_register() {
+      if (!('serviceWorker' in navigator)) {
+        console.log('serviceWorker not available');
+        return;
+      }
+      if (window.wz_already_registered_serviceworker) {
+        console.debug('Ignoring duplicate call to register service worker - already registered this run');
+        return;
+      }
+      try {
+        navigator.serviceWorker.register("service-worker.js").then(
+          (reg) => {
+            console.debug("Service worker registration succeeded:", reg);
+            
+            if (reg.waiting) {
+              wz_serviceworker_skip_waiting(reg.waiting);
+              return;
+            }
+            
+            reg.addEventListener('updatefound', () => {
+              // A new service worker has appeared in reg.installing
+              const newWorker = reg.installing;
+              
+              wz_block_start_now_button_for_pending_update();
+              
+              console.debug(
+                "A new service worker is being installed:",
+                newWorker,
+              );
 
-      var Module = {
+              newWorker.addEventListener('statechange', () => {
+                console.debug('New service worker -> ' + newWorker.state);
+                if (newWorker.state === 'installed') {
+                  if (reg.active) {
+                    // There is already an active service worker, so trigger skipWaiting (if game hasn't already started)
+                    if (reg.waiting && !window.wz_starting_game) {
+                      wz_serviceworker_skip_waiting(reg.waiting);
+                    } else {
+                      console.log('There is an update waiting - please close all tabs to install');
+                    }
+                  }
+                  else {
+                    // The newly-installed service worker will soon become the active one
+                  }
+                } else if (newWorker.state === 'activated' || newWorker.state === 'redundant') {
+                  wz_unblock_start_now_button();
+                }
+              });
+            });
+            
+            if (isRunningStandalone()) {
+              // automatically trigger a run in standalone mode
+              startGame();
+            }
+          },
+          (error) => {
+            console.warn(`Service worker registration failed: ${error}`);
+            // despite the service worker not being installed, auto-start the game if in standalone mode
+            if (isRunningStandalone()) {
+              startGame();
+            }
+          },
+        );
+        window.wz_already_registered_serviceworker = true;
+      }
+      catch (err) {
+        console.error('serviceWorker.register failed:', err);
+      }
+    }
+    
+    function wz_serviceworker_register_early_if_possible() {
+      // Register the service worker early if either:
+      // (a) running standalone
+      // (b) there is already a service worker installed
+      // (i.e. This basically prevents precaching immediately on first-visit, until the user starts the game - which also triggers service worker install)
+      
+      const standaloneCheck = (isRunningStandalone()) ? Promise.resolve(true) : Promise.reject(false);
+      const existingServiceWorkerCheck = new Promise((resolve, reject) => {
+        if (!('serviceWorker' in navigator)) {
+          reject(false);
+          return;
+        }
+        navigator.serviceWorker.getRegistration().then((reg) => {
+          if (reg) {
+            resolve(true);
+          } else {
+            reject(false);
+          }
+        });
+      });
+      
+      Promise.any([standaloneCheck, existingServiceWorkerCheck]).then((value) => {
+        if (value) {
+          console.debug('Registering service worker early');
+          wz_serviceworker_register();
+        }
+      }).catch(() => {
+        // ignore
+      });
+    }
+    
+    // Initial page startup (once everything is loaded)
+    function wz_everything_is_loaded() {
+      wz_restore_launch_options();
+      checkWZBrowserSupport().then((r) => {
+        // All required features are available
+        displayLaunchGameMsg();
+        try {
+          // Register service worker early if possible / needed
+          wz_serviceworker_register_early_if_possible();
+        } catch (err) {
+          console.warn('Failed to check / attempt early service worker registration:', err);
+        }
+      }).catch((err) => {
+        var missingFeatures = [];
+        if (err instanceof CustomWZBrowserUnsupportedError) {
+          missingFeatures = err.missingFeatures;
+        }
+        displayUnsupportedBrowserMsg(missingFeatures);
+      });
+    }
+    // Detect when everything - including async scripts - is loaded
+    window.addEventListener('load', () => {
+      var everythingLoadedTimer = setInterval(function() {
+        if (/loaded|complete/.test(document.readyState)) {
+          clearInterval(everythingLoadedTimer);
+          wz_everything_is_loaded();
+        }
+      }, 10);
+    });
+  
+    // Monkeypatch WebAssembly downloading to have a progress bar
+    // inspired from: https://github.com/WordPress/wordpress-playground/pull/46 (but modified)
+    function monkeyPatch(progressFun) {
+      const _instantiateStreaming = WebAssembly.instantiateStreaming;
+      WebAssembly.instantiateStreaming = (response, ...args) => {
+        const file = response.url.substring(
+          new URL(response.url).origin.length + 1
+        );
+        const reportingResponse = new Response(
+          new ReadableStream({
+            async start(controller) {
+              const contentLength = response.headers.get("content-length");
+              const total = parseInt(contentLength, 10);
+              const reader = response.clone().body.getReader();
+              let loaded = 0;
+              for (; ;) {
+                const { done, value } = await reader.read();
+                if (done) {
+                  progressFun(file, total, total);
+                  break;
+                }
+                loaded += value.byteLength;
+                progressFun(file, loaded, total);
+                controller.enqueue(value);
+              }
+              controller.close();
+            }
+          },
+            {
+              status: response.status,
+              statusText: response.statusText
+            }
+          )
+        );
+        for (const pair of response.headers.entries()) {
+          reportingResponse.headers.set(pair[0], pair[1]);
+        }
+
+        return _instantiateStreaming(reportingResponse, ...args);
+      }
+    }
+    monkeyPatch((file, done, total) => {
+      let percent = ((done/total)*100).toFixed(2);
+      let mib = (done/1024**2).toFixed(2);
+      statusElement.innerHTML = `Downloading app: ${percent}% (${mib}MiB)`;
+      progressElement.value = (done / 1024);
+      progressElement.max = (total / 1024);
+      progressElement.hidden = false;
+    });
+
+    // Initial Module configuration
+    var Module = {
       preRun: [],
       postRun: [],
       print: (function() {
@@ -1205,13 +1248,10 @@
       })(),
       canvas: (function() {
         var canvas = document.getElementById('canvas');
-
         // As a default initial behavior, pop up an alert when webgl context is lost. To make your
         // application robust, you may want to override this behavior before shipping!
         // See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
         canvas.addEventListener("webglcontextlost", function(e) { alert('WebGL context lost. You will need to reload the page.'); e.preventDefault(); }, false);
-      
-
         return canvas;
       })(),
       setStatus: function(text) {
@@ -1238,125 +1278,118 @@
         this.totalDependencies = Math.max(this.totalDependencies, left);
         Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
       }
-      };
+    };
     
-      function wz_pre_run_fixup_canvas() {
-        Module.canvas.style.backgroundColor = "black";
-      }
+    function wz_pre_run_fixup_canvas() {
+      Module.canvas.style.backgroundColor = "black";
+    }
+  
+    Module['preRun'].push(wz_pre_run_fixup_canvas);
+    Module.arguments = ['--configdir='+wz_js_get_config_dir_path()];
+    if (WZ_VIDEO_SEQUENCES_BASE_URL !== null) {
+      Module.arguments.push('--videourl='+WZ_VIDEO_SEQUENCES_BASE_URL);
+    }
     
-      Module['preRun'].push(wz_pre_run_fixup_canvas);
-      Module.arguments = ['--configdir='+wz_js_get_config_dir_path()];
-      if (WZ_VIDEO_SEQUENCES_BASE_URL !== null) {
-        Module.arguments.push('--videourl='+WZ_VIDEO_SEQUENCES_BASE_URL);
-      }
-      window.onerror = function(event) {
-        Module.setStatus('Exception thrown, see JavaScript console');
-        Module.setStatus = function(text) {
-          if (text) console.log('[post-exception status] ' + text);
-        };
-        if (!Module.hasOwnProperty('calledRun') || !Module.calledRun) {
-          wz_display_loading_error(event);
+    Module['locateFile'] = function(path, prefix) {
+      // If it's a data file, and a custom data files host is specified
+      if (path.endsWith(".data")) {
+        // Shared data files
+        // - music
+        if (path === 'warzone2100-music.data') {
+          let musicDataURL = WZ_MUSIC_BASE_URL + path;
+          console.log(musicDataURL);
+          return musicDataURL;
         }
+        // - terrain_overrides
+        if (path.startsWith('warzone2100-terrain-')) {
+          let terrainDataURL = WZ_DATA_TERRAIN_BASE_URL + path;
+          console.log(terrainDataURL);
+          return terrainDataURL;
+        }
+        
+        if (WZ_DATA_FILES_URL_HOST !== null) {
+          // Regular build-specific data files
+          // Prefix is not guaranteed to be set for these by the preloader, so construct the path manually
+          var subPath = WZ_DATA_FILES_URL_SUBDIR;
+          if (!subPath.endsWith('/')) { subPath += '/'; }
+          subPath += path;
+          var dataURL = new URL(subPath, WZ_DATA_FILES_URL_HOST);
+          console.log(dataURL.toString());
+          return dataURL;
+        }
+      }
+      // otherwise, use the default, the prefix (JS file's dir) + the path
+      return prefix + path;
+    }
+    
+    function wz_js_handle_app_exit() {
+      document.getElementById('emscripten_container').style.display = 'none';
+      document.getElementById('post-exit').style.display = 'block';
+      document.getElementById('footer').style.display = 'block';
+    }
+    
+    window.onerror = function(event) {
+      Module.setStatus('Exception thrown, see JavaScript console');
+      Module.setStatus = function(text) {
+        if (text) console.log('[post-exception status] ' + text);
       };
+      if (!Module.hasOwnProperty('calledRun') || !Module.calledRun) {
+        wz_display_loading_error(event);
+      }
+    };
+    
+    // Platform detection
+    function wz_detect_platform() {
       
-      Module['locateFile'] = function(path, prefix) {
-        // If it's a data file, and a custom data files host is specified
-        if (path.endsWith(".data")) {
-          // Shared data files
-          // - music
-          if (path === 'warzone2100-music.data') {
-            let musicDataURL = WZ_MUSIC_BASE_URL + path;
-            console.log(musicDataURL);
-            return musicDataURL;
-          }
-          // - terrain_overrides
-          if (path.startsWith('warzone2100-terrain-')) {
-            let terrainDataURL = WZ_DATA_TERRAIN_BASE_URL + path;
-            console.log(terrainDataURL);
-            return terrainDataURL;
-          }
-          
-          if (WZ_DATA_FILES_URL_HOST !== null) {
-            // Regular build-specific data files
-            // Prefix is not guaranteed to be set for these by the preloader, so construct the path manually
-            var subPath = WZ_DATA_FILES_URL_SUBDIR;
-            if (!subPath.endsWith('/')) { subPath += '/'; }
-            subPath += path;
-            var dataURL = new URL(subPath, WZ_DATA_FILES_URL_HOST);
-            console.log(dataURL.toString());
-          }
+      let platformValue = (function() {
+        // Modern method, accurate, but only works on Chromium browsers (currently)
+        if (typeof navigator.userAgentData !== 'undefined' && navigator.userAgentData != null) {
+            return navigator.userAgentData.platform;
         }
-        // otherwise, use the default, the prefix (JS file's dir) + the path
-        return prefix + path;
-      }
-      
-      function wz_detect_platform() {
-        
-        let platformValue = (function() {
-          // Modern method, accurate, but only works on Chromium browsers (currently)
-          if (typeof navigator.userAgentData !== 'undefined' && navigator.userAgentData != null) {
-              return navigator.userAgentData.platform;
-          }
-          // Deprecated, but still available in many cases
-          if (typeof navigator.platform !== 'undefined') {
-              if (typeof navigator.userAgent !== 'undefined' && /android/.test(navigator.userAgent.toLowerCase())) {
-                  // Android device navigator.platform is often set as 'linux', so use userAgent detection
-                  return 'android';
-              }
-              return navigator.platform;
-          }
-          return 'unknown';
-        })().toLowerCase();
-        
-        let macosPlatforms = /(macintosh|macintel|macos)/i;
-        let iosPlatforms = /(iphone|ipad)/i;
-        let windowsPlatforms = /(win32|win64|windows)/i;
-        
-        var result = 'unknown';
-        if (macosPlatforms.test(platformValue)) {
-          result = "macos";
-        } else if (iosPlatforms.test(platformValue)) {
-          result = "ios";
-        } else if (windowsPlatforms.test(platformValue)) {
-          result = "windows";
-        } else if (/android/.test(platformValue)) {
-          result = "android";
-        } else if (/linux/.test(platformValue)) {
-          result = "linux";
-        }
-        return result;
-      }
-      
-      // Best-effort attempt to detect whether the desktop full version might be available for the current platform
-      let platform = wz_detect_platform();
-      if (/(windows|macos|linux)/.test(platform)) {
-        document.getElementById('full-version-footer-notice').classList.remove('hide-on-standalone');
-      }
-  </script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.addEventListener('message', async event => {
-        // Ensure the message came from workbox-broadcast-update
-        if (event.data.meta === 'workbox-broadcast-update') {
-          const {cacheName, updatedURL} = event.data.payload;
-          
-          if (cacheName === 'core-data') {
-            console.log('core-data update');
-            // Some core data was stale, and was updated
-            // This means the current load did not get the latest data
-            window.wz_update_pending = true;
-            if (Module && Module.hasOwnProperty('pauseMainLoop')) {
-              // Looks like the module has already started running - call wz_display_update_available_refresh_needed() here
-              wz_display_update_available_refresh_needed();
+        // Deprecated, but still available in many cases
+        if (typeof navigator.platform !== 'undefined') {
+            if (typeof navigator.userAgent !== 'undefined' && /android/.test(navigator.userAgent.toLowerCase())) {
+                // Android device navigator.platform is often set as 'linux', so use userAgent detection
+                return 'android';
             }
-          }
+            return navigator.platform;
         }
-      });
+        return 'unknown';
+      })().toLowerCase();
+      
+      let macosPlatforms = /(macintosh|macintel|macos)/i;
+      let iosPlatforms = /(iphone|ipad)/i;
+      let windowsPlatforms = /(win32|win64|windows)/i;
+      
+      var result = 'unknown';
+      if (macosPlatforms.test(platformValue)) {
+        result = "macos";
+      } else if (iosPlatforms.test(platformValue)) {
+        result = "ios";
+      } else if (windowsPlatforms.test(platformValue)) {
+        result = "windows";
+      } else if (/android/.test(platformValue)) {
+        result = "android";
+      } else if (/linux/.test(platformValue)) {
+        result = "linux";
+      }
+      return result;
+    }
+    
+    // Best-effort attempt to detect whether the desktop full version might be available for the current platform
+    let platform = wz_detect_platform();
+    if (/(windows|macos|linux)/.test(platform)) {
+      // display the footer notice even in standalone mode
+      document.getElementById('full-version-footer-notice').classList.remove('hide-on-standalone');
+    }
+  </script>
+  <script type='text/javascript'>
+    if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         // This fires when the service worker controlling this page
         // changes, eg a new worker has skipped waiting and become
         // the new active worker.
-        console.log('serviceWorker: controllerchange');
+        console.verbose('serviceWorker: controllerchange');
         window.wz_update_pending = true;
         if (!window.wz_starting_game) {
           // Start Game button hasn't been clicked yet - prompt to refresh to ensure the latest content is loaded
