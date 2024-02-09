@@ -553,6 +553,24 @@
         </div>
       </div>
     </div>
+    <!-- Refresh on Update Modal -->
+    <div class="modal fade" id="refreshForUpdate" data-bs-backdrop="static" data-bs-keyboard="false" data-bs-theme="dark" aria-hidden="true" aria-labelledby="refreshForUpdateLabel" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h1 class="modal-title fs-5" id="refreshForUpdateLabel">Update Required</h1>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-primary" role="alert">
+              Warzone 2100 must be restarted to apply updates.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" onclick="window.location.reload();">Restart Warzone 2100</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <script type='text/javascript'>
     
     let WZ_LAUNCH_OPTIONS_MAPPING = {
@@ -716,6 +734,15 @@
       wz_js_display_loading_indicator(0);
     }
     
+    function wz_display_update_available_refresh_needed() {
+      if (Module && Module.hasOwnProperty('pauseMainLoop')) {
+        Module.pauseMainLoop(); // a bit of a hack...
+      }
+      console.log('An update is available - please refresh');
+      const myModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('refreshForUpdate'), {keyboard: false, backdrop: 'static'});
+      myModal.show();
+    }
+    
     async function loadScriptAsync(url) {
       return new Promise((resolve, reject) => {
         const element = document.createElement('script');
@@ -742,6 +769,7 @@
       startButton.disabled = false;
       startButton.hidden = true;
       wz_js_display_loading_indicator(1);
+      window.wz_starting_game = true;
       
       function actuallyStartGame() {
         setTimeout( function() {
@@ -752,6 +780,11 @@
             // Since some browsers (i.e. Safari) won't show the spinner animation when WZ's main thread is blocked
             // Also display "Loading ..." text
             document.getElementById('spin-loading-text').style.display = 'inline-block';
+            
+            // Handle triggering update modal, if update occurred underneath while loading game and assets
+            if (window.wz_update_pending) {
+              wz_display_update_available_refresh_needed();
+            }
           })
           .catch((error) => {
             // Failed to create / load
@@ -934,30 +967,111 @@
           }
         });
       }
+      
+      var originalStartButtonContents = document.getElementById('start-button').innerHTML;
+      
+      function wz_block_start_now_button_for_pending_update() {
+        var startButton = document.getElementById('start-button');
+        startButton.disabled = true;
+        startButton.innerHTML = `<span id="start-button-spinner" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Loading`;
+      }
+      
+      function wz_unblock_start_now_button() {
+        var startButton = document.getElementById('start-button');
+        startButton.disabled = false;
+        startButton.innerHTML = originalStartButtonContents;
+      }
+      
+      function wz_serviceworker_skip_waiting(waiting) {
+        wz_block_start_now_button_for_pending_update();
+        window.wz_update_pending = true;
+        
+        console.log(
+          "A new service worker is waiting to be activated: ",
+          waiting,
+        );
+        waiting.addEventListener('statechange', () => {
+          if (waiting.state === 'activated') {
+            console.log('Waiting service worker activated - refresh needed');
+            //wz_display_update_available_refresh_needed(); // handled by global controllerchange event listener
+          } else {
+            console.log('Waiting service worker -> ' + waiting.state);
+          }
+        });
+        waiting.postMessage({type: 'SKIP_WAITING'});
+      }
+      
+      function wz_serviceworker_register() {
+        if (!('serviceWorker' in navigator)) {
+          console.log('serviceWorker not available');
+        }
+        try {
+          navigator.serviceWorker.register("/service-worker.js").then(
+            (reg) => {
+              console.log("Service worker registration succeeded:", reg);
+              
+              if (reg.waiting) {
+                wz_serviceworker_skip_waiting(reg.waiting);
+                return;
+              }
+              
+              reg.addEventListener('updatefound', () => {
+                // A new service worker has appeared in reg.installing
+                const newWorker = reg.installing;
+                
+                wz_block_start_now_button_for_pending_update();
+                
+                console.log(
+                  "A new service worker is being installed:",
+                  newWorker,
+                );
+
+                newWorker.addEventListener('statechange', () => {
+                  console.log('New service worker -> ' + newWorker.state);
+                  if (newWorker.state === 'installed') {
+                    if (reg.active) {
+                      // There is already an active service worker, so trigger skipWaiting (if game hasn't already started)
+                      if (reg.waiting && !window.wz_starting_game) {
+                        wz_serviceworker_skip_waiting(reg.waiting);
+                      } else {
+                        console.log('There is an update waiting - please close all tabs to install');
+                      }
+                    }
+                    else {
+                      // The newly-installed service worker will soon become the active one
+                    }
+                  } else if (newWorker.state === 'activated' || newWorker.state === 'redundant') {
+                    wz_unblock_start_now_button();
+                  }
+                });
+              });
+              
+              if (isRunningStandalone()) {
+                // automatically trigger a run in standalone mode
+                startGame();
+              }
+            },
+            (error) => {
+              console.error(`Service worker registration failed: ${error}`);
+              // despite the service worker not being installed, auto-start the game if in standalone mode
+              if (isRunningStandalone()) {
+                startGame();
+              }
+            },
+          );
+        }
+        catch (err) {
+          console.error('serviceWorker.register failed:', err);
+        }
+      }
+      
       function wz_everything_is_loaded() {
         wz_restore_launch_options();
         checkWZBrowserSupport().then((r) => {
           // All required features are available
           displayLaunchGameMsg();
           // Register service worker if possible
-          if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register("/service-worker.js").then(
-              (registration) => {
-                console.log("Service worker registration succeeded:", registration);
-                if (isRunningStandalone()) {
-                  // automatically trigger a run in standalone mode
-                  startGame();
-                }
-              },
-              (error) => {
-                console.error(`Service worker registration failed: ${error}`);
-                // despite the service worker not being installed, auto-start the game if in standalone mode
-                if (isRunningStandalone()) {
-                  startGame();
-                }
-              },
-            );
-          }
+          wz_serviceworker_register();
         }).catch((err) => {
           var missingFeatures = [];
           if (err instanceof CustomWZBrowserUnsupportedError) {
@@ -1172,6 +1286,38 @@
       if (/(windows|macos|linux)/.test(platform)) {
         document.getElementById('full-version-footer-notice').classList.remove('hide-on-standalone');
       }
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', async event => {
+        // Ensure the message came from workbox-broadcast-update
+        if (event.data.meta === 'workbox-broadcast-update') {
+          const {cacheName, updatedURL} = event.data.payload;
+          
+          if (cacheName === 'core-data') {
+            console.log('core-data update');
+            // Some core data was stale, and was updated
+            // This means the current load did not get the latest data
+            window.wz_update_pending = true;
+            if (Module && Module.hasOwnProperty('pauseMainLoop')) {
+              // Looks like the module has already started running - call wz_display_update_available_refresh_needed() here
+              wz_display_update_available_refresh_needed();
+            }
+          }
+        }
+      });
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        // This fires when the service worker controlling this page
+        // changes, eg a new worker has skipped waiting and become
+        // the new active worker.
+        console.log('serviceWorker: controllerchange');
+        window.wz_update_pending = true;
+        if (!window.wz_starting_game) {
+          // Start Game button hasn't been clicked yet - prompt to refresh to ensure the latest content is loaded
+          wz_display_update_available_refresh_needed();
+        }
+      });
+    }
   </script>
   {{{ SCRIPT }}}
   </body>
