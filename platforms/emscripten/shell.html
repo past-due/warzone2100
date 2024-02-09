@@ -156,8 +156,8 @@
           .hide-on-standalone {
             display: none;
           }
-          .show-on-standalone {
-            display: block!important;
+          .show-on-standalone-inline {
+            display: inline-block!important;
           }
       }
       
@@ -353,7 +353,7 @@
         <a class="nav-link fw-bold py-1 px-0 hide-on-standalone" href="https://wz2100.net" target="_blank" rel="noopener">Get the Full Version</a>
         <a class="nav-link fw-bold py-1 px-0" title="Donate" href="https://donations.wz2100.net" target="_blank" rel="noopener"><svg class="bi me-1"><use href="#bi-heart"></use></svg>Donate</a>
         <a class="nav-link fw-bold py-1 px-0" title="Discord Server" href="https://discord.com/invite/ZvRVQ8g" target="_blank" rel="noopener"><svg class="bi"><use href="#bi-discord"></use></svg></a>
-        <a class="nav-link fw-bold py-1 px-0" title="Options" data-bs-toggle="modal" data-bs-target="#launchOptions" href="#"><svg class="bi"><use href="#bi-gear"></use></svg><span class="d-none show-on-standalone ps-1">Options</span></a>
+        <a class="nav-link fw-bold py-1 px-0" title="Options" data-bs-toggle="modal" data-bs-target="#launchOptions" href="#"><svg class="bi"><use href="#bi-gear"></use></svg><span class="d-none show-on-standalone-inline ps-1">Options</span></a>
       </nav>
     </div>
   </header>
@@ -781,7 +781,10 @@
             // Also display "Loading ..." text
             document.getElementById('spin-loading-text').style.display = 'inline-block';
             
-            // Handle triggering update modal, if update occurred underneath while loading game and assets
+            // On first-run, register service worker *after* everything has loaded
+            wz_serviceworker_register();
+            
+            // Handle triggering update modal
             if (window.wz_update_pending) {
               wz_display_update_available_refresh_needed();
             }
@@ -860,6 +863,7 @@
         document.getElementById('unsupported-browser').style.display = 'block';
         document.getElementById('missing-features').innerText = missingFeatures.join(', ');
         document.getElementById('initial-load-spinner').style.display = 'none';
+        document.getElementById('launch-game').style.display = 'none';
       }
       function displayLaunchGameMsg() {
         document.getElementById('launch-game').style.display = 'block';
@@ -986,16 +990,16 @@
         wz_block_start_now_button_for_pending_update();
         window.wz_update_pending = true;
         
-        console.log(
+        console.debug(
           "A new service worker is waiting to be activated: ",
           waiting,
         );
         waiting.addEventListener('statechange', () => {
           if (waiting.state === 'activated') {
-            console.log('Waiting service worker activated - refresh needed');
+            console.debug('Waiting service worker activated - refresh needed');
             //wz_display_update_available_refresh_needed(); // handled by global controllerchange event listener
           } else {
-            console.log('Waiting service worker -> ' + waiting.state);
+            console.debug('Waiting service worker -> ' + waiting.state);
           }
         });
         waiting.postMessage({type: 'SKIP_WAITING'});
@@ -1004,11 +1008,16 @@
       function wz_serviceworker_register() {
         if (!('serviceWorker' in navigator)) {
           console.log('serviceWorker not available');
+          return;
+        }
+        if (window.wz_already_registered_serviceworker) {
+          console.debug('Ignoring duplicate call to register service worker - already registered this run');
+          return;
         }
         try {
           navigator.serviceWorker.register("/service-worker.js").then(
             (reg) => {
-              console.log("Service worker registration succeeded:", reg);
+              console.debug("Service worker registration succeeded:", reg);
               
               if (reg.waiting) {
                 wz_serviceworker_skip_waiting(reg.waiting);
@@ -1021,13 +1030,13 @@
                 
                 wz_block_start_now_button_for_pending_update();
                 
-                console.log(
+                console.debug(
                   "A new service worker is being installed:",
                   newWorker,
                 );
 
                 newWorker.addEventListener('statechange', () => {
-                  console.log('New service worker -> ' + newWorker.state);
+                  console.debug('New service worker -> ' + newWorker.state);
                   if (newWorker.state === 'installed') {
                     if (reg.active) {
                       // There is already an active service worker, so trigger skipWaiting (if game hasn't already started)
@@ -1059,10 +1068,42 @@
               }
             },
           );
+          window.wz_already_registered_serviceworker = true;
         }
         catch (err) {
           console.error('serviceWorker.register failed:', err);
         }
+      }
+      
+      function wz_serviceworker_register_early_if_possible() {
+        // Register the service worker early if either:
+        // (a) running standalone
+        // (b) there is already a service worker installed
+        // (i.e. This basically prevents precaching immediately on first-visit, until the user starts the game - which also triggers service worker install)
+        
+        const standaloneCheck = (isRunningStandalone()) ? Promise.resolve(true) : Promise.reject(false);
+        const existingServiceWorkerCheck = new Promise((resolve, reject) => {
+          if (!('serviceWorker' in navigator)) {
+            reject(false);
+            return;
+          }
+          navigator.serviceWorker.getRegistration().then((reg) => {
+            if (reg) {
+              resolve(true);
+            } else {
+              reject(false);
+            }
+          });
+        });
+        
+        Promise.any([standaloneCheck, existingServiceWorkerCheck]).then((value) => {
+          if (value) {
+            console.debug('Registering service worker early');
+            wz_serviceworker_register();
+          }
+        }).catch(() => {
+          // ignore
+        });
       }
       
       function wz_everything_is_loaded() {
@@ -1070,8 +1111,12 @@
         checkWZBrowserSupport().then((r) => {
           // All required features are available
           displayLaunchGameMsg();
-          // Register service worker if possible
-          wz_serviceworker_register();
+          try {
+            // Register service worker early if possible / needed
+            wz_serviceworker_register_early_if_possible();
+          } catch (err) {
+            console.warn('Failed to check / attempt early service worker registration:', err);
+          }
         }).catch((err) => {
           var missingFeatures = [];
           if (err instanceof CustomWZBrowserUnsupportedError) {
@@ -1085,6 +1130,7 @@
         document.getElementById('post-exit').style.display = 'block';
         document.getElementById('footer').style.display = 'block';
       }
+      // Detect when everything - including async scripts - is loaded
       window.addEventListener('load', () => {
         var everythingLoadedTimer = setInterval(function() {
           if (/loaded|complete/.test(document.readyState)) {
