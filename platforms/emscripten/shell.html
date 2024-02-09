@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="">
+    <meta name="description" content="Play Warzone 2100 in your web browser. Command the forces of The Project in a battle to rebuild the world.">
     <meta name="author" content="pastdue, and Warzone 2100 Project contributors">
     <title>Warzone 2100 - Web Edition</title>
 
@@ -32,7 +32,6 @@
       .cover-container {
         max-width: 43em;
       }
-      
       .options-link {
         color: rgba(255, 255, 255, .5);
         text-decoration: none;
@@ -40,26 +39,21 @@
       .options-link:hover{
         text-decoration: underline!important;
       }
-      
       .nav-masthead .nav-link {
         color: rgba(255, 255, 255, .5);
         border-bottom: .25rem solid transparent;
       }
-
       .nav-masthead .nav-link:hover,
       .nav-masthead .nav-link:focus {
         border-bottom-color: rgba(255, 255, 255, .25);
       }
-
       .nav-masthead .nav-link + .nav-link {
         margin-left: 1rem;
       }
-
       .nav-masthead .active {
         color: #fff;
         border-bottom-color: #fff;
       }
-      
       .emscripten { padding-right: 0; margin-left: auto; margin-right: auto; display: block; }
       textarea.emscripten { font-family: monospace; width: 80%; }
       div.emscripten { text-align: center; color: rgb(148 163 184); }
@@ -67,7 +61,13 @@
       /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
       canvas.emscripten { border: 0px none; padding: 0px; outline: none!important; }
       canvas.emscripten:focus { border-color: inherit; -webkit-box-shadow: none; box-shadow: none; }
-      
+      .bi {
+        display: inline-block;
+        vertical-align: -.125em;
+        fill: currentcolor;
+        width: 1em;
+        height: 1em;
+      }
       .web-edition-badge {
         font-size: 0.75rem;
         color: rgba(255,255,255,0.5);
@@ -90,7 +90,6 @@
         color: rgba(132,3,252,0.9)!important;
         border-color: rgba(132,3,252,0.9)!important;
       }
-      
       #gameloadingspinner {
         z-index: 999;
         position: absolute;
@@ -101,40 +100,38 @@
         height: 100px;
         margin: 1em;
       }
-      
       #gameloadingspinner .spin-loading-text {
         display: none;
       }
-      
       #gamesavingspinner {
         z-index: 999;
         position: absolute;
         display: none;
         margin: 1em;
       }
-      
       #gamesavingspinner .spin-figure-container {
         animation: saveFade 1s infinite alternate;
       }
-      
       @keyframes saveFade { 
         from { opacity: .5; } 
       }
-      
+      .initial-load-spinner {
+        position: relative;
+        display: block;
+        height: 100px;
+        min-height: 100px;
+      }
       .smaller {
         font-size: .75em;
       }
-      
       .lead {
         font-size: inherit!important;
       }
-      
       @media (min-height: 800px) {
         .lead {
           font-size: 1.25rem!important;
         }
       }
-      
       .small-screen-blocker {
          position: fixed;
          top: 0;
@@ -147,27 +144,16 @@
          text-align: center;
          display: none;
       }
-      
-      .bi {
-          display: inline-block;
-          vertical-align: -.125em;
-          fill: currentcolor;
-          width: 1em;
-          height: 1em;
-      }
-      
       @media (max-width: 640px) {
          .small-screen-blocker {
              display: block;
          }
       }
-      
       @media (max-height: 480px) {
          .small-screen-blocker {
              display: block;
          }
       }
-      
       @media all and (display-mode: standalone) {
           /* CSS rules that will only apply if app is running standalone */
           .hide-on-standalone {
@@ -177,14 +163,6 @@
             display: inline-block!important;
           }
       }
-      
-      .initial-load-spinner {
-        position: relative;
-        display: block;
-        height: 100px;
-        min-height: 100px;
-      }
-      
     </style>
     
     <style>
@@ -194,8 +172,8 @@
       Copyright (c) 2022 by Martin van Driel (https://codepen.io/martinvd/pen/xbQJom)
       Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
       The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
-
+      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+      */
       .loader {
       position: absolute;
       top: calc(50% - 32px);
@@ -205,7 +183,6 @@
       border-radius: 50%;
       perspective: 800px;
       }
-
       .inner {
       position: absolute;
       box-sizing: border-box;
@@ -213,13 +190,11 @@
       height: 100%;
       border-radius: 50%;
       }
-
       .inner.core {
       display: flex;
       align-items: center;
       justify-content: center;
       }
-
       .circle {
       width: 15%;
       height: 15%;
@@ -255,14 +230,12 @@
       animation: rotate-one 1s linear infinite;
       border-bottom: 3px solid #EFEFFA;
       }
-
       .inner.two {
       right: 0%;
       top: 0%;
       animation: rotate-two 1s linear infinite;
       border-right: 3px solid #EFEFFA;
       }
-
       .inner.three {
       right: 0%;
       bottom: 0%;
@@ -782,20 +755,17 @@
       const modal = bootstrap.Modal.getInstance(launchoptions_modal);
       modal.hide();
     }
-    
     function wz_dismiss_reset_data_prompt_modal() {
       const resetdataprompt_modal = document.querySelector('#resetDataPrompt');
       const modal = bootstrap.Modal.getInstance(resetdataprompt_modal);
       modal.hide();
     }
-    
     function wz_display_loading_error(errorStr) {
       document.getElementById('loading-error').style.display = 'block';
       document.getElementById('loading-error-message').innerText = errorStr;
       document.getElementById('loading-game').style.display = 'none';
       wz_js_display_loading_indicator(0);
     }
-    
     function wz_display_update_available_refresh_needed() {
       if (Module && Module.hasOwnProperty('pauseMainLoop')) {
         Module.pauseMainLoop(); // a bit of a hack...
@@ -804,24 +774,21 @@
       const myModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('refreshForUpdate'), {keyboard: false, backdrop: 'static'});
       myModal.show();
     }
-    
-    function displayUnsupportedBrowserMsg(missingFeatures) {
+    function wz_display_unsupported_browser_msg(missingFeatures) {
       document.getElementById('unsupported-browser').style.display = 'block';
       document.getElementById('missing-features').innerText = missingFeatures.join(', ');
       document.getElementById('initial-load-spinner').style.display = 'none';
       document.getElementById('launch-game').style.display = 'none';
     }
-    function displayLaunchGameMsg() {
+    function wz_display_launch_game_msg() {
       document.getElementById('launch-game').style.display = 'block';
       document.getElementById('initial-load-spinner').style.display = 'none';
     }
-    
     function wz_block_start_now_button_for_pending_update() {
       var startButton = document.getElementById('start-button');
       startButton.disabled = true;
       startButton.innerHTML = `<span id="start-button-spinner" class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Loading`;
     }
-    
     function wz_unblock_start_now_button() {
       var startButton = document.getElementById('start-button');
       startButton.disabled = false;
@@ -1161,7 +1128,7 @@
       wz_restore_launch_options();
       checkWZBrowserSupport().then((r) => {
         // All required features are available
-        displayLaunchGameMsg();
+        wz_display_launch_game_msg();
         try {
           // Register service worker early if possible / needed
           wz_serviceworker_register_early_if_possible();
@@ -1173,7 +1140,7 @@
         if (err instanceof CustomWZBrowserUnsupportedError) {
           missingFeatures = err.missingFeatures;
         }
-        displayUnsupportedBrowserMsg(missingFeatures);
+        wz_display_unsupported_browser_msg(missingFeatures);
       });
     }
     // Detect when everything - including async scripts - is loaded
