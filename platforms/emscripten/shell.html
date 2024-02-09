@@ -1052,7 +1052,7 @@
               }
             },
             (error) => {
-              console.error(`Service worker registration failed: ${error}`);
+              console.warn(`Service worker registration failed: ${error}`);
               // despite the service worker not being installed, auto-start the game if in standalone mode
               if (isRunningStandalone()) {
                 startGame();
