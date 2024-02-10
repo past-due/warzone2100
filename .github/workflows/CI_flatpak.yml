@@ -48,6 +48,7 @@ jobs:
       WZ_FLATPAK_TARGET_ARCH: ${{ matrix.flatpak-arch }}
       WZ_FLATPAK_BUILD_ARCH: x86_64
       WZ_FREEDESKTOP_RUNTIME_VERSION: 23.08 # should match runtime-version in .ci/flatpak/net.wz2100.wz2100.yaml.in
+      CMAKE_BUILD_PARALLEL_LEVEL: 4 # See: https://github.blog/2024-01-17-github-hosted-runners-double-the-power-for-open-source/
     container:
       image: fedora:latest
       options: --privileged

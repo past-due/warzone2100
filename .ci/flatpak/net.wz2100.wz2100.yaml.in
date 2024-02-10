@@ -107,6 +107,8 @@ modules:
       - -DENABLE_CODE_COVERAGE=OFF
       - -DSKIP_SPIRV_TOOLS_INSTALL=ON
       - -DSKIP_GLSLANG_INSTALL=ON
+    secret-env:
+      - CMAKE_BUILD_PARALLEL_LEVEL
     sources:
       - type: git
         url: https://github.com/google/shaderc.git
@@ -136,6 +138,8 @@ modules:
     - -DCMAKE_BUILD_TYPE=Release
     - -DPHYSFS_BUILD_TEST=OFF
     @WZ_CMAKE_CROSS_CONFIG_OPTIONS@
+    secret-env:
+      - CMAKE_BUILD_PARALLEL_LEVEL
     sources:
       - type: archive
         url: https://github.com/icculus/physfs/archive/eb3383b532c5f74bfeb42ec306ba2cf80eed988c.zip # PhysFS 3.2.0
@@ -187,6 +191,7 @@ modules:
       - -DWZ_NAME_SUFFIX=$WZ_NAME_SUFFIX
     secret-env:
       - WZ_OUTPUT_NAME_SUFFIX
+      - CMAKE_BUILD_PARALLEL_LEVEL
     sources:
       - type: dir
         path: ../../
