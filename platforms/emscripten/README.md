@@ -7,6 +7,7 @@ The Warzone 2100 Web Edition uses [Emscripten](https://emscripten.org) to compil
    * [Features & Differences](#features--differences)
    * [Persisting Data](#persisting-data)
    * [Campaign Videos](#campaign-videos)
+   * [↗ Building](README-build.md)
 <!--te-->
 
 ## Browser Compatibility:
