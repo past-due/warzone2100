@@ -61,9 +61,9 @@ jobs:
         echo "::endgroup::"
         
         echo "::group::flatpak remote-add"
-        sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-        sudo flatpak remote-add --if-not-exists flathub-beta https://flathub.org/beta-repo/flathub-beta.flatpakrepo
-        sudo flatpak remote-add --if-not-exists gnome-nightly https://nightly.gnome.org/gnome-nightly.flatpakrepo
+        flatpak --user remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+        flatpak --user remote-add --if-not-exists flathub-beta https://flathub.org/beta-repo/flathub-beta.flatpakrepo
+        flatpak --user remote-add --if-not-exists gnome-nightly https://nightly.gnome.org/gnome-nightly.flatpakrepo
         echo "::endgroup::"
     - uses: actions/checkout@v4
       with:
@@ -179,19 +179,19 @@ jobs:
     - name: Install Flatpak manifest deps
       run: |
         # Build SDK
-        sudo flatpak --system install -y --noninteractive flathub org.freedesktop.Sdk//${WZ_FREEDESKTOP_RUNTIME_VERSION}
+        flatpak install --user install -y --noninteractive flathub org.freedesktop.Sdk//${WZ_FREEDESKTOP_RUNTIME_VERSION}
         # Target runtime
-        sudo flatpak --system install -y --noninteractive flathub org.freedesktop.Platform/${WZ_FLATPAK_TARGET_ARCH}/${WZ_FREEDESKTOP_RUNTIME_VERSION}
+        flatpak install --user install -y --noninteractive flathub org.freedesktop.Platform/${WZ_FLATPAK_TARGET_ARCH}/${WZ_FREEDESKTOP_RUNTIME_VERSION}
         
         if [[ "$WZ_FLATPAK_TARGET_ARCH" != "$WZ_FLATPAK_BUILD_ARCH" ]]; then
           # Cross compiler
-          sudo flatpak --system install -y --noninteractive flathub org.freedesktop.Sdk.Extension.toolchain-${WZ_FLATPAK_TARGET_ARCH}//${WZ_FREEDESKTOP_RUNTIME_VERSION}
+          flatpak install --user install -y --noninteractive flathub org.freedesktop.Sdk.Extension.toolchain-${WZ_FLATPAK_TARGET_ARCH}//${WZ_FREEDESKTOP_RUNTIME_VERSION}
           # SDK For target runtime
-          sudo flatpak --system install -y --noninteractive flathub org.freedesktop.Sdk.Compat.${WZ_FLATPAK_TARGET_ARCH}//${WZ_FREEDESKTOP_RUNTIME_VERSION}
+          flatpak install --user install -y --noninteractive flathub org.freedesktop.Sdk.Compat.${WZ_FLATPAK_TARGET_ARCH}//${WZ_FREEDESKTOP_RUNTIME_VERSION}
         fi
         
         # Builder (which includes flatpak-builder-lint)
-        sudo flatpak --system install flathub -y --noninteractive org.flatpak.Builder
+        flatpak install --user install flathub -y --noninteractive org.flatpak.Builder
     - name: Build Flatpak
       id: build
       env:
