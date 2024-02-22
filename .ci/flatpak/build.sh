@@ -3,7 +3,7 @@
 
 USE_BUILDER_FLATPAK=true
 
-if [ "USE_BUILDER_FLATPAK" = true ]; then
+if [ "${USE_BUILDER_FLATPAK}" = true ]; then
   FLATPAK_BUILDER_CMD="flatpak run --filesystem=/tmp org.flatpak.Builder"
   FLATPAK_CMD="flatpak run --filesystem=/tmp --command=flatpak org.flatpak.Builder"
   OSTREE_CMD="flatpak run --filesystem=/tmp --command=ostree org.flatpak.Builder"
