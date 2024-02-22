@@ -28,7 +28,7 @@ if [ -z "$WZ_BUILD_LOG_URL" ]; then
 fi
 
 echo "::group::flatpak build-update-repo"
-flatpak run --filesystem=/tmp --command=flatpak org.flatpak.Builder build-update-repo --generate-static-deltas "${WZ_FLATPAK_LOCAL_REPO_NAME}"
+flatpak build-update-repo --generate-static-deltas "${WZ_FLATPAK_LOCAL_REPO_NAME}"
 exit_status=$?
 if [ $exit_status -ne 0 ]; then
   echo "build-update-repo failed: ${exit_status}"

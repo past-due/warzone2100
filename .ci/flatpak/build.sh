@@ -92,7 +92,7 @@ else
 fi
 echo "::endgroup::"
 
-echo "::group::Commit screenshots to the OSTree repository"
+echo "::group::Commit screenshots to the OSTree repository --branch=screenshots/${WZ_FLATPAK_TARGET_ARCH}"
 if [ -d "${WZ_FLATPAK_BUILD_PATH}/app-info/media" ]; then
   ${OSTREE_CMD} commit --repo=${WZ_FLATPAK_LOCAL_REPO_NAME} --canonical-permissions --branch=screenshots/${WZ_FLATPAK_TARGET_ARCH} "${WZ_FLATPAK_BUILD_PATH}/app-info/media"
 else
