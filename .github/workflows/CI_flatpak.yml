@@ -57,7 +57,7 @@ jobs:
     - name: Install Dependencies
       run: |
         echo "::group::apt install dependencies"
-        sudo apt install flatpak ostree python3-aiohttp python3-tenacity appstream
+        sudo apt install flatpak ostree python3-aiohttp python3-tenacity appstream dbus-daemon
         echo "::endgroup::"
         
         echo "::group::flatpak remote-add"
