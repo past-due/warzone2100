@@ -84,19 +84,17 @@ test -f "${WZ_FLATPAK_BUILD_PATH}/app-info/xmls/${WZ_FLATPAK_APPID}.xml.gz" || {
 echo "::endgroup::"
 
 echo "::group::Check screenshots"
-if [ ! -d "${WZ_FLATPAK_BUILD_DIR}/screenshots" ]; then
+if [ ! -d "${WZ_FLATPAK_BUILD_PATH}/app-info/media" ]; then
   echo "::notice ::Screenshots not mirrored by flatpak-builder?"
-  ls -al "${WZ_FLATPAK_BUILD_DIR}"
-  ls -al "${WZ_FLATPAK_BUILD_PATH}/app-info/media"
 else
   echo "Found screenshots:"
-  find "${WZ_FLATPAK_BUILD_DIR}/screenshots" -type f
+  find "${WZ_FLATPAK_BUILD_PATH}/app-info/media" -type f
 fi
 echo "::endgroup::"
 
 echo "::group::Commit screenshots to the OSTree repository"
-if [ -d "${WZ_FLATPAK_BUILD_DIR}/screenshots" ]; then
-  ${OSTREE_CMD} commit --repo=${WZ_FLATPAK_LOCAL_REPO_NAME} --canonical-permissions --branch=screenshots/${WZ_FLATPAK_TARGET_ARCH} "${WZ_FLATPAK_BUILD_DIR}/screenshots"
+if [ -d "${WZ_FLATPAK_BUILD_PATH}/app-info/media" ]; then
+  ${OSTREE_CMD} commit --repo=${WZ_FLATPAK_LOCAL_REPO_NAME} --canonical-permissions --branch=screenshots/${WZ_FLATPAK_TARGET_ARCH} "${WZ_FLATPAK_BUILD_PATH}/app-info/media"
 else
   echo "::warning ::Screenshots not added to OSTree repository"
 fi
