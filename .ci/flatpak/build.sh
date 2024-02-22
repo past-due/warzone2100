@@ -2,7 +2,7 @@
 # This requires a bunch of environment variables to be set. See the CI workflow
 
 echo "::group::flatpak-builder"
-dbus-run-session flatpak run --filesystem=/tmp org.flatpak.Builder --repo=${WZ_FLATPAK_LOCAL_REPO_NAME} --disable-rofiles-fuse --force-clean --default-branch=${WZ_FLATPAK_BRANCH} --mirror-screenshots-url=${WZ_FLATPAK_MIRROR_SCREENSHOTS_URL} "${WZ_FLATPAK_BUILD_DIR}" ${WZ_FLATPAK_MANIFEST_PATH}
+flatpak run --filesystem=/tmp org.flatpak.Builder --repo=${WZ_FLATPAK_LOCAL_REPO_NAME} --disable-rofiles-fuse --force-clean --default-branch=${WZ_FLATPAK_BRANCH} --mirror-screenshots-url=${WZ_FLATPAK_MIRROR_SCREENSHOTS_URL} "${WZ_FLATPAK_BUILD_DIR}" ${WZ_FLATPAK_MANIFEST_PATH}
 echo "::endgroup::"
 
 if [[ "$WZ_FLATPAK_TARGET_ARCH" != "$WZ_FLATPAK_BUILD_ARCH" ]]; then
@@ -11,7 +11,7 @@ if [[ "$WZ_FLATPAK_TARGET_ARCH" != "$WZ_FLATPAK_BUILD_ARCH" ]]; then
   # Create a new repository containing the commits for the cross target arch
   echo "::group::Creating new local repo for target arch: ${WZ_FLATPAK_LOCAL_REPO_NAME}"
   WZ_FLATPAK_LOCAL_REPO_NAME="${WZ_FLATPAK_TARGET_ARCH}-repo"
-  ostree init --mode archive-z2 --repo=${WZ_FLATPAK_LOCAL_REPO_NAME}
+  flatpak run --filesystem=/tmp --command=ostree org.flatpak.Builder init --mode archive-z2 --repo=${WZ_FLATPAK_LOCAL_REPO_NAME}
   echo "::endgroup::"
   
   echo "::group::Rename commits to new target arch repo"
@@ -20,14 +20,14 @@ if [[ "$WZ_FLATPAK_TARGET_ARCH" != "$WZ_FLATPAK_BUILD_ARCH" ]]; then
   do
      # Rename the commits to target arch
      echo "Processing: --src-ref=${i}/${WZ_FLATPAK_BUILD_ARCH}/${WZ_FLATPAK_BRANCH}"
-     flatpak build-commit-from --src-ref=${i}/${WZ_FLATPAK_BUILD_ARCH}/${WZ_FLATPAK_BRANCH} --src-repo=${SRC_LOCAL_REPO_NAME} \
+     flatpak run --filesystem=/tmp --command=flatpak org.flatpak.Builder build-commit-from --src-ref=${i}/${WZ_FLATPAK_BUILD_ARCH}/${WZ_FLATPAK_BRANCH} --src-repo=${SRC_LOCAL_REPO_NAME} \
         ${WZ_FLATPAK_LOCAL_REPO_NAME} ${i}/${WZ_FLATPAK_TARGET_ARCH}/${WZ_FLATPAK_BRANCH}
   done
   echo "::endgroup::"
 fi
 
 echo "::group::flatpak build-bundle"
-flatpak build-bundle --arch=${WZ_FLATPAK_TARGET_ARCH} ${WZ_FLATPAK_LOCAL_REPO_NAME} "${WZ_FLATPAK_BUNDLE}" --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo ${WZ_FLATPAK_APPID} ${WZ_FLATPAK_BRANCH}
+flatpak run --filesystem=/tmp --command=flatpak org.flatpak.Builder build-bundle --arch=${WZ_FLATPAK_TARGET_ARCH} ${WZ_FLATPAK_LOCAL_REPO_NAME} "${WZ_FLATPAK_BUNDLE}" --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo ${WZ_FLATPAK_APPID} ${WZ_FLATPAK_BRANCH}
 echo "::endgroup::"
 
 echo "Generated .flatpak: \"${WZ_FLATPAK_BUNDLE}\""
@@ -44,14 +44,8 @@ fi
 
 if [ -f "${WZ_FLATPAK_APPSTREAM_PATH}" ]; then
   echo "::group::Validating appstream"
-  if [ -x "$(command -v appstreamcli)" ]; then
-    echo "appstreamcli validate ${WZ_FLATPAK_APPSTREAM_PATH}"
-    appstreamcli validate "${WZ_FLATPAK_APPSTREAM_PATH}"
-  else
-    # Older utility fallback
-    echo "appstream-util validate ${WZ_FLATPAK_APPSTREAM_PATH}"
-    appstream-util validate "${WZ_FLATPAK_APPSTREAM_PATH}"
-  fi
+  echo "appstreamcli validate ${WZ_FLATPAK_APPSTREAM_PATH}"
+  flatpak run --filesystem=/tmp --command=appstreamcli org.flatpak.Builder validate "${WZ_FLATPAK_APPSTREAM_PATH}"
   echo "::endgroup::"
 else
   echo "::warning ::Could not find appstream file to validate?"
@@ -73,7 +67,7 @@ echo "::endgroup::"
 
 echo "::group::Commit screenshots to the OSTree repository"
 if [ -d "${WZ_FLATPAK_BUILD_DIR}/screenshots" ]; then
-  ostree commit --repo=${WZ_FLATPAK_LOCAL_REPO_NAME} --canonical-permissions --branch=screenshots/${WZ_FLATPAK_TARGET_ARCH} "${WZ_FLATPAK_BUILD_DIR}/screenshots"
+  flatpak run --filesystem=/tmp --command=ostree org.flatpak.Builder commit --repo=${WZ_FLATPAK_LOCAL_REPO_NAME} --canonical-permissions --branch=screenshots/${WZ_FLATPAK_TARGET_ARCH} "${WZ_FLATPAK_BUILD_DIR}/screenshots"
 else
   echo "::warning ::Screenshots not added to OSTree repository"
 fi
