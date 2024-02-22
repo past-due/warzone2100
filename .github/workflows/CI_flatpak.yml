@@ -247,6 +247,7 @@ jobs:
         # Get path to runtime files
         TARGET_FREEDESKTOP_RUNTIME_PATH="$(flatpak info --show-location org.freedesktop.Platform/${WZ_FLATPAK_TARGET_ARCH}/${WZ_FREEDESKTOP_RUNTIME_VERSION})"
         echo "TARGET_FREEDESKTOP_RUNTIME_PATH=${TARGET_FREEDESKTOP_RUNTIME_PATH}"
+        export TARGET_FREEDESKTOP_RUNTIME_PATH=${TARGET_FREEDESKTOP_RUNTIME_PATH}
         set +e
         # Note: These libraries will be from the runtime that is installed at the time of the build
         ldd flatpak_app/files/bin/warzone2100 | grep -E -v 'linux-vdso|ld-linux-' | awk 'NF == 4 { system("echo " $1) }'
