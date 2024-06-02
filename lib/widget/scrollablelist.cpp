@@ -281,6 +281,21 @@ void ScrollableListWidget::scrollToItem(size_t itemNum)
 	listView->setTopOffset(snapOffset ? snappedOffset() : scrollBar->position());
 }
 
+bool ScrollableListWidget::isItemVisible(size_t itemNum)
+{
+	ASSERT_OR_RETURN(false, itemNum < listView->children().size(), "Invalid itemNum: %zu", itemNum);
+	updateLayout();
+	return listView->isChildVisible(listView->children()[itemNum]);
+}
+
+void ScrollableListWidget::scrollEnsureItemVisible(size_t itemNum)
+{
+	if (!isItemVisible(itemNum))
+	{
+		scrollToItem(itemNum);
+	}
+}
+
 void ScrollableListWidget::setListTransparentToMouse(bool hasMouseTransparency)
 {
 	listView->setTransparentToMouse(hasMouseTransparency);
