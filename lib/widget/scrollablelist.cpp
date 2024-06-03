@@ -290,9 +290,26 @@ bool ScrollableListWidget::isItemVisible(size_t itemNum)
 
 void ScrollableListWidget::scrollEnsureItemVisible(size_t itemNum)
 {
+	if (!visible() || width() <= 0 || height() <= 0)
+	{
+		// no-op if this isn't visible
+		return;
+	}
 	if (!isItemVisible(itemNum))
 	{
-		scrollToItem(itemNum);
+		auto scrollPosOfItem = getScrollPositionForItem(itemNum);
+		if (scrollPosOfItem < scrollBar->position())
+		{
+			// scroll up the minimum amount
+			scrollBar->setPosition(scrollPosOfItem);
+		}
+		else
+		{
+			// scroll down the minimum amount
+			auto desiredScrollPos = std::max<int32_t>(scrollPosOfItem - listView->height() + listView->children()[itemNum]->height(), 0);
+			scrollBar->setPosition(desiredScrollPos);
+		}
+		listView->setTopOffset(snapOffset ? snappedOffset() : scrollBar->position());
 	}
 }
 
