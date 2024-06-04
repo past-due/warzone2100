@@ -54,7 +54,7 @@ jobs:
             architecture: "arm64"
             deploy_release: true
             support_sentry : true
-            sentry_backend: breakpad
+            sentry_backend: crashpad
       fail-fast: false
     env:
       WZ_COMPILER_VER: ${{ matrix.compiler }}
