@@ -529,8 +529,11 @@ jobs:
           $env:PATH = "${env:WZ_MINGW_ENV_PATH}";
           Write-Host "env:PATH=`"${env:PATH}`""
         }
-        
-        Get-Command vcruntime140.dll
+
+        $WZ_FULL_VCRUNTIME_PATH = ((Get-Command vcruntime140.dll).Path)
+        echo "WZ_FULL_VCRUNTIME_PATH=${WZ_FULL_VCRUNTIME_PATH}"
+        $WZ_FULL_VCRUNTIME_VERSION = ((Get-Command vcruntime140.dll).Version)
+        echo "$WZ_FULL_VCRUNTIME_VERSION"
 
         & "${env:WZ_FULL_POWERSHELL_PATH}" "${env:WZ_REPO_PATH}\get-dependencies_win.ps1" -VCPKG_BUILD_TYPE "release"
     - name: Clean vcpkg temp files
