@@ -303,6 +303,48 @@ jobs:
         echo "VCPKG_BINARY_SOURCES=${VCPKG_BINARY_SOURCES}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "VCPKG_BINARY_SOURCES=${VCPKG_BINARY_SOURCES}" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
     #####################################################
+    - name: Install Latest VCRuntime
+      run: |
+        Start-Sleep -Milliseconds 1 # See: https://stackoverflow.com/a/49859001
+        
+        $VerbosePreference = "Continue"
+        . "${env:WZ_REPO_PATH}\.ci\powershell\request.ps1"
+        
+        # Output currently-installed version
+        Get-ItemProperty -Path HKLM:SOFTWARE\Wow6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\x64
+
+        $VCRUNTIME_DL_BASEDIR = "${{ github.workspace }}\dl"
+        $VCRUNTIME_DL_PATH = "${VCRUNTIME_DL_BASEDIR}\vc_redist.x64.exe"
+        New-Item -ItemType Directory -Force -Path "$VCRUNTIME_DL_BASEDIR"
+        $VCRUNTIME_DL_URL="https://aka.ms/vs/17/release/vc_redist.x64.exe"
+        Write-Host "Original Url: `"${VCRUNTIME_DL_URL}`""
+        $url = "${VCRUNTIME_DL_URL}"
+        $req = Req -Params @{ 'Method'='GET';'Uri'="$url";'OutFile'="$VCRUNTIME_DL_PATH" } -Retries 3 -SecondsDelay 10
+        
+        # Check the Authenticode signature
+        $signature = Get-AuthenticodeSignature -LiteralPath "${VCRUNTIME_DL_PATH}"
+        if ($signature.Status -ne "Valid")
+        {
+          # Failed to validate file signature
+          Throw "The file's signature is invalid"
+        }
+        Write-Host "Authenticode Signature: Valid"
+        $dnDict = ($signature.SignerCertificate.Subject -split ', ') |
+                 foreach `
+                     { $dnDict = @{} } `
+                     { $item = $_.Split('='); $dnDict[$item[0]] = $item[1] } `
+                     { $dnDict }
+        $signer_common_name = $dnDict['CN'] #$signature.SignerCertificate.subject.split(',')[0].split('=')[1]
+        Write-Host "Authenticode Signature SignerCertificate.Subject: $($dnDict | Out-String)"
+        if ($signer_common_name -ne "Microsoft Corporation")
+        {
+          # Unexpected signing common name
+          throw "The file's signature has an unexpected common name: `"$signer_common_name`""
+        }
+        Write-Host "SignerCertificate.Subject is as expected"
+        
+        # Run it
+        & "${VCRUNTIME_DL_PATH}" /install /passive /norestart
     - name: 'Download & Install Vulkan SDK'
       run: |
         Start-Sleep -Milliseconds 1 # See: https://stackoverflow.com/a/49859001
@@ -487,6 +529,8 @@ jobs:
           $env:PATH = "${env:WZ_MINGW_ENV_PATH}";
           Write-Host "env:PATH=`"${env:PATH}`""
         }
+        
+        Get-Command vcruntime140.dll
 
         & "${env:WZ_FULL_POWERSHELL_PATH}" "${env:WZ_REPO_PATH}\get-dependencies_win.ps1" -VCPKG_BUILD_TYPE "release"
     - name: Clean vcpkg temp files
@@ -498,6 +542,11 @@ jobs:
         # Clean the build remnants of vcpkg itself. (Since it's rebuilt fresh - even from a cached vcpkg directory - these aren't needed.)
         . "${env:WZ_REPO_PATH}\.ci\powershell\importVCvars.ps1"
         Import-VCVarsEnv "${env:WZ_VISUAL_STUDIO_INSTALL_PATH}" "-arch=${env:WZ_TARGET_ARCH} -host_arch=x64"
+    - name: TEMP - upload build basisu
+      uses: actions/upload-artifact@v4
+      with:
+        name: warzone2100_${{ steps.settings.outputs.WZ_BUILD_DESC }}_basisu
+        path: '${{ github.workspace }}\build\vcpkg_installed\x64-windows\tools\basisu\basisu.exe'
     - name: CMake Configure (MSVC)
       if: success() && (steps.settings.outputs.WZ_USING_MINGW != 'true')
       working-directory: '${{ github.workspace }}\build'
