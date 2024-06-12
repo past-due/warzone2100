@@ -85,6 +85,7 @@ if(NOT sentrynative_POPULATED)
 	add_subdirectory("${sentrynative_SOURCE_DIR}" "${sentrynative_BINARY_DIR}" EXCLUDE_FROM_ALL)
 endif()
 message(STATUS "Enabling crash-handling backend: sentry-native ($CACHE{SENTRY_BACKEND})")
+message(STATUS "@@@@@@ CMAKE_SYSTEM_PROCESSOR: ${CMAKE_SYSTEM_PROCESSOR}")
 
 if(_old_CMAKE_CXX_STANDARD)
 	set(CMAKE_CXX_STANDARD "${_old_CMAKE_CXX_STANDARD}")
