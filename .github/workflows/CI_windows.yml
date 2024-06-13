@@ -45,7 +45,7 @@ jobs:
             architecture: "x86"
             deploy_release: true
             support_sentry : true
-            sentry_backend: breakpad
+            sentry_backend: crashpad
           - compiler: "LLVM_MINGW"
             architecture: "x64"
             deploy_release: true
