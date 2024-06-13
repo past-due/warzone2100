@@ -1,9 +1,11 @@
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO jedisct1/libsodium
-    REF 73248a4972336f411f688864eb6b086d215122fc # latest commit on: 1.0.19-stable branch as of 2024-03-24
-    SHA512 b9bf37017e4a1deb0f5cbf9955c2bee6925fed57ed173be9bb58e7a00439038772559f4cbe36d1fb40107b9afd9a9b5a4302ab83630b4740f2ffeab4f03ed671
+    REF "${VERSION}-RELEASE"
+    SHA512 477b9dc10d87ae3c83db3fc207b50b9fe39593684a59f164986cce32bdaba95db0df7dee32149bf9a23c5794354fce8241d88a9a4bd4bbf2630483cbbc378c2f
     HEAD_REF master
+    PATCHES
+        001-mingw-i386.patch
 )
 
 if(VCPKG_TARGET_IS_WINDOWS AND NOT VCPKG_TARGET_IS_MINGW)
@@ -42,17 +44,17 @@ if(VCPKG_TARGET_IS_WINDOWS AND NOT VCPKG_TARGET_IS_MINGW)
         endif()
     endblock()
 else()
-
-    vcpkg_list(SET options)
     if(VCPKG_TARGET_IS_EMSCRIPTEN)
-        vcpkg_list(APPEND options "--disable-ssp" "--disable-asm")
+        list(APPEND OPTIONS "--disable-ssp" "--disable-asm")
     endif()
-
+    if(NOT VCPKG_TARGET_IS_MINGW)
+        list(APPEND OPTIONS --disable-pie)
+    endif()
+    
     vcpkg_configure_make(
         AUTOCONFIG
         SOURCE_PATH "${SOURCE_PATH}"
-        OPTIONS
-            ${options}
+        OPTIONS ${OPTIONS}        
     )
     vcpkg_install_make()
 
