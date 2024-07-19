@@ -110,6 +110,51 @@ PortMappingManager& PortMappingManager::instance()
 	return inst;
 }
 
+class PortMappingImpl
+{
+public:
+	virtual ~PortMappingImpl();
+	virtual bool init() = 0;
+	virtual int create_port_mapping(uint16_t port, PortMappingInternetProtocol protocol) = 0;
+	virtual bool destroy_port_mapping(int mappingId) = 0;
+};
+
+class PortMappingImpl_LibPlum : public PortMappingImpl
+{
+public:
+	virtual bool init() override;
+	virtual int create_port_mapping(uint16_t port, PortMappingInternetProtocol protocol) override;
+	virtual bool destroy_port_mapping(int mappingId) override;
+};
+
+bool PortMappingImpl_LibPlum::init()
+{
+	plum_config_t config;
+	memset(&config, 0, sizeof(config));
+	config.log_level = PLUM_LOG_LEVEL_INFO;
+	config.log_callback = &PlumLogCallback;
+	auto res = plum_init(&config);
+	return res == PLUM_ERR_SUCCESS;
+}
+
+int PortMappingImpl_LibPlum::create_port_mapping(uint16_t port, PortMappingInternetProtocol protocol)
+{
+	plum_mapping_t m;
+	memset(&m, 0, sizeof(m));
+	m.protocol = PLUM_IP_PROTOCOL_TCP;
+	m.internal_port = port;
+	m.external_port = port; // suggest an external port the same as the internal port (the router may decide otherwise)
+
+	auto mappingId = plum_create_mapping(&m, PlumMappingCallback);
+	return mappingId;
+}
+
+bool PortMappingImpl_LibPlum::destroy_port_mapping(int mappingId)
+{
+	const auto result = plum_destroy_mapping(mappingId);
+	return result == PLUM_ERR_SUCCESS;
+}
+
 void PortMappingManager::init()
 {
 	if (isInit_)
