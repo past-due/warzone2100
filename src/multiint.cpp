@@ -64,6 +64,7 @@
 #include "lib/widget/paragraph.h"
 #include "lib/widget/multibutform.h"
 #include "lib/widget/checkbox.h"
+#include "lib/widget/margin.h"
 
 #include "challenge.h"
 #include "main.h"
@@ -1230,6 +1231,7 @@ static bool canChangeMapOrRandomize()
 	return allowed;
 }
 
+// TODO: Modify this to add special button subclass that draws differently
 static void addMultiButton(std::shared_ptr<MultibuttonWidget> mbw, int value, AtlasImage image, AtlasImage imageDown, char const *tip)
 {
 	auto button = std::make_shared<W_BUTTON>();
@@ -1237,6 +1239,527 @@ static void addMultiButton(std::shared_ptr<MultibuttonWidget> mbw, int value, At
 	button->setTip(tip);
 
 	mbw->addButton(value, button);
+}
+
+//static std::shared_ptr<WIDGET> createGameOptionsForm()
+//{
+//
+//}
+
+class WzMultiGameOptionsForm : public IntFormAnimated
+{
+protected:
+	WzMultiGameOptionsForm()
+	: IntFormAnimated(false)
+	{ }
+	void initialize();
+public:
+	static std::shared_ptr<WzMultiGameOptionsForm> make();
+};
+
+void WzMultiGameOptionsForm::initialize()
+{
+//	id = MULTIOP_OPTIONS;
+//	setCalcLayout(LAMBDA_CALCLAYOUT_SIMPLE({
+//		psWidget->setGeometry(MULTIOP_OPTIONSX, MULTIOP_OPTIONSY, MULTIOP_OPTIONSW, MULTIOP_OPTIONSH);
+//	}));
+}
+
+#include "titleui/widgets/infobutton.h"
+
+class WzMultiOptionsSectionTitleBanner : public WIDGET
+{
+public:
+	typedef std::function<void ()> InfoClickHandler;
+
+protected:
+	WzMultiOptionsSectionTitleBanner()
+	: WIDGET()
+	{}
+
+	void initialize(const std::string& title, const InfoClickHandler& infoClickHandler);
+
+public:
+	static std::shared_ptr<WzMultiOptionsSectionTitleBanner> make(const std::string& title, const InfoClickHandler& infoClickHandler)
+	{
+		class make_shared_enabler: public WzMultiOptionsSectionTitleBanner {};
+		auto widget = std::make_shared<make_shared_enabler>();
+
+		widget->initialize(title, infoClickHandler);
+		return widget;
+	}
+
+	void display(int xOffset, int yOffset) override;
+	int32_t idealHeight() override;
+	void geometryChanged() override;
+
+private:
+	InfoClickHandler infoClickHandler;
+	int topPadding = 5;
+	int bottomPadding = 5;
+	int internalHorizontalPadding = 6;
+	std::shared_ptr<W_LABEL> titleLabel;
+	std::shared_ptr<WzInfoButton> infoButton;
+	std::shared_ptr<W_BUTTON> optionsButton;
+};
+
+int32_t WzMultiOptionsSectionTitleBanner::idealHeight()
+{
+	// the height for one row of text
+	int32_t titleHeight = std::max<int32_t>(titleLabel->idealHeight(), (infoButton) ? infoButton->idealHeight() : 0);
+	return topPadding + bottomPadding + titleHeight;
+}
+
+class WzGameTitleHeaderOptionsButton : public W_BUTTON
+{
+protected:
+	WzGameTitleHeaderOptionsButton()
+	: W_BUTTON()
+	{}
+
+public:
+	static std::shared_ptr<WzGameTitleHeaderOptionsButton> make()
+	{
+		class make_shared_enabler: public WzGameTitleHeaderOptionsButton {};
+		auto widget = std::make_shared<make_shared_enabler>();
+
+		// add the titleLabel
+		widget->titleLabel = std::make_shared<W_LABEL>();
+		widget->titleLabel->setFont(font_regular, WZCOL_TEXT_BRIGHT);
+		widget->titleLabel->setString(WzString::fromUtf8("\u2699")); // "⚙"
+		std::weak_ptr<WzGameTitleHeaderOptionsButton> psWeakParent = widget;
+		widget->titleLabel->setCalcLayout([psWeakParent](WIDGET *psWidget){
+			auto psParent = psWeakParent.lock();
+			ASSERT_OR_RETURN(, psParent != nullptr, "Parent is null");
+			psWidget->setGeometry(0, 0, psParent->width(), psParent->height());
+		});
+		widget->titleLabel->setTextAlignment(WLAB_ALIGNCENTRE);
+
+		return widget;
+	}
+
+	void geometryChanged() override
+	{
+		if (titleLabel)
+		{
+			titleLabel->callCalcLayout();
+		}
+	}
+
+	void display(int xOffset, int yOffset) override
+	{
+		int x0 = xOffset + x();
+		int y0 = yOffset + y();
+		int w = width();
+		int h = height();
+		bool highlight = (getState() & WBUT_HIGHLIGHT) != 0;
+		bool down = (getState() & (WBUT_DOWN | WBUT_LOCK | WBUT_CLICKLOCK)) != 0;
+		bool selected = false;
+
+		// draw box
+		PIELIGHT boxBorder = (!selected) ? WZCOL_MENU_BACKGROUND : WZCOL_MENU_BORDER;
+		if (highlight)
+		{
+			boxBorder = pal_RGBA(255, 255, 255, 255);
+		}
+		PIELIGHT boxBackground = (!selected) ? WZCOL_MENU_BACKGROUND : WZCOL_MENU_BORDER;
+		pie_BoxFill(x0, y0, x0 + w, y0 + h, boxBorder);
+		pie_BoxFill(x0 + 1, y0 + 1, x0 + w - 1, y0 + h - 1, boxBackground);
+//		if (!selected && (!highlight || down))
+		if (down)
+		{
+			pie_UniTransBoxFill(x0 + 1, y0 + 1, x0 + w - 1, y0 + h - 1, pal_RGBA(0, 0, 0, 80));
+		}
+
+//		int y1 = y0 + h;
+//		iV_Line(x0, y1, x0 + h, y1, WZCOL_MENU_BORDER);
+
+		// label drawing is handled by the embedded W_LABEL
+		titleLabel->display(x0, y0);
+	}
+
+private:
+	std::shared_ptr<W_LABEL> titleLabel;
+};
+
+void WzMultiOptionsSectionTitleBanner::initialize(const std::string& title, const InfoClickHandler& _onInfoButtonClick)
+{
+	infoClickHandler = _onInfoButtonClick;
+
+	// add the titleLabel
+	titleLabel = std::make_shared<W_LABEL>();
+	titleLabel->setFont(font_regular, WZCOL_TEXT_BRIGHT);
+	titleLabel->setString(WzString::fromUtf8(title));
+	titleLabel->setGeometry(0, 0, titleLabel->getMaxLineWidth(), titleLabel->idealHeight());
+	titleLabel->setCanTruncate(true);
+	titleLabel->setTransparentToMouse(true);
+	attach(titleLabel);
+	titleLabel->setCalcLayout(LAMBDA_CALCLAYOUT_SIMPLE({
+		auto psParent = std::dynamic_pointer_cast<WzMultiOptionsSectionTitleBanner>(psWidget->parent());
+		ASSERT_OR_RETURN(, psParent != nullptr, "No parent?");
+		int x0 = psParent->internalHorizontalPadding;
+		int w = psParent->width() - (psParent->internalHorizontalPadding * 3) - 14;
+		int h = psParent->height() - (psParent->topPadding + psParent->bottomPadding);
+		psWidget->setGeometry(x0, psParent->topPadding, w, h);
+	}));
+
+	if (infoClickHandler)
+	{
+		infoButton = WzInfoButton::make();
+		infoButton->setImageDimensions(14);
+		attach(infoButton);
+		infoButton->setCalcLayout(LAMBDA_CALCLAYOUT_SIMPLE({
+			auto psParent = std::dynamic_pointer_cast<WzMultiOptionsSectionTitleBanner>(psWidget->parent());
+			ASSERT_OR_RETURN(, psParent != nullptr, "No parent?");
+			int optionsButtonSize = (psParent->optionsButton) ? psParent->optionsButton->width() : 0;
+			int w = 14 + psParent->internalHorizontalPadding;
+			int x0 = psParent->width() - w - optionsButtonSize - psParent->internalHorizontalPadding;
+			int h = std::min<int>(psParent->height() - (psParent->topPadding + psParent->bottomPadding), w);
+			psWidget->setGeometry(x0, psParent->topPadding, w, h);
+		}));
+		auto weakSelf = std::weak_ptr<WzMultiOptionsSectionTitleBanner>(std::dynamic_pointer_cast<WzMultiOptionsSectionTitleBanner>(shared_from_this()));
+		infoButton->addOnClickHandler([weakSelf](W_BUTTON&) {
+			auto strongSelf = weakSelf.lock();
+			ASSERT_OR_RETURN(, strongSelf != nullptr, "No parent?");
+			if (strongSelf->infoClickHandler)
+			{
+				strongSelf->infoClickHandler();
+			}
+		});
+	}
+
+	// Add "gear" / "Host Options" button
+	optionsButton = WzGameTitleHeaderOptionsButton::make(); // "⚙"
+	optionsButton->setTip(_("Host Options"));
+	attach(optionsButton);
+	optionsButton->setCalcLayout(LAMBDA_CALCLAYOUT_SIMPLE({
+		auto psParent = std::dynamic_pointer_cast<WzMultiOptionsSectionTitleBanner>(psWidget->parent());
+		ASSERT_OR_RETURN(, psParent != nullptr, "No parent?");
+		int optionsSize = psParent->height() - 1;
+		int w = optionsSize;
+		int x0 = psParent->width() - w;
+		int h = optionsSize;
+		psWidget->setGeometry(x0, 0, w, h);
+	}));
+	optionsButton->addOnClickHandler([](W_BUTTON& button) {
+		auto psParent = std::dynamic_pointer_cast<WzMultiOptionsSectionTitleBanner>(button.parent());
+		ASSERT_OR_RETURN(, psParent != nullptr, "No parent");
+		// TODO: Display a "pop-over" options menu
+//		psParent->displayOptionsOverlay(button.shared_from_this());
+	});
+}
+
+void WzMultiOptionsSectionTitleBanner::display(int xOffset, int yOffset)
+{
+	int x0 = xOffset + x();
+	int y0 = yOffset + y();
+	int w = width();
+	int h = height();
+	bool highlight = false;
+
+	// draw box
+	PIELIGHT boxBorder = WZCOL_MENU_BORDER;
+	if (highlight)
+	{
+		boxBorder = pal_RGBA(255, 255, 255, 255);
+	}
+	PIELIGHT boxBackground = WZCOL_MENU_BORDER;
+	pie_BoxFill(x0, y0, x0 + w, y0 + h, boxBorder);
+	pie_BoxFill(x0 + 1, y0 + 1, x0 + w - 1, y0 + h - 1, boxBackground);
+}
+
+void WzMultiOptionsSectionTitleBanner::geometryChanged()
+{
+	titleLabel->callCalcLayout();
+	if (optionsButton)
+	{
+		optionsButton->callCalcLayout();
+	}
+	if (infoButton)
+	{
+		infoButton->callCalcLayout();
+	}
+}
+
+class MultichoiceWidget2 : public MultibuttonWidget
+{
+public:
+	MultichoiceWidget2(int value = -1, bool lockCurrent = true);
+	virtual void display(int xOffset, int yOffset) override;
+};
+
+MultichoiceWidget2::MultichoiceWidget2(int value, bool _lockCurrent)
+	: MultibuttonWidget(value)
+{
+	lockCurrent = _lockCurrent;
+}
+
+void MultichoiceWidget2::display(int xOffset, int yOffset)
+{
+//	int x0 = xOffset + x();
+//	int y0 = yOffset + y();
+//	int w = width();
+//	int h = height();
+//	pie_BoxFill(x0, y0, x0 + w, y0 + h, WZCOL_MENU_BACKGROUND);
+}
+
+class WzMultiGameOptionsList : public WIDGET
+{
+protected:
+	WzMultiGameOptionsList()
+	{ }
+	void initialize();
+	void geometryChanged() override;
+	void display(int xOffset, int yOffset) override;
+public:
+	static std::shared_ptr<WzMultiGameOptionsList> make();
+
+	void refreshData();
+
+	virtual int32_t idealHeight() override;
+private:
+//	// TODO: Modify this to add special button subclass that draws differently
+//	void addMultiButton(std::shared_ptr<MultibuttonWidget> mbw, int value, AtlasImage image, AtlasImage imageDown, char const *tip);
+private:
+	std::shared_ptr<WzMultiOptionsSectionTitleBanner> titleBanner;
+	std::shared_ptr<ScrollableListWidget> optionsList;
+	std::shared_ptr<MultichoiceWidget2> scavengerChoice;
+	std::shared_ptr<MultichoiceWidget2> allianceChoice;
+	std::shared_ptr<MultichoiceWidget2> powerChoice;
+	std::shared_ptr<MultichoiceWidget2> baseTypeChoice;
+	std::shared_ptr<MultichoiceWidget2> technologyChoice;
+
+//	std::shared_ptr<MultibuttonWidget> hostButton;
+};
+
+std::shared_ptr<WzMultiGameOptionsList> WzMultiGameOptionsList::make()
+{
+	class make_shared_enabler: public WzMultiGameOptionsList { };
+	auto widget = std::make_shared<make_shared_enabler>();
+	widget->initialize();
+	return widget;
+}
+
+int32_t WzMultiGameOptionsList::idealHeight()
+{
+	return titleBanner->idealHeight() + 0 + optionsList->idealHeight() + 6;
+}
+
+void WzMultiGameOptionsList::geometryChanged()
+{
+	int w = width();
+	int h = height();
+
+	titleBanner->setGeometry(0, 0, w, titleBanner->idealHeight());
+
+	int listY0 = titleBanner->height() + 0;
+	int listHeight = h - listY0 - 6;
+	optionsList->setGeometry(0, listY0, w, listHeight);
+//	optionsList->setChildSize(MULTIOP_BLUEFORMW, 29);
+}
+
+void WzMultiGameOptionsList::refreshData()
+{
+	scavengerChoice->choose(game.scavengers);
+	allianceChoice->choose(game.alliance);
+	powerChoice->choose(game.power);
+	baseTypeChoice->choose(game.base);
+	technologyChoice->choose(game.techLevel);
+
+//	// Host button only visible in certain states
+//	bool hostButtonVisible = (ingame.side == InGameSide::HOST_OR_SINGLEPLAYER) && (!challengeActive);
+//	if (hostButtonVisible)
+//	{
+//		hostButton->show();
+//	}
+//	else
+//	{
+//		hostButton->hide();
+//	}
+}
+
+//// TODO: Modify this to add special button subclass that draws differently
+//void WzMultiGameOptionsList::addMultiButton(std::shared_ptr<MultibuttonWidget> mbw, int value, AtlasImage image, AtlasImage imageDown, char const *tip)
+//{
+//	auto button = std::make_shared<W_BUTTON>();
+//	button->setImages(image, imageDown, mpwidgetGetFrontHighlightImage(image));
+//	button->setTip(tip);
+//
+//	mbw->addButton(value, button);
+//}
+
+void WzMultiGameOptionsList::display(int xOffset, int yOffset)
+{
+	int x0 = xOffset + x();
+	int y0 = yOffset + y();
+	int w = width();
+	int h = height();
+
+//	pie_BoxFill(x0, y0, x0 + w, y0 + h, WZCOL_MENU_BACKGROUND);
+//	iV_Box(x0, y0, x0 + w, y0 + h, WZCOL_MENU_BORDER);
+
+	drawBlueBox(x0, y0, w, h);
+}
+
+static void displayWrappedOptionListItem(WIDGET *psWidget, UDWORD xOffset, UDWORD yOffset)
+{
+	int x0 = xOffset + psWidget->x();
+	int y0 = yOffset + psWidget->y();
+	int w = psWidget->width();
+	int h = psWidget->height();
+	pie_BoxFill(x0, y0, x0 + w, y0 + h, WZCOL_MENU_BACKGROUND);
+}
+
+void WzMultiGameOptionsList::initialize()
+{
+	titleBanner = WzMultiOptionsSectionTitleBanner::make(_("Match Options"), []() {
+		debug(LOG_INFO, "Clicked info button");
+	});
+	attach(titleBanner);
+
+	optionsList = ScrollableListWidget::make(); //std::make_shared<ScrollableListWidget>();
+	attach(optionsList);
+
+	auto wrapItemForList = [&](const std::shared_ptr<WIDGET>& widg) {
+		auto wrappedWidget = Margin(3, 3).wrap(widg);
+		wrappedWidget->setGeometry(0, 0, wrappedWidget->idealWidth(), wrappedWidget->idealHeight());
+		wrappedWidget->displayFunction = displayWrappedOptionListItem;
+		return wrappedWidget;
+	};
+
+	optionsList->setItemSpacing(1); //(6);
+//	optionsList->setChildSize(MULTIOP_BLUEFORMW, 29);
+//	optionsList->setChildSpacing(0, 3);
+//	optionsList->setGeometry(MCOL0, MROW5, MULTIOP_BLUEFORMW, optionsForm->height() - MROW5);
+	optionsList->setGeometry(0, 0, MULTIOP_BLUEFORMW, 200);
+	optionsList->setBackgroundColor(WZCOL_MENU_BORDER);
+
+	scavengerChoice = std::make_shared<MultichoiceWidget2>(game.scavengers);
+//	optionsList->attach(scavengerChoice);
+	scavengerChoice->id = MULTIOP_GAMETYPE;
+//	scavengerChoice->setOuterPaddingX(3, 3);
+	scavengerChoice->setLabel(_("Scavengers"));
+	if (game.mapHasScavengers)
+	{
+		addMultiButton(scavengerChoice, ULTIMATE_SCAVENGERS, AtlasImage(FrontImages, IMAGE_SCAVENGERS_ULTIMATE_ON), AtlasImage(FrontImages, IMAGE_SCAVENGERS_ULTIMATE_ON_HI), _("Ultimate Scavengers"));
+		addMultiButton(scavengerChoice, SCAVENGERS, AtlasImage(FrontImages, IMAGE_SCAVENGERS_ON), AtlasImage(FrontImages, IMAGE_SCAVENGERS_ON_HI), _("Scavengers"));
+	}
+	addMultiButton(scavengerChoice, NO_SCAVENGERS, AtlasImage(FrontImages, IMAGE_SCAVENGERS_OFF), AtlasImage(FrontImages, IMAGE_SCAVENGERS_OFF_HI), _("No Scavengers"));
+	scavengerChoice->enable(!locked.scavengers);
+	scavengerChoice->setGeometry(0, 0, scavengerChoice->idealWidth(), scavengerChoice->idealHeight());
+//	optionsList->addWidgetToLayout(scavengerChoice);
+	optionsList->addItem(wrapItemForList(scavengerChoice));
+
+	allianceChoice = std::make_shared<MultichoiceWidget2>(game.alliance);
+//	optionsList->attach(allianceChoice);
+	allianceChoice->id = MULTIOP_ALLIANCES;
+//	allianceChoice->setOuterPaddingX(3, 3);
+	allianceChoice->setLabel(_("Alliances"));
+	addMultiButton(allianceChoice, NO_ALLIANCES, AtlasImage(FrontImages, IMAGE_NOALLI), AtlasImage(FrontImages, IMAGE_NOALLI_HI), _("No Alliances"));
+	addMultiButton(allianceChoice, ALLIANCES, AtlasImage(FrontImages, IMAGE_ALLI), AtlasImage(FrontImages, IMAGE_ALLI_HI), _("Allow Alliances"));
+	addMultiButton(allianceChoice, ALLIANCES_UNSHARED, AtlasImage(FrontImages, IMAGE_ALLI_UNSHARED), AtlasImage(FrontImages, IMAGE_ALLI_UNSHARED_HI), _("Locked Teams, No Shared Research"));
+	addMultiButton(allianceChoice, ALLIANCES_TEAMS, AtlasImage(FrontImages, IMAGE_ALLI_TEAMS), AtlasImage(FrontImages, IMAGE_ALLI_TEAMS_HI), _("Locked Teams"));
+	allianceChoice->enable(!locked.alliances);
+	allianceChoice->setGeometry(0, 0, allianceChoice->idealWidth(), allianceChoice->idealHeight());
+//	optionsList->addWidgetToLayout(allianceChoice);
+	optionsList->addItem(wrapItemForList(allianceChoice));
+
+	powerChoice = std::make_shared<MultichoiceWidget2>(game.power);
+//	optionsList->attach(powerChoice);
+	powerChoice->id = MULTIOP_POWER;
+//	powerChoice->setOuterPaddingX(3, 3);
+	powerChoice->setLabel(_("Power"));
+	addMultiButton(powerChoice, LEV_LOW, AtlasImage(FrontImages, IMAGE_POWLO), AtlasImage(FrontImages, IMAGE_POWLO_HI), _("Low Power Levels"));
+	addMultiButton(powerChoice, LEV_MED, AtlasImage(FrontImages, IMAGE_POWMED), AtlasImage(FrontImages, IMAGE_POWMED_HI), _("Medium Power Levels"));
+	addMultiButton(powerChoice, LEV_HI, AtlasImage(FrontImages, IMAGE_POWHI), AtlasImage(FrontImages, IMAGE_POWHI_HI), _("High Power Levels"));
+	powerChoice->enable(!locked.power);
+	powerChoice->setGeometry(0, 0, powerChoice->idealWidth(), powerChoice->idealHeight());
+//	optionsList->addWidgetToLayout(powerChoice);
+	optionsList->addItem(wrapItemForList(powerChoice));
+
+	baseTypeChoice = std::make_shared<MultichoiceWidget2>(game.base);
+//	optionsList->attach(baseTypeChoice);
+	baseTypeChoice->id = MULTIOP_BASETYPE;
+//	baseTypeChoice->setOuterPaddingX(3, 3);
+	baseTypeChoice->setLabel(_("Base"));
+	addMultiButton(baseTypeChoice, CAMP_CLEAN, AtlasImage(FrontImages, IMAGE_NOBASE), AtlasImage(FrontImages, IMAGE_NOBASE_HI), _("Start with No Bases"));
+	addMultiButton(baseTypeChoice, CAMP_BASE, AtlasImage(FrontImages, IMAGE_SBASE), AtlasImage(FrontImages, IMAGE_SBASE_HI), _("Start with Bases"));
+	addMultiButton(baseTypeChoice, CAMP_WALLS, AtlasImage(FrontImages, IMAGE_LBASE), AtlasImage(FrontImages, IMAGE_LBASE_HI), _("Start with Advanced Bases"));
+	baseTypeChoice->enable(!locked.bases);
+	baseTypeChoice->setGeometry(0, 0, baseTypeChoice->idealWidth(), baseTypeChoice->idealHeight());
+//	optionsList->addWidgetToLayout(baseTypeChoice);
+	optionsList->addItem(wrapItemForList(baseTypeChoice));
+
+	technologyChoice = std::make_shared<MultichoiceWidget2>(game.techLevel);
+//	optionsList->attach(technologyChoice);
+	technologyChoice->id = MULTIOP_TECHLEVEL;
+//	technologyChoice->setOuterPaddingX(3, 3);
+	technologyChoice->setLabel(_("Tech"));
+	addMultiButton(technologyChoice, TECH_1, AtlasImage(FrontImages, IMAGE_TECHLO), AtlasImage(FrontImages, IMAGE_TECHLO_HI), _("Technology Level 1"));
+	addMultiButton(technologyChoice, TECH_2, AtlasImage(FrontImages, IMAGE_TECHMED), AtlasImage(FrontImages, IMAGE_TECHMED_HI), _("Technology Level 2"));
+	addMultiButton(technologyChoice, TECH_3, AtlasImage(FrontImages, IMAGE_TECHHI), AtlasImage(FrontImages, IMAGE_TECHHI_HI), _("Technology Level 3"));
+	addMultiButton(technologyChoice, TECH_4, AtlasImage(FrontImages, IMAGE_COMPUTER_Y), AtlasImage(FrontImages, IMAGE_COMPUTER_Y_HI), _("Technology Level 4"));
+	technologyChoice->setGeometry(0, 0, technologyChoice->idealWidth(), technologyChoice->idealHeight());
+//	optionsList->addWidgetToLayout(technologyChoice);
+	optionsList->addItem(wrapItemForList(technologyChoice));
+
+//	auto mapPreviewButton = std::make_shared<MultibuttonWidget>();
+//	optionsList->attach(mapPreviewButton);
+//	mapPreviewButton->id = MULTIOP_MAP_PREVIEW;
+//	mapPreviewButton->setLabel(_("Map Preview"));
+//	addMultiButton(mapPreviewButton, 0, AtlasImage(FrontImages, IMAGE_FOG_OFF), AtlasImage(FrontImages, IMAGE_FOG_OFF_HI), _("Click to see Map"));
+//	optionsList->addWidgetToLayout(mapPreviewButton);
+
+	/* Add additional controls if we are (or going to be) hosting the game */
+	if (ingame.side == InGameSide::HOST_OR_SINGLEPLAYER)
+	{
+		auto structureLimitsLabel = challengeActive ? _("Show Structure Limits") : _("Set Structure Limits");
+		auto structLimitsButton = std::make_shared<MultichoiceWidget2>(-1, false);
+//		optionsList->attach(structLimitsButton);
+		structLimitsButton->id = MULTIOP_STRUCTLIMITS;
+//		structLimitsButton->setOuterPaddingX(3, 3);
+		structLimitsButton->setLabel(structureLimitsLabel);
+		::addMultiButton(structLimitsButton, 0, AtlasImage(FrontImages, IMAGE_SLIM), AtlasImage(FrontImages, IMAGE_SLIM_HI), structureLimitsLabel);
+		structLimitsButton->setGeometry(0, 0, structLimitsButton->idealWidth(), structLimitsButton->idealHeight() + 5); // FIXME: TODO: Manipulating this this way doesn't work with Margin wrap, which uses idealHeight/Width!!!
+//		optionsList->addWidgetToLayout(structLimitsButton);
+		optionsList->addItem(wrapItemForList(structLimitsButton));
+
+		/* ...and even more controls if we are not starting a challenge */
+		if (!challengeActive)
+		{
+//			auto randomButton = std::make_shared<MultibuttonWidget>();
+//			optionsList->attach(randomButton);
+//			randomButton->id = MULTIOP_RANDOM;
+//			randomButton->setLabel(_("Random Game Options"));
+//			addMultiButton(randomButton, 0, AtlasImage(FrontImages, IMAGE_RELOAD), AtlasImage(FrontImages, IMAGE_RELOAD), _("Random Game Options\nCan be blocked by players' votes"));
+//			randomButton->setButtonMinClickInterval(GAME_TICKS_PER_SEC / 2);
+//			optionsList->addWidgetToLayout(randomButton);
+
+//			/* Add the tech level choice if we have already started hosting. The only real reason this is displayed only after
+//			   starting the host is due to the fact that there is not enough room before the "Host Game" button is hidden.		*/
+//			if (NetPlay.isHost)
+//			{
+//				technologyChoice = addTechLevelMultibuttonWidget();
+//			}
+//			/* If not hosting (yet), add the button for starting the host. */
+//			else
+//			{
+//				hostButton = std::make_shared<MultibuttonWidget>();
+//				optionsList->attach(hostButton);
+//				hostButton->id = MULTIOP_HOST;
+//				hostButton->setLabel(_("Start Hosting Game"));
+//				addMultiButton(hostButton, 0, AtlasImage(FrontImages, IMAGE_HOST), AtlasImage(FrontImages, IMAGE_HOST_HI), _("Start Hosting Game"));
+//				optionsList->addWidgetToLayout(hostButton);
+//			}
+		}
+	}
+
+//	/* Create the button for starting the host. */
+//	hostButton = std::make_shared<MultibuttonWidget>();
+//	hostButton->id = MULTIOP_HOST;
+//	hostButton->setLabel(_("Start Hosting Game"));
+//	addMultiButton(hostButton, 0, AtlasImage(FrontImages, IMAGE_HOST), AtlasImage(FrontImages, IMAGE_HOST_HI), _("Start Hosting Game"));
+//	attach(hostButton);
 }
 
 // need to check for side effects.
@@ -1257,72 +1780,6 @@ static void addGameOptions()
 
 	addSideText(FRONTEND_SIDETEXT3, MULTIOP_OPTIONSX - 6 , MULTIOP_OPTIONSY, _("OPTIONS"));
 
-	// game name box
-	if (NetPlay.bComms)
-	{
-		addMultiEditBox(MULTIOP_OPTIONS, MULTIOP_GNAME, MCOL0, MROW2, _("Select Game Name"), game.name, IMAGE_EDIT_GAME, IMAGE_EDIT_GAME_HI, MULTIOP_GNAME_ICON);
-	}
-	else
-	{
-		addMultiEditBox(MULTIOP_OPTIONS, MULTIOP_GNAME, MCOL0, MROW2, _("Game Name"),
-		                challengeActive ? game.name : _("One-Player Skirmish"), IMAGE_EDIT_GAME,
-		                IMAGE_EDIT_GAME_HI, MULTIOP_GNAME_ICON);
-		// disable for one-player skirmish
-		widgSetButtonState(psWScreen, MULTIOP_GNAME, WEDBS_DISABLE);
-	}
-	widgSetButtonState(psWScreen, MULTIOP_GNAME_ICON, WBUT_DISABLE);
-
-	// map chooser
-
-	// This is a bit complicated, but basically, see addMultiEditBox,
-	//  and then consider that the two buttons are relative to MCOL0, MROW3.
-	// MCOL for N >= 1 is basically useless because that's not the actual rule followed by addMultiEditBox.
-	// And that's what this panel is meant to align to.
-	addBlueForm(MULTIOP_OPTIONS, MULTIOP_MAP, MCOL0, MROW3, MULTIOP_EDITBOXW + MULTIOP_EDITBOXH, MULTIOP_EDITBOXH);
-	W_LABINIT sLabInit;
-	sLabInit.formID = MULTIOP_MAP;
-	sLabInit.id		= MULTIOP_MAP + 1;
-	sLabInit.x		= 3;
-	sLabInit.y		= 4;
-	sLabInit.width	= MULTIOP_EDITBOXW - 24 - 5;
-	sLabInit.height = 20;
-	sLabInit.pText	= formatGameName(game.map);
-	widgAddLabel(psWScreen, &sLabInit);
-	addMultiBut(psWScreen, MULTIOP_MAP, MULTIOP_MAP_ICON, MULTIOP_EDITBOXW + 2, 2, MULTIOP_EDITBOXH, MULTIOP_EDITBOXH, _("Select Map\nCan be blocked by players' votes"), IMAGE_EDIT_MAP, IMAGE_EDIT_MAP_HI, true);
-	addMultiBut(psWScreen, MULTIOP_MAP, MULTIOP_MAP_MOD, MULTIOP_EDITBOXW - 14, 1, 12, 12, _("Map-Mod!"), IMAGE_LAMP_RED, IMAGE_LAMP_AMBER, false);
-	addMultiBut(psWScreen, MULTIOP_MAP, MULTIOP_MAP_RANDOM, MULTIOP_EDITBOXW - 24, 15, 12, 12, _("Random map!"), IMAGE_WEE_DIE, IMAGE_WEE_DIE, false);
-	if (!game.isMapMod)
-	{
-		widgHide(psWScreen, MULTIOP_MAP_MOD);
-	}
-	if (!game.isRandom)
-	{
-		widgHide(psWScreen, MULTIOP_MAP_RANDOM);
-	}
-	// disable for challenges
-	if (challengeActive)
-	{
-		widgSetButtonState(psWScreen, MULTIOP_MAP_ICON, WBUT_DISABLE);
-	}
-	// password box
-	if (NetPlay.bComms && ingame.side == InGameSide::HOST_OR_SINGLEPLAYER)
-	{
-		auto editBox = addMultiEditBox(MULTIOP_OPTIONS, MULTIOP_PASSWORD_EDIT, MCOL0, MROW4, _("Click to set Password"), NetPlay.gamePassword, IMAGE_UNLOCK_BLUE, IMAGE_LOCK_BLUE, MULTIOP_PASSWORD_BUT);
-		editBox->setPlaceholder(_("Enter password here"));
-		editBox->setPlaceholderTextColor(WZCOL_TEXT_DARK);
-		auto *pPasswordButton = dynamic_cast<WzMultiButton*>(widgGetFromID(psWScreen, MULTIOP_PASSWORD_BUT));
-		if (pPasswordButton)
-		{
-			pPasswordButton->minClickInterval = GAME_TICKS_PER_SEC / 2;
-		}
-		if (NetPlay.GamePassworded)
-		{
-			widgSetButtonState(psWScreen, MULTIOP_PASSWORD_BUT, WBUT_CLICKLOCK);
-			widgSetButtonState(psWScreen, MULTIOP_PASSWORD_EDIT, WEDBS_DISABLE);
-		}
-	}
-
-	//just display the game options.
 	bool isInBlindMode = (game.blindMode != BLIND_MODE::NONE);
 	WzString playerNameTip;
 	if (!isInBlindMode)
@@ -1350,121 +1807,116 @@ static void addGameOptions()
 		pNameEditBox->setTip(playerNameTip.toUtf8());
 	}
 
-	auto optionsList = std::make_shared<ListWidget>();
-	optionsForm->attach(optionsList);
-	optionsList->setChildSize(MULTIOP_BLUEFORMW, 29);
-	optionsList->setChildSpacing(2, 2);
-	optionsList->setGeometry(MCOL0, MROW5, MULTIOP_BLUEFORMW, optionsForm->height() - MROW5);
-
-	auto scavengerChoice = std::make_shared<MultichoiceWidget>(game.scavengers);
-	optionsList->attach(scavengerChoice);
-	scavengerChoice->id = MULTIOP_GAMETYPE;
-	scavengerChoice->setLabel(_("Scavengers"));
-	if (game.mapHasScavengers)
+	// game name box
+	if (NetPlay.bComms)
 	{
-		addMultiButton(scavengerChoice, ULTIMATE_SCAVENGERS, AtlasImage(FrontImages, IMAGE_SCAVENGERS_ULTIMATE_ON), AtlasImage(FrontImages, IMAGE_SCAVENGERS_ULTIMATE_ON_HI), _("Ultimate Scavengers"));
-		addMultiButton(scavengerChoice, SCAVENGERS, AtlasImage(FrontImages, IMAGE_SCAVENGERS_ON), AtlasImage(FrontImages, IMAGE_SCAVENGERS_ON_HI), _("Scavengers"));
+		addMultiEditBox(MULTIOP_OPTIONS, MULTIOP_GNAME, MCOL0, MROW2, _("Select Game Name"), game.name, IMAGE_EDIT_GAME, IMAGE_EDIT_GAME_HI, MULTIOP_GNAME_ICON);
 	}
-	addMultiButton(scavengerChoice, NO_SCAVENGERS, AtlasImage(FrontImages, IMAGE_SCAVENGERS_OFF), AtlasImage(FrontImages, IMAGE_SCAVENGERS_OFF_HI), _("No Scavengers"));
-	scavengerChoice->enable(!locked.scavengers);
-	optionsList->addWidgetToLayout(scavengerChoice);
-
-	auto allianceChoice = std::make_shared<MultichoiceWidget>(game.alliance);
-	optionsList->attach(allianceChoice);
-	allianceChoice->id = MULTIOP_ALLIANCES;
-	allianceChoice->setLabel(_("Alliances"));
-	addMultiButton(allianceChoice, NO_ALLIANCES, AtlasImage(FrontImages, IMAGE_NOALLI), AtlasImage(FrontImages, IMAGE_NOALLI_HI), _("No Alliances"));
-	addMultiButton(allianceChoice, ALLIANCES, AtlasImage(FrontImages, IMAGE_ALLI), AtlasImage(FrontImages, IMAGE_ALLI_HI), _("Allow Alliances"));
-	addMultiButton(allianceChoice, ALLIANCES_UNSHARED, AtlasImage(FrontImages, IMAGE_ALLI_UNSHARED), AtlasImage(FrontImages, IMAGE_ALLI_UNSHARED_HI), _("Locked Teams, No Shared Research"));
-	addMultiButton(allianceChoice, ALLIANCES_TEAMS, AtlasImage(FrontImages, IMAGE_ALLI_TEAMS), AtlasImage(FrontImages, IMAGE_ALLI_TEAMS_HI), _("Locked Teams"));
-	allianceChoice->enable(!locked.alliances);
-	optionsList->addWidgetToLayout(allianceChoice);
-
-	auto powerChoice = std::make_shared<MultichoiceWidget>(game.power);
-	optionsList->attach(powerChoice);
-	powerChoice->id = MULTIOP_POWER;
-	powerChoice->setLabel(_("Power"));
-	addMultiButton(powerChoice, LEV_LOW, AtlasImage(FrontImages, IMAGE_POWLO), AtlasImage(FrontImages, IMAGE_POWLO_HI), _("Low Power Levels"));
-	addMultiButton(powerChoice, LEV_MED, AtlasImage(FrontImages, IMAGE_POWMED), AtlasImage(FrontImages, IMAGE_POWMED_HI), _("Medium Power Levels"));
-	addMultiButton(powerChoice, LEV_HI, AtlasImage(FrontImages, IMAGE_POWHI), AtlasImage(FrontImages, IMAGE_POWHI_HI), _("High Power Levels"));
-	powerChoice->enable(!locked.power);
-	optionsList->addWidgetToLayout(powerChoice);
-
-	auto baseTypeChoice = std::make_shared<MultichoiceWidget>(game.base);
-	optionsList->attach(baseTypeChoice);
-	baseTypeChoice->id = MULTIOP_BASETYPE;
-	baseTypeChoice->setLabel(_("Base"));
-	addMultiButton(baseTypeChoice, CAMP_CLEAN, AtlasImage(FrontImages, IMAGE_NOBASE), AtlasImage(FrontImages, IMAGE_NOBASE_HI), _("Start with No Bases"));
-	addMultiButton(baseTypeChoice, CAMP_BASE, AtlasImage(FrontImages, IMAGE_SBASE), AtlasImage(FrontImages, IMAGE_SBASE_HI), _("Start with Bases"));
-	addMultiButton(baseTypeChoice, CAMP_WALLS, AtlasImage(FrontImages, IMAGE_LBASE), AtlasImage(FrontImages, IMAGE_LBASE_HI), _("Start with Advanced Bases"));
-	baseTypeChoice->enable(!locked.bases);
-	optionsList->addWidgetToLayout(baseTypeChoice);
-
-	auto mapPreviewButton = std::make_shared<MultibuttonWidget>();
-	optionsList->attach(mapPreviewButton);
-	mapPreviewButton->id = MULTIOP_MAP_PREVIEW;
-	mapPreviewButton->setLabel(_("Map Preview"));
-	addMultiButton(mapPreviewButton, 0, AtlasImage(FrontImages, IMAGE_FOG_OFF), AtlasImage(FrontImages, IMAGE_FOG_OFF_HI), _("Click to see Map"));
-	optionsList->addWidgetToLayout(mapPreviewButton);
-
-	auto addTechLevelMultibuttonWidget = [&](){
-		auto TechnologyChoice = std::make_shared<MultichoiceWidget>(game.techLevel);
-		optionsList->attach(TechnologyChoice);
-		TechnologyChoice->id = MULTIOP_TECHLEVEL;
-		TechnologyChoice->setLabel(_("Tech"));
-		addMultiButton(TechnologyChoice, TECH_1, AtlasImage(FrontImages, IMAGE_TECHLO), AtlasImage(FrontImages, IMAGE_TECHLO_HI), _("Technology Level 1"));
-		addMultiButton(TechnologyChoice, TECH_2, AtlasImage(FrontImages, IMAGE_TECHMED), AtlasImage(FrontImages, IMAGE_TECHMED_HI), _("Technology Level 2"));
-		addMultiButton(TechnologyChoice, TECH_3, AtlasImage(FrontImages, IMAGE_TECHHI), AtlasImage(FrontImages, IMAGE_TECHHI_HI), _("Technology Level 3"));
-		addMultiButton(TechnologyChoice, TECH_4, AtlasImage(FrontImages, IMAGE_COMPUTER_Y), AtlasImage(FrontImages, IMAGE_COMPUTER_Y_HI), _("Technology Level 4"));
-		optionsList->addWidgetToLayout(TechnologyChoice);
-		return TechnologyChoice;
-	};
-
-	/* Add additional controls if we are (or going to be) hosting the game */
-	if (ingame.side == InGameSide::HOST_OR_SINGLEPLAYER)
+	else
 	{
-		auto structureLimitsLabel = challengeActive ? _("Show Structure Limits") : _("Set Structure Limits");
-		auto structLimitsButton = std::make_shared<MultibuttonWidget>();
-		optionsList->attach(structLimitsButton);
-		structLimitsButton->id = MULTIOP_STRUCTLIMITS;
-		structLimitsButton->setLabel(structureLimitsLabel);
-		addMultiButton(structLimitsButton, 0, AtlasImage(FrontImages, IMAGE_SLIM), AtlasImage(FrontImages, IMAGE_SLIM_HI), structureLimitsLabel);
-		optionsList->addWidgetToLayout(structLimitsButton);
+		addMultiEditBox(MULTIOP_OPTIONS, MULTIOP_GNAME, MCOL0, MROW2, _("Game Name"),
+		                challengeActive ? game.name : _("One-Player Skirmish"), IMAGE_EDIT_GAME,
+		                IMAGE_EDIT_GAME_HI, MULTIOP_GNAME_ICON);
+		// disable for one-player skirmish
+		widgSetButtonState(psWScreen, MULTIOP_GNAME, WEDBS_DISABLE);
+	}
+	widgSetButtonState(psWScreen, MULTIOP_GNAME_ICON, WBUT_DISABLE);
 
-		/* ...and even more controls if we are not starting a challenge */
-		if (!challengeActive)
+	// map chooser
+
+	// This is a bit complicated, but basically, see addMultiEditBox,
+	//  and then consider that the two buttons are relative to MCOL0, MROW3.
+	// MCOL for N >= 1 is basically useless because that's not the actual rule followed by addMultiEditBox.
+	// And that's what this panel is meant to align to.
+	auto mapOptionForm = addBlueForm(MULTIOP_OPTIONS, MULTIOP_MAP, MCOL0, MROW3, MULTIOP_EDITBOXW + MULTIOP_EDITBOXH, MULTIOP_EDITBOXH);
+	W_LABINIT sLabInit;
+	sLabInit.formID = MULTIOP_MAP;
+	sLabInit.id		= MULTIOP_MAP + 1;
+	sLabInit.x		= 3;
+	sLabInit.y		= 4;
+	sLabInit.width	= MULTIOP_EDITBOXW - 18 - 5;
+	sLabInit.height = 20;
+	sLabInit.pText	= formatGameName(game.map);
+	auto mapNameLabel = widgAddLabel(psWScreen, &sLabInit);
+	mapNameLabel->setCanTruncate(true);
+	addMultiBut(psWScreen, MULTIOP_MAP, MULTIOP_MAP_ICON, MULTIOP_EDITBOXW + 2, 2, MULTIOP_EDITBOXH, MULTIOP_EDITBOXH, _("Select Map\nCan be blocked by players' votes"), IMAGE_EDIT_MAP, IMAGE_EDIT_MAP_HI, true);
+	auto mapModInfoButton = addMultiBut(psWScreen, MULTIOP_MAP, MULTIOP_MAP_MOD, MULTIOP_EDITBOXW - 16, 1, 12, 12, _("Map-Mod!"), IMAGE_LAMP_RED, IMAGE_LAMP_AMBER, false);
+	auto mapRandomInfoButton = addMultiBut(psWScreen, MULTIOP_MAP, MULTIOP_MAP_RANDOM, MULTIOP_EDITBOXW - 18, 15, 12, 12, _("Random map!"), IMAGE_WEE_DIE, IMAGE_WEE_DIE, false);
+
+	auto mapShowPreviewButton = std::make_shared<W_BUTTON>();
+	mapShowPreviewButton->id = MULTIOP_MAP_PREVIEW;
+//	mapShowPreviewButton->setImages(AtlasImage(FrontImages, IMAGE_FOG_OFF), AtlasImage(FrontImages, IMAGE_FOG_OFF_HI), mpwidgetGetFrontHighlightImage(AtlasImage(FrontImages, IMAGE_FOG_OFF)));
+	mapShowPreviewButton->setImages(AtlasImage(FrontImages, IMAGE_SPECTATOR), AtlasImage(FrontImages, IMAGE_SPECTATOR_HI), AtlasImage(FrontImages, IMAGE_SPECTATOR_HI));
+	mapShowPreviewButton->setTip(_("Click to see Map"));
+//	mapOptionForm->attach(mapShowPreviewButton);
+	optionsForm->attach(mapShowPreviewButton);
+	int mapShowPreviewButtonWidth = mapShowPreviewButton->width();
+	int mapShowPreviewButtonHeight = mapShowPreviewButton->height();
+//	mapShowPreviewButton->setGeometry(MULTIOP_EDITBOXW - mapShowPreviewButtonWidth - 2, 2, mapShowPreviewButtonWidth, mapShowPreviewButtonHeight);
+	mapShowPreviewButton->setGeometry(MCOL0 - mapShowPreviewButtonWidth - 6, MROW3 + 4, mapShowPreviewButtonWidth, mapShowPreviewButtonHeight);
+
+	if (!game.isMapMod)
+	{
+		mapModInfoButton->hide();
+	}
+	if (!game.isRandom)
+	{
+		mapRandomInfoButton->hide();
+	}
+	// disable for challenges
+	if (challengeActive)
+	{
+		widgSetButtonState(psWScreen, MULTIOP_MAP_ICON, WBUT_DISABLE);
+	}
+
+	int topAreaY1 = mapOptionForm->y() + mapOptionForm->height();
+
+	// password box
+	if (NetPlay.bComms && ingame.side == InGameSide::HOST_OR_SINGLEPLAYER)
+	{
+		auto editBox = addMultiEditBox(MULTIOP_OPTIONS, MULTIOP_PASSWORD_EDIT, MCOL0, MROW4, _("Click to set Password"), NetPlay.gamePassword, IMAGE_UNLOCK_BLUE, IMAGE_LOCK_BLUE, MULTIOP_PASSWORD_BUT);
+		editBox->setPlaceholder(_("Enter password here"));
+		editBox->setPlaceholderTextColor(WZCOL_TEXT_DARK);
+		auto *pPasswordButton = dynamic_cast<WzMultiButton*>(widgGetFromID(psWScreen, MULTIOP_PASSWORD_BUT));
+		if (pPasswordButton)
 		{
-			auto randomButton = std::make_shared<MultibuttonWidget>();
-			optionsList->attach(randomButton);
-			randomButton->id = MULTIOP_RANDOM;
-			randomButton->setLabel(_("Random Game Options"));
-			addMultiButton(randomButton, 0, AtlasImage(FrontImages, IMAGE_RELOAD), AtlasImage(FrontImages, IMAGE_RELOAD), _("Random Game Options\nCan be blocked by players' votes"));
-			randomButton->setButtonMinClickInterval(GAME_TICKS_PER_SEC / 2);
-			optionsList->addWidgetToLayout(randomButton);
-
-			/* Add the tech level choice if we have already started hosting. The only real reason this is displayed only after
-			   starting the host is due to the fact that there is not enough room before the "Host Game" button is hidden.		*/
-			if (NetPlay.isHost)
-			{
-				addTechLevelMultibuttonWidget();
-			}
-			/* If not hosting (yet), add the button for starting the host. */
-			else
-			{
-				auto hostButton = std::make_shared<MultibuttonWidget>();
-				optionsList->attach(hostButton);
-				hostButton->id = MULTIOP_HOST;
-				hostButton->setLabel(_("Start Hosting Game"));
-				addMultiButton(hostButton, 0, AtlasImage(FrontImages, IMAGE_HOST), AtlasImage(FrontImages, IMAGE_HOST_HI), _("Start Hosting Game"));
-				optionsList->addWidgetToLayout(hostButton);
-			}
+			pPasswordButton->minClickInterval = GAME_TICKS_PER_SEC / 2;
 		}
+		if (NetPlay.GamePassworded)
+		{
+			widgSetButtonState(psWScreen, MULTIOP_PASSWORD_BUT, WBUT_CLICKLOCK);
+			widgSetButtonState(psWScreen, MULTIOP_PASSWORD_EDIT, WEDBS_DISABLE);
+		}
+
+		topAreaY1 = editBox->y() + editBox->height();
 	}
-	else if (ingame.side == InGameSide::MULTIPLAYER_CLIENT)
+
+	(void)topAreaY1;
+
+	// Create the button for starting the host (at the very bottom)
+	int hostButtonHeight = 32;
+	auto hostButton = std::make_shared<MultibuttonWidget>();
+	hostButton->id = MULTIOP_HOST;
+	hostButton->setLabel(_("Start Hosting Game"));
+	addMultiButton(hostButton, 0, AtlasImage(FrontImages, IMAGE_HOST), AtlasImage(FrontImages, IMAGE_HOST_HI), _("Start Hosting Game"));
+	optionsForm->attach(hostButton);
+	hostButton->setGeometry(MCOL0, optionsForm->height() - hostButtonHeight - 1, MULTIOP_BLUEFORMW, hostButtonHeight);
+
+	bool showHostButton = (ingame.side == InGameSide::HOST_OR_SINGLEPLAYER) && (!challengeActive) && !(NetPlay.isHost);
+	if (showHostButton)
 	{
-		// Add tech level widget
-		addTechLevelMultibuttonWidget();
+		hostButton->show();
 	}
+	else
+	{
+		hostButton->hide();
+	}
+
+	// Add game options list
+	auto optionsListWidget = WzMultiGameOptionsList::make();
+	optionsForm->attach(optionsListWidget);
+	int maxOptionsListHeight = optionsForm->height() - (MROW5) - ((showHostButton) ? hostButtonHeight + 2 : 0) - 2;
+	optionsListWidget->setGeometry(10, MROW5, MULTIOP_BLUEFORMW + 35, std::min<int>(maxOptionsListHeight, optionsListWidget->idealHeight()));
 
 	// cancel
 	addMultiBut(psWScreen, MULTIOP_OPTIONS, CON_CANCEL,
@@ -5268,14 +5720,14 @@ static void disableMultiButs()
 		// edit boxes
 		widgSetButtonState(psWScreen, MULTIOP_GNAME, WEDBS_DISABLE);
 
-		((MultichoiceWidget *)widgGetFromID(psWScreen, MULTIOP_GAMETYPE))->disable();  // Scavengers.
-		((MultichoiceWidget *)widgGetFromID(psWScreen, MULTIOP_BASETYPE))->disable();  // camapign subtype.
-		((MultichoiceWidget *)widgGetFromID(psWScreen, MULTIOP_POWER))->disable();  // pow levels
-		((MultichoiceWidget *)widgGetFromID(psWScreen, MULTIOP_ALLIANCES))->disable();
+		((MultichoiceWidget2 *)widgGetFromID(psWScreen, MULTIOP_GAMETYPE))->disable();  // Scavengers.
+		((MultichoiceWidget2 *)widgGetFromID(psWScreen, MULTIOP_BASETYPE))->disable();  // camapign subtype.
+		((MultichoiceWidget2 *)widgGetFromID(psWScreen, MULTIOP_POWER))->disable();  // pow levels
+		((MultichoiceWidget2 *)widgGetFromID(psWScreen, MULTIOP_ALLIANCES))->disable();
 		auto psTechLevel = widgGetFromID(psWScreen, MULTIOP_TECHLEVEL);
 		if (psTechLevel)
 		{
-			((MultichoiceWidget *)psTechLevel)->disable();
+			((MultichoiceWidget2 *)psTechLevel)->disable();
 		}
 	}
 }
@@ -5917,28 +6369,28 @@ static void randomizeOptions()
 	if (!locked.scavengers && game.mapHasScavengers)
 	{
 		game.scavengers = rand() % 3;
-		((MultichoiceWidget *)widgGetFromID(psWScreen, MULTIOP_GAMETYPE))->choose(game.scavengers);
+		((MultichoiceWidget2 *)widgGetFromID(psWScreen, MULTIOP_GAMETYPE))->choose(game.scavengers);
 	}
 
 	if (!locked.alliances)
 	{
 		game.alliance = rand() % 4;
-		((MultichoiceWidget *)widgGetFromID(psWScreen, MULTIOP_ALLIANCES))->choose(game.alliance);
+		((MultichoiceWidget2 *)widgGetFromID(psWScreen, MULTIOP_ALLIANCES))->choose(game.alliance);
 	}
 	if (!locked.power)
 	{
 		game.power = rand() % 3;
-		((MultichoiceWidget *)widgGetFromID(psWScreen, MULTIOP_POWER))->choose(game.power);
+		((MultichoiceWidget2 *)widgGetFromID(psWScreen, MULTIOP_POWER))->choose(game.power);
 	}
 	if (!locked.bases)
 	{
 		game.base = rand() % 3;
-		((MultichoiceWidget *)widgGetFromID(psWScreen, MULTIOP_BASETYPE))->choose(game.base);
+		((MultichoiceWidget2 *)widgGetFromID(psWScreen, MULTIOP_BASETYPE))->choose(game.base);
 	}
 	if (NetPlay.isHost)
 	{
 		game.techLevel = rand() % 4;
-		((MultichoiceWidget *)widgGetFromID(psWScreen, MULTIOP_TECHLEVEL))->choose(game.techLevel);
+		((MultichoiceWidget2 *)widgGetFromID(psWScreen, MULTIOP_TECHLEVEL))->choose(game.techLevel);
 
 		resetReadyStatus(true);
 	}
@@ -6097,7 +6549,7 @@ void WzMultiplayerOptionsTitleUI::processMultiopWidgets(UDWORD id)
 		switch (id)
 		{
 		case MULTIOP_GAMETYPE:
-			game.scavengers = ((MultichoiceWidget *)widgGetFromID(psWScreen, MULTIOP_GAMETYPE))->currentValue();
+			game.scavengers = ((MultichoiceWidget2 *)widgGetFromID(psWScreen, MULTIOP_GAMETYPE))->currentValue();
 			resetReadyStatus(false);
 			if (NetPlay.isHost)
 			{
@@ -6106,7 +6558,7 @@ void WzMultiplayerOptionsTitleUI::processMultiopWidgets(UDWORD id)
 			break;
 
 		case MULTIOP_BASETYPE:
-			game.base = ((MultichoiceWidget *)widgGetFromID(psWScreen, MULTIOP_BASETYPE))->currentValue();
+			game.base = ((MultichoiceWidget2 *)widgGetFromID(psWScreen, MULTIOP_BASETYPE))->currentValue();
 			addGameOptions();
 
 			resetReadyStatus(false);
@@ -6118,7 +6570,7 @@ void WzMultiplayerOptionsTitleUI::processMultiopWidgets(UDWORD id)
 			break;
 
 		case MULTIOP_ALLIANCES:
-			game.alliance = ((MultichoiceWidget *)widgGetFromID(psWScreen, MULTIOP_ALLIANCES))->currentValue();
+			game.alliance = ((MultichoiceWidget2 *)widgGetFromID(psWScreen, MULTIOP_ALLIANCES))->currentValue();
 
 			resetReadyStatus(false);
 			netPlayersUpdated = true;
@@ -6130,7 +6582,7 @@ void WzMultiplayerOptionsTitleUI::processMultiopWidgets(UDWORD id)
 			break;
 
 		case MULTIOP_POWER:  // set power level
-			game.power = ((MultichoiceWidget *)widgGetFromID(psWScreen, MULTIOP_POWER))->currentValue();
+			game.power = ((MultichoiceWidget2 *)widgGetFromID(psWScreen, MULTIOP_POWER))->currentValue();
 
 			resetReadyStatus(false);
 
@@ -6141,7 +6593,7 @@ void WzMultiplayerOptionsTitleUI::processMultiopWidgets(UDWORD id)
 			break;
 
 		case MULTIOP_TECHLEVEL:
-			game.techLevel = ((MultichoiceWidget *)widgGetFromID(psWScreen, MULTIOP_TECHLEVEL))->currentValue();
+			game.techLevel = ((MultichoiceWidget2 *)widgGetFromID(psWScreen, MULTIOP_TECHLEVEL))->currentValue();
 			addGameOptions(); //refresh to see the proper tech level in the map name
 
 			resetReadyStatus(false);
@@ -6741,7 +7193,8 @@ void WzMultiplayerOptionsTitleUI::frontendMultiMessages(bool running)
 					auto psWidget = widgGetFromID(psWScreen, MULTIOP_MAP_PREVIEW);
 					if (psWidget)
 					{
-						((MultibuttonWidget *)psWidget)->enable(done);  // turn preview button on or off
+//						((MultibuttonWidget *)psWidget)->enable(done);  // turn preview button on or off
+						((W_BUTTON*)psWidget)->setState((done) ? 0 : WBUT_DISABLE);
 					}
 				}
 				// spectators should automatically become ready as soon as necessary files are downloaded
@@ -7882,7 +8335,7 @@ void displayMultiEditBox(WIDGET *psWidget, UDWORD xOffset, UDWORD yOffset)
 		colour.byte.b = FILLBLUE;
 		colour.byte.g = FILLGREEN;
 		colour.byte.a = FILLTRANS;
-		pie_UniTransBoxFill(x, y, x + psWidget->width() + psWidget->height(), y + psWidget->height(), colour);
+		pie_UniTransBoxFill(x, y, x + psWidget->width() + psWidget->height() - 1, y + psWidget->height(), colour);
 	}
 }
 
