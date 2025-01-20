@@ -33,7 +33,7 @@ protected:
 	void initialize(const WzString& displayName, const WzString& description);
 public:
 	static std::shared_ptr<WzAdvCheckbox> make(const WzString& displayName, const WzString& description);
-	void setImageDimensions(int imageSize) { imageDimensions = imageSize; recalcIdealWidth(); }
+	void setImageDimensions(int imageSize);
 	bool isChecked() const;
 	void setIsChecked(bool val);
 public:

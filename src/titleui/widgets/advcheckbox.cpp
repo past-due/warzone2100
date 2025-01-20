@@ -78,6 +78,12 @@ void WzAdvCheckbox::highlightLost()
 	descriptionWidget->forceSetAllFontColor(WZCOL_TEXT_MEDIUM);
 }
 
+void WzAdvCheckbox::setImageDimensions(int imageSize)
+{
+	imageDimensions = imageSize;
+	recalcIdealWidth();
+}
+
 bool WzAdvCheckbox::isChecked() const
 {
 	return checked;
