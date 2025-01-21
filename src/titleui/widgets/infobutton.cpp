@@ -21,6 +21,7 @@
  */
 
 #include "infobutton.h"
+#include "src/frend.h"
 
 WzInfoButton::WzInfoButton()
 { }
