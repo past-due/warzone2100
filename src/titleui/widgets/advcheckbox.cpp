@@ -203,10 +203,11 @@ void WzAdvCheckbox::display(int xOffset, int yOffset)
 		textColor.byte.a = (textColor.byte.a / 2);
 	}
 
-	int textX0 = x0 + outerHorizontalPadding + imageDimensions + innerHorizontalPadding;
+	int textXOffset = outerHorizontalPadding + imageDimensions + innerHorizontalPadding;
+	int textX0 = x0 + textXOffset;
 	int textY0 = y0 + outerVerticalPadding - wzText.aboveBase();
 
-	const int maxTextDisplayableWidth = w - textX0 - outerHorizontalPadding;
+	const int maxTextDisplayableWidth = w - textXOffset - outerHorizontalPadding;
 	int maxDisplayableMainTextWidth = maxTextDisplayableWidth;
 	bool isTruncated = maxDisplayableMainTextWidth < wzText.width();
 	if (isTruncated)
