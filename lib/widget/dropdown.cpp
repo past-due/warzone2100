@@ -33,9 +33,8 @@ class DropdownItemWrapper;
 class DropdownOverlay: public WIDGET
 {
 public:
-	DropdownOverlay(const std::shared_ptr<WIDGET>& parentDropdownWidget, std::function<void ()> onClickedFunc)
+	DropdownOverlay(std::function<void ()> onClickedFunc)
 	: onClickedFunc(onClickedFunc)
-	, parentDropdownWidget(parentDropdownWidget)
 	{
 		setCalcLayout(LAMBDA_CALCLAYOUT_SIMPLE({
 			psWidget->setGeometry(0, 0, screenWidth - 1, screenHeight - 1);
@@ -49,21 +48,11 @@ public:
 
 	void display(int xOffset, int yOffset) override
 	{
-		if (parentDropdownWidget)
-		{
-			int x0 = std::max<int>(0, parentDropdownWidget->screenPosX() - 8);
-			int y0 = parentDropdownWidget->screenPosY();
-			int w = parentDropdownWidget->width();
-			int h = parentDropdownWidget->height();
-			pie_UniTransBoxFill(x0, y0, x0 + w + 16, y0 + h, WZCOL_MENU_SCORE_BUILT);
-		}
-
 		displayChildDropShadows(this, xOffset, yOffset);
 	}
 
 private:
 	std::function<void ()> onClickedFunc;
-	std::shared_ptr<WIDGET> parentDropdownWidget;
 };
 
 void DropdownItemWrapper::initialize(const std::shared_ptr<DropdownWidget>& newParent, const std::shared_ptr<WIDGET> &newItem, DropdownOnSelectHandler newOnSelect)
@@ -134,7 +123,7 @@ void DropdownWidget::run(W_CONTEXT *psContext)
 {
 	if (overlayScreen)
 	{
-		itemsList->setGeometry(screenPosX(), calculateDropdownListScreenPosY(), width() - dropdownCaretImageSize.width(), itemsList->height());
+		itemsList->setGeometry(screenPosX(), calculateDropdownListScreenPosY(), getItemDisplayWidth(), itemsList->height());
 
 		if (keyPressed(KEY_ESC))
 		{
@@ -152,7 +141,7 @@ void DropdownWidget::geometryChanged()
 	{
 		return;
 	}
-	int itemWidth = w - dropdownCaretImageSize.width();
+	int itemWidth = getItemDisplayWidth();
 	itemsList->setGeometry(itemsList->x(), itemsList->y(), itemWidth, itemsList->height());
 	for(auto& item : items)
 	{
@@ -167,7 +156,18 @@ void DropdownWidget::clicked(W_CONTEXT *psContext, WIDGET_KEY key)
 
 int DropdownWidget::calculateDropdownListScreenPosY() const
 {
-	int dropDownOverlayPosY = screenPosY() - overlayYPosOffset;
+	int yPosOffset = 0;
+	switch (menuStyle)
+	{
+		case DropdownMenuStyle::InPlace:
+			yPosOffset = -overlayYPosOffset;
+			break;
+		case DropdownMenuStyle::Separate:
+			yPosOffset = height();
+			break;
+	}
+
+	int dropDownOverlayPosY = screenPosY() + yPosOffset;
 	if (dropDownOverlayPosY + itemsList->height() > screenHeight)
 	{
 		// Positioning the dropdown below would cause it to appear partially or fully offscreen
@@ -198,22 +198,30 @@ void DropdownWidget::open()
 
 			dropdownWidget->overlayScreen = W_SCREEN::make();
 
-			// calculate the ideal position so that the dropdown appears *overtop* of the currently-selected item (in-place)
-			size_t selectedItemIndex = dropdownWidget->getSelectedIndex().value_or(0);
-			size_t listViewTopIndex = 0;
-			if (dropdownWidget->itemsList->idealHeight() > dropdownWidget->itemsList->height())
+			switch (dropdownWidget->menuStyle)
 			{
-				size_t maxOffset = std::min<size_t>(2, dropdownWidget->itemsList->numItems());
-				if (selectedItemIndex > maxOffset)
+			case DropdownMenuStyle::InPlace:
 				{
-					listViewTopIndex = selectedItemIndex - maxOffset;
+					// calculate the ideal position so that the dropdown appears *overtop* of the currently-selected item (in-place)
+					size_t selectedItemIndex = dropdownWidget->getSelectedIndex().value_or(0);
+					size_t listViewTopIndex = 0;
+					if (dropdownWidget->itemsList->idealHeight() > dropdownWidget->itemsList->height())
+					{
+						size_t maxOffset = std::min<size_t>(2, dropdownWidget->itemsList->numItems());
+						if (selectedItemIndex > maxOffset)
+						{
+							listViewTopIndex = selectedItemIndex - maxOffset;
+						}
+						dropdownWidget->itemsList->scrollToItem(listViewTopIndex);
+					}
+					dropdownWidget->overlayYPosOffset = dropdownWidget->itemsList->getCurrentYPosOfItem(selectedItemIndex);
 				}
-				dropdownWidget->itemsList->scrollToItem(listViewTopIndex);
+				break;
+			case DropdownMenuStyle::Separate:
+				break;
 			}
-			dropdownWidget->overlayYPosOffset = dropdownWidget->itemsList->getCurrentYPosOfItem(selectedItemIndex);
 
 			auto newRootFrm = std::make_shared<DropdownOverlay>(
-				dropdownWidget,
 				[pWeakThis]() { if (auto dropdownWidget = pWeakThis.lock()) { dropdownWidget->close(); } }
 			);
 			dropdownWidget->overlayScreen->psForm->attach(newRootFrm);
@@ -224,6 +232,11 @@ void DropdownWidget::open()
 			widgRegisterOverlayScreenOnTopOfScreen(dropdownWidget->overlayScreen, dropdownWidget->screenPointer.lock());
 		}
 	});
+}
+
+bool DropdownWidget::isOpen() const
+{
+	return overlayScreen != nullptr;
 }
 
 void DropdownWidget::close()
@@ -246,30 +259,58 @@ void DropdownWidget::close()
 	});
 }
 
+int32_t DropdownWidget::getItemDisplayWidth() const
+{
+	return width() - dropdownCaretImageSize.width();
+}
+
 void DropdownWidget::display(int xOffset, int yOffset)
 {
 	auto x0 = xOffset + x();
 	auto y0 = yOffset + y();
-	auto w = width();
 
-	if (overlayScreen)
+	if (isOpen())
 	{
-		pie_UniTransBoxFill(x0, y0, x0 + width(), y0 + height(), WZCOL_MENU_SCORE_BUILT);
+		drawOpenedHighlight(xOffset, yOffset);
 	}
 
-	if (dropdownCaretImage.has_value())
-	{
-		int caretX0 = x0 + (w - dropdownCaretImageSize.width());
-		int caretY0 = y0 + ((height() - dropdownCaretImageSize.height()) / 2);
-		iV_DrawImageFileAnisotropicTint(dropdownCaretImage.value().images, dropdownCaretImage.value().id, caretX0, caretY0, Vector2f{dropdownCaretImageSize.width(), dropdownCaretImageSize.height()}, WZCOL_TEXT_MEDIUM);
-	}
+	auto itemWidth = getItemDisplayWidth();
+	drawDropdownCaretImage(xOffset, yOffset, WZCOL_TEXT_MEDIUM);
 
 	if (selectedItem)
 	{
-		WidgetGraphicsContext context;
-		context = context.translatedBy(x0, y0);
-		selectedItem->getItem()->displayRecursive(context);
+		WzRect displayArea(x0, y0, itemWidth, height());
+		drawSelectedItem(selectedItem->getItem(), displayArea);
 	}
+}
+
+void DropdownWidget::drawDropdownCaretImage(int xOffset, int yOffset, PIELIGHT color)
+{
+	if (!dropdownCaretImage.has_value())
+	{
+		return;
+	}
+	auto x0 = xOffset + x();
+	auto y0 = yOffset + y();
+	int caretX0 = x0 + getItemDisplayWidth();
+	int caretY0 = y0 + ((height() - dropdownCaretImageSize.height()) / 2);
+	iV_DrawImageFileAnisotropicTint(dropdownCaretImage.value().images, dropdownCaretImage.value().id, caretX0, caretY0, Vector2f{dropdownCaretImageSize.width(), dropdownCaretImageSize.height()}, color);
+}
+
+void DropdownWidget::drawOpenedHighlight(int xOffset, int yOffset)
+{
+	int x0 = std::max<int>(0, (xOffset + x()) - 8);
+	int y0 = yOffset + y();
+	int w = width();
+	int h = height();
+	pie_UniTransBoxFill(x0, y0, x0 + w + 16, y0 + h, WZCOL_MENU_SCORE_BUILT);
+}
+
+void DropdownWidget::drawSelectedItem(const std::shared_ptr<WIDGET>& item, const WzRect& displayArea)
+{
+	WidgetGraphicsContext context;
+	context = context.translatedBy(displayArea.x(), displayArea.y());
+	item->displayRecursive(context);
 }
 
 void DropdownWidget::addItem(const std::shared_ptr<WIDGET> &item)
@@ -291,7 +332,7 @@ void DropdownWidget::addItem(const std::shared_ptr<WIDGET> &item)
 	};
 
 	auto wrapper = DropdownItemWrapper::make(std::dynamic_pointer_cast<DropdownWidget>(shared_from_this()), item, itemOnSelect);
-	wrapper->setGeometry(0, 0, std::max(width() - dropdownCaretImageSize.width(), 0), height());
+	wrapper->setGeometry(0, 0, std::max(getItemDisplayWidth(), 0), height());
 
 	items.push_back(wrapper);
 	itemsList->addItem(wrapper);
@@ -368,6 +409,11 @@ void DropdownWidget::setDisabled(bool _isDisabled)
 	isDisabled = _isDisabled;
 }
 
+void DropdownWidget::setStyle(DropdownMenuStyle _menuStyle)
+{
+	menuStyle = _menuStyle;
+}
+
 int32_t DropdownWidget::idealWidth()
 {
 	int32_t result = itemsList->idealWidth();
@@ -384,4 +430,38 @@ int32_t DropdownWidget::idealHeight()
 	}
 
 	return max;
+}
+
+bool DropdownWidget::select(const std::shared_ptr<DropdownItemWrapper> &selected, size_t selectedIndex)
+{
+	if (selectedItem == selected)
+	{
+		return true;
+	}
+
+	if (canChange)
+	{
+		if (!canChange(*this, selectedIndex, (selected) ? selected->getItem() : nullptr))
+		{
+			// abort change
+			return false;
+		}
+	}
+
+	if (selectedItem)
+	{
+		selectedItem->setSelected(false);
+	}
+	selectedItem = selected;
+	if (menuStyle == DropdownMenuStyle::InPlace)
+	{
+		selectedItem->setSelected(true);
+	}
+
+	if (onChange)
+	{
+		onChange(*this);
+	}
+
+	return true;
 }

@@ -99,6 +99,7 @@ public:
 	void run(W_CONTEXT *) override;
 	void geometryChanged() override;
 	void open();
+	bool isOpen() const;
 	void close();
 	bool processClickRecursive(W_CONTEXT *psContext, WIDGET_KEY key, bool wasPressed) override;
 	void setListHeight(uint32_t value)
@@ -166,12 +167,25 @@ public:
 
 	void setDisabled(bool isDisabled);
 
+	enum class DropdownMenuStyle
+	{
+		InPlace,	// dropdown menu appears *overtop* of the currently-selected item (i.e. in-place)
+		Separate	// dropdown menu appears below (or above if not enough room) the parent DropdownWidget
+	};
+	void setStyle(DropdownMenuStyle menuStyle);
+
 	int32_t idealWidth() override;
 	int32_t idealHeight() override;
+
+	int32_t getItemDisplayWidth() const;
 
 protected:
 	friend class DropdownItemWrapper;
 	void setMouseClickOnItem(std::shared_ptr<DropdownItemWrapper> item, WIDGET_KEY key, bool wasPressed);
+
+	void drawDropdownCaretImage(int xOffset, int yOffset, PIELIGHT color);
+	virtual void drawOpenedHighlight(int xOffset, int yOffset);
+	virtual void drawSelectedItem(const std::shared_ptr<WIDGET>& item, const WzRect& screenDisplayArea);
 
 private:
 	std::vector<std::shared_ptr<DropdownItemWrapper>> items;
@@ -186,39 +200,10 @@ private:
 	int32_t overlayYPosOffset = 0;
 	optional<AtlasImage> dropdownCaretImage;
 	WzSize dropdownCaretImageSize;
+	DropdownMenuStyle menuStyle = DropdownMenuStyle::InPlace;
 	bool isDisabled = false;
 
-	bool select(const std::shared_ptr<DropdownItemWrapper> &selected, size_t selectedIndex)
-	{
-		if (selectedItem == selected)
-		{
-			return true;
-		}
-
-		if (canChange)
-		{
-			if (!canChange(*this, selectedIndex, (selected) ? selected->getItem() : nullptr))
-			{
-				// abort change
-				return false;
-			}
-		}
-
-		if (selectedItem)
-		{
-			selectedItem->setSelected(false);
-		}
-		selectedItem = selected;
-		selectedItem->setSelected(true);
-
-		if (onChange)
-		{
-			onChange(*this);
-		}
-
-		return true;
-	}
-
+	bool select(const std::shared_ptr<DropdownItemWrapper> &selected, size_t selectedIndex);
 	int calculateDropdownListScreenPosY() const;
 };
 
