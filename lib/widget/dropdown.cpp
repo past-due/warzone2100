@@ -134,7 +134,7 @@ void DropdownWidget::run(W_CONTEXT *psContext)
 {
 	if (overlayScreen)
 	{
-		itemsList->setGeometry(screenPosX(), calculateDropdownListScreenPosY(), width(), itemsList->height());
+		itemsList->setGeometry(screenPosX(), calculateDropdownListScreenPosY(), width() - dropdownCaretImageSize.width(), itemsList->height());
 
 		if (keyPressed(KEY_ESC))
 		{
@@ -146,10 +146,17 @@ void DropdownWidget::run(W_CONTEXT *psContext)
 
 void DropdownWidget::geometryChanged()
 {
-	itemsList->setGeometry(itemsList->x(), itemsList->y(), width(), itemsList->height());
+	int w = width();
+	int h = height();
+	if (w == 0 || h == 0)
+	{
+		return;
+	}
+	int itemWidth = w - dropdownCaretImageSize.width();
+	itemsList->setGeometry(itemsList->x(), itemsList->y(), itemWidth, itemsList->height());
 	for(auto& item : items)
 	{
-		item->setGeometry(0, 0, width(), height());
+		item->setGeometry(0, 0, itemWidth, h);
 	}
 }
 
@@ -184,6 +191,11 @@ void DropdownWidget::open()
 	widgScheduleTask([pWeakThis]() {
 		if (auto dropdownWidget = pWeakThis.lock())
 		{
+			if (dropdownWidget->onOpen)
+			{
+				dropdownWidget->onOpen(*dropdownWidget);
+			}
+
 			dropdownWidget->overlayScreen = W_SCREEN::make();
 
 			// calculate the ideal position so that the dropdown appears *overtop* of the currently-selected item (in-place)
@@ -206,7 +218,7 @@ void DropdownWidget::open()
 			);
 			dropdownWidget->overlayScreen->psForm->attach(newRootFrm);
 
-			dropdownWidget->itemsList->setGeometry(dropdownWidget->screenPosX(), dropdownWidget->calculateDropdownListScreenPosY(), dropdownWidget->width(), dropdownWidget->itemsList->height());
+			dropdownWidget->itemsList->setGeometry(dropdownWidget->screenPosX(), dropdownWidget->calculateDropdownListScreenPosY(), dropdownWidget->width() - dropdownWidget->dropdownCaretImageSize.width(), dropdownWidget->itemsList->height());
 			newRootFrm->attach(dropdownWidget->itemsList);
 
 			widgRegisterOverlayScreenOnTopOfScreen(dropdownWidget->overlayScreen, dropdownWidget->screenPointer.lock());
@@ -238,10 +250,18 @@ void DropdownWidget::display(int xOffset, int yOffset)
 {
 	auto x0 = xOffset + x();
 	auto y0 = yOffset + y();
+	auto w = width();
 
 	if (overlayScreen)
 	{
 		pie_UniTransBoxFill(x0, y0, x0 + width(), y0 + height(), WZCOL_MENU_SCORE_BUILT);
+	}
+
+	if (dropdownCaretImage.has_value())
+	{
+		int caretX0 = x0 + (w - dropdownCaretImageSize.width());
+		int caretY0 = y0 + ((height() - dropdownCaretImageSize.height()) / 2);
+		iV_DrawImageFileAnisotropicTint(dropdownCaretImage.value().images, dropdownCaretImage.value().id, caretX0, caretY0, Vector2f{dropdownCaretImageSize.width(), dropdownCaretImageSize.height()}, WZCOL_TEXT_MEDIUM);
 	}
 
 	if (selectedItem)
@@ -271,7 +291,7 @@ void DropdownWidget::addItem(const std::shared_ptr<WIDGET> &item)
 	};
 
 	auto wrapper = DropdownItemWrapper::make(std::dynamic_pointer_cast<DropdownWidget>(shared_from_this()), item, itemOnSelect);
-	wrapper->setGeometry(0, 0, width(), height());
+	wrapper->setGeometry(0, 0, std::max(width() - dropdownCaretImageSize.width(), 0), height());
 
 	items.push_back(wrapper);
 	itemsList->addItem(wrapper);
@@ -288,7 +308,7 @@ void DropdownWidget::clear()
 
 bool DropdownWidget::processClickRecursive(W_CONTEXT *psContext, WIDGET_KEY key, bool wasPressed)
 {
-	if (!overlayScreen && selectedItem)
+	if (!overlayScreen && selectedItem && !isDisabled && key == WKEY_NONE) // only forward highlighting events
 	{
 		W_CONTEXT shiftedContext(psContext);
 		auto deltaX = x() - selectedItem->x();
@@ -320,4 +340,48 @@ void DropdownWidget::setMouseClickOnItem(std::shared_ptr<DropdownItemWrapper> it
 	{
 		mouseDownItem.reset();
 	}
+}
+
+void DropdownWidget::setDropdownCaretImage(optional<AtlasImage> image, const WzSize& displaySize)
+{
+	dropdownCaretImage = image;
+	dropdownCaretImageSize = WzSize(0, 0);
+
+	if (dropdownCaretImage.has_value())
+	{
+		if (!dropdownCaretImage.value().images)
+		{
+			dropdownCaretImage.reset();
+			return;
+		}
+		if (dropdownCaretImage.value().id >= dropdownCaretImage.value().images->numImages())
+		{
+			dropdownCaretImage.reset();
+			return;
+		}
+		dropdownCaretImageSize = displaySize;
+	}
+}
+
+void DropdownWidget::setDisabled(bool _isDisabled)
+{
+	isDisabled = _isDisabled;
+}
+
+int32_t DropdownWidget::idealWidth()
+{
+	int32_t result = itemsList->idealWidth();
+	result += dropdownCaretImageSize.width();
+	return result;
+}
+
+int32_t DropdownWidget::idealHeight()
+{
+	auto max = 0;
+	for (auto const &item: items)
+	{
+		max = std::max(max, item->idealHeight());
+	}
+
+	return max;
 }

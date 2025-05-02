@@ -27,6 +27,7 @@
 #include <nonstd/optional.hpp>
 #include "widget.h"
 #include "scrollablelist.h"
+#include "lib/ivis_opengl/ivisdef.h"
 
 class DropdownItemWrapper;
 typedef std::function<void(std::shared_ptr<DropdownItemWrapper> item)> DropdownOnSelectHandler;
@@ -117,6 +118,10 @@ public:
 	{
 		onChange = value;
 	}
+	void setOnOpen(std::function<void(DropdownWidget&)> value)
+	{
+		onOpen = value;
+	}
 	std::shared_ptr<WIDGET> getItem(size_t idx) const
 	{
 		if (idx >= items.size())
@@ -156,21 +161,13 @@ public:
 		return itemsList->getScrollbarWidth();
 	}
 
-	int32_t idealWidth() override
-	{
-		return itemsList->idealWidth();
-	}
+	// Show a dropdown caret image on the right side of the widget
+	void setDropdownCaretImage(optional<AtlasImage> image, const WzSize& displaySize);
 
-	int32_t idealHeight() override
-	{
-		auto max = 0;
-		for (auto const &item: items)
-		{
-			max = std::max(max, item->idealHeight());
-		}
+	void setDisabled(bool isDisabled);
 
-		return max;
-	}
+	int32_t idealWidth() override;
+	int32_t idealHeight() override;
 
 protected:
 	friend class DropdownItemWrapper;
@@ -183,9 +180,13 @@ private:
 	std::shared_ptr<DropdownItemWrapper> selectedItem;
 	std::function<bool(DropdownWidget&, size_t newIndex, std::shared_ptr<WIDGET> newSelectedWidget)> canChange;
 	std::function<void(DropdownWidget&)> onChange;
+	std::function<void(DropdownWidget&)> onOpen;
 	std::shared_ptr<DropdownItemWrapper> mouseOverItem;
 	std::shared_ptr<DropdownItemWrapper> mouseDownItem;
 	int32_t overlayYPosOffset = 0;
+	optional<AtlasImage> dropdownCaretImage;
+	WzSize dropdownCaretImageSize;
+	bool isDisabled = false;
 
 	bool select(const std::shared_ptr<DropdownItemWrapper> &selected, size_t selectedIndex)
 	{
