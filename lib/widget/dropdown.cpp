@@ -123,7 +123,7 @@ void DropdownWidget::run(W_CONTEXT *psContext)
 {
 	if (overlayScreen)
 	{
-		itemsList->setGeometry(screenPosX(), calculateDropdownListScreenPosY(), getItemDisplayWidth(), itemsList->height());
+		itemsList->setGeometry(calculateDropdownListScreenPosX(), calculateDropdownListScreenPosY(), itemsList->width(), itemsList->height());
 
 		if (keyPressed(KEY_ESC))
 		{
@@ -142,16 +142,50 @@ void DropdownWidget::geometryChanged()
 		return;
 	}
 	int itemWidth = getItemDisplayWidth();
-	itemsList->setGeometry(itemsList->x(), itemsList->y(), itemWidth, itemsList->height());
-	for(auto& item : items)
+	itemsList->setGeometry(itemsList->x(), itemsList->y(), calculateDropdownListDisplayWidth(), itemsList->height());
+	switch (menuStyle)
 	{
-		item->setGeometry(0, 0, itemWidth, h);
+		case DropdownMenuStyle::InPlace:
+			for(auto& item : items)
+			{
+				item->setGeometry(0, 0, itemWidth, h);
+			}
+			break;
+		case DropdownMenuStyle::Separate:
+			break;
 	}
 }
 
 void DropdownWidget::clicked(W_CONTEXT *psContext, WIDGET_KEY key)
 {
 	open();
+}
+
+int DropdownWidget::calculateDropdownListScreenPosX() const
+{
+	return screenPosX();
+}
+
+int DropdownWidget::calculateDropdownListDisplayWidth() const
+{
+	switch (menuStyle)
+	{
+		case DropdownMenuStyle::InPlace:
+			return getItemDisplayWidth();
+		case DropdownMenuStyle::Separate:
+			return itemsList->idealWidth();
+	}
+	return 0; // silence warning
+}
+
+void DropdownWidget::setListBackgroundColor(const PIELIGHT& color)
+{
+	itemsList->setBackgroundColor(color);
+}
+
+const Padding& DropdownWidget::getDropdownMenuOuterPadding() const
+{
+	return itemsList->getPadding();
 }
 
 int DropdownWidget::calculateDropdownListScreenPosY() const
@@ -226,7 +260,7 @@ void DropdownWidget::open()
 			);
 			dropdownWidget->overlayScreen->psForm->attach(newRootFrm);
 
-			dropdownWidget->itemsList->setGeometry(dropdownWidget->screenPosX(), dropdownWidget->calculateDropdownListScreenPosY(), dropdownWidget->width() - dropdownWidget->dropdownCaretImageSize.width(), dropdownWidget->itemsList->height());
+			dropdownWidget->itemsList->setGeometry(dropdownWidget->calculateDropdownListScreenPosX(), dropdownWidget->calculateDropdownListScreenPosY(), dropdownWidget->calculateDropdownListDisplayWidth(), dropdownWidget->itemsList->height());
 			newRootFrm->attach(dropdownWidget->itemsList);
 
 			widgRegisterOverlayScreenOnTopOfScreen(dropdownWidget->overlayScreen, dropdownWidget->screenPointer.lock());
@@ -261,7 +295,12 @@ void DropdownWidget::close()
 
 int32_t DropdownWidget::getItemDisplayWidth() const
 {
-	return width() - dropdownCaretImageSize.width();
+	return width() - getCaretImageUsedWidth();
+}
+
+int32_t DropdownWidget::getCaretImageUsedWidth() const
+{
+	return dropdownCaretImageSize.width() + dropdownCaretImagePadding.left + dropdownCaretImagePadding.right;
 }
 
 void DropdownWidget::display(int xOffset, int yOffset)
@@ -292,7 +331,7 @@ void DropdownWidget::drawDropdownCaretImage(int xOffset, int yOffset, PIELIGHT c
 	}
 	auto x0 = xOffset + x();
 	auto y0 = yOffset + y();
-	int caretX0 = x0 + getItemDisplayWidth();
+	int caretX0 = x0 + getItemDisplayWidth() + dropdownCaretImagePadding.left;
 	int caretY0 = y0 + ((height() - dropdownCaretImageSize.height()) / 2);
 	iV_DrawImageFileAnisotropicTint(dropdownCaretImage.value().images, dropdownCaretImage.value().id, caretX0, caretY0, Vector2f{dropdownCaretImageSize.width(), dropdownCaretImageSize.height()}, color);
 }
@@ -332,7 +371,15 @@ void DropdownWidget::addItem(const std::shared_ptr<WIDGET> &item)
 	};
 
 	auto wrapper = DropdownItemWrapper::make(std::dynamic_pointer_cast<DropdownWidget>(shared_from_this()), item, itemOnSelect);
-	wrapper->setGeometry(0, 0, std::max(getItemDisplayWidth(), 0), height());
+	switch (menuStyle)
+	{
+		case DropdownMenuStyle::InPlace:
+			wrapper->setGeometry(0, 0, std::max(getItemDisplayWidth(), 0), height());
+			break;
+		case DropdownMenuStyle::Separate:
+			wrapper->setGeometry(0, 0, std::max(item->width(), 0), item->height());
+			break;
+	}
 
 	items.push_back(wrapper);
 	itemsList->addItem(wrapper);
@@ -383,10 +430,11 @@ void DropdownWidget::setMouseClickOnItem(std::shared_ptr<DropdownItemWrapper> it
 	}
 }
 
-void DropdownWidget::setDropdownCaretImage(optional<AtlasImage> image, const WzSize& displaySize)
+void DropdownWidget::setDropdownCaretImage(optional<AtlasImage> image, const WzSize& displaySize, const Padding& padding)
 {
 	dropdownCaretImage = image;
 	dropdownCaretImageSize = WzSize(0, 0);
+	dropdownCaretImagePadding = Padding{};
 
 	if (dropdownCaretImage.has_value())
 	{
@@ -401,6 +449,7 @@ void DropdownWidget::setDropdownCaretImage(optional<AtlasImage> image, const WzS
 			return;
 		}
 		dropdownCaretImageSize = displaySize;
+		dropdownCaretImagePadding = padding;
 	}
 }
 
@@ -409,15 +458,29 @@ void DropdownWidget::setDisabled(bool _isDisabled)
 	isDisabled = _isDisabled;
 }
 
+bool DropdownWidget::getIsDisabled() const
+{
+	return isDisabled;
+}
+
 void DropdownWidget::setStyle(DropdownMenuStyle _menuStyle)
 {
 	menuStyle = _menuStyle;
+	switch (menuStyle)
+	{
+		case DropdownMenuStyle::InPlace:
+			itemsList->setPadding(Padding{});
+			break;
+		case DropdownMenuStyle::Separate:
+			itemsList->setPadding(Padding{5,0,5,0});
+			break;
+	}
 }
 
 int32_t DropdownWidget::idealWidth()
 {
 	int32_t result = itemsList->idealWidth();
-	result += dropdownCaretImageSize.width();
+	result += getCaretImageUsedWidth();
 	return result;
 }
 
@@ -458,10 +521,16 @@ bool DropdownWidget::select(const std::shared_ptr<DropdownItemWrapper> &selected
 		selectedItem->setSelected(true);
 	}
 
+	onSelectedItemChanged();
 	if (onChange)
 	{
 		onChange(*this);
 	}
 
 	return true;
+}
+
+void DropdownWidget::onSelectedItemChanged()
+{
+	// currently, no-op - intended for subclasses to override
 }
