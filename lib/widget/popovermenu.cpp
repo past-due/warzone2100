@@ -153,6 +153,11 @@ int PopoverMenuWidget::maxItemIdealHeight() const
 	return maxItemHeight;
 }
 
+const Padding& PopoverMenuWidget::getPadding() const
+{
+	return menuList->getPadding();
+}
+
 std::shared_ptr<PopoverWidget> PopoverMenuWidget::openMenu(const std::shared_ptr<WIDGET>& parent, PopoverWidget::Alignment align, Vector2i positionOffset, const PopoverWidget::OnPopoverCloseHandlerFunc& onCloseHandler)
 {
 	if (auto strongCurrentPopover = currentPopover.lock())

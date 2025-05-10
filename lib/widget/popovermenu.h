@@ -78,6 +78,7 @@ public:
 	void addMenuItem(const std::shared_ptr<WIDGET>& widget, bool closesMenuOnClick = false);
 	size_t numItems() const;
 	int maxItemIdealHeight() const;
+	const Padding& getPadding() const;
 
 	std::shared_ptr<PopoverWidget> openMenu(const std::shared_ptr<WIDGET>& parent, PopoverWidget::Alignment align = PopoverWidget::Alignment::LeftOfParent, Vector2i positionOffset = Vector2i(0, 0), const PopoverWidget::OnPopoverCloseHandlerFunc& onCloseHandler = nullptr);
 	void closeMenu();
