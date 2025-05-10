@@ -152,6 +152,8 @@ void displayRoomSystemMessage(char const *text);
 void displayRoomNotifyMessage(char const *text);
 void displayLobbyDisabledNotification();
 
+void multiLobbyRandomizeOptions();
+
 bool SendColourRequest(UBYTE player, UBYTE col);
 
 void handleAutoReadyRequest();
@@ -284,13 +286,8 @@ bool autoBalancePlayersCmd();
 #define MULTIOP_GNAME			10255
 #define MULTIOP_MAP_ICON		10258
 #define MULTIOP_MAP				10259
-#define MULTIOP_MAP_MOD			21013	// Warning, do not use sequential numbers until code is fixed.
-#define MULTIOP_MAP_RANDOM      21014
 
 #define MULTIOP_REFRESH			10275
-
-#define MULTIOP_HOST			10276
-#define MULTIOP_HOSTX			5
 
 #define MULTIOP_FILTER_TOGGLE   30277
 
@@ -323,15 +320,8 @@ bool autoBalancePlayersCmd();
 #define MULTIOP_GAMETYPE		10294
 #define MULTIOP_POWER			10296
 #define MULTIOP_ALLIANCES		10298
-#define MULTIOP_RANDOM			10299
 #define MULTIOP_BASETYPE		10300
 #define MULTIOP_TECHLEVEL		10301
-
-#define MULTIOP_MAP_PREVIEW 920000
-
-#define MULTIOP_PASSWORD	920010
-#define MULTIOP_PASSWORD_BUT 920012
-#define MULTIOP_PASSWORD_EDIT 920013
 
 #define MULTIOP_NO_SOMETHING            10331
 #define MULTIOP_NO_SOMETHINGX           2

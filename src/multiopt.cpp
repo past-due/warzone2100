@@ -736,6 +736,7 @@ bool multiGameShutdown()
 	NET_InitPlayers();
 
 	resetKickVoteData();
+	resetAllMultiOptionPrefValues();
 
 	return true;
 }

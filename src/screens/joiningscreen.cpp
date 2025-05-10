@@ -39,6 +39,7 @@
 #include "../titleui/titleui.h"
 #include "../titleui/multiplayer.h"
 #include "../multiint.h"
+#include "../multivote.h"
 
 #include <chrono>
 #include <algorithm>
@@ -1717,6 +1718,9 @@ static void handleJoinSuccess(const JoinConnectionDescription& connection, const
 	// send initial messages of player data (stats, color request, etc)
 	setMultiStats(selectedPlayer, playerStats, false);
 	setMultiStats(selectedPlayer, playerStats, true);
+
+	loadMultiOptionPrefValues(sPlayer, selectedPlayer);
+	sendPlayerMultiOptPreferencesBuiltin();
 
 	if (selectedPlayer < MAX_PLAYERS && war_getMPcolour() >= 0)
 	{
