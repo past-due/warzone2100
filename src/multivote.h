@@ -43,7 +43,7 @@ void cancelOrDismissVoteNotifications();
 
 struct NETQUEUE;
 bool recvVoteRequest(NETQUEUE queue);
-bool recvVote(NETQUEUE queue, bool inLobby);
+bool recvVote(NETQUEUE queue, bool inLobby = true);
 
 // local options
 
