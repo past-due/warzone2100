@@ -679,28 +679,28 @@ jobs:
     #####################################################
     - name: 'Upload Artifact - (Portable Build)'
       uses: actions/upload-artifact@v4
-      if: success() && (github.repository == 'Warzone2100/warzone2100')
+      if: success() #&& (github.repository == 'Warzone2100/warzone2100')
       with:
         name: warzone2100_${{ steps.settings.outputs.WZ_BUILD_DESC }}_portable
         path: '${{ github.workspace }}\output\portable'
         if-no-files-found: 'error'
     - name: 'Upload Artifact - (Regular Installer)'
       uses: actions/upload-artifact@v4
-      if: success() && (github.repository == 'Warzone2100/warzone2100')
+      if: success() #&& (github.repository == 'Warzone2100/warzone2100')
       with:
         name: warzone2100_${{ steps.settings.outputs.WZ_BUILD_DESC }}_installer
         path: '${{ github.workspace }}\output\installer'
         if-no-files-found: 'error'
     - name: 'Upload Artifact - (Debug Symbols)'
       uses: actions/upload-artifact@v4
-      if: success() && (github.repository == 'Warzone2100/warzone2100')
+      if: success() #&& (github.repository == 'Warzone2100/warzone2100')
       with:
         name: warzone2100_${{ steps.settings.outputs.WZ_BUILD_DESC }}_DEBUGSYMBOLS
         path: '${{ github.workspace }}\output\debugsymbols'
         if-no-files-found: 'error'
     - name: 'Upload Artifact - (Archive)'
       uses: actions/upload-artifact@v4
-      if: success() && ((github.event_name == 'push' && github.ref == 'refs/heads/master') || (github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Draft Tag Release')) && (matrix.deploy_release == true) && (github.repository == 'Warzone2100/warzone2100')
+      if: success() && ((github.event_name == 'push' && github.ref == 'refs/heads/master') || (github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Draft Tag Release')) && (matrix.deploy_release == true) #&& (github.repository == 'Warzone2100/warzone2100')
       with:
         name: warzone2100_${{ steps.settings.outputs.WZ_BUILD_DESC }}_archive
         path: '${{ github.workspace }}\output\archive'
@@ -803,7 +803,7 @@ jobs:
     runs-on: windows-latest
     needs: windows-build
     environment: sign_release
-    if: success() && ((github.event_name == 'push' && github.ref == 'refs/heads/master') || (github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Draft Tag Release')) && (github.repository == 'Warzone2100/warzone2100')
+    if: success()
     outputs:
       signedfiles: ${{ steps.output-result.outputs.signedfiles }}
     steps:
@@ -815,21 +815,21 @@ jobs:
           mkdir unsigned-installers
           mkdir signed-installers
       - name: Download Release Portable Installers
-        if: success() && env.WZ_CI_SIGN_RELEASE_BUILDS == 'true' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        if: success() && env.WZ_CI_SIGN_RELEASE_BUILDS == 'true' #&& vars.SIGNPATH_ORGANIZATION_ID != ''
         uses: actions/download-artifact@v4
         with:
           pattern: 'warzone2100_win_*_portable'
           path: .\unsigned-installers
           merge-multiple: true
       - name: Download Release Full Installers
-        if: success() && env.WZ_CI_SIGN_RELEASE_BUILDS == 'true' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        if: success() && env.WZ_CI_SIGN_RELEASE_BUILDS == 'true' #&& vars.SIGNPATH_ORGANIZATION_ID != ''
         uses: actions/download-artifact@v4
         with:
           pattern: 'warzone2100_win_*_installer'
           path: .\unsigned-installers
           merge-multiple: true
       - name: Log Unsigned Installer Details
-        if: success() && env.WZ_CI_SIGN_RELEASE_BUILDS == 'true' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        if: success() && env.WZ_CI_SIGN_RELEASE_BUILDS == 'true' #&& vars.SIGNPATH_ORGANIZATION_ID != ''
         working-directory: '${{ github.workspace }}\unsigned-installers'
         run: |
           Write-Host "SHA512 Hashes:"
@@ -839,7 +839,7 @@ jobs:
           }
           Write-Host ""
       - name: 'Upload Artifact - All Unsigned Installer EXEs Bundle'
-        if: success() && env.WZ_CI_SIGN_RELEASE_BUILDS == 'true' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        if: success() && env.WZ_CI_SIGN_RELEASE_BUILDS == 'true' #&& vars.SIGNPATH_ORGANIZATION_ID != ''
         id: upload-unsigned-installers-artifact
         uses: actions/upload-artifact@v4
         with:
@@ -905,7 +905,7 @@ jobs:
       contents: write # Needed to upload to releases
     runs-on: ubuntu-latest
     # Run on tag release automation build
-    if: success() && (github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Draft Tag Release') && (github.repository == 'Warzone2100/warzone2100')
+    if: success() && (github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Draft Tag Release') #&& (github.repository == 'Warzone2100/warzone2100')
     needs: [windows-build, sign-release-installers]
     env:
       WZ_GITHUB_REF: ${{needs.windows-build.outputs.WZ_GITHUB_REF}}
