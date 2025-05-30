@@ -6,10 +6,10 @@ RUN mkdir -p /scripts
 COPY get-dependencies_linux.sh /scripts
 RUN chmod +x /scripts/get-dependencies_linux.sh
 
-RUN apt-get -u update \
+RUN ["/bin/bash", "-c", "apt-get -u update \
  && DEBIAN_FRONTEND=noninteractive apt-get -y install gcc g++ clang libc-dev dpkg-dev ninja-build pkg-config file \
  && /scripts/get-dependencies_linux.sh ubuntu build-dependencies \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/*"]
 
 # Install Vulkan SDK
 ENV VULKANSDK_SHA256 79b0a1593dadc46180526250836f3e53688a9a5fb42a0e5859eb72316dc4d53e
