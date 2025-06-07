@@ -195,9 +195,9 @@ void NETinsertRawData(NETQUEUE queue, uint8_t *data, size_t dataLen)
 	receiveQueue(queue)->writeRawData(data, dataLen);
 }
 
-void NETinsertMessageFromNet(NETQUEUE queue, NetMessage const *newMessage)
+void NETinsertMessageFromNet(NETQUEUE queue, NetMessage&& newMessage)
 {
-	receiveQueue(queue)->pushMessage(*newMessage);
+	receiveQueue(queue)->emplaceMessage(std::move(newMessage));
 }
 
 bool NETisMessageReady(NETQUEUE queue)
@@ -595,7 +595,7 @@ bool NETloadReplay(std::string const &filename, ReplayOptionsHandler& optionsHan
 			gotReplayEnded = true;
 			break;
 		}
-		gameQueues[player]->pushMessage(*newMessage);
+		gameQueues[player]->emplaceMessage(std::move(*newMessage));
 	}
 	if (!gotReplayEnded && replayFormatVer >= 2)
 	{
@@ -802,7 +802,7 @@ void NETVector2i(MessageReader& r, Vector2i& vec)
 	NETint32_t(r, vec.y);
 }
 
-void NETnetMessage(MessageReader& r, NetMessage const** msg)
+void NETnetMessage(MessageReader& r, NetMessage ** msg)
 {
 	NetMessage* m = new NetMessage();
 

@@ -46,6 +46,9 @@ class NetMessage
 {
 public:
 	NetMessage(uint8_t type_ = 0xFF) : type(type_) {}
+	NetMessage(NetMessage&&) = default;
+	NetMessage(const NetMessage&) = default;
+	NetMessage& operator=(const NetMessage&) = default;
 	static bool tryFromRawData(const uint8_t* buffer, size_t bufferLen, NetMessage& output);
 	uint8_t *rawDataDup() const;  ///< Returns data compatible with NetQueue::writeRawData(). Must be delete[]d.
 	void rawDataAppendToVector(std::vector<uint8_t> &output) const;  ///< Appends data compatible with NetQueue::writeRawData() to the input vector.
@@ -177,6 +180,7 @@ public:
 	// All game clients should check game messages from all queues, including their own, and only the net messages sent to them.
 	// Message related, storing.
 	void pushMessage(const NetMessage &message);                       ///< Adds a message to the queue.
+	void emplaceMessage(const NetMessage &&message);                       ///< Adds a message to the queue.
 	// Message related, extracting.
 	void setWillNeverGetMessages();                                    ///< Marks that we will not be reading any of the messages (only sending over the network).
 	bool haveMessage() const;                                          ///< Return true if we have a message ready to return.

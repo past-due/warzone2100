@@ -291,6 +291,15 @@ void NetQueue::pushMessage(const NetMessage &message)
 	messages.push_front(message);
 }
 
+void NetQueue::emplaceMessage(const NetMessage &&message)
+{
+	if (message.type == GAME_GAME_TIME)
+	{
+		++pendingGameTimeUpdateMessages;
+	}
+	messages.emplace_front(message);
+}
+
 void NetQueue::setWillNeverGetMessages()
 {
 	canGetMessages = false;

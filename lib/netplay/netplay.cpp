@@ -2478,12 +2478,12 @@ static bool NETprocessSystemMessage(NETQUEUE playerQueue, uint8_t *type)
 		{
 			uint8_t sender;
 			uint8_t receiver;
-			NetMessage const *message = nullptr;
+			NetMessage *message = nullptr;
 			auto r = NETbeginDecode(playerQueue, NET_SEND_TO_PLAYER);
 			NETuint8_t(r, sender);
 			NETuint8_t(r, receiver);
 			NETnetMessage(r, &message);  // Must delete message later.
-			std::unique_ptr<NetMessage const> deleteLater(message);
+			std::unique_ptr<NetMessage> deleteLater(message);
 			if (!NETend(r))
 			{
 				debug(LOG_ERROR, "Incomplete NET_SEND_TO_PLAYER.");
@@ -2499,8 +2499,8 @@ static bool NETprocessSystemMessage(NETQUEUE playerQueue, uint8_t *type)
 				// Message was sent to us via the host.
 				if (sender != selectedPlayer)  // Make sure host didn't send us our own broadcast messages, which shouldn't happen anyway.
 				{
-					NETinsertMessageFromNet(NETnetQueue(sender), message);
 					NETlogPacket(message->type, static_cast<uint32_t>(message->rawLen()), true);
+					NETinsertMessageFromNet(NETnetQueue(sender), std::move(*message));
 				}
 			}
 			else if (NetPlay.isHost && sender == playerQueue.index)
@@ -2572,8 +2572,8 @@ static bool NETprocessSystemMessage(NETQUEUE playerQueue, uint8_t *type)
 
 				if (receiver == NET_ALL_PLAYERS)
 				{
-					NETinsertMessageFromNet(NETnetQueue(sender), message);  // Message is also for the host.
 					NETlogPacket(message->type, static_cast<uint32_t>(message->rawLen()), true);
+					NETinsertMessageFromNet(NETnetQueue(sender), std::move(*message));  // Message is also for the host.
 					// Not sure if flushing here can make a difference, maybe it can:
 					//NETflush();  // Send the message to everyone as fast as possible.
 				}
@@ -2602,7 +2602,7 @@ static bool NETprocessSystemMessage(NETQUEUE playerQueue, uint8_t *type)
 
 			uint8_t player = 0;
 			uint32_t num = 0, n;
-			NetMessage const *message = nullptr;
+			NetMessage *message = nullptr;
 
 			// Encoded in NETprocessSystemMessage in nettypes.cpp.
 			auto r = NETbeginDecode(playerQueue, NET_SHARE_GAME_QUEUE);
@@ -2619,8 +2619,8 @@ static bool NETprocessSystemMessage(NETQUEUE playerQueue, uint8_t *type)
 			{
 				NETnetMessage(r, &message);
 
-				NETinsertMessageFromNet(NETgameQueue(player), message);
 				NETlogPacket(message->type, static_cast<uint32_t>(message->rawLen()), true);
+				NETinsertMessageFromNet(NETgameQueue(player), std::move(*message));
 
 				delete message;
 				message = nullptr;
@@ -4293,9 +4293,11 @@ static void NETallowJoining()
 						continue;
 					}
 
-					NetMessage tmpMessage(NET_JOIN); // dummy message for parsing
-					tmpMessage.data = std::move(decryptedMessageRawData);
-					NETinsertMessageFromNet(NETnetTmpQueue(i), &tmpMessage); // insert virtual message into temp queue for parsing
+					{
+						NetMessage tmpMessage(NET_JOIN); // dummy message for parsing
+						tmpMessage.data = std::move(decryptedMessageRawData);
+						NETinsertMessageFromNet(NETnetTmpQueue(i), std::move(tmpMessage)); // insert virtual message into temp queue for parsing
+					}
 
 					// Parse the decrypted response
 					EcKey::Sig challengeResponse;
