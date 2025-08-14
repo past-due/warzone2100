@@ -104,6 +104,9 @@ function WZ-Prepare-Vcpkg-Triplet($triplet, $VCPKG_BUILD_TYPE, $tripletOverlayFo
 
 			# Build with pdb debug symbols (mingw-clang)
 			Add-Content -Path $overlayTripletFile -Value "`r`nstring(APPEND VCPKG_CXX_FLAGS `" -gcodeview -g `")`r`nstring(APPEND VCPKG_C_FLAGS `" -gcodeview -g `")`r`nstring(APPEND VCPKG_LINKER_FLAGS `" -Wl,-pdb= `")";
+
+			# Always build abseil as a static library (abseil is a protobuf dependency - see the abseil docs)
+			Add-Content -Path $overlayTripletFile -Value "`r`nif(PORT STREQUAL `"abseil`")`r`nset(VCPKG_LIBRARY_LINKAGE static)`r`nset(VCPKG_POLICY_DLLS_WITHOUT_LIBS disabled)`r`nendif()`r`n";
 		}
 		If (-not ([string]::IsNullOrEmpty($VCPKG_BUILD_TYPE)))
 		{
