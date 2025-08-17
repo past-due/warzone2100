@@ -2465,6 +2465,13 @@ bool placeDroid(STRUCTURE *psStructure, const DROID_TEMPLATE * psTempl, UDWORD *
 {
 	CHECK_STRUCTURE(psStructure);
 
+	bool dumpEverything = false;
+	if (gameTime >= 944902 && psStructure->id == 162733)
+	{
+		debug(LOG_INFO, "Found the problematic placing");
+		dumpEverything = true;
+	}
+
 	// Find the four corners of the square
 	StructureBounds bounds = getStructureBounds(psStructure);
 	int xmin = std::max(bounds.map.x - 1, 0);
@@ -2474,6 +2481,11 @@ bool placeDroid(STRUCTURE *psStructure, const DROID_TEMPLATE * psTempl, UDWORD *
 
 	// Round direction to nearest 90°.
 	uint16_t direction = snapDirection(psStructure->rot.direction);
+
+	if (dumpEverything)
+	{
+		debug(LOG_INFO, "xmin: %d, xmax: %d, ymin: %d, ymax: %d, direction: %" PRIu16, xmin, xmax, ymin, ymax, direction);
+	}
 
 	/* We sort all adjacent tiles by their Manhattan distance to the
 	target droid exit tile, misplaced by (1/3, 1/4) tiles.
@@ -2503,13 +2515,26 @@ bool placeDroid(STRUCTURE *psStructure, const DROID_TEMPLATE * psTempl, UDWORD *
 		sy = 12 * (ymin + 1) + 4;
 	}
 
+	if (dumpEverything)
+	{
+		debug(LOG_INFO, "sx: %d, sy: %d", sx, sy);
+	}
+
 	std::vector<Vector2i> tiles;
 	for (int y = ymin; y <= ymax; ++y)
 	{
 		for (int x = xmin; x <= xmax; ++x)
 		{
+			if (dumpEverything)
+			{
+				debug(LOG_INFO, "structClearTile(%d, %d, %d)", x, y, (int)psTempl->getPropulsionStats()->propulsionType);
+			}
 			if (structClearTile(x, y, psTempl->getPropulsionStats()->propulsionType))
 			{
+				if (dumpEverything)
+				{
+					debug(LOG_INFO, "tiles.push_back(Vector2i(%d, %d))", 12 * x - sx, 12 * y - sy);
+				}
 				tiles.push_back(Vector2i(12 * x - sx, 12 * y - sy));
 			}
 		}
@@ -2521,6 +2546,10 @@ bool placeDroid(STRUCTURE *psStructure, const DROID_TEMPLATE * psTempl, UDWORD *
 	}
 
 	std::sort(tiles.begin(), tiles.end(), comparePlacementPoints);
+	if (dumpEverything)
+	{
+		debug(LOG_INFO, "after sort, tiles[0] = (%d, %d)", tiles[0].x, tiles[0].y);
+	}
 
 	/* Store best tile coordinates in (sx, sy),
 	which are also map coordinates of its north-west corner.
@@ -2530,23 +2559,49 @@ bool placeDroid(STRUCTURE *psStructure, const DROID_TEMPLATE * psTempl, UDWORD *
 	int wx = world_coord(sx) + TILE_UNITS / 2;
 	int wy = world_coord(sy) + TILE_UNITS / 2;
 
+	if (dumpEverything)
+	{
+		debug(LOG_INFO, "initial wx: %d, wy: %d", wx, wy);
+	}
+
 	/* Finally, find world coordinates of the structure point closest to (mx, my).
 	For simplicity, round to grid vertices. */
 	if (2 * sx <= xmin + xmax)
 	{
+		if (dumpEverything)
+		{
+			debug(LOG_INFO, "wx += TILE_UNITS / 2 - 1;");
+		}
 		wx += TILE_UNITS / 2 - 1;
 	}
 	if (2 * sx >= xmin + xmax)
 	{
+		if (dumpEverything)
+		{
+			debug(LOG_INFO, "wx -= TILE_UNITS / 2 - 1;");
+		}
 		wx -= TILE_UNITS / 2 - 1;
 	}
 	if (2 * sy <= ymin + ymax)
 	{
+		if (dumpEverything)
+		{
+			debug(LOG_INFO, "wy += TILE_UNITS / 2 - 1;");
+		}
 		wy += TILE_UNITS / 2 - 1;
 	}
 	if (2 * sy >= ymin + ymax)
 	{
+		if (dumpEverything)
+		{
+			debug(LOG_INFO, "wy -= TILE_UNITS / 2 - 1;");
+		}
 		wy -= TILE_UNITS / 2 - 1;
+	}
+
+	if (dumpEverything)
+	{
+		debug(LOG_INFO, "result wx: %d, wy: %d", wx, wy);
 	}
 
 	*droidX = wx;
