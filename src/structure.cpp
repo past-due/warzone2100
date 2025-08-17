@@ -2460,6 +2460,13 @@ static bool comparePlacementPoints(Vector2i a, Vector2i b)
 	return abs(a.x) + abs(a.y) < abs(b.x) + abs(b.y);
 }
 
+static bool comparePlacementPointsWithDebug(Vector2i a, Vector2i b)
+{
+	bool result = abs(a.x) + abs(a.y) < abs(b.x) + abs(b.y);
+	debug(LOG_INFO, "Comparing (%d, %d) < (%d, %d), result=%d", a.x, a.y, b.x, b.y, (result) ? 1 : 0);
+	return result;
+}
+
 /* Find a location near to a structure to start the droid of */
 bool placeDroid(STRUCTURE *psStructure, const DROID_TEMPLATE * psTempl, UDWORD *droidX, UDWORD *droidY)
 {
@@ -2545,9 +2552,13 @@ bool placeDroid(STRUCTURE *psStructure, const DROID_TEMPLATE * psTempl, UDWORD *
 		return false;
 	}
 
-	std::sort(tiles.begin(), tiles.end(), comparePlacementPoints);
-	if (dumpEverything)
+	if (!dumpEverything)
 	{
+		std::sort(tiles.begin(), tiles.end(), comparePlacementPoints);
+	}
+	else
+	{
+		std::sort(tiles.begin(), tiles.end(), comparePlacementPointsWithDebug);
 		debug(LOG_INFO, "after sort, tiles[0] = (%d, %d)", tiles[0].x, tiles[0].y);
 	}
 
