@@ -26,6 +26,7 @@ cleanup:
   - /share/gtk-doc
   - /share/man
   - /share/pkgconfig
+  - /protoc-host/
   - '*.a'
   - '*.la'
 build-options:
