@@ -29,7 +29,7 @@ ${APPSTREAMCLI_CMD} --version
 echo "::endgroup::"
 
 echo "::group::flatpak-builder"
-${FLATPAK_BUILDER_CMD} --repo=${WZ_FLATPAK_LOCAL_REPO_NAME} --disable-rofiles-fuse --force-clean --default-branch=${WZ_FLATPAK_BRANCH} --mirror-screenshots-url=${WZ_FLATPAK_MIRROR_SCREENSHOTS_URL} "${WZ_FLATPAK_BUILD_DIR}" ${WZ_FLATPAK_MANIFEST_PATH}
+${FLATPAK_BUILDER_CMD} --repo=${WZ_FLATPAK_LOCAL_REPO_NAME} --disable-rofiles-fuse --force-clean --default-branch=${WZ_FLATPAK_BRANCH} --mirror-screenshots-url=${WZ_FLATPAK_MIRROR_SCREENSHOTS_URL} --bundle-sources "${WZ_FLATPAK_BUILD_DIR}" ${WZ_FLATPAK_MANIFEST_PATH}
 echo "::endgroup::"
 
 if [[ "$WZ_FLATPAK_TARGET_ARCH" != "$WZ_FLATPAK_BUILD_ARCH" ]]; then
@@ -43,7 +43,8 @@ if [[ "$WZ_FLATPAK_TARGET_ARCH" != "$WZ_FLATPAK_BUILD_ARCH" ]]; then
   
   echo "::group::Rename commits to new target arch repo"
   for i in app/${WZ_FLATPAK_APPID} \
-           runtime/${WZ_FLATPAK_APPID}.Debug
+           runtime/${WZ_FLATPAK_APPID}.Debug \
+           runtime/${WZ_FLATPAK_APPID}.Sources
   do
      # Rename the commits to target arch
      echo "Processing: --src-ref=${i}/${WZ_FLATPAK_BUILD_ARCH}/${WZ_FLATPAK_BRANCH}"

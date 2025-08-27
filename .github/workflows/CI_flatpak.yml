@@ -517,7 +517,8 @@ jobs:
 
           echo "::group::Build commit from stable repo"
           for i in app/${WZ_FLATPAK_APPID} \
-            runtime/${WZ_FLATPAK_APPID}.Debug
+            runtime/${WZ_FLATPAK_APPID}.Debug \
+            runtime/${WZ_FLATPAK_APPID}.Sources
           do
             # Move the commits to the beta repo
             echo "Processing: --src-ref=${i}/${WZ_FLATPAK_TARGET_ARCH}/${WZ_FLATPAK_BRANCH}"
