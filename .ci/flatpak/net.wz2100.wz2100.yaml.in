@@ -160,8 +160,8 @@ modules:
     buildsystem: cmake-ninja
     builddir: true
     cleanup:
-      - '/bin/'
-      - '/lib/debug/bin/'
+      - '/bin'
+      - '/lib/debug/bin'
       - '/lib/libprotoc.*'
       - '/lib/debug/lib/libprotoc.*'
     config-opts:
