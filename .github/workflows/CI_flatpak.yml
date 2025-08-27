@@ -180,7 +180,7 @@ jobs:
         echo "::endgroup::"
 
         echo "::group::Output manifest"
-        cat ".ci/flatpak/net.wz2100.wz2100.yaml"
+        cat ".flatpak.net.wz2100.wz2100.yaml"
         echo "::endgroup::"
     - name: Install Flatpak manifest deps
       run: |
