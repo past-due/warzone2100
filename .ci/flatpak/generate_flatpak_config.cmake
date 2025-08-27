@@ -64,9 +64,9 @@ if (DEFINED WZ_CROSS_COMPILE_TARGET_ARCH)
       - install -Dm644 meson-cross-file.txt /app/etc/wz-config/meson-cross-file.txt\n\
     sources:\n\
       - type: file\n\
-        path: ../../.ci/flatpak/Toolchain-cross-arch.cmake\n\
+        path: .ci/flatpak/Toolchain-cross-arch.cmake\n\
       - type: file\n\
-        path: ../../.ci/flatpak/meson-cross-file.txt\n\
+        path: .ci/flatpak/meson-cross-file.txt\n\
 ")
 
 	# Configure CMake cross-compile toolchain
