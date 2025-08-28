@@ -28,7 +28,7 @@ if(NOT DEFINED WZ_OUTPUT_NAME_SUFFIX)
 	message( FATAL_ERROR "Missing expected input define: WZ_OUTPUT_NAME_SUFFIX" )
 endif()
 if (DEFINED WZ_CROSS_COMPILE_TARGET_ARCH)
-	message( STATUS "WZ_CROSS_COMPILE_TARGET_ARCH detected - configuring for cross-compile to: ${WZ_CROSS_COMPILE_TARGET_ARCH}" )
+	message( FATAL_ERROR "WZ_CROSS_COMPILE_TARGET_ARCH detected - not currently supported by this script" )
 endif()
 
 get_filename_component(_input_dir "${TEMPLATE_FILE}" DIRECTORY)
