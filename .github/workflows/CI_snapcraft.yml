@@ -117,6 +117,13 @@ jobs:
         echo "  -> SHA512: $(sha512sum "${OUTPUT_DIR}/${OUTPUT_FILE_NAME}")"
         echo "  -> Size (bytes): $(stat -c %s "${OUTPUT_DIR}/${OUTPUT_FILE_NAME}")"
         echo "WZ_FULL_OUTPUT_SNAP_PATH=${OUTPUT_DIR}/${OUTPUT_FILE_NAME}" >> $GITHUB_ENV
+    - name: Upload failure logs
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: 'snap_build_failure_logs'
+        path: /home/runner/.local/state/snapcraft/log/snapcraft-*.log
+        if-no-files-found: 'warn'
     - uses: actions/upload-artifact@v4
       if: success()
       with:
