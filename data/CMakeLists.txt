@@ -6,6 +6,7 @@ if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
 	OPTION(WZ_INCLUDE_VIDEOS "Download & include videos in the application package" OFF)
 endif()
 OPTION(WZ_INCLUDE_TERRAIN_HIGH "Include high terrain texture pack" ON)
+OPTION(WZ_INCLUDE_GRAPHICS_HIGH "Include high quality graphics pack" ON)
 OPTION(WZ_DOWNLOAD_PREBUILT_PACKAGES "Download prebuilt texture packages (if OFF, will generate from scratch - this can take a while to encode textures)" ON)
 
 if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
@@ -494,6 +495,130 @@ if (WZ_INCLUDE_TERRAIN_HIGH)
 else()
 	message(STATUS "WZ_INCLUDE_TERRAIN_HIGH is OFF. High terrain texture pack will not be part of build.")
 endif(WZ_INCLUDE_TERRAIN_HIGH)
+
+####################################################
+# Graphics override mod packing (and image encoding)
+
+if(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/graphics_overrides")
+	file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/graphics_overrides")
+endif()
+
+## High graphics overrides
+
+if (WZ_INCLUDE_GRAPHICS_HIGH)
+
+	set(_graphics_overrides_high_base_path "${CMAKE_CURRENT_SOURCE_DIR}/graphics_overrides/remastered")
+
+	if (WZ_ENABLE_BASIS_UNIVERSAL AND NOT WZ_CI_DISABLE_BASIS_COMPRESS_TEXTURES)
+
+		set(_build_package "OFF")
+		if (WZ_DOWNLOAD_PREBUILT_PACKAGES)
+			# Try to download the prebuilt package
+			WZ_FETCH_PREBUILT_PACKAGE("${WZ_PREBUILT_GRAPHICS_HIGH_DL_URL}" "remastered.wz" "${WZ_PREBUILT_GRAPHICS_HIGH_DL_SHA512}" "${CMAKE_CURRENT_BINARY_DIR}/graphics_overrides/remastered.wz" _dl_graphics_high_result)
+			if (NOT _dl_graphics_high_result)
+				# Download failed - WZ_FETCH_PREBUILT_PACKAGE already handles logging a message
+				set(_build_package "ON")
+			endif()
+		else()
+			set(_build_package "ON")
+		endif()
+
+		if (_build_package)
+			# Generate the package
+
+			if(NOT DEFINED BASIS_UNIVERSAL_CLI)
+				message(FATAL_ERROR "No basisu tool has been provided - set BASIS_UNIVERSAL_CLI to the path to basisu or disable WZ_ENABLE_BASIS_UNIVERSAL!")
+			endif()
+
+			message(STATUS "Configuring to build remastered.wz graphics package")
+
+			file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/graphics_overrides/remastered.wz")
+			file(REMOVE_RECURSE "${CMAKE_CURRENT_BINARY_DIR}/graphics_overrides/remastered")
+			file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/graphics_overrides/remastered/texpages")
+
+			set(high_texture_folders "texpages")
+			foreach(tex_folder ${high_texture_folders})
+
+				file(GLOB ALL_TEXPAGES LIST_DIRECTORIES false CONFIGURE_DEPENDS "${_graphics_overrides_high_base_path}/${tex_folder}/*.png")
+				# Split into _nm, _sm, and everything else (regular texpages)
+				file(GLOB TEXPAGES_NM LIST_DIRECTORIES false CONFIGURE_DEPENDS "${_graphics_overrides_high_base_path}/${tex_folder}/*_nm.png")
+				file(GLOB TEXPAGES_SM LIST_DIRECTORIES false CONFIGURE_DEPENDS "${_graphics_overrides_high_base_path}/${tex_folder}/*_sm.png")
+				unset(TEXPAGES_TEX)
+				list(APPEND TEXPAGES_TEX ${ALL_TEXPAGES})
+				list(REMOVE_ITEM TEXPAGES_TEX ${TEXPAGES_NM} ${TEXPAGES_SM})
+
+				set(_output_dir "${CMAKE_CURRENT_BINARY_DIR}/graphics_overrides/remastered/${tex_folder}")
+
+				WZ_BASIS_ENCODE_TEXTURES(OUTPUT_DIR "${_output_dir}" TYPE "TEXTURE" UASTC_LEVEL 3 ENCODING_TARGET graphics_encoding_high TARGET_FOLDER data ALL FILES ${TEXPAGES_TEX})
+				list(APPEND PROCESSED_TEXTURE_FILES ${TEXPAGES_TEX})
+				WZ_BASIS_ENCODE_TEXTURES(OUTPUT_DIR "${_output_dir}" TYPE "NORMALMAP" UASTC_LEVEL 3 ENCODING_TARGET graphics_encoding_high TARGET_FOLDER data ALL FILES ${TEXPAGES_NM})
+				list(APPEND PROCESSED_TEXTURE_FILES ${TEXPAGES_NM})
+				WZ_BASIS_ENCODE_TEXTURES(OUTPUT_DIR "${_output_dir}" TYPE "SPECULARMAP" UASTC_LEVEL 3 ENCODING_TARGET graphics_encoding_high TARGET_FOLDER data ALL FILES ${TEXPAGES_SM})
+				list(APPEND PROCESSED_TEXTURE_FILES ${TEXPAGES_SM})
+
+			endforeach()
+
+			set(_base_output_dir "${CMAKE_CURRENT_BINARY_DIR}/graphics_overrides/remastered")
+			file(GLOB_RECURSE ALL_TEXPAGES LIST_DIRECTORIES false CONFIGURE_DEPENDS "${_graphics_overrides_high_base_path}/texpages/*.*")
+			list(APPEND ALL_TEXPAGES_unprocessed ${ALL_TEXPAGES})
+			list(REMOVE_ITEM ALL_TEXPAGES_unprocessed ${PROCESSED_TEXTURE_FILES})
+			foreach(TEXPAGE_FILE ${ALL_TEXPAGES_unprocessed})
+				file(RELATIVE_PATH _output_name "${_graphics_overrides_high_base_path}" "${TEXPAGE_FILE}")
+				message(STATUS "Copy unprocessed image file: ${_output_name}")
+				add_custom_command(OUTPUT "${_base_output_dir}/${_output_name}"
+					COMMAND "${CMAKE_COMMAND}"
+					ARGS -E copy_if_different "${TEXPAGE_FILE}" "${_base_output_dir}/${_output_name}"
+					WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/base/texpages"
+					DEPENDS "${TEXPAGE_FILE}"
+					VERBATIM
+				)
+				list(APPEND TEXTURE_UNPROCESSED_LIST "${_base_output_dir}/${_output_name}")
+			endforeach()
+
+			add_custom_target(graphics_staging_high DEPENDS ${TEXTURE_UNPROCESSED_LIST})
+			set_property(TARGET graphics_staging_high PROPERTY FOLDER "data")
+
+			unset(PROCESSED_TEXTURE_FILES)
+			unset(ALL_TEXPAGES)
+			unset(TEXTURE_UNPROCESSED_LIST)
+			unset(ALL_TEXPAGES_unprocessed)
+
+			COMPRESS_ZIP(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/graphics_overrides/remastered.wz"
+				COMPRESSION_LEVEL 0
+				PATHS
+					"texpages"
+					"tileset"
+				WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/graphics_overrides/remastered"
+				BUILD_ALWAYS_TARGET data_graphics_overrides_high
+				IGNORE_GIT
+				QUIET
+			)
+			add_dependencies(data_graphics_overrides_high graphics_encoding_high graphics_staging_high)
+
+		endif(_build_package)
+	else()
+		if(WZ_ENABLE_BASIS_UNIVERSAL AND WZ_CI_DISABLE_BASIS_COMPRESS_TEXTURES)
+			message(STATUS "WZ_CI_DISABLE_BASIS_COMPRESS_TEXTURES is set, textures will not be compressed as part of build. This should only be used for selected CI runs.")
+		endif()
+
+		file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/graphics_overrides/remastered.wz")
+
+		COMPRESS_ZIP(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/graphics_overrides/remastered.wz"
+			COMPRESSION_LEVEL 0
+			PATHS
+				"texpages"
+				"tileset"
+			WORKING_DIRECTORY "${_graphics_overrides_high_base_path}"
+			BUILD_ALWAYS_TARGET data_graphics_overrides_high
+			IGNORE_GIT
+			QUIET
+		)
+		set_property(TARGET data_graphics_overrides_high PROPERTY FOLDER "data")
+	endif()
+
+else()
+	message(STATUS "WZ_INCLUDE_GRAPHICS_HIGH is OFF. High graphics pack will not be part of build.")
+endif(WZ_INCLUDE_GRAPHICS_HIGH)
 
 #########################
 # Compress data archives

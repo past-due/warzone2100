@@ -89,3 +89,6 @@
 [submodule "tools/blender/pie-addon"]
 	path = tools/blender/pie-addon
 	url = https://github.com/Warzone2100/blender-pie-addon.git
+[submodule "data/graphics_overrides/remastered"]
+	path = data/graphics_overrides/remastered
+	url = https://github.com/Warzone2100/data-graphics-remastered.git
