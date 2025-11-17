@@ -29,7 +29,7 @@ RUN echo "$SDL3_SHA256 /tmp/SDL3-3.2.26.tar.gz" | sha256sum -c \
  && tar -C /tmp -xzf /tmp/SDL3-3.2.26.tar.gz \
  && rm /tmp/SDL3-3.2.26.tar.gz \
  && cd /tmp/SDL3-3.2.26 \
- && cmake -S . -B build -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TEST_LIBRARY=OFF -DSDL_ALSA=OFF -DSDL_OSS=OFF \
+ && cmake -S . -B build -DSDL_DEPS_SHARED:BOOL=ON -DSDL_SHARED:BOOL=OFF -DSDL_STATIC:BOOL=ON -DSDL_TEST_LIBRARY:BOOL=OFF -DSDL_ALSA:BOOL=OFF -DSDL_OSS:BOOL=OFF \
  && cmake --build build \
  && cmake --install build --prefix /usr/local \
  && cd /tmp \
