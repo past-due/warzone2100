@@ -22,6 +22,19 @@ RUN apt-get -u update \
  && DEBIAN_FRONTEND=noninteractive apt-get -y install vulkan-sdk \
  && rm -rf /var/lib/apt/lists/*
 
+# Download, build, & install SDL3 from source
+ENV SDL3_SHA256 dad488474a51a0b01d547cd2834893d6299328d2e30f479a3564088b5476bae2
+ADD https://github.com/libsdl-org/SDL/releases/download/release-3.2.26/SDL3-3.2.26.tar.gz /tmp
+RUN echo "$SDL3_SHA256 /tmp/SDL3-3.2.26.tar.gz" | sha256sum -c \
+ && tar -C /tmp -xzf /tmp/SDL3-3.2.26.tar.gz \
+ && rm /tmp/SDL3-3.2.26.tar.gz \
+ && cd /tmp/SDL3-3.2.26 \
+ && cmake -S . -B build -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TEST_LIBRARY=OFF -DSDL_ALSA=OFF -DSDL_OSS=OFF \
+ && cmake --build build \
+ && cmake --install build --prefix /usr/local \
+ && cd /tmp \
+ && rm -rf /tmp/SDL3-3.2.26
+
 # Defines arguments which can be passed during build time.
 ARG USER=warzone2100
 ARG UID=1000
