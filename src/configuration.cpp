@@ -135,8 +135,8 @@ static optional<float> iniSectionGetFloat(const INIReaderWriter::IniSection& ini
 	}
 	try {
 		auto valueStr = iniSection.Get(key, "");
-		int valueInt = std::stof(valueStr);
-		return valueInt;
+		float valueFloat = std::stof(valueStr);
+		return valueFloat;
 	}
 	catch (const std::exception& e)
 	{
