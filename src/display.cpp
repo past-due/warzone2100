@@ -115,8 +115,8 @@ static bool	anyDroidSelected(UDWORD player);
 static bool cyborgDroidSelected(UDWORD player);
 static bool bInvertMouse = true;
 static bool bRightClickOrders = false;
-optional<MOUSE_KEY_CODE> rotateMouseKey = MOUSE_RMB;
-optional<MOUSE_KEY_CODE> panMouseKey = nullopt;
+optional<MouseKeyConfig> rotateMouseKey = MouseKeyConfig{nullopt, MOUSE_RMB};
+optional<MouseKeyConfig> panMouseKey = nullopt;
 static bool bDrawShadows = true;
 static bool bEdgeScrollOutsideWindowBounds = DEFAULT_EDGE_SCROLL_OUTSIDE_WINDOW;
 static SELECTION_TYPE	establishSelection(UDWORD selectedPlayer);
@@ -150,6 +150,20 @@ static bool cameraAccel = true;
 bool	rotActive = false;
 bool	gameStats = false;
 bool	lockCameraScrollWhileRotating = false;
+
+// Mouse X coordinate at start of panning.
+UDWORD panMouseX;
+// Mouse Y coordinate at start of panning.
+UDWORD panMouseY;
+std::unique_ptr<ValueTracker> panXTracker = std::make_unique<ValueTracker>();
+std::unique_ptr<ValueTracker> panZTracker = std::make_unique<ValueTracker>();
+bool panActive = false;
+enum class MousePanMode
+{
+	ClassicDrag,
+	RelativeMouseMovement
+};
+MousePanMode panActiveMode = MousePanMode::ClassicDrag;
 
 /* Hackety hack hack hack */
 static int screenShakeTable[100] =
@@ -316,23 +330,46 @@ void	setRightClickOrders(bool val)
 	if (bRightClickOrders)
 	{
 		// Check for conflicting rotate / pan mouse button settings, and reset to a saner default
-		if (rotateMouseKey.value_or(MOUSE_END) == MOUSE_RMB)
+		if (panMouseKey.has_value() && panMouseKey.value() == MouseKeyConfig{nullopt, MOUSE_RMB})
 		{
-			setRotateMouseKey(MOUSE_MMB);
+			setPanMouseKey(MouseKeyConfig{nullopt, MOUSE_MMB});
 		}
-		if (panMouseKey.value_or(MOUSE_END) == MOUSE_RMB)
+		if (rotateMouseKey.has_value() && rotateMouseKey.value() == MouseKeyConfig{nullopt, MOUSE_RMB})
 		{
-			panMouseKey = nullopt;
+			const auto rotateMouseKeyPrefOrder = std::array<MouseKeyConfig, 2>{ MouseKeyConfig{KEY_LALT, MOUSE_MMB}, MouseKeyConfig{nullopt, MOUSE_MMB} };
+			for (const auto& cfg : rotateMouseKeyPrefOrder)
+			{
+				if (setRotateMouseKey(cfg))
+				{
+					break;
+				}
+			}
 		}
+
+//		if (!panMouseKey.has_value() || (panMouseKey.has_value() && panMouseKey.value() == MouseKeyConfig{nullopt, MOUSE_RMB}))
+//		{
+//			panMouseKey = MouseKeyConfig{nullopt, MOUSE_MMB}; // force-set
+//		}
+//		if (rotateMouseKey.has_value() && ((rotateMouseKey.value() == MouseKeyConfig{nullopt, MOUSE_RMB}) || (rotateMouseKey == panMouseKey)))
+//		{
+//			const auto rotateMouseKeyPrefOrder = std::array<MouseKeyConfig, 2>{ MouseKeyConfig{KEY_LALT, MOUSE_MMB}, MouseKeyConfig{nullopt, MOUSE_MMB} };
+//			for (const auto& cfg : rotateMouseKeyPrefOrder)
+//			{
+//				if (setRotateMouseKey(cfg))
+//				{
+//					break;
+//				}
+//			}
+//		}
 	}
 }
 
-optional<MOUSE_KEY_CODE> getRotateMouseKey()
+optional<MouseKeyConfig> getRotateMouseKey()
 {
 	return rotateMouseKey;
 }
 
-bool setRotateMouseKey(optional<MOUSE_KEY_CODE> key)
+bool setRotateMouseKey(optional<MouseKeyConfig> key)
 {
 	if (!key.has_value())
 	{
@@ -341,23 +378,23 @@ bool setRotateMouseKey(optional<MOUSE_KEY_CODE> key)
 	}
 
 	// otherwise, check for conflicts
-	if (key.value() == MOUSE_LMB) { return false; }
-	if (bRightClickOrders && key.value() == MOUSE_RMB) { return false; }
+	if (key.value().mouseKeyCode == MOUSE_LMB) { return false; }
+	if (bRightClickOrders && key == MouseKeyConfig{nullopt, MOUSE_RMB}) { return false; }
 	if (key == panMouseKey)
 	{
-		panMouseKey = nullopt;
+		return false;
 	}
 
 	rotateMouseKey = key;
 	return true;
 }
 
-optional<MOUSE_KEY_CODE> getPanMouseKey()
+optional<MouseKeyConfig> getPanMouseKey()
 {
 	return panMouseKey;
 }
 
-bool setPanMouseKey(optional<MOUSE_KEY_CODE> key)
+bool setPanMouseKey(optional<MouseKeyConfig> key)
 {
 	if (!key.has_value())
 	{
@@ -366,11 +403,11 @@ bool setPanMouseKey(optional<MOUSE_KEY_CODE> key)
 	}
 
 	// otherwise, check for conflicts
-	if (key.value() == MOUSE_LMB) { return false; }
-	if (bRightClickOrders && key.value() == MOUSE_RMB) { return false; }
+	if (key.value().mouseKeyCode == MOUSE_LMB) { return false; }
+	if (bRightClickOrders && key == MouseKeyConfig{nullopt, MOUSE_RMB}) { return false; }
 	if (key == rotateMouseKey)
 	{
-		rotateMouseKey = nullopt;
+		return false;
 	}
 
 	panMouseKey = key;
@@ -477,7 +514,9 @@ void processInput()
 
 	if (!isInTextInputMode())
 	{
-		const bool allowMouseWheelEvents = !mouseIsOverScreenOverlayChild && !mouseOverConsole && !mOverConstruction;
+		const bool ignoreMouseWheelEventsDueToMousePan = (panActive && panMouseKey.has_value() && panMouseKey.value().mouseKeyCode == MOUSE_MMB);
+		const bool ignoreMouseWheelEventsDueToMouseRotate = (rotActive && rotateMouseKey.has_value() && rotateMouseKey.value().mouseKeyCode == MOUSE_MMB);
+		const bool allowMouseWheelEvents = !mouseIsOverScreenOverlayChild && !mouseOverConsole && !mOverConstruction && !ignoreMouseWheelEventsDueToMousePan && !ignoreMouseWheelEventsDueToMouseRotate;
 		gInputManager.processMappings(allowMouseWheelEvents);
 	}
 	/* Allow the user to clear the (Active) console if need be */
@@ -641,13 +680,172 @@ static void HandleDrag()
 	}
 }
 
-// Mouse X coordinate at start of panning.
-UDWORD panMouseX;
-// Mouse Y coordinate at start of panning.
-UDWORD panMouseY;
-std::unique_ptr<ValueTracker> panXTracker = std::make_unique<ValueTracker>();
-std::unique_ptr<ValueTracker> panZTracker = std::make_unique<ValueTracker>();
-bool panActive;
+static inline bool HasMouseKeyMetaKeyDown(const MouseKeyConfig& cfg)
+{
+	if (!cfg.meta.has_value())
+	{
+		return !keyDown(KEY_LALT) && !keyDown(KEY_RALT);
+	}
+
+	switch (cfg.meta.value())
+	{
+		case KEY_LALT:
+		case KEY_RALT:
+			return keyDown(KEY_LALT) || keyDown(KEY_RALT);
+		default:
+			return false;
+	}
+}
+
+static void checkStartMousePanAndRotate()
+{
+	if (rotActive || panActive || isRadarDragging() || getRadarTrackingStatus())
+	{
+		return;
+	}
+
+	if (panMouseKey.has_value())
+	{
+		if (panMouseKey.value().mouseKeyCode == MOUSE_MMB)
+		{
+			// If mouseKey is MMB (and MMB is down), attempt to use relative mouse mode (instead of using mouseDrag), which should keep the cursor position constant
+			if (mouseDown(MOUSE_MMB) && HasMouseKeyMetaKeyDown(panMouseKey.value()))
+			{
+				// Attempt to enable relative mouse mode
+				if (wzEnableRelativeMouseMode())
+				{
+					panXTracker->startTracking(playerPos.p.x);
+					panZTracker->startTracking(playerPos.p.z);
+					panActive = true;
+					panActiveMode = MousePanMode::RelativeMouseMovement;
+					return;
+				}
+				else
+				{
+					// failed to enable relative mouse mode
+					// fall through to the mouseDrag check below, to support non-relative mmb drag handling
+				}
+			}
+			else
+			{
+				goto CheckRotate;
+			}
+		}
+
+		if (mouseDrag(panMouseKey.value().mouseKeyCode, (UDWORD *)&panMouseX, (UDWORD *)&panMouseY) && HasMouseKeyMetaKeyDown(panMouseKey.value()))
+		{
+			panXTracker->startTracking(playerPos.p.x);
+			panZTracker->startTracking(playerPos.p.z);
+			panActive = true;
+			panActiveMode = MousePanMode::ClassicDrag;
+			return;
+		}
+	}
+
+CheckRotate:
+	if (rotateMouseKey.has_value() && mouseDrag(rotateMouseKey.value().mouseKeyCode, (UDWORD *)&rotX, (UDWORD *)&rotY) && HasMouseKeyMetaKeyDown(rotateMouseKey.value()))
+	{
+		rotationVerticalTracker->startTracking((UWORD)playerPos.r.x);
+		rotationHorizontalTracker->startTracking((UWORD)playerPos.r.y); // negative values caused problems with float conversion
+		rotActive = true;
+		return;
+	}
+}
+
+static void handleMousePanAndRotate()
+{
+	if (panMouseKey.has_value() && panActive)
+	{
+		if(!mouseDown(panMouseKey.value().mouseKeyCode))
+		{
+			panActive = false;
+			wzDisableRelativeMouseMode(true);
+		}
+		else
+		{
+			float horizontalMovement = 0.f;
+			float verticalMovement = 0.f;
+
+			switch (panActiveMode)
+			{
+				case MousePanMode::ClassicDrag:
+				{
+					int mouseDeltaX = mouseX() - panMouseX;
+					int mouseDeltaY = mouseY() - panMouseY;
+
+					int panningSpeed = std::max(1, war_GetCameraSpeed() / 200);
+
+					horizontalMovement = panXTracker->setTargetDelta(mouseDeltaX * panningSpeed)->update()->getCurrentDelta();
+					verticalMovement = -1 * panZTracker->setTargetDelta(mouseDeltaY * panningSpeed)->update()->getCurrentDelta();
+
+					break;
+				}
+				case MousePanMode::RelativeMouseMovement:
+				{
+					float mouseDeltaX = relMouseXDelta();
+					float mouseDeltaY = relMouseYDelta();
+
+					float panningSpeed = static_cast<float>(std::max(1, war_GetCameraSpeed() / 200));
+
+					float mouseTargetDeltaX = panXTracker->getTargetDelta() + (mouseDeltaX * panningSpeed);
+					float mouseTargetDeltaY = panZTracker->getTargetDelta() + (mouseDeltaY * panningSpeed);
+
+					horizontalMovement = panXTracker->setTargetDelta(mouseTargetDeltaX)->update()->getCurrentDelta();
+					verticalMovement = -1 * panZTracker->setTargetDelta(mouseTargetDeltaY)->update()->getCurrentDelta();
+
+					break;
+				}
+			}
+
+			playerPos.p.x = static_cast<int>(panXTracker->getInitial()
+				+ cos(-playerPos.r.y * (M_PI / 32768)) * horizontalMovement
+				+ sin(-playerPos.r.y * (M_PI / 32768)) * verticalMovement);
+			playerPos.p.z = static_cast<int>(panZTracker->getInitial()
+				+ sin(-playerPos.r.y * (M_PI / 32768)) * horizontalMovement
+				- cos(-playerPos.r.y * (M_PI / 32768)) * verticalMovement);
+			CheckScrollLimits();
+		}
+	}
+
+	if (rotateMouseKey.has_value() && rotActive)
+	{
+		if (mouseDown(rotateMouseKey.value().mouseKeyCode))
+		{
+			float mouseDeltaX = mouseX() - rotX;
+			float mouseDeltaY = mouseY() - rotY;
+
+			playerPos.r.y = rotationHorizontalTracker->setTargetDelta(static_cast<int>(DEG(-mouseDeltaX) / 4))->update()->getCurrent();
+
+			if(bInvertMouse)
+			{
+				mouseDeltaY *= -1;
+			}
+
+			playerPos.r.x = rotationVerticalTracker->setTargetDelta(static_cast<int>(DEG(mouseDeltaY) / 4))->update()->getCurrent();
+			playerPos.r.x = glm::clamp(playerPos.r.x, DEG(360 + MIN_PLAYER_X_ANGLE), DEG(360 + MAX_PLAYER_X_ANGLE));
+		}
+		else
+		{
+			rotActive = false;
+			ignoreRMBC = true;
+			Vector3i pos;
+			pos.x = playerPos.r.x;
+			pos.y = playerPos.r.y;
+			pos.z = playerPos.r.z;
+			camInformOfRotation(&pos);
+		}
+	}
+}
+
+// reset certain (captured) state if something else is taking precedence
+void informSkipProcessingMouseClickInput()
+{
+	if (panActive)
+	{
+		panActive = false;
+		wzDisableRelativeMouseMode(true);
+	}
+}
 
 //don't want to do any of these whilst in the Intelligence Screen
 void processMouseClickInput()
@@ -729,19 +927,9 @@ void processMouseClickInput()
 	{
 		cancelDeliveryRepos();
 	}
-	if (rotateMouseKey.has_value() && mouseDrag(rotateMouseKey.value(), (UDWORD *)&rotX, (UDWORD *)&rotY) && !rotActive && !isRadarDragging() && !getRadarTrackingStatus())
-	{
-		rotationVerticalTracker->startTracking((UWORD)playerPos.r.x);
-		rotationHorizontalTracker->startTracking((UWORD)playerPos.r.y); // negative values caused problems with float conversion
-		rotActive = true;
-	}
-	if (panMouseKey.has_value() && mouseDrag(panMouseKey.value(), (UDWORD *)&panMouseX, (UDWORD *)&panMouseY) && !rotActive && !panActive && !isRadarDragging() && !getRadarTrackingStatus())
-	{
-		panXTracker->startTracking(playerPos.p.x);
-		panZTracker->startTracking(playerPos.p.z);
-		panActive = true;
-	}
 
+	checkStartMousePanAndRotate();
+	handleMousePanAndRotate();
 
 	if (gamePaused())
 	{
@@ -1215,60 +1403,7 @@ void displayWorld()
 		return;
 	}
 
-	Vector3i pos;
-
 	shakeUpdate();
-
-	if (panMouseKey.has_value() && panActive)
-	{
-		if(!mouseDown(panMouseKey.value())){
-			panActive = false;
-		} else {
-			int mouseDeltaX = mouseX() - panMouseX;
-			int mouseDeltaY = mouseY() - panMouseY;
-
-			int panningSpeed = std::max(1, war_GetCameraSpeed() / 200);
-
-			float horizontalMovement = panXTracker->setTargetDelta(mouseDeltaX * panningSpeed)->update()->getCurrentDelta();
-			float verticalMovement = -1 * panZTracker->setTargetDelta(mouseDeltaY * panningSpeed)->update()->getCurrentDelta();
-
-			playerPos.p.x = static_cast<int>(panXTracker->getInitial()
-				+ cos(-playerPos.r.y * (M_PI / 32768)) * horizontalMovement
-				+ sin(-playerPos.r.y * (M_PI / 32768)) * verticalMovement);
-			playerPos.p.z = static_cast<int>(panZTracker->getInitial()
-				+ sin(-playerPos.r.y * (M_PI / 32768)) * horizontalMovement
-				- cos(-playerPos.r.y * (M_PI / 32768)) * verticalMovement);
-			CheckScrollLimits();
-		}
-	}
-
-	if (rotateMouseKey.has_value() && rotActive)
-	{
-		if (mouseDown(rotateMouseKey.value()))
-		{
-			float mouseDeltaX = mouseX() - rotX;
-			float mouseDeltaY = mouseY() - rotY;
-
-			playerPos.r.y = rotationHorizontalTracker->setTargetDelta(static_cast<int>(DEG(-mouseDeltaX) / 4))->update()->getCurrent();
-
-			if(bInvertMouse)
-			{
-				mouseDeltaY *= -1;
-			}
-
-			playerPos.r.x = rotationVerticalTracker->setTargetDelta(static_cast<int>(DEG(mouseDeltaY) / 4))->update()->getCurrent();
-			playerPos.r.x = glm::clamp(playerPos.r.x, DEG(360 + MIN_PLAYER_X_ANGLE), DEG(360 + MAX_PLAYER_X_ANGLE));
-		}
-		else
-		{
-			rotActive = false;
-			ignoreRMBC = true;
-			pos.x = playerPos.r.x;
-			pos.y = playerPos.r.y;
-			pos.z = playerPos.r.z;
-			camInformOfRotation(&pos);
-		}
-	}
 
 	draw3DScene();
 

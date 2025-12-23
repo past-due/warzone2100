@@ -48,6 +48,7 @@ void ProcessRadarInput();
 void processInput();
 /*don't want to do any of these whilst in the Intelligence Screen*/
 void processMouseClickInput();
+void informSkipProcessingMouseClickInput();
 
 void resetScroll();
 
@@ -64,11 +65,21 @@ bool	getInvertMouseStatus();
 void	setRightClickOrders(bool val);
 bool	getRightClickOrders();
 
-optional<MOUSE_KEY_CODE> getRotateMouseKey();
-bool setRotateMouseKey(optional<MOUSE_KEY_CODE> key);
+struct MouseKeyConfig
+{
+	optional<KEY_CODE> meta = nullopt;
+	MOUSE_KEY_CODE mouseKeyCode = MOUSE_END;
 
-optional<MOUSE_KEY_CODE> getPanMouseKey();
-bool setPanMouseKey(optional<MOUSE_KEY_CODE> key);
+	inline bool operator==(const MouseKeyConfig& b) const {
+		return meta == b.meta && mouseKeyCode == b.mouseKeyCode;
+	}
+};
+
+optional<MouseKeyConfig> getRotateMouseKey();
+bool setRotateMouseKey(optional<MouseKeyConfig> key);
+
+optional<MouseKeyConfig> getPanMouseKey();
+bool setPanMouseKey(optional<MouseKeyConfig> key);
 
 void	setDrawShadows(bool val);
 bool	getDrawShadows();

@@ -308,6 +308,8 @@ static GAMECODE renderLoop()
 			pie_LoadBackDrop(SCREEN_RANDOMBDROP);
 		}
 	}
+
+	bool processedGameMouseInput = false;
 	if (!loop_GetVideoStatus() && !quitting && !headlessGameMode() && !skipDrawing)
 	{
 		if (!gameUpdatePaused())
@@ -318,6 +320,7 @@ static GAMECODE renderLoop()
 			if (!isMouseOverRadar() && !isDraggingInGameNotification() && !isMouseClickDownOnScreenOverlayChild() && intRetVal == INT_NONE && !InGameOpUp && !isInGamePopupUp)
 			{
 				processMouseClickInput();
+				processedGameMouseInput = true;
 			}
 			displayWorld();
 		}
@@ -332,6 +335,11 @@ static GAMECODE renderLoop()
 		}
 		pie_SetFogStatus(true);
 		wzPerfEnd(PERF_GUI);
+	}
+
+	if (!processedGameMouseInput)
+	{
+		informSkipProcessingMouseClickInput();
 	}
 
 	pie_GetResetCounts(&loopPieCount, &loopPolyCount);

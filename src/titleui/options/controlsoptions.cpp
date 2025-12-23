@@ -932,11 +932,21 @@ size_t addKeyBindingsToOptionsForm(const std::shared_ptr<KeyOptionsForm>& result
 	return infos.size();
 }
 
-static WzString mouseKeyCodeToWzString(MOUSE_KEY_CODE code)
+static WzString mouseKeyCodeToWzString(MouseKeyConfig cfg)
 {
+	WzString result;
 	char asciiSub[20] = "\0";
-	mouseKeyCodeToString(code, (char*)&asciiSub, 20);
-	return WzString(asciiSub);
+
+	if (cfg.meta.has_value())
+	{
+		keyScanToString(cfg.meta.value(), (char*)&asciiSub, 20);
+		result.append(asciiSub);
+		result.append(" ");
+	}
+
+	mouseKeyCodeToString(cfg.mouseKeyCode, (char*)&asciiSub, 20);
+	result.append(asciiSub);
+	return result;
 }
 
 OptionInfo::AvailabilityResult MouseDragToRotateIsBound(const OptionInfo&)
@@ -1073,13 +1083,14 @@ std::shared_ptr<OptionsForm> makeControlsOptionsForm()
 	}
 	{
 		auto optionInfo = OptionInfo("controls.mouse.rotateCamera", N_("Mouse Rotate"), "");
-		auto valueChanger = OptionsDropdown<optional<MOUSE_KEY_CODE>>::make(
+		auto valueChanger = OptionsDropdown<optional<MouseKeyConfig>>::make(
 			[]() {
-				OptionChoices<optional<MOUSE_KEY_CODE>> result;
+				OptionChoices<optional<MouseKeyConfig>> result;
 				result.choices = {
 					{ _("Disabled"), "", nullopt },
-					{ mouseKeyCodeToWzString(MOUSE_MMB), "", MOUSE_MMB },
-					{ mouseKeyCodeToWzString(MOUSE_RMB), "", MOUSE_RMB, getRightClickOrders() },
+					{ mouseKeyCodeToWzString(MouseKeyConfig{nullopt, MOUSE_MMB}), "", MouseKeyConfig{nullopt, MOUSE_MMB} },
+					{ mouseKeyCodeToWzString(MouseKeyConfig{KEY_LALT, MOUSE_MMB}), "", MouseKeyConfig{KEY_LALT, MOUSE_MMB} },
+					{ mouseKeyCodeToWzString(MouseKeyConfig{nullopt, MOUSE_RMB}), "", MouseKeyConfig{nullopt, MOUSE_RMB}, getRightClickOrders() },
 				};
 				result.setCurrentIdxForValue(getRotateMouseKey());
 				return result;
@@ -1112,13 +1123,14 @@ std::shared_ptr<OptionsForm> makeControlsOptionsForm()
 	}
 	{
 		auto optionInfo = OptionInfo("controls.mouse.panCamera", N_("Mouse Pan"), "");
-		auto valueChanger = OptionsDropdown<optional<MOUSE_KEY_CODE>>::make(
+		auto valueChanger = OptionsDropdown<optional<MouseKeyConfig>>::make(
 			[]() {
-				OptionChoices<optional<MOUSE_KEY_CODE>> result;
+				OptionChoices<optional<MouseKeyConfig>> result;
 				result.choices = {
 					{ _("Edge Scrolling"), "", nullopt },
-					{ mouseKeyCodeToWzString(MOUSE_MMB), "", MOUSE_MMB },
-					{ mouseKeyCodeToWzString(MOUSE_RMB), "", MOUSE_RMB, getRightClickOrders() },
+					{ mouseKeyCodeToWzString(MouseKeyConfig{nullopt, MOUSE_MMB}), "", MouseKeyConfig{nullopt, MOUSE_MMB} },
+					{ mouseKeyCodeToWzString(MouseKeyConfig{KEY_LALT, MOUSE_MMB}), "", MouseKeyConfig{KEY_LALT, MOUSE_MMB} },
+					{ mouseKeyCodeToWzString(MouseKeyConfig{nullopt, MOUSE_RMB}), "", MouseKeyConfig{nullopt, MOUSE_RMB}, getRightClickOrders() },
 				};
 				result.setCurrentIdxForValue(getPanMouseKey());
 				return result;
