@@ -164,6 +164,12 @@ static Vector2i mouseWheelSpeed;
 static bool mouseInWindow = true;
 static bool windowHasFocus = true;
 
+/* Handling relative mouse mode */
+static float relMouseX = 0.f;
+static float relMouseY = 0.f;
+static float relStartMouseX = 0.f;
+static float relStartMouseY = 0.f;
+
 /* How far the mouse has to move to start a drag */
 #define DRAG_THRESHOLD	5
 
@@ -921,6 +927,57 @@ void wzReleaseMouse()
 	SDL_SetWindowMouseGrab(WZwindow, false);
 }
 
+bool wzEnableRelativeMouseMode()
+{
+	if (WZwindow == nullptr)
+	{
+		debug(LOG_WARNING, "wzEnableRelativeMouseMode called when window is not available - ignoring");
+		return false;
+	}
+
+	if (SDL_GetWindowRelativeMouseMode(WZwindow))
+	{
+		// already enabled
+		return true;
+	}
+
+	if (!SDL_SetWindowRelativeMouseMode(WZwindow, true))
+	{
+		debug(LOG_INFO, "Failed to enable relative mouse mode");
+		return false;
+	}
+
+	// Store the mouse position when relative mouse mode was enabled
+	SDL_GetMouseState(&relStartMouseX, &relStartMouseY);
+
+	return true;
+}
+
+void wzDisableRelativeMouseMode(bool restoreMousePosition)
+{
+	if (WZwindow == nullptr)
+	{
+		debug(LOG_WARNING, "wzDisableRelativeMouseMode called when window is not available - ignoring");
+		return;
+	}
+
+	if (!SDL_GetWindowRelativeMouseMode(WZwindow))
+	{
+		// already disabled
+		return;
+	}
+
+	if (restoreMousePosition)
+	{
+		SDL_WarpMouseInWindow(WZwindow, relStartMouseX, relStartMouseY);
+	}
+
+	SDL_SetWindowRelativeMouseMode(WZwindow, false);
+
+	relStartMouseX = 0.f;
+	relStartMouseY = 0.f;
+}
+
 void wzDelay(unsigned int delay)
 {
 	SDL_Delay(delay);
@@ -1393,6 +1450,8 @@ void inputNewFrame(void)
 	}
 	mousePresses.clear();
 	mouseWheelSpeed = Vector2i(0, 0);
+	relMouseX = 0.f;
+	relMouseY = 0.f;
 }
 
 /*!
@@ -1466,6 +1525,16 @@ Uint16 mouseX(void)
 Uint16 mouseY(void)
 {
 	return mouseYPos;
+}
+
+float relMouseXDelta()
+{
+	return relMouseX;
+}
+
+float relMouseYDelta()
+{
+	return relMouseY;
 }
 
 bool wzMouseInWindow()
@@ -1784,6 +1853,9 @@ static void inputHandleMouseMotionEvent(SDL_MouseMotionEvent *motionEvent)
 		/* store the current mouse position */
 		mouseXPos = (int)((float)motionEvent->x / current_displayScaleFactor);
 		mouseYPos = (int)((float)motionEvent->y / current_displayScaleFactor);
+
+		relMouseX += motionEvent->xrel;
+		relMouseY += motionEvent->yrel;
 
 		/* now see if a drag has started */
 		if ((aMouseState[dragKey].state == KEY_PRESSED ||

@@ -118,6 +118,8 @@ void wzApplyCursor();
 void wzShowMouse(bool visible); ///< Show the Mouse?
 void wzGrabMouse();		///< Trap mouse cursor in application window
 void wzReleaseMouse();	///< Undo the wzGrabMouse operation
+bool wzEnableRelativeMouseMode();
+void wzDisableRelativeMouseMode(bool restoreMousePosition);
 uint32_t wzGetTicks();		///< Milliseconds since start of game
 enum DialogType {
 	Dialog_Error,

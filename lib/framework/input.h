@@ -202,6 +202,12 @@ uint16_t mouseX() WZ_DECL_PURE;
 /** Return the current Y position of the mouse. */
 uint16_t mouseY() WZ_DECL_PURE;
 
+/** Return the relative X position mouse movement in the current frame (only if relative mouse mode is enabled).  */
+float relMouseXDelta() WZ_DECL_PURE;
+
+/** Return the relative Y position mouse movement in the current frame (only if relative mouse mode is enabled).  */
+float relMouseYDelta() WZ_DECL_PURE;
+
 Vector2i const& getMouseWheelSpeed();
 
 /// Returns true iff the mouse is on the window.
