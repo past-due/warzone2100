@@ -448,6 +448,9 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 		# -Wno-shadow-field-in-constructor (Clang 3.9+)
 		check_compiler_flags_output("-Werror -Wno-shadow-field-in-constructor -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "-Wno-shadow-field-in-constructor" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
 
+		# -Wnull-pointer-arithmetic
+		check_compiler_flags_output("-Werror -Wnull-pointer-arithmetic -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "-Wnull-pointer-arithmetic" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
+
 		message( STATUS "Supported additional CXX compiler_flags=${_supported_cxx_compiler_flags}" )
 		set(wz_target_only_XCODE_ATTRIBUTE_WARNING_CFLAGS "${wz_target_only_XCODE_ATTRIBUTE_WARNING_CFLAGS} ${_supported_cxx_compiler_flags}")
 
@@ -613,6 +616,10 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 		# -Wpointer-arith			(GCC 3.4+, Clang 3.2+)
 		check_compiler_flags_output("-Werror -Wpointer-arith -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Wpointer-arith" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
 		check_compiler_flags_output("-Werror -Wpointer-arith -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "-Wpointer-arith" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
+
+		# -Wnull-pointer-arithmetic
+		check_compiler_flags_output("-Werror -Wnull-pointer-arithmetic -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Wnull-pointer-arithmetic" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
+		check_compiler_flags_output("-Werror -Wnull-pointer-arithmetic -Wno-error=cpp" COMPILER_TYPE CXX OUTPUT_FLAGS "-Wnull-pointer-arithmetic" OUTPUT_VARIABLE _supported_cxx_compiler_flags APPEND)
 
 		# -Wstrict-prototypes		(GCC 3.4+, Clang 3.2+ (no-op through at least 6.0)) [C-only]
 		check_compiler_flags_output("-Werror -Wstrict-prototypes -Wno-error=cpp" COMPILER_TYPE C   OUTPUT_FLAGS "-Wstrict-prototypes" OUTPUT_VARIABLE _supported_c_compiler_flags APPEND)
