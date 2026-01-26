@@ -33,6 +33,7 @@
 
 #include <nonstd/optional.hpp>
 using nonstd::optional;
+using nonstd::nullopt;
 
 class IDescriptorSet;
 class PendingWritesManager;
@@ -208,16 +209,6 @@ public:
 		deleteLater_ = true;
 	}
 
-	const optional<std::error_code>& writeErrorCode() const
-	{
-		return writeErrorCode_;
-	}
-
-	void setWriteErrorCode(optional<std::error_code> ec)
-	{
-		writeErrorCode_ = std::move(ec);
-	}
-
 	virtual void setConnectedTimeout(std::chrono::milliseconds timeout) = 0;
 
 protected:
@@ -248,9 +239,25 @@ protected:
 	// which is used to schedule all write operations for this connection.
 	PendingWritesManager* pwm_ = nullptr;
 
+
+	inline optional<std::error_code> writeErrorCode() const
+	{
+		if (!writeErrorSet_.load(std::memory_order_relaxed))
+		{
+			return nullopt;
+		}
+		const std::lock_guard<std::mutex> guard {writeErrorMtx_};
+		return writeErrorCode_;
+	}
+
+	void setWriteErrorCode(optional<std::error_code> ec);
+
 private:
 
+	std::atomic<bool> writeErrorSet_; // set when writeErrorCode_ is set
+	mutable std::mutex writeErrorMtx_; // protects access to writeErrorCode_
 	optional<std::error_code> writeErrorCode_;
+
 	std::unique_ptr<ICompressionAdapter> compressionAdapter_;
 	std::unique_ptr<IDescriptorSet> readAllDescriptorSet_;
 	bool deleteLater_ = false;
