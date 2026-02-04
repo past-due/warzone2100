@@ -67,8 +67,8 @@ function structurePositions(struct,pos,truckTeam)
     }
     else
     {
-        posTeam.push(...truckTeam.map(i=>pickStructLocation(i,struct,pos.x,pos.y)))
-        posTeam.push(...truckTeam.map(i=>pickStructLocation(i,struct,i.x,i.y)))
+        posTeam.push(...truckTeam.map(i=>pickStructLocation(i,struct,pos.x,pos.y)).filter(res => res && !(typeof res === "undefined")))
+        posTeam.push(...truckTeam.map(i=>pickStructLocation(i,struct,i.x,i.y)).filter(res => res && !(typeof res === "undefined")))
     }
     return posTeam
 }
