@@ -485,22 +485,15 @@ bool NETend(MessageWriter& w)
 		NETnetMessage(shareQueueWriter, msg);
 
 		auto builtShareGameQueueMessage = shareQueueWriter.msgBuilder.build();
-
 		uint8_t allPlayers = NET_ALL_PLAYERS;
-		auto sendToPlayerWriter = NETbeginEncode(NETbroadcastQueue(), NET_SEND_TO_PLAYER);
-		NETuint8_t(sendToPlayerWriter, player);
-		NETuint8_t(sendToPlayerWriter, allPlayers);
-		NETnetMessage(sendToPlayerWriter, builtShareGameQueueMessage);
-		NETend(sendToPlayerWriter);  // This time we actually send it.
 
-		// Also insert the NET_SEND_TO_PLAYER into the ** host queue **
-		// - The broadcast above doesn't do this, since broadcasts don't get sent to self
-		// - Insert into the host queue so that it gets processed just like on the clients
-		auto sendToHostSelfWriter = NETbeginEncode(NETnetQueue(NetPlay.hostPlayer), NET_SEND_TO_PLAYER);
+		// Insert the NET_SEND_TO_PLAYER into the player's netqueue on the host, as if the player themselves sent it
+		// The host will then forward this on to the clients when it processes the NET_SEND_TO_PLAYER
+		auto sendToHostSelfWriter = NETbeginEncode(NETnetQueue(player), NET_SEND_TO_PLAYER);
 		NETuint8_t(sendToHostSelfWriter, player);
 		NETuint8_t(sendToHostSelfWriter, allPlayers);
 		NETnetMessage(sendToHostSelfWriter, builtShareGameQueueMessage);
-		NETinsertMessageFromNet(NETnetQueue(NetPlay.hostPlayer), sendToHostSelfWriter.msgBuilder.build());
+		NETinsertMessageFromNet(NETnetQueue(player), sendToHostSelfWriter.msgBuilder.build());
 
 		return true;
 	}
