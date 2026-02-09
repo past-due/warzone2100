@@ -4,7 +4,7 @@
   "IgnoreDefaults": false,
   "SpacesAfterTabs": true,
   "NoColor": false,
-  "Exclude": ["\\.json$", "\\.py$", "_parser.h$", "_parser.cpp$", "_lexer.cpp$", "^tools/"],
+  "Exclude": ["\\.json$", "\\.py$", "_parser.h$", "_parser.cpp$", "_lexer.cpp$", ".gam$", ".bjo$", ".ttp$" ".map$", "^tools/"],
   "AllowedContentTypes": [],
   "PassedFiles": [],
   "Disable": {

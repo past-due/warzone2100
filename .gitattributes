@@ -1,3 +1,48 @@
+# Auto detect text files and normalize to LF in the repo, convert to native on checkout
+* text=auto
+
+# Force specific files to always have LF endings in the working directory
+*.sh text eol=lf
+*.yml text eol=lf
+*.txt text eol=lf
+*.md text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.pie text eol=lf
+*.cpp text eol=lf
+*.c text eol=lf
+*.hpp text eol=lf
+*.h text eol=lf
+*.mm text eol=lf
+*.cmake text eol=lf
+
+# Force certain files to always have CRLF line endings
+*.iss text eol=crlf
+*.bat text eol=crlf
+*.rtf text eol=crlf
+*.ps1 text eol=crlf
+*.manifest.in text eol=crlf
+pkg/portable.in text eol=crlf
+
+# Denote all files that are truly binary and should not be modified.
+*.png binary
+*.jpg binary
+*.ogg binary
+*.ogv binary
+*.opus binary
+*.ttf binary
+*.img binary
+
+# WZ binary file types
+*.gam binary
+*.bjo binary
+*.ttp binary
+*.map binary
+*.wz binary
+
+# Other types we don't want git to mess with
+*.isl binary
+
 *.pbxproj -crlf merge=ours
 *.xcworkspacedata -crlf merge=ours
 *.xcscheme -crlf merge=ours
