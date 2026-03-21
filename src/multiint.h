@@ -30,6 +30,7 @@
 #include "lib/widget/form.h"
 #include "lib/widget/button.h"
 #include <functional>
+#include <memory>
 #include <vector>
 #include <set>
 #include "lib/framework/wzstring.h"
@@ -169,7 +170,12 @@ std::string getDefaultSkirmishAI(const bool& displayNameOnly=false);
 
 void kickPlayer(uint32_t player_id, const char *reason, LOBBY_ERROR_TYPES type, bool banPlayer = false);
 void displayKickReasonPopup(const std::string &reason);
-void loadMapPreview(bool hideInterface);
+
+struct Sha256;
+class IResourceLoadingJob;
+struct ResourceLoadingRequest;
+
+std::unique_ptr<IResourceLoadingJob> makeMapPreviewJob(ResourceLoadingRequest request);
 
 bool changeReadyStatus(UBYTE player, bool bReady);
 WzString formatGameName(WzString name);

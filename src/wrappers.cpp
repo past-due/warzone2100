@@ -43,6 +43,7 @@
 #include "multistat.h"
 #include "warzoneconfig.h"
 #include "wrappers.h"
+#include "resource_loading_controller.h"
 #include "titleui/titleui.h"
 #include "stdinreader.h"
 #include "multijoin_helpers.h"
@@ -67,6 +68,7 @@ static HostLaunch hostlaunch = HostLaunch::Normal;  // used to detect if we are 
 static bool bHeadlessAutoGameModeCLIOption = false;
 static bool bActualHeadlessAutoGameMode = false;
 static bool bHostLaunchStartNotReady = false;
+static bool loadingScreenSessionActive = false;
 
 static uint32_t lastTick = 0;
 static int barLeftX, barLeftY, barRightX, barRightY, boxWidth, boxHeight, starsNum, starHeight;
@@ -79,6 +81,31 @@ static STAR newStar()
 	s.speed = static_cast<int>((rand() % 30 + 6) * pie_GetVideoBufferWidth() / 640.0);
 	s.colour = pal_SetBrightness(150 + rand() % 100);
 	return s;
+}
+
+static void renderLoadingScreenPass()
+{
+	const PIELIGHT loadingbar_background = WZCOL_LOADING_BAR_BACKGROUND;
+
+	pie_UniTransBoxFill(barLeftX - 2, barLeftY - 2, barRightX + 2, barRightY + 2, loadingbar_background);
+
+	for (unsigned int i = 1; i < static_cast<unsigned int>(starsNum); ++i)
+	{
+		stars[i].xPos = stars[i].xPos + stars[i].speed;
+		if (barLeftX + stars[i].xPos >= barRightX)
+		{
+			stars[i] = newStar();
+			stars[i].xPos = 1;
+		}
+		{
+			const int topX = barLeftX + stars[i].xPos;
+			const int topY = barLeftY + i * (boxHeight - starHeight) / starsNum;
+			const int botX = MIN(topX + stars[i].speed, barRightX);
+			const int botY = topY + starHeight;
+
+			pie_UniTransBoxFill(topX, topY, botX, botY, stars[i].colour);
+		}
+	}
 }
 
 static void setupLoadingScreen()
@@ -278,12 +305,30 @@ TITLECODE titleLoop()
 ////////////////////////////////////////////////////////////////////////////////
 // Loading Screen.
 
-//loadbar update
+bool isLoadingScreenActive()
+{
+	return loadingScreenSessionActive;
+}
+
+void presentLoadingScreenForCurrentFrame()
+{
+	if (!loadingScreenSessionActive || headlessGameMode())
+	{
+		return;
+	}
+
+	if (screen_GetBackDrop())
+	{
+		screen_Display();
+	}
+
+	renderLoadingScreenPass();
+}
+
+//loadbar update — audio/event pump only; drawing is done from mainLoop via presentLoadingScreenForCurrentFrame.
 void loadingScreenCallback()
 {
-	const PIELIGHT loadingbar_background = WZCOL_LOADING_BAR_BACKGROUND;
 	const uint32_t currTick = wzGetTicks();
-	unsigned int i;
 
 	if (currTick - lastTick < 50)
 	{
@@ -292,33 +337,18 @@ void loadingScreenCallback()
 
 	lastTick = currTick;
 
-	/* Draw the black rectangle at the bottom, with a two pixel border */
-	pie_UniTransBoxFill(barLeftX - 2, barLeftY - 2, barRightX + 2, barRightY + 2, loadingbar_background);
-
-	for (i = 1; i < starsNum; ++i)
-	{
-		stars[i].xPos = stars[i].xPos + stars[i].speed;
-		if (barLeftX + stars[i].xPos >= barRightX)
-		{
-			stars[i] = newStar();
-			stars[i].xPos = 1;
-		}
-		{
-			const int topX = barLeftX + stars[i].xPos;
-			const int topY = barLeftY + i * (boxHeight - starHeight) / starsNum;
-			const int botX = MIN(topX + stars[i].speed, barRightX);
-			const int botY = topY + starHeight;
-
-			pie_UniTransBoxFill(topX, topY, botX, botY, stars[i].colour);
-		}
-	}
-
-	pie_ScreenFrameRenderEnd();
-	pie_ScreenFrameRenderBegin();
-
 	audio_Update();
 
 	wzPumpEventsWhileLoading();
+
+	// Blocking loads (e.g. startTitleLoop → frontendInitialise) still use this callback from deep
+	// inside resLoad; cooperative jobs present from mainLoop instead.
+	if (!ResourceLoadingController::instance().loadingScreenHandledByController() && loadingScreenSessionActive && !headlessGameMode())
+	{
+		presentLoadingScreenForCurrentFrame();
+		pie_ScreenFrameRenderEnd();
+		pie_ScreenFrameRenderBegin();
+	}
 }
 
 #if defined(__EMSCRIPTEN__)
@@ -338,10 +368,11 @@ void wzemscripten_display_web_loading_indicator(int x)
 // fill buffers with the static screen
 void initLoadingScreen(bool drawbdrop)
 {
-	pie_ScreenFrameRenderBegin(); // start a frame *if one isn't yet started*
 	setupLoadingScreen();
 	wzShowMouse(false);
 	pie_SetFogStatus(false);
+	loadingScreenSessionActive = true;
+	lastTick = 0;
 
 #if !defined(__EMSCRIPTEN__)
 	// setup the callback....
@@ -367,6 +398,8 @@ void initLoadingScreen(bool drawbdrop)
 // shut down the loading screen
 void closeLoadingScreen()
 {
+	loadingScreenSessionActive = false;
+
 	if (stars)
 	{
 		free(stars);

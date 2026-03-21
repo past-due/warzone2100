@@ -24,10 +24,15 @@
 #ifndef __INCLUDED_SRC_INIT_H__
 #define __INCLUDED_SRC_INIT_H__
 
+#include <cstdint>
+#include <memory>
+#include <string>
 #include <vector>
 #include "terrain_defs.h"
 
 struct IMAGEFILE;
+class IResourceLoadingJob;
+struct ResourceLoadingRequest;
 class WzMapZipIO;
 
 // the size of the file loading buffer
@@ -37,7 +42,10 @@ extern char fileLoadBuffer[];
 
 bool systemInitialise(unsigned int horizScalePercentage, unsigned int vertScalePercentage);
 void systemShutdown();
+std::unique_ptr<IResourceLoadingJob> makeFrontendInitJob(ResourceLoadingRequest request);
 bool frontendInitialise(const char *ResourceFile);
+bool frontendInitialiseSetup();
+bool frontendInitialiseFinalize();
 bool frontendShutdown();
 bool stageOneInitialise();
 bool stageOneShutDown();

@@ -60,6 +60,8 @@ TITLECODE titleLoop();
 void initLoadingScreen(bool drawbdrop);
 void closeLoadingScreen();
 void loadingScreenCallback();
+bool isLoadingScreenActive();
+void presentLoadingScreenForCurrentFrame();
 
 bool displayGameOver(bool success, bool showBackDrop);
 void setPlayerHasLost(bool val);

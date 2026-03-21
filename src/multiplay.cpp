@@ -2497,7 +2497,7 @@ bool recvMapFileData(NETQUEUE queue)
 			game.isRandom = true;
 		}
 
-		loadMapPreview(false);
+		requestMapPreviewLoad(false);
 		return true;
 	}
 

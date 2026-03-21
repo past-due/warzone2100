@@ -44,6 +44,7 @@
 #include "src/multiplay.h"
 #include "src/multivote.h"
 #include "src/multilimit.h"
+#include "src/main.h"
 #include "src/frend.h"
 #include "src/loadsave.h"
 #include "src/intimage.h"
@@ -945,7 +946,7 @@ void WzMultiLobbyOptionsImpl::initialize(bool _isChallenge, const std::shared_pt
 		mapViewButton->setTip(_("Click to see Map"));
 		mapViewButton->addOnClickHandler([](W_BUTTON&) {
 			widgScheduleTask([]{
-				loadMapPreview(true);
+				requestMapPreviewLoad(true);
 			});
 		});
 		auto mapChangeButton = addSectionImageButton(mapWidget, IMAGE_GLOBE, 2);

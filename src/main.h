@@ -21,6 +21,8 @@
 #ifndef __INCLUDED_SRC_MAIN_H__
 #define __INCLUDED_SRC_MAIN_H__
 
+struct Sha256;
+
 enum GS_GAMEMODE
 {
 	GS_TITLE_SCREEN,
@@ -64,6 +66,9 @@ struct SaveGamePath_t
 GS_GAMEMODE GetGameMode() WZ_DECL_PURE;
 void SetGameMode(GS_GAMEMODE status);
 void mainLoop();
+
+void requestMapPreviewLoad(bool hideInterface);
+void requestMapPreviewLoad(bool hideInterface, const char *mapName, const Sha256& mapHash);
 
 extern char SaveGamePath[PATH_MAX];
 extern char ReplayPath[PATH_MAX];

@@ -26,6 +26,7 @@
 #include "lib/framework/frame.h"
 
 #include <string.h>
+#include <utility>
 
 #include "lib/framework/frameresource.h"
 #include "lib/framework/file.h"
@@ -85,6 +86,7 @@
 #include "order.h"
 #include "radar.h"
 #include "research.h"
+#include "resource_loading_controller.h"
 #include "lib/framework/cursors.h"
 #include "text.h"
 #include "transporter.h"
@@ -1183,12 +1185,127 @@ void systemShutdown()
 // ////////////////////////////////////////////////////////////////////////////
 // Called At Frontend Startup.
 
+namespace
+{
+
+/// <summary>
+/// Frontend boot job:
+/// 1. Setup
+/// 2. cooperative WRF load (`ResLoadPlan` + `resLoadPlanStep`)
+///    * prepare load plan
+///    * load resources
+///    * complete load
+/// 3. finalize initialization
+/// </summary>
+class FrontendInitJob final : public IResourceLoadingJob
+{
+public:
+	explicit FrontendInitJob(ResourceLoadingRequest requestIn)
+		: request(std::move(requestIn))
+	{
+	}
+
+	StepResult step() override
+	{
+		switch (phase)
+		{
+		case Phase::Setup:
+			SetGameMode(GS_TITLE_SCREEN);
+			frontendIsShuttingDown();
+			debug(LOG_WZ, "== Initializing frontend == : %s", request.resourceFile.c_str());
+			if (!frontendInitialiseSetup())
+			{
+				return StepResult::Failed;
+			}
+			phase = Phase::PrepareResLoadPlan;
+			return StepResult::InProgress;
+		case Phase::PrepareResLoadPlan:
+			debug(LOG_MAIN, "frontEndInitialise: loading resource file .....");
+			if (!resPrepareLoadPlan(request.resourceFile.c_str(), 0, plan))
+			{
+				return StepResult::Failed;
+			}
+			phase = Phase::LoadResources;
+			return StepResult::InProgress;
+		case Phase::LoadResources:
+			if (!resLoadPlanStep(plan, resGetLoadPlanEntriesPerStep()))
+			{
+				return StepResult::Failed;
+			}
+			if (!resLoadPlanComplete(plan))
+			{
+				return StepResult::InProgress;
+			}
+			phase = Phase::Finalize;
+			return StepResult::InProgress;
+		case Phase::Finalize:
+			return frontendInitialiseFinalize() ? StepResult::Completed : StepResult::Failed;
+		}
+
+		return StepResult::Failed;
+	}
+
+	void finalizeSuccess() override
+	{
+		closeLoadingScreen();
+	}
+
+	void finalizeFailure() override
+	{
+		closeLoadingScreen();
+		debug(LOG_FATAL, "Shutting down after failure");
+		exit(EXIT_FAILURE);
+	}
+
+	ResourceLoadingController::FrameProcessingMode frameProcessingMode() const override
+	{
+		return ResourceLoadingController::FrameProcessingMode::ConsumeFrame;
+	}
+
+private:
+	enum class Phase
+	{
+		Setup,
+		PrepareResLoadPlan,
+		LoadResources,
+		Finalize,
+	};
+
+	ResourceLoadingRequest request;
+	Phase phase = Phase::Setup;
+	ResLoadPlan plan;
+};
+
+} // anonymous namespace
+
+std::unique_ptr<IResourceLoadingJob> makeFrontendInitJob(ResourceLoadingRequest request)
+{
+	return std::make_unique<FrontendInitJob>(std::move(request));
+}
+
 bool frontendInitialise(const char *ResourceFile)
 {
 	frontendIsShuttingDown();
 
 	debug(LOG_WZ, "== Initializing frontend == : %s", ResourceFile);
 
+	if (!frontendInitialiseSetup())
+	{
+		return false;
+	}
+
+	debug(LOG_MAIN, "frontEndInitialise: loading resource file .....");
+	if (!resLoad(ResourceFile, 0))
+	{
+		//need the object heaps to have been set up before loading in the save game
+		return false;
+	}
+
+	return frontendInitialiseFinalize();
+}
+
+bool frontendInitialiseSetup()
+{
 	if (!InitialiseGlobals())				// Initialise all globals and statics everywhere.
 	{
 		return false;
@@ -1209,13 +1326,11 @@ bool frontendInitialise(const char *ResourceFile)
 		return false;
 	}
 
-	debug(LOG_MAIN, "frontEndInitialise: loading resource file .....");
-	if (!resLoad(ResourceFile, 0))
-	{
-		//need the object heaps to have been set up before loading in the save game
-		return false;
-	}
+	return true;
+}
 
+bool frontendInitialiseFinalize()
+{
 	if (!dispInitialise())					// Initialise the display system
 	{
 		return false;

@@ -42,6 +42,7 @@
 #include "mission.h"
 #include "levelint.h"
 #include "game.h"
+#include "resource_loading_controller.h"
 #include "lib/ivis_opengl/piestate.h"
 #include "data.h"
 #include "research.h"
@@ -720,7 +721,7 @@ bool levReleaseMissionData()
 			return false;
 		}
 
-		resDoResLoadCallback();		// do callback.
+		// Former loading-screen callback boundary; keep as guidance if this path needs a finer-grained loading step.
 
 		// free up the old data
 		for (int i = LEVEL_MAXFILES - 1; i >= 0; i--)
@@ -758,7 +759,7 @@ bool levReleaseAll(bool forceOnError)
 
 	if (didLoadLevel)
 	{
-		resDoResLoadCallback();		// do callback.
+		// Former loading-screen callback boundary; keep as guidance if this path needs a finer-grained loading step.
 
 		if (!levReleaseMissionData())
 		{
@@ -769,7 +770,7 @@ bool levReleaseAll(bool forceOnError)
 
 	if (didLoadLevel || didLoadBaseLevel || forceOnError)
 	{
-		resDoResLoadCallback();		// do callback.
+		// Former loading-screen callback boundary; keep as guidance if this path needs a finer-grained loading step.
 
 		// release the base game data
 		if (psBaseData != nullptr || (psCurrLevel != nullptr && psCurrLevel->psBaseData != nullptr))
@@ -919,7 +920,7 @@ static void levPreloadFactionModelsFromLoadedSet()
 		ASSERT(retval != nullptr, "Cannot find the faction PIE model %s (for normal model: %s)",
 			   factionModelInfo.factionModel.toUtf8().c_str(), factionModelInfo.normalModel.toUtf8().c_str());
 	}
-	resDoResLoadCallback();		// do callback.
+	// Former loading-screen callback boundary; keep as guidance if this path needs a finer-grained loading step.
 }
 
 static bool levStartMissionForLevelType(LEVEL_DATASET* psNewLevel, SWORD i)
@@ -1384,62 +1385,151 @@ static bool levFinalizeLevelLoad(LevLoadContext& ctx)
 	return true;
 }
 
+namespace
+{
+
+class LevLoadDataJob final : public IResourceLoadingJob
+{
+public:
+	using StepResult = IResourceLoadingJob::StepResult;
+
+	explicit LevLoadDataJob(char const *name, Sha256 const *hash, char *pSaveName, GAME_TYPE saveType);
+
+	LevLoadDataJob(const LevLoadDataJob&) = delete;
+	LevLoadDataJob& operator=(const LevLoadDataJob&) = delete;
+
+	StepResult step() override;
+	void finalizeSuccess() override { }
+	void finalizeFailure() override { }
+
+private:
+	enum class Phase
+	{
+		Begin,
+		ResolveDataset,
+		PrepareEnvironment,
+		LoadBaseDatasetAndStageOne,
+		LoadMissionBranchesBeforeMainLoop,
+		LoadMissionDataLoop,
+		Finalize,
+	};
+
+	char const *name = nullptr;
+	Sha256 const *hash = nullptr;
+	char *pSaveName = nullptr;
+	GAME_TYPE saveType = GTYPE_SCENARIO_START;
+	LevLoadContext ctx;
+	Phase phase = Phase::Begin;
+};
+
+LevLoadDataJob::LevLoadDataJob(char const *name, Sha256 const *hash, char *pSaveName, GAME_TYPE saveType)
+	: name(name)
+	, hash(hash)
+	, pSaveName(pSaveName)
+	, saveType(saveType)
+{
+}
+
+LevLoadDataJob::StepResult LevLoadDataJob::step()
+{
+	switch (phase)
+	{
+	case Phase::Begin:
+		ASSERT_OR_RETURN(StepResult::Failed, name != nullptr, "null level name provided");
+		debug(LOG_WZ, "Loading level %s hash %s (%s, type %d)", name, hash == nullptr ? "builtin" : hash->toString().c_str(), pSaveName, (int)saveType);
+		if (saveType == GTYPE_SAVE_START || saveType == GTYPE_SAVE_MIDMISSION)
+		{
+			if (!levReleaseAll())
+			{
+				debug(LOG_ERROR, "Failed to unload old data");
+				return StepResult::Failed;
+			}
+		}
+
+		// Ensure that the LC_NUMERIC locale setting is "C"
+		ASSERT(strcmp(setlocale(LC_NUMERIC, NULL), "C") == 0, "The LC_NUMERIC locale is not \"C\" - this may break level-data parsing depending on the user's system locale settings");
+
+		levelLoadType = saveType;
+
+		ctx.name = name;
+		ctx.hash = hash;
+		ctx.pSaveName = pSaveName;
+		ctx.saveType = saveType;
+		phase = Phase::ResolveDataset;
+		return StepResult::InProgress;
+	case Phase::ResolveDataset:
+		switch (levResolveDatasetForLoad(ctx))
+		{
+		case LevDatasetResolveResult::Failed:
+			return StepResult::Failed;
+		case LevDatasetResolveResult::SingleWRF:
+			return levLoadSingleWRF(ctx.name.c_str()) ? StepResult::Completed : StepResult::Failed;
+		case LevDatasetResolveResult::Ok:
+			break;
+		}
+		phase = Phase::PrepareEnvironment;
+		return StepResult::InProgress;
+	case Phase::PrepareEnvironment:
+		if (!levPrepareLoadEnvironment(ctx.psNewLevel, ctx.pSaveName))
+		{
+			return StepResult::Failed;
+		}
+		phase = Phase::LoadBaseDatasetAndStageOne;
+		return StepResult::InProgress;
+	case Phase::LoadBaseDatasetAndStageOne:
+		if (!levLoadBaseDatasetAndStageOne(ctx.psNewLevel))
+		{
+			return StepResult::Failed;
+		}
+		phase = Phase::LoadMissionBranchesBeforeMainLoop;
+		return StepResult::InProgress;
+	case Phase::LoadMissionBranchesBeforeMainLoop:
+		if (!levLoadMissionBranchesBeforeMainLoop(ctx))
+		{
+			return StepResult::Failed;
+		}
+		phase = Phase::LoadMissionDataLoop;
+		return StepResult::InProgress;
+	case Phase::LoadMissionDataLoop:
+		if (!levLoadMissionDataLoop(ctx))
+		{
+			return StepResult::Failed;
+		}
+		phase = Phase::Finalize;
+		return StepResult::InProgress;
+	case Phase::Finalize:
+		return levFinalizeLevelLoad(ctx) ? StepResult::Completed : StepResult::Failed;
+	}
+
+	return StepResult::Failed;
+}
+
+} // anonymous namespace
+
+std::unique_ptr<IResourceLoadingJob> makeLevLoadDataJob(char const *name, Sha256 const *hash, char *pSaveName, GAME_TYPE saveType)
+{
+	return std::make_unique<LevLoadDataJob>(name, hash, pSaveName, saveType);
+}
+
 // load up the data for a level
 bool levLoadData(char const *name, Sha256 const *hash, char *pSaveName, GAME_TYPE saveType)
 {
 	ASSERT_OR_RETURN(false, name != nullptr, "null level name provided");
 	debug(LOG_WZ, "Loading level %s hash %s (%s, type %d)", name, hash == nullptr ? "builtin" : hash->toString().c_str(), pSaveName != nullptr ? pSaveName : "<none>", (int)saveType);
-	if (saveType == GTYPE_SAVE_START || saveType == GTYPE_SAVE_MIDMISSION)
+
+	LevLoadDataJob job(name, hash, pSaveName, saveType);
+	while (true)
 	{
-		if (!levReleaseAll())
+		switch (job.step())
 		{
-			debug(LOG_ERROR, "Failed to unload old data");
+		case LevLoadDataJob::StepResult::InProgress:
+			continue;
+		case LevLoadDataJob::StepResult::Completed:
+			return true;
+		case LevLoadDataJob::StepResult::Failed:
 			return false;
 		}
 	}
-
-	// Ensure that the LC_NUMERIC locale setting is "C"
-	ASSERT(strcmp(setlocale(LC_NUMERIC, NULL), "C") == 0, "The LC_NUMERIC locale is not \"C\" - this may break level-data parsing depending on the user's system locale settings");
-
-	levelLoadType = saveType;
-
-	LevLoadContext ctx;
-	ctx.name = name;
-	ctx.hash = hash;
-	ctx.pSaveName = pSaveName;
-	ctx.saveType = saveType;
-
-	switch (levResolveDatasetForLoad(ctx))
-	{
-	case LevDatasetResolveResult::Failed:
-		return false;
-	case LevDatasetResolveResult::SingleWRF:
-		return levLoadSingleWRF(ctx.name.c_str());
-	case LevDatasetResolveResult::Ok:
-		break;
-	}
-
-	if (!levPrepareLoadEnvironment(ctx.psNewLevel, ctx.pSaveName))
-	{
-		return false;
-	}
-	if (!levLoadBaseDatasetAndStageOne(ctx.psNewLevel))
-	{
-		return false;
-	}
-	if (!levLoadMissionBranchesBeforeMainLoop(ctx))
-	{
-		return false;
-	}
-	if (!levLoadMissionDataLoop(ctx))
-	{
-		return false;
-	}
-	if (!levFinalizeLevelLoad(ctx))
-	{
-		return false;
-	}
-	return true;
 }
 
 std::string mapNameWithoutTechlevel(const char *mapName)

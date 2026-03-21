@@ -50,6 +50,84 @@ static void ResetResourceFile();
 
 // callback to resload screen.
 static RESLOAD_CALLBACK resLoadCallback = nullptr;
+static ResLoadPlan *activeResLoadPlan = nullptr;
+static size_t resLoadPlanEntriesPerStepSetting = 2;
+
+bool resParserBeginLoadPlanBuild(ResLoadPlan *plan)
+{
+	ASSERT(plan != nullptr, "resParserBeginLoadPlanBuild called with null plan");
+	ASSERT(activeResLoadPlan == nullptr, "res parser plan build already active");
+	if (plan == nullptr || activeResLoadPlan != nullptr)
+	{
+		return false;
+	}
+
+	activeResLoadPlan = plan;
+	activeResLoadPlan->entries.clear();
+	activeResLoadPlan->nextEntry = 0;
+	sstrcpy(aCurrResDir, aResDir);
+	return true;
+}
+
+void resParserEndLoadPlanBuild()
+{
+	activeResLoadPlan = nullptr;
+}
+
+bool resParserSetDirectory(const char *directory)
+{
+	size_t len;
+
+	ASSERT(activeResLoadPlan != nullptr, "resParserSetDirectory called without an active plan");
+	ASSERT(directory != nullptr, "resParserSetDirectory called with null directory");
+	if (activeResLoadPlan == nullptr || directory == nullptr)
+	{
+		return false;
+	}
+
+	debug(LOG_NEVER, "directory: %s", directory);
+	if (strncmp(directory, "/:", strlen("/:")) == 0)
+	{
+		sstrcpy(aCurrResDir, directory);
+	}
+	else
+	{
+		sstrcpy(aCurrResDir, aResDir);
+		sstrcat(aCurrResDir, directory);
+	}
+
+	if (strlen(directory) > 0)
+	{
+		ASSERT(WZ_PHYSFS_isDirectory(aCurrResDir), "%s is not a directory!", aCurrResDir);
+		if (!WZ_PHYSFS_isDirectory(aCurrResDir))
+		{
+			debug(LOG_ERROR, "Resource directory does not exist: %s", aCurrResDir);
+			return false;
+		}
+
+		len = strlen(aCurrResDir);
+		aCurrResDir[len] = '/';
+		aCurrResDir[len + 1] = 0;
+		debug(LOG_NEVER, "Current resource directory: %s", aCurrResDir);
+	}
+
+	return true;
+}
+
+bool resParserAddFile(const char *type, const char *file)
+{
+	ASSERT(activeResLoadPlan != nullptr, "resParserAddFile called without an active plan");
+	ASSERT(type != nullptr, "resParserAddFile called with null type");
+	ASSERT(file != nullptr, "resParserAddFile called with null file");
+	if (activeResLoadPlan == nullptr || type == nullptr || file == nullptr)
+	{
+		return false;
+	}
+
+	debug(LOG_NEVER, "file: %s %s", type, file);
+	activeResLoadPlan->entries.push_back({aCurrResDir, type, file});
+	return true;
+}
 
 
 /* next four used in HashPJW */
@@ -154,6 +232,8 @@ bool resInitialise()
 	psResTypes.clear();
 	resBlockID = 0;
 	resLoadCallback = nullptr;
+	activeResLoadPlan = nullptr;
+	resLoadPlanEntriesPerStepSetting = 2;
 
 	ResetResourceFile();
 
@@ -187,6 +267,25 @@ void resSetBaseDir(const char *pResDir)
 /* Parse the res file */
 bool resLoad(const char *pResFile, SDWORD blockID)
 {
+	ResLoadPlan plan;
+	if (!resPrepareLoadPlan(pResFile, blockID, plan))
+	{
+		return false;
+	}
+
+	while (!resLoadPlanComplete(plan))
+	{
+		if (!resLoadPlanStep(plan, resGetLoadPlanEntriesPerStep()))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool resPrepareLoadPlan(const char *pResFile, SDWORD blockID, ResLoadPlan &plan)
+{
 	bool retval = true;
 	lexerinput_t input;
 
@@ -206,18 +305,60 @@ bool resLoad(const char *pResFile, SDWORD blockID)
 		return false;
 	}
 
-	// and parse it
+	plan = {};
+	plan.resourceFile = pResFile;
+	plan.blockID = blockID;
+	if (!resParserBeginLoadPlanBuild(&plan))
+	{
+		PHYSFS_close(input.input.physfsfile);
+		return false;
+	}
+
 	res_set_extra(&input);
+
+	// Parse the RES file
 	if (res_parse() != 0)
 	{
 		debug(LOG_FATAL, "Failed to parse %s", pResFile);
 		retval = false;
 	}
 
+	resParserEndLoadPlanBuild();
 	res_lex_destroy();
 	PHYSFS_close(input.input.physfsfile);
 
 	return retval;
+}
+
+bool resLoadPlanStep(ResLoadPlan &plan, size_t maxEntriesPerStep)
+{
+	resBlockID = plan.blockID;
+	for (size_t processed = 0; processed < maxEntriesPerStep && plan.nextEntry < plan.entries.size(); ++processed, ++plan.nextEntry)
+	{
+		const ResLoadPlanEntry &entry = plan.entries[plan.nextEntry];
+		sstrcpy(aCurrResDir, entry.resourceDirectory.c_str());
+		if (!resLoadFile(entry.type.c_str(), entry.file.c_str()))
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool resLoadPlanComplete(const ResLoadPlan &plan)
+{
+	return plan.nextEntry >= plan.entries.size();
+}
+
+size_t resGetLoadPlanEntriesPerStep()
+{
+	return resLoadPlanEntriesPerStepSetting;
+}
+
+void resSetLoadPlanEntriesPerStep(size_t entriesPerStep)
+{
+	resLoadPlanEntriesPerStepSetting = entriesPerStep > 0 ? entriesPerStep : 1;
 }
 
 

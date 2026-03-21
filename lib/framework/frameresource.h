@@ -27,6 +27,8 @@
 #include "lib/framework/frame.h"
 
 #include <list>
+#include <string>
+#include <vector>
 
 /** Maximum number of characters in a resource type. */
 #define RESTYPE_MAXCHAR		20
@@ -43,6 +45,21 @@ typedef void (*RES_FREE)(void *pData);
 
 /** callback type for resload display callback. */
 typedef void (*RESLOAD_CALLBACK)();
+
+struct ResLoadPlanEntry
+{
+	std::string resourceDirectory;
+	std::string type;
+	std::string file;
+};
+
+struct ResLoadPlan
+{
+	std::string resourceFile;
+	SDWORD blockID = 0;
+	std::vector<ResLoadPlanEntry> entries;
+	size_t nextEntry = 0;
+};
 
 struct RES_DATA
 {
@@ -93,6 +110,13 @@ WZ_DECL_NONNULL(1) void resForceBaseDir(const char *pResDir);
 
 /** Parse the res file. */
 WZ_DECL_NONNULL(1) bool resLoad(const char *pResFile, SDWORD blockID);
+WZ_DECL_NONNULL(1) bool resPrepareLoadPlan(const char *pResFile, SDWORD blockID, ResLoadPlan &plan);
+bool resLoadPlanStep(ResLoadPlan &plan, size_t maxEntriesPerStep = 1);
+bool resLoadPlanComplete(const ResLoadPlan &plan);
+
+/** Default max resource entries processed per resLoadPlanStep for cooperative loading. Min 1. */
+size_t resGetLoadPlanEntriesPerStep();
+void resSetLoadPlanEntriesPerStep(size_t entriesPerStep);
 
 /** Release all the resources currently loaded and the resource load functions. */
 void resReleaseAll();

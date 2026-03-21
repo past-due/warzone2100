@@ -82,6 +82,8 @@
 #include "frontend.h"
 #include "game.h"
 #include "init.h"
+#include "resource_loading_controller.h"
+#include "main_resource_loading.h"
 #include "levels.h"
 #include "lighting.h"
 #include "loadsave.h"
@@ -198,6 +200,7 @@ static bool ignoredSIGPIPE = false;
 #endif
 
 static void stopGameLoop();
+static void startTitleLoop(bool onInitialStartup = false);
 
 #if defined(WZ_OS_WIN)
 
@@ -730,7 +733,7 @@ static void make_dir(char *dest, const char *dirname, const char *subdir)
  * Preparations before entering the title (mainmenu) loop
  * Would start the timer in an event based mainloop
  */
-static void startTitleLoop(bool onInitialStartup = false)
+static void startTitleLoop(bool onInitialStartup)
 {
 	SetGameMode(GS_TITLE_SCREEN);
 
@@ -784,11 +787,17 @@ static void setCDAudioForCurrentGameMode()
 	}
 }
 
-/*!
- * Preparations before entering the game loop
- * Would start the timer in an event based mainloop
- */
-static bool startGameLoop()
+namespace main_resource_loading
+{
+
+static bool saveGameLoadAfter();
+
+namespace
+{
+
+// Prepares entering a new match (multiplayer timeouts, `setGameMode(GS_NORMAL)`,
+// loading screen, activity / CD-audio) before `levLoadData()`.
+void startGameBeforeLevelLoad()
 {
 	if (runningMultiplayer())
 	{
@@ -804,25 +813,28 @@ static bool startGameLoop()
 
 	// set up CD audio for game mode
 	setCDAudioForCurrentGameMode();
+}
 
-	// Not sure what aLevelName is, in relation to game.map. But need to use aLevelName here, to be able to start the right map for campaign, and need game.hash, to start the right non-campaign map, if there are multiple identically named maps.
-	if (!levLoadData(aLevelName, &game.hash, nullptr, GTYPE_SCENARIO_START))
+// Tears down after a failed start-game load and returns to the title loop.
+void startGameAbortLevelLoadFailure()
+{
+	debug(LOG_ERROR, "Failed to load level data / map: %s %s", aLevelName, (!game.hash.isZero()) ? game.hash.toString().c_str() : "");
+	if (bMultiPlayer)
 	{
-		debug(LOG_ERROR, "Failed to load level data / map: %s %s", aLevelName, (!game.hash.isZero()) ? game.hash.toString().c_str() : "");
-		if (bMultiPlayer)
-		{
-			multiGameShutdown();
-		}
-		levReleaseAll();
-		closeLoadingScreen();
-		cdAudio_SetGameMode(MusicGameMode::MENUS);
-		stopGameLoop();
-		pie_LoadBackDrop(SCREEN_RANDOMBDROP);
-		startTitleLoop(); // Restart into titleloop
-		gameLoopStatus = GAMECODE_CONTINUE;
-		return false;
+		multiGameShutdown();
 	}
+	levReleaseAll();
+	closeLoadingScreen();
+	cdAudio_SetGameMode(MusicGameMode::MENUS);
+	stopGameLoop();
+	pie_LoadBackDrop(SCREEN_RANDOMBDROP);
+	startTitleLoop(); // Restart into titleloop
+	gameLoopStatus = GAMECODE_CONTINUE;
+}
 
+// Post-success setup after `levLoadData()` (UI, gameInitialised, triggers, replay-related, etc.).
+bool startGameAfterLevelLoad()
+{
 	screen_StopBackDrop();
 	closeLoadingScreen();
 
@@ -907,6 +919,213 @@ static bool startGameLoop()
 	return true;
 }
 
+/// <summary>
+/// Start game from lobby/menu job:
+/// Uses hooks before/after a nested cooperative `levLoadData` job.
+/// </summary>
+class StartGameResourceJob final : public IResourceLoadingJob
+{
+public:
+	StepResult step() override
+	{
+		switch (phase)
+		{
+		case Phase::PresentInitialFrame:
+			phase = Phase::BeforeLevelLoad;
+			return StepResult::InProgress;
+		case Phase::BeforeLevelLoad:
+			startGameBeforeLevelLoad();
+			phase = Phase::LevelLoad;
+			return StepResult::InProgress;
+		case Phase::LevelLoad:
+			if (!levelLoadJob)
+			{
+				// Not sure what aLevelName is, in relation to game.map. But need to use aLevelName here, to be able to start the right map for campaign, and need game.hash, to start the right non-campaign map, if there are multiple identically named maps.
+				levelLoadJob = makeLevLoadDataJob(aLevelName, &game.hash, nullptr, GTYPE_SCENARIO_START);
+			}
+			switch (levelLoadJob->step())
+			{
+			case StepResult::InProgress:
+				return StepResult::InProgress;
+			case StepResult::Completed:
+				levelLoadJob.reset();
+				phase = Phase::AfterLevelLoad;
+				return StepResult::InProgress;
+			case StepResult::Failed:
+				return StepResult::Failed;
+			}
+			return StepResult::Failed;
+		case Phase::AfterLevelLoad:
+			return startGameAfterLevelLoad()
+			           ? StepResult::Completed
+			           : StepResult::Failed;
+		}
+		return StepResult::Failed;
+	}
+
+	void finalizeSuccess() override
+	{
+		closeLoadingScreen();
+	}
+
+	void finalizeFailure() override
+	{
+		levelLoadJob.reset();
+		startGameAbortLevelLoadFailure();
+		closeLoadingScreen();
+		debug(LOG_POPUP, _("Failed to load level data or map. Exiting to main menu."));
+	}
+
+private:
+	enum class Phase
+	{
+		PresentInitialFrame,
+		BeforeLevelLoad,
+		LevelLoad,
+		AfterLevelLoad,
+	};
+
+	Phase phase = Phase::PresentInitialFrame;
+	std::unique_ptr<IResourceLoadingJob> levelLoadJob;
+};
+
+// On save load failure: log/popup, fast-exit game loop, return to title.
+void saveGameLoadAbortOnFailure()
+{
+	// FIXME: we really should throw up a error window, but we can't (easily) so I won't.
+	debug(LOG_ERROR, "Trying to load Game %s failed!", saveGameName);
+	debug(LOG_POPUP, _("Failed to load a save game! It is either corrupted or a unsupported format.\n\nRestarting main menu."));
+	// FIXME: If we bomb out on a in game load, then we would crash if we don't do the next two calls
+	// Doesn't seem to be a way to tell where we are in game loop to determine if/when we should do the two calls.
+	gameLoopStatus = GAMECODE_FASTEXIT;
+	// we had a error loading savegame (corrupt?), so go back to title screen?
+	stopGameLoop();
+	startTitleLoop(); // Restart into titleloop
+	changeTitleMode(TITLE);
+	SetGameMode(GS_TITLE_SCREEN);
+}
+
+/// <summary>
+/// Load a save game job:
+/// Currently uses hooks before/after a single blocking save-load path (macro-phases only).
+/// </summary>
+class LoadSaveGameResourceJob final : public IResourceLoadingJob
+{
+public:
+	StepResult step() override
+	{
+		switch (phase)
+		{
+		case Phase::PresentInitialFrame:
+			phase = Phase::BeforeSaveLoad;
+			return StepResult::InProgress;
+		case Phase::BeforeSaveLoad:
+			SetGameMode(GS_NORMAL);
+			phase = Phase::RunSaveLoad;
+			return StepResult::InProgress;
+		case Phase::RunSaveLoad:
+			if (!loadGameInit(GameLoadDetails::makeUserSaveGameLoad(saveGameName)))
+			{
+				return StepResult::Failed;
+			}
+			phase = Phase::AfterSaveLoad;
+			return StepResult::InProgress;
+		case Phase::AfterSaveLoad:
+			return saveGameLoadAfter()
+			           ? StepResult::Completed
+			           : StepResult::Failed;
+		}
+		return StepResult::Failed;
+	}
+
+	void finalizeSuccess() override
+	{
+		closeLoadingScreen();
+	}
+
+	void finalizeFailure() override
+	{
+		saveGameLoadAbortOnFailure();
+		closeLoadingScreen();
+	}
+
+private:
+	enum class Phase
+	{
+		PresentInitialFrame,
+		BeforeSaveLoad,
+		RunSaveLoad,
+		AfterSaveLoad,
+	};
+
+	Phase phase = Phase::PresentInitialFrame;
+};
+
+} // anonymous namespace
+
+std::unique_ptr<IResourceLoadingJob> makeStartGameResourceJob()
+{
+	return std::make_unique<StartGameResourceJob>();
+}
+
+std::unique_ptr<IResourceLoadingJob> makeLoadSaveGameResourceJob()
+{
+	return std::make_unique<LoadSaveGameResourceJob>();
+}
+
+// Runs blocking levLoadData for the current `aLevelName` / `game.hash`; returns success.
+static bool startGameRunLevelLoad()
+{
+	// Not sure what aLevelName is, in relation to game.map. But need to use aLevelName here, to be able to start the right map for campaign, and need game.hash, to start the right non-campaign map, if there are multiple identically named maps.
+	return levLoadData(aLevelName, &game.hash, nullptr, GTYPE_SCENARIO_START);
+}
+
+static bool saveGameLoadAfter()
+{
+	ActivityManager::instance().startingSavedGame();
+	// set up CD audio for game mode
+	// (must come after savegame is loaded so that proper game mode can be determined)
+	setCDAudioForCurrentGameMode();
+
+	screen_StopBackDrop();
+	closeLoadingScreen();
+
+	// Trap the cursor if cursor snapping is enabled
+	if (shouldTrapCursor())
+	{
+		wzGrabMouse();
+	}
+	if (challengeActive)
+	{
+		addMissionTimerInterface();
+	}
+
+	// set a flag for the trigger/event system to indicate initialisation is complete
+	gameInitialised = true;
+
+	return true;
+}
+
+} // namespace main_resource_loading
+
+/*!
+ * Preparations before entering the game loop
+ * Would start the timer in an event based mainloop
+ */
+static bool startGameLoop()
+{
+	using namespace main_resource_loading;
+
+	initLoadingScreen(true);
+	startGameBeforeLevelLoad();
+	if (!startGameRunLevelLoad())
+	{
+		startGameAbortLevelLoadFailure();
+		return false;
+	}
+	return startGameAfterLevelLoad();
+}
+
 
 /*!
  * Shutdown/cleanup after the game loop
@@ -966,57 +1185,6 @@ static void stopGameLoop()
 
 
 /*!
- * Load a savegame and start into the game loop
- * Game data should be initialised afterwards, so that startGameLoop is not necessary anymore.
- */
-static bool initSaveGameLoad()
-{
-	// NOTE: always setGameMode correctly before *any* loading routines!
-	SetGameMode(GS_NORMAL);
-	initLoadingScreen(true);
-
-	// load up a save game
-	if (!loadGameInit(GameLoadDetails::makeUserSaveGameLoad(saveGameName)))
-	{
-		// FIXME: we really should throw up a error window, but we can't (easily) so I won't.
-		debug(LOG_ERROR, "Trying to load Game %s failed!", saveGameName);
-		debug(LOG_POPUP, "Failed to load a save game! It is either corrupted or a unsupported format.\n\nRestarting main menu.");
-		// FIXME: If we bomb out on a in game load, then we would crash if we don't do the next two calls
-		// Doesn't seem to be a way to tell where we are in game loop to determine if/when we should do the two calls.
-		gameLoopStatus = GAMECODE_FASTEXIT;	// clear out all old data
-		stopGameLoop();
-		startTitleLoop(); // Restart into titleloop
-		SetGameMode(GS_TITLE_SCREEN);
-		return false;
-	}
-
-	ActivityManager::instance().startingSavedGame();
-
-	// set up CD audio for game mode
-	// (must come after savegame is loaded so that proper game mode can be determined)
-	setCDAudioForCurrentGameMode();
-
-	screen_StopBackDrop();
-	closeLoadingScreen();
-
-	// Trap the cursor if cursor snapping is enabled
-	if (shouldTrapCursor())
-	{
-		wzGrabMouse();
-	}
-	if (challengeActive)
-	{
-		addMissionTimerInterface();
-	}
-
-	// set a flag for the trigger/event system to indicate initialisation is complete
-	gameInitialised = true;
-
-	return true;
-}
-
-
-/*!
  * Run the code inside the gameloop
  */
 static void runGameLoop()
@@ -1036,20 +1204,16 @@ static void runGameLoop()
 	case GAMECODE_LOADGAME:
 		debug(LOG_MAIN, "GAMECODE_LOADGAME");
 		stopGameLoop();
-		initSaveGameLoad(); // Restart and load a savegame
+		// Restart and load a savegame
+		ResourceLoadingController::instance().request(ResourceLoadingRequest::loadSaveGame());
 		gameLoopStatus = GAMECODE_CONTINUE;
 		return;
 	case GAMECODE_NEWLEVEL:
 		debug(LOG_MAIN, "GAMECODE_NEWLEVEL");
 		stopGameLoop();
-		if (startGameLoop()) // Restart gameloop
-		{
-			gameLoopStatus = GAMECODE_CONTINUE;
-		}
-		else
-		{
-			debug(LOG_POPUP, _("Failed to load level data or map. Exiting to main menu."));
-		}
+		// Restart gameloop
+		ResourceLoadingController::instance().request(ResourceLoadingRequest::startGame());
+		gameLoopStatus = GAMECODE_CONTINUE;
 		return;
 	default:
 		// ignore other values, and proceed with gameLoop
@@ -1105,27 +1269,14 @@ static void runTitleLoop()
 				debug(LOG_MAIN, "TITLECODE_SAVEGAMELOAD");
 				// Restart into gameloop and load a savegame, ONLY on a good savegame load!
 				stopTitleLoop();
-				if (!initSaveGameLoad())
-				{
-					// we had a error loading savegame (corrupt?), so go back to title screen?
-					stopGameLoop();
-					startTitleLoop();
-					changeTitleMode(TITLE);
-				}
-				closeLoadingScreen();
+				ResourceLoadingController::instance().request(ResourceLoadingRequest::loadSaveGame());
 				return;
 			}
 		case TITLECODE_STARTGAME:
 			debug(LOG_MAIN, "TITLECODE_STARTGAME");
 			stopTitleLoop();
-			if (startGameLoop()) // Restart into gameloop
-			{
-				closeLoadingScreen();
-			}
-			else
-			{
-				debug(LOG_POPUP, _("Failed to load level data or map. Exiting to main menu."));
-			}
+			// Restart into gameloop
+			ResourceLoadingController::instance().request(ResourceLoadingRequest::startGame());
 			return;
 		default:
 			// ignore unexpected value
@@ -1188,12 +1339,25 @@ void mainLoop()
 
 	if (NetPlay.bComms || focusState == FOCUS_IN || !war_GetPauseOnFocusLoss())
 	{
-		if (loop_GetVideoStatus())
+		bool frameEnded = false;
+		ResourceLoadingController &loadingController = ResourceLoadingController::instance();
+		if (loadingController.active())
+		{
+			ResourceLoadingController::FrameProcessingMode loadingFrameMode = loadingController.currentFrameProcessingMode();
+			loadingController.step();
+			loadingController.presentLoadingScreenIfNeeded();
+			if (loadingFrameMode == ResourceLoadingController::FrameProcessingMode::ConsumeFrame)
+			{
+				pie_ScreenFrameRenderEnd();
+				frameEnded = true;
+			}
+		}
+		if (!frameEnded && loop_GetVideoStatus())
 		{
 			videoLoop(); // Display the video if necessary
 			pie_ScreenFrameRenderEnd();
 		}
-		else switch (GetGameMode())
+		else if (!frameEnded) switch (GetGameMode())
 			{
 			case GS_NORMAL: // Run the gameloop code
 				runGameLoop();
@@ -1221,6 +1385,16 @@ void mainLoop()
 #if defined(ENABLE_DISCORD)
 	discordRPCPerFrame();
 #endif
+}
+
+void requestMapPreviewLoad(bool hideInterface)
+{
+	ResourceLoadingController::instance().request(ResourceLoadingRequest::mapPreview(hideInterface));
+}
+
+void requestMapPreviewLoad(bool hideInterface, const char *mapName, const Sha256& mapHash)
+{
+	ResourceLoadingController::instance().request(ResourceLoadingRequest::mapPreview(hideInterface, mapName, mapHash));
 }
 
 bool getUTF8CmdLine(int *const _utfargc WZ_DECL_UNUSED, char *** const _utfargv WZ_DECL_UNUSED) // explicitely pass by reference
@@ -2089,14 +2263,14 @@ int realmain(int argc, char *argv[])
 	{
 	case GS_TITLE_SCREEN:
 		// The usual case (unless command-line flags specify otherwise): Load into the title menu
-		startTitleLoop(true);
+		ResourceLoadingController::instance().request(ResourceLoadingRequest::frontendInit(true));
 		break;
 	case GS_SAVEGAMELOAD:
 		if (headlessGameMode())
 		{
 			fprintf(stdout, "Loading savegame ...\n");
 		}
-		initSaveGameLoad();
+		ResourceLoadingController::instance().request(ResourceLoadingRequest::loadSaveGame());
 		break;
 	case GS_NORMAL:
 		if (!startGameLoop())

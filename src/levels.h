@@ -31,6 +31,9 @@
 #include <list>
 #include <string>
 #include <array>
+#include <memory>
+
+class IResourceLoadingJob;
 
 /// maximum number of data files
 #define LEVEL_MAXFILES	9
@@ -99,6 +102,8 @@ bool levAddWzMap(const WzMap::LevelDetails& levelDetails, searchPathMode pathMod
 void levShutDown();
 
 bool levInitialise();
+
+std::unique_ptr<IResourceLoadingJob> makeLevLoadDataJob(char const *name, Sha256 const *hash, char *pSaveName, GAME_TYPE saveType);
 
 // load up the data for a level
 bool levLoadData(char const *name, Sha256 const *hash, char *pSaveName, GAME_TYPE saveType);

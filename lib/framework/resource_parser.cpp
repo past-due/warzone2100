@@ -89,6 +89,9 @@ extern char* res_get_text(void);
 #include "lib/framework/resly.h"
 #include "lib/framework/physfs_ext.h"
 
+extern bool resParserSetDirectory(const char *directory);
+extern bool resParserAddFile(const char *type, const char *file);
+
 extern void yyerror(const char* msg);
 void yyerror(const char* msg)
 {
@@ -1412,44 +1415,24 @@ yyreduce:
         case 6:
 
 /* Line 1806 of yacc.c  */
-#line 85 "resource_parser.ypp"
+#line 88 "resource_parser.ypp"
     {
-					UDWORD len;
-
-					// set a new input directory
-					debug(LOG_NEVER, "directory: %s", (yyvsp[(2) - (2)].sval));
-					if (strncmp((yyvsp[(2) - (2)].sval), "/:", strlen("/:")) == 0)
-					{
-						// the new dir is rooted
-						sstrcpy(aCurrResDir, (yyvsp[(2) - (2)].sval));
-					}
-					else
-					{
-						sstrcpy(aCurrResDir, aResDir);
-						sstrcat(aCurrResDir, (yyvsp[(2) - (2)].sval));
-					}
-					if (strlen((yyvsp[(2) - (2)].sval)) > 0)
-					{
-						ASSERT(WZ_PHYSFS_isDirectory(aCurrResDir), "%s is not a directory!", aCurrResDir);
-						// Add a trailing '/'
-						len = strlen(aCurrResDir);
-						aCurrResDir[len] = '/';
-						aCurrResDir[len+1] = 0;
-						debug(LOG_NEVER, "Current resource directory: %s", aCurrResDir);
-					}
+					bool success = resParserSetDirectory((yyvsp[(2) - (2)].sval));
 					free((yyvsp[(2) - (2)].sval));
+
+					if (!success)
+					{
+						YYABORT;
+					}
 				}
     break;
 
   case 7:
 
 /* Line 1806 of yacc.c  */
-#line 115 "resource_parser.ypp"
+#line 101 "resource_parser.ypp"
     {
-					bool success;
-					/* load a data file */
-					debug(LOG_NEVER, "file: %s %s", (yyvsp[(2) - (3)].sval), (yyvsp[(3) - (3)].sval));
-					success = resLoadFile((yyvsp[(2) - (3)].sval), (yyvsp[(3) - (3)].sval));
+					bool success = resParserAddFile((yyvsp[(2) - (3)].sval), (yyvsp[(3) - (3)].sval));
 					free((yyvsp[(2) - (3)].sval));
 					free((yyvsp[(3) - (3)].sval));
 

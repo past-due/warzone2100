@@ -444,7 +444,7 @@ bool recvOptions(NETQUEUE queue)
 
 	if (mapData)
 	{
-		loadMapPreview(false);
+		requestMapPreviewLoad(false);
 	}
 
 	ActivityManager::instance().updateMultiplayGameData(game, ingame, NETGameIsLocked());
