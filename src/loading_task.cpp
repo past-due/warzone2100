@@ -52,6 +52,7 @@ void LoadingScheduler::start(LoadingTask task)
 	ASSERT(!root_coro, "LoadingScheduler.start called while a task is already active");
 	root_coro = task.release();
 	ASSERT(root_coro, "LoadingScheduler.start given an empty task");
+	root_coro.promise().scheduler = this;
 	task_finished = false;
 	root_outcome = LoadOutcome::Success;
 	current = root_coro;
@@ -153,6 +154,18 @@ CoroutineLoadingJob::CoroutineLoadingJob(LoadingTask task, FinalizeCallback onSu
 	scheduler.start(std::move(task));
 }
 
+CoroutineLoadingJob::CoroutineLoadingJob(TaskFactory taskFactory,
+                                         FinalizeCallback onSuccessIn,
+                                         FinalizeCallback onFailureIn,
+                                         ResourceLoadingController::FrameProcessingMode initialFrameMode)
+	: onSuccess(std::move(onSuccessIn))
+	, onFailure(std::move(onFailureIn))
+{
+	ASSERT(taskFactory, "CoroutineLoadingJob constructed with null task factory");
+	scheduler.start(taskFactory(scheduler));
+	scheduler.set_frame_processing_mode(initialFrameMode);
+}
+
 IResourceLoadingJob::StepResult CoroutineLoadingJob::step()
 {
 	return to_step_result(scheduler.step_one_quantum());
@@ -184,6 +197,16 @@ std::unique_ptr<IResourceLoadingJob> makeCoroutineLoadingJob(LoadingTask task,
                                                              CoroutineLoadingJob::FinalizeCallback onFailure)
 {
 	return std::make_unique<CoroutineLoadingJob>(std::move(task), std::move(onSuccess), std::move(onFailure));
+}
+
+std::unique_ptr<IResourceLoadingJob> makeCoroutineLoadingJob(
+    CoroutineLoadingJob::TaskFactory taskFactory,
+    CoroutineLoadingJob::FinalizeCallback onSuccess,
+    CoroutineLoadingJob::FinalizeCallback onFailure,
+    ResourceLoadingController::FrameProcessingMode initialFrameMode)
+{
+	return std::make_unique<CoroutineLoadingJob>(
+	    std::move(taskFactory), std::move(onSuccess), std::move(onFailure), initialFrameMode);
 }
 
 void requestCoroutineLoad(ResourceLoadingController &controller,

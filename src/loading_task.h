@@ -157,7 +157,13 @@ public:
 	SetFrameMode set_frame_mode(ResourceLoadingController::FrameProcessingMode mode) noexcept;
 
 	/// Install the root task; must be called before the first `step_one_quantum()`.
+	/// Binds the root promise to this scheduler (no `co_await bind()` needed for root tasks).
 	void start(LoadingTask task);
+
+	void set_frame_processing_mode(ResourceLoadingController::FrameProcessingMode mode) noexcept
+	{
+		frame_mode = mode;
+	}
 
 	/// Resume the active coroutine once. Returns terminal status when the root task finishes.
 	LoadStepStatus step_one_quantum();
@@ -300,7 +306,14 @@ class CoroutineLoadingJob final : public IResourceLoadingJob
 public:
 	using FinalizeCallback = std::function<void()>;
 
+	using TaskFactory = std::function<LoadingTask(LoadingScheduler &)>;
+
 	CoroutineLoadingJob(LoadingTask task, FinalizeCallback onSuccess, FinalizeCallback onFailure);
+	CoroutineLoadingJob(TaskFactory taskFactory,
+	                    FinalizeCallback onSuccess,
+	                    FinalizeCallback onFailure,
+	                    ResourceLoadingController::FrameProcessingMode initialFrameMode =
+	                        ResourceLoadingController::FrameProcessingMode::ConsumeFrame);
 
 	StepResult step() override;
 	void finalizeSuccess() override;
@@ -317,6 +330,13 @@ std::unique_ptr<IResourceLoadingJob> makeCoroutineLoadingJob(
     LoadingTask task,
     CoroutineLoadingJob::FinalizeCallback onSuccess = {},
     CoroutineLoadingJob::FinalizeCallback onFailure = {});
+
+std::unique_ptr<IResourceLoadingJob> makeCoroutineLoadingJob(
+    CoroutineLoadingJob::TaskFactory taskFactory,
+    CoroutineLoadingJob::FinalizeCallback onSuccess = {},
+    CoroutineLoadingJob::FinalizeCallback onFailure = {},
+    ResourceLoadingController::FrameProcessingMode initialFrameMode =
+        ResourceLoadingController::FrameProcessingMode::ConsumeFrame);
 
 /// Convenience: `makeCoroutineLoadingJob` + `ResourceLoadingController::request`.
 void requestCoroutineLoad(ResourceLoadingController &controller,

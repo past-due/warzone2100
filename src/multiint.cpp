@@ -96,6 +96,7 @@
 #include "notifications.h"
 #include "radar.h"
 #include "resource_loading_controller.h"
+#include "loading_task.h"
 #include "lib/framework/wztime.h"
 
 #include "multiplay.h"
@@ -898,49 +899,30 @@ static void loadMapPreview(bool hideInterface)
 namespace
 {
 
-/// <summary>
-/// Lobby map backdrop preview job:
-/// One-shot CPU load + raster upload; defers work to controller but finishes same frame.
-/// </summary>
-class MapPreviewJob final : public IResourceLoadingJob
+LoadingTask mapPreviewLoadTask(ResourceLoadingRequest request)
 {
-public:
-	explicit MapPreviewJob(ResourceLoadingRequest requestIn)
-		: request(std::move(requestIn))
+	if (request.previewMapName.empty())
 	{
+		loadMapPreview(request.hideInterface);
 	}
-
-	StepResult step() override
+	else
 	{
-		if (request.previewMapName.empty())
-		{
-			loadMapPreview(request.hideInterface);
-		}
-		else
-		{
-			loadMapPreview(request.hideInterface, request.previewMapName.c_str(), request.previewMapHash);
-		}
-		return StepResult::Completed;
+		loadMapPreview(request.hideInterface, request.previewMapName.c_str(), request.previewMapHash);
 	}
-
-	void finalizeSuccess() override { }
-
-	void finalizeFailure() override { }
-
-	ResourceLoadingController::FrameProcessingMode frameProcessingMode() const override
-	{
-		return ResourceLoadingController::FrameProcessingMode::ContinueMainLoop;
-	}
-
-private:
-	ResourceLoadingRequest request;
-};
+	co_return LoadOutcome::Success;
+}
 
 } // anonymous namespace
 
 std::unique_ptr<IResourceLoadingJob> makeMapPreviewJob(ResourceLoadingRequest request)
 {
-	return std::make_unique<MapPreviewJob>(std::move(request));
+	return makeCoroutineLoadingJob(
+	    [request = std::move(request)](LoadingScheduler &) mutable -> LoadingTask {
+		    return mapPreviewLoadTask(std::move(request));
+	    },
+	    {},
+	    {},
+	    ResourceLoadingController::FrameProcessingMode::ContinueMainLoop);
 }
 
 // ////////////////////////////////////////////////////////////////////////////
