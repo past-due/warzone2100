@@ -33,12 +33,12 @@
 
 #include <memory>
 
-class IResourceLoadingJob;
+class ResourceLoadingJob;
 
 namespace main_resource_loading
 {
 
-std::unique_ptr<IResourceLoadingJob> makeStartGameResourceJob();
-std::unique_ptr<IResourceLoadingJob> makeLoadSaveGameResourceJob();
+std::unique_ptr<ResourceLoadingJob> makeStartGameResourceJob();
+std::unique_ptr<ResourceLoadingJob> makeLoadSaveGameResourceJob();
 
 } // namespace main_resource_loading

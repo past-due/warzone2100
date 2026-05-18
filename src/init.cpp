@@ -1230,9 +1230,9 @@ LoadingTask frontendInitTask(LoadingScheduler &sched, ResourceLoadingRequest req
 
 } // anonymous namespace
 
-std::unique_ptr<IResourceLoadingJob> makeFrontendInitJob(ResourceLoadingRequest request)
+std::unique_ptr<ResourceLoadingJob> makeFrontendInitJob(ResourceLoadingRequest request)
 {
-	return makeCoroutineLoadingJob(
+	return makeResourceLoadingJob(
 	    [request = std::move(request)](LoadingScheduler &sched) mutable -> LoadingTask {
 		    return frontendInitTask(sched, std::move(request));
 	    },

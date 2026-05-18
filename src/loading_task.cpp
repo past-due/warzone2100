@@ -139,50 +139,31 @@ void LoadingTask::NestedAwaiter::await_suspend(std::coroutine_handle<> h)
 	sched->push_nested(child_coro, parent);
 }
 
-namespace
-{
-
-IResourceLoadingJob::StepResult to_step_result(LoadStepStatus status)
-{
-	switch (status)
-	{
-	case LoadStepStatus::InProgress:
-		return IResourceLoadingJob::StepResult::InProgress;
-	case LoadStepStatus::Completed:
-		return IResourceLoadingJob::StepResult::Completed;
-	case LoadStepStatus::Failed:
-		return IResourceLoadingJob::StepResult::Failed;
-	}
-	return IResourceLoadingJob::StepResult::Failed;
-}
-
-} // namespace
-
-CoroutineLoadingJob::CoroutineLoadingJob(LoadingTask task, FinalizeCallback onSuccessIn, FinalizeCallback onFailureIn)
+ResourceLoadingJob::ResourceLoadingJob(LoadingTask task, FinalizeCallback onSuccessIn, FinalizeCallback onFailureIn)
 	: onSuccess(std::move(onSuccessIn))
 	, onFailure(std::move(onFailureIn))
 {
 	scheduler.start(std::move(task));
 }
 
-CoroutineLoadingJob::CoroutineLoadingJob(TaskFactory taskFactory,
+ResourceLoadingJob::ResourceLoadingJob(TaskFactory taskFactory,
                                          FinalizeCallback onSuccessIn,
                                          FinalizeCallback onFailureIn,
                                          ResourceLoadingController::FrameProcessingMode initialFrameMode)
 	: onSuccess(std::move(onSuccessIn))
 	, onFailure(std::move(onFailureIn))
 {
-	ASSERT(taskFactory, "CoroutineLoadingJob constructed with null task factory");
+	ASSERT(taskFactory, "ResourceLoadingJob constructed with null task factory");
 	scheduler.start(taskFactory(scheduler));
 	scheduler.set_frame_processing_mode(initialFrameMode);
 }
 
-IResourceLoadingJob::StepResult CoroutineLoadingJob::step()
+LoadStepStatus ResourceLoadingJob::step()
 {
-	return to_step_result(scheduler.step_one_quantum());
+	return scheduler.step_one_quantum();
 }
 
-void CoroutineLoadingJob::finalizeSuccess()
+void ResourceLoadingJob::finalizeSuccess()
 {
 	if (onSuccess)
 	{
@@ -190,7 +171,7 @@ void CoroutineLoadingJob::finalizeSuccess()
 	}
 }
 
-void CoroutineLoadingJob::finalizeFailure()
+void ResourceLoadingJob::finalizeFailure()
 {
 	if (onFailure)
 	{
@@ -198,50 +179,50 @@ void CoroutineLoadingJob::finalizeFailure()
 	}
 }
 
-ResourceLoadingController::FrameProcessingMode CoroutineLoadingJob::frameProcessingMode() const
+ResourceLoadingController::FrameProcessingMode ResourceLoadingJob::frameProcessingMode() const
 {
 	return scheduler.frame_processing_mode();
 }
 
-std::unique_ptr<IResourceLoadingJob> makeCoroutineLoadingJob(LoadingTask task,
-                                                             CoroutineLoadingJob::FinalizeCallback onSuccess,
-                                                             CoroutineLoadingJob::FinalizeCallback onFailure)
+std::unique_ptr<ResourceLoadingJob> makeResourceLoadingJob(LoadingTask task,
+                                                             ResourceLoadingJob::FinalizeCallback onSuccess,
+                                                             ResourceLoadingJob::FinalizeCallback onFailure)
 {
-	return std::make_unique<CoroutineLoadingJob>(std::move(task), std::move(onSuccess), std::move(onFailure));
+	return std::make_unique<ResourceLoadingJob>(std::move(task), std::move(onSuccess), std::move(onFailure));
 }
 
-std::unique_ptr<IResourceLoadingJob> makeCoroutineLoadingJob(
-    CoroutineLoadingJob::TaskFactory taskFactory,
-    CoroutineLoadingJob::FinalizeCallback onSuccess,
-    CoroutineLoadingJob::FinalizeCallback onFailure,
+std::unique_ptr<ResourceLoadingJob> makeResourceLoadingJob(
+    ResourceLoadingJob::TaskFactory taskFactory,
+    ResourceLoadingJob::FinalizeCallback onSuccess,
+    ResourceLoadingJob::FinalizeCallback onFailure,
     ResourceLoadingController::FrameProcessingMode initialFrameMode)
 {
-	return std::make_unique<CoroutineLoadingJob>(
+	return std::make_unique<ResourceLoadingJob>(
 	    std::move(taskFactory), std::move(onSuccess), std::move(onFailure), initialFrameMode);
 }
 
-void requestCoroutineLoad(ResourceLoadingController &controller,
+void requestResourceLoad(ResourceLoadingController &controller,
                           ResourceLoadingRequest request,
                           LoadingTask task,
-                          CoroutineLoadingJob::FinalizeCallback finalizeSuccess,
-                          CoroutineLoadingJob::FinalizeCallback finalizeFailure)
+                          ResourceLoadingJob::FinalizeCallback finalizeSuccess,
+                          ResourceLoadingJob::FinalizeCallback finalizeFailure)
 {
 	controller.request(std::move(request),
-	                   makeCoroutineLoadingJob(std::move(task), std::move(finalizeSuccess), std::move(finalizeFailure)));
+	                   makeResourceLoadingJob(std::move(task), std::move(finalizeSuccess), std::move(finalizeFailure)));
 }
 
-bool runLoadingJobToCompletion(IResourceLoadingJob &job)
+bool runLoadingJobToCompletion(ResourceLoadingJob &job)
 {
 	while (true)
 	{
 		switch (job.step())
 		{
-		case IResourceLoadingJob::StepResult::InProgress:
+		case LoadStepStatus::InProgress:
 			continue;
-		case IResourceLoadingJob::StepResult::Completed:
+		case LoadStepStatus::Completed:
 			job.finalizeSuccess();
 			return true;
-		case IResourceLoadingJob::StepResult::Failed:
+		case LoadStepStatus::Failed:
 			job.finalizeFailure();
 			return false;
 		}

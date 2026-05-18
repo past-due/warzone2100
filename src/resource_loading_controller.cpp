@@ -51,7 +51,7 @@ void ResourceLoadingController::request(ResourceLoadingRequest requestIn)
 }
 
 void ResourceLoadingController::request(ResourceLoadingRequest requestIn,
-                                      std::unique_ptr<IResourceLoadingJob> job)
+                                      std::unique_ptr<ResourceLoadingJob> job)
 {
 	ASSERT(job, "ResourceLoadingController.request called with null job");
 	if (activeJob)
@@ -64,7 +64,7 @@ void ResourceLoadingController::request(ResourceLoadingRequest requestIn,
 	begin(std::move(requestIn), std::move(job));
 }
 
-void ResourceLoadingController::begin(ResourceLoadingRequest requestIn, std::unique_ptr<IResourceLoadingJob> job)
+void ResourceLoadingController::begin(ResourceLoadingRequest requestIn, std::unique_ptr<ResourceLoadingJob> job)
 {
 	ASSERT(!activeJob, "LoadingController.begin called while another loading job is active");
 	activeRequest = std::move(requestIn);
@@ -86,15 +86,15 @@ bool ResourceLoadingController::active() const
 void ResourceLoadingController::step()
 {
 	ASSERT(activeJob, "LoadingController.step called without an active job");
-	IResourceLoadingJob::StepResult result = activeJob->step();
+	LoadStepStatus const result = activeJob->step();
 	switch (result)
 	{
-	case IResourceLoadingJob::StepResult::InProgress:
+	case LoadStepStatus::InProgress:
 		return;
-	case IResourceLoadingJob::StepResult::Completed:
+	case LoadStepStatus::Completed:
 		activeJob->finalizeSuccess();
 		break;
-	case IResourceLoadingJob::StepResult::Failed:
+	case LoadStepStatus::Failed:
 		activeJob->finalizeFailure();
 		break;
 	}
@@ -105,7 +105,7 @@ void ResourceLoadingController::step()
 	if (queuedRequest.has_value())
 	{
 		ResourceLoadingRequest nextRequest = std::move(queuedRequest.value());
-		std::unique_ptr<IResourceLoadingJob> nextJob = std::move(queuedJob);
+		std::unique_ptr<ResourceLoadingJob> nextJob = std::move(queuedJob);
 		queuedRequest.reset();
 		queuedJob.reset();
 		begin(std::move(nextRequest), std::move(nextJob));
@@ -131,7 +131,7 @@ bool ResourceLoadingController::loadingScreenHandledByController() const
 	return activeJob != nullptr && activeRequest.has_value() && activeRequest->showLoadingScreen;
 }
 
-std::unique_ptr<IResourceLoadingJob> ResourceLoadingController::makeJob(const ResourceLoadingRequest &request)
+std::unique_ptr<ResourceLoadingJob> ResourceLoadingController::makeJob(const ResourceLoadingRequest &request)
 {
 	switch (request.kind)
 	{

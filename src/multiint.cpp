@@ -914,9 +914,9 @@ LoadingTask mapPreviewLoadTask(ResourceLoadingRequest request)
 
 } // anonymous namespace
 
-std::unique_ptr<IResourceLoadingJob> makeMapPreviewJob(ResourceLoadingRequest request)
+std::unique_ptr<ResourceLoadingJob> makeMapPreviewJob(ResourceLoadingRequest request)
 {
-	return makeCoroutineLoadingJob(
+	return makeResourceLoadingJob(
 	    [request = std::move(request)](LoadingScheduler &) mutable -> LoadingTask {
 		    return mapPreviewLoadTask(std::move(request));
 	    },

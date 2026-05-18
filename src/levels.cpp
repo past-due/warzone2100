@@ -1486,10 +1486,10 @@ LoadingTask makeLevLoadDataLoadingTask(LoadingScheduler &sched,
 	return levLoadDataTask(sched, params);
 }
 
-std::unique_ptr<IResourceLoadingJob> makeLevLoadDataJob(char const *name, Sha256 const *hash, char *pSaveName, GAME_TYPE saveType)
+std::unique_ptr<ResourceLoadingJob> makeLevLoadDataJob(char const *name, Sha256 const *hash, char *pSaveName, GAME_TYPE saveType)
 {
 	LevLoadJobParams params{name, hash, pSaveName, saveType};
-	return makeCoroutineLoadingJob([params](LoadingScheduler &sched) -> LoadingTask {
+	return makeResourceLoadingJob([params](LoadingScheduler &sched) -> LoadingTask {
 		return levLoadDataTask(sched, params);
 	});
 }

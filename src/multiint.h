@@ -172,10 +172,10 @@ void kickPlayer(uint32_t player_id, const char *reason, LOBBY_ERROR_TYPES type, 
 void displayKickReasonPopup(const std::string &reason);
 
 struct Sha256;
-class IResourceLoadingJob;
+class ResourceLoadingJob;
 struct ResourceLoadingRequest;
 
-std::unique_ptr<IResourceLoadingJob> makeMapPreviewJob(ResourceLoadingRequest request);
+std::unique_ptr<ResourceLoadingJob> makeMapPreviewJob(ResourceLoadingRequest request);
 
 bool changeReadyStatus(UBYTE player, bool bReady);
 WzString formatGameName(WzString name);

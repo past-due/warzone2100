@@ -33,7 +33,7 @@
 #include <array>
 #include <memory>
 
-class IResourceLoadingJob;
+class ResourceLoadingJob;
 class LoadingScheduler;
 class LoadingTask;
 
@@ -105,7 +105,7 @@ void levShutDown();
 
 bool levInitialise();
 
-std::unique_ptr<IResourceLoadingJob> makeLevLoadDataJob(char const *name, Sha256 const *hash, char *pSaveName, GAME_TYPE saveType);
+std::unique_ptr<ResourceLoadingJob> makeLevLoadDataJob(char const *name, Sha256 const *hash, char *pSaveName, GAME_TYPE saveType);
 
 /// Cooperative level-load coroutine for nesting under another `LoadingScheduler` task.
 LoadingTask makeLevLoadDataLoadingTask(LoadingScheduler &sched,

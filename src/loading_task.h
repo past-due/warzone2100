@@ -41,7 +41,7 @@ enum class LoadOutcome
 	Failure,
 };
 
-/// Mirrors `IResourceLoadingJob::StepResult` for controller integration.
+/// Returned by `ResourceLoadingJob::step()` for controller integration.
 enum class LoadStepStatus
 {
 	InProgress,
@@ -300,25 +300,26 @@ inline LoadingTask::NestedAwaiter LoadingTask::operator co_await() &&
 	return NestedAwaiter{this};
 }
 
-/// `IResourceLoadingJob` adapter: drives a `LoadingTask` via `LoadingScheduler`.
-class CoroutineLoadingJob final : public IResourceLoadingJob
+/// Cooperative loading job: drives a `LoadingTask` via `LoadingScheduler`.
+/// `ResourceLoadingController::step()` calls `step()` at most once per main-loop iteration.
+class ResourceLoadingJob
 {
 public:
 	using FinalizeCallback = std::function<void()>;
 
 	using TaskFactory = std::function<LoadingTask(LoadingScheduler &)>;
 
-	CoroutineLoadingJob(LoadingTask task, FinalizeCallback onSuccess, FinalizeCallback onFailure);
-	CoroutineLoadingJob(TaskFactory taskFactory,
+	ResourceLoadingJob(LoadingTask task, FinalizeCallback onSuccess, FinalizeCallback onFailure);
+	ResourceLoadingJob(TaskFactory taskFactory,
 	                    FinalizeCallback onSuccess,
 	                    FinalizeCallback onFailure,
 	                    ResourceLoadingController::FrameProcessingMode initialFrameMode =
 	                        ResourceLoadingController::FrameProcessingMode::ConsumeFrame);
 
-	StepResult step() override;
-	void finalizeSuccess() override;
-	void finalizeFailure() override;
-	ResourceLoadingController::FrameProcessingMode frameProcessingMode() const override;
+	LoadStepStatus step();
+	void finalizeSuccess();
+	void finalizeFailure();
+	ResourceLoadingController::FrameProcessingMode frameProcessingMode() const;
 
 private:
 	LoadingScheduler scheduler;
@@ -326,24 +327,24 @@ private:
 	FinalizeCallback onFailure;
 };
 
-std::unique_ptr<IResourceLoadingJob> makeCoroutineLoadingJob(
+std::unique_ptr<ResourceLoadingJob> makeResourceLoadingJob(
     LoadingTask task,
-    CoroutineLoadingJob::FinalizeCallback onSuccess = {},
-    CoroutineLoadingJob::FinalizeCallback onFailure = {});
+    ResourceLoadingJob::FinalizeCallback onSuccess = {},
+    ResourceLoadingJob::FinalizeCallback onFailure = {});
 
-std::unique_ptr<IResourceLoadingJob> makeCoroutineLoadingJob(
-    CoroutineLoadingJob::TaskFactory taskFactory,
-    CoroutineLoadingJob::FinalizeCallback onSuccess = {},
-    CoroutineLoadingJob::FinalizeCallback onFailure = {},
+std::unique_ptr<ResourceLoadingJob> makeResourceLoadingJob(
+    ResourceLoadingJob::TaskFactory taskFactory,
+    ResourceLoadingJob::FinalizeCallback onSuccess = {},
+    ResourceLoadingJob::FinalizeCallback onFailure = {},
     ResourceLoadingController::FrameProcessingMode initialFrameMode =
         ResourceLoadingController::FrameProcessingMode::ConsumeFrame);
 
-/// Convenience: `makeCoroutineLoadingJob` + `ResourceLoadingController::request`.
-void requestCoroutineLoad(ResourceLoadingController &controller,
+/// Convenience: `makeResourceLoadingJob` + `ResourceLoadingController::request`.
+void requestResourceLoad(ResourceLoadingController &controller,
                           ResourceLoadingRequest request,
                           LoadingTask task,
-                          CoroutineLoadingJob::FinalizeCallback finalizeSuccess = {},
-                          CoroutineLoadingJob::FinalizeCallback finalizeFailure = {});
+                          ResourceLoadingJob::FinalizeCallback finalizeSuccess = {},
+                          ResourceLoadingJob::FinalizeCallback finalizeFailure = {});
 
 /// Drive any loading job to completion on the current thread (for blocking callers).
-bool runLoadingJobToCompletion(IResourceLoadingJob &job);
+bool runLoadingJobToCompletion(ResourceLoadingJob &job);

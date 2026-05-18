@@ -977,9 +977,9 @@ LoadingTask loadSaveGameResourceTask(LoadingScheduler &sched)
 
 } // anonymous namespace
 
-std::unique_ptr<IResourceLoadingJob> makeStartGameResourceJob()
+std::unique_ptr<ResourceLoadingJob> makeStartGameResourceJob()
 {
-	return makeCoroutineLoadingJob(
+	return makeResourceLoadingJob(
 	    [](LoadingScheduler &sched) -> LoadingTask { return startGameResourceTask(sched); },
 	    [] { closeLoadingScreen(); },
 	    [] {
@@ -989,9 +989,9 @@ std::unique_ptr<IResourceLoadingJob> makeStartGameResourceJob()
 	    });
 }
 
-std::unique_ptr<IResourceLoadingJob> makeLoadSaveGameResourceJob()
+std::unique_ptr<ResourceLoadingJob> makeLoadSaveGameResourceJob()
 {
-	return makeCoroutineLoadingJob(
+	return makeResourceLoadingJob(
 	    [](LoadingScheduler &sched) -> LoadingTask { return loadSaveGameResourceTask(sched); },
 	    [] { closeLoadingScreen(); },
 	    [] {

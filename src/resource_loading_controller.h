@@ -37,7 +37,7 @@
 #include <optional>
 #include <string>
 
-class IResourceLoadingJob;
+class ResourceLoadingJob;
 
 /// <summary>
 /// Describes one unit of loading work submitted to the resource loading controller.
@@ -143,9 +143,9 @@ public:
 	// otherwise begin a new job with the request.
 	void request(ResourceLoadingRequest request);
 
-	/// Submit a pre-built job (e.g. from `makeCoroutineLoadingJob` in `loading_task.h`).
+	/// Submit a pre-built job (from `makeResourceLoadingJob` in `loading_task.h`).
 	/// Same queueing rules as `request(ResourceLoadingRequest)`.
-	void request(ResourceLoadingRequest request, std::unique_ptr<IResourceLoadingJob> job);
+	void request(ResourceLoadingRequest request, std::unique_ptr<ResourceLoadingJob> job);
 
 	// Returns true if there is an active job.
 	bool active() const;
@@ -164,8 +164,8 @@ public:
 
 private:
 
-	void begin(ResourceLoadingRequest request, std::unique_ptr<IResourceLoadingJob> job = nullptr);
-	static std::unique_ptr<IResourceLoadingJob> makeJob(const ResourceLoadingRequest &request);
+	void begin(ResourceLoadingRequest request, std::unique_ptr<ResourceLoadingJob> job = nullptr);
+	static std::unique_ptr<ResourceLoadingJob> makeJob(const ResourceLoadingRequest &request);
 
 	std::optional<ResourceLoadingRequest> activeRequest;
 	// NOTE: It makes sense to support queueing only a single request at a time,
@@ -176,44 +176,6 @@ private:
 	// So it's absolutely sufficient to only store the next loading step in the
 	// controller's state machine.
 	std::optional<ResourceLoadingRequest> queuedRequest;
-	std::unique_ptr<IResourceLoadingJob> queuedJob;
-	std::unique_ptr<IResourceLoadingJob> activeJob;
-};
-
-/// <summary>
-/// Cooperative loading job: a small per-frame state machine.
-/// `ResourceLoadingController::step()` calls `step()` at most once per main-loop
-/// iteration while the job is active.
-///
-/// Each `step()` performs part of the work, advances an internal phase (or leaves
-/// it unchanged), and returns:
-/// * `InProgress`  — keep the job; controller will call `step()` again on a later frame.
-/// * `Completed`   — controller calls `finalizeSuccess()` once, then destroys the job.
-/// * `Failed`      — controller calls `finalizeFailure()` once, then destroys the job.
-///
-/// Do not assume multiple `step()` calls in the same frame. Heavy work should be
-/// split across phases (or use a nested cooperative API like `resLoadPlanStep`)
-/// so the UI can update between frames.
-///
-/// `frameProcessingMode()` tells `mainLoop` whether this frame ends after loading UI
-/// only (`ConsumeFrame`) or may continue into the normal title/game loop (`ContinueMainLoop`).
-/// </summary>
-class IResourceLoadingJob
-{
-public:
-	enum class StepResult
-	{
-		InProgress,
-		Completed,
-		Failed,
-	};
-
-	virtual ~IResourceLoadingJob() = default;
-	virtual StepResult step() = 0;
-	virtual void finalizeSuccess() = 0;
-	virtual void finalizeFailure() = 0;
-	virtual ResourceLoadingController::FrameProcessingMode frameProcessingMode() const
-	{
-		return ResourceLoadingController::FrameProcessingMode::ConsumeFrame;
-	}
+	std::unique_ptr<ResourceLoadingJob> queuedJob;
+	std::unique_ptr<ResourceLoadingJob> activeJob;
 };
