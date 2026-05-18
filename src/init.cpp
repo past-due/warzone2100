@@ -1189,7 +1189,7 @@ void systemShutdown()
 namespace
 {
 
-LoadingTask frontendInitTask(LoadingScheduler &sched, ResourceLoadingRequest request)
+LoadingTask frontendInitTask(ResourceLoadingController &controller, ResourceLoadingRequest request)
 {
 	SetGameMode(GS_TITLE_SCREEN);
 	frontendIsShuttingDown();
@@ -1199,7 +1199,7 @@ LoadingTask frontendInitTask(LoadingScheduler &sched, ResourceLoadingRequest req
 		co_return LoadOutcome::Failure;
 	}
 
-	co_await sched.yield_frame();
+	co_await controller.yield_frame();
 
 	debug(LOG_MAIN, "frontEndInitialise: loading resource file .....");
 	ResLoadPlan plan;
@@ -1208,7 +1208,7 @@ LoadingTask frontendInitTask(LoadingScheduler &sched, ResourceLoadingRequest req
 		co_return LoadOutcome::Failure;
 	}
 
-	co_await sched.yield_frame();
+	co_await controller.yield_frame();
 
 	while (true)
 	{
@@ -1220,10 +1220,10 @@ LoadingTask frontendInitTask(LoadingScheduler &sched, ResourceLoadingRequest req
 		{
 			break;
 		}
-		co_await sched.yield_frame();
+		co_await controller.yield_frame();
 	}
 
-	co_await sched.yield_frame();
+	co_await controller.yield_frame();
 
 	co_return frontendInitialiseFinalize() ? LoadOutcome::Success : LoadOutcome::Failure;
 }
@@ -1233,8 +1233,8 @@ LoadingTask frontendInitTask(LoadingScheduler &sched, ResourceLoadingRequest req
 std::unique_ptr<ResourceLoadingJob> makeFrontendInitJob(ResourceLoadingRequest request)
 {
 	return makeResourceLoadingJob(
-	    [request = std::move(request)](LoadingScheduler &sched) mutable -> LoadingTask {
-		    return frontendInitTask(sched, std::move(request));
+	    [request = std::move(request)](ResourceLoadingController &controller) mutable -> LoadingTask {
+		    return frontendInitTask(controller, std::move(request));
 	    },
 	    [] { closeLoadingScreen(); },
 	    [] {

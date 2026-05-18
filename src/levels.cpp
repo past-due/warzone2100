@@ -1397,7 +1397,7 @@ struct LevLoadJobParams
 	GAME_TYPE saveType = GTYPE_SCENARIO_START;
 };
 
-LoadingTask levLoadDataTask(LoadingScheduler &sched, LevLoadJobParams params)
+LoadingTask levLoadDataTask(ResourceLoadingController &controller, LevLoadJobParams params)
 {
 	if (params.name == nullptr)
 	{
@@ -1429,7 +1429,7 @@ LoadingTask levLoadDataTask(LoadingScheduler &sched, LevLoadJobParams params)
 	ctx.pSaveName = params.pSaveName;
 	ctx.saveType = params.saveType;
 
-	co_await sched.yield_frame();
+	co_await controller.yield_frame();
 
 	switch (levResolveDatasetForLoad(ctx))
 	{
@@ -1441,56 +1441,56 @@ LoadingTask levLoadDataTask(LoadingScheduler &sched, LevLoadJobParams params)
 		break;
 	}
 
-	co_await sched.yield_frame();
+	co_await controller.yield_frame();
 
 	if (!levPrepareLoadEnvironment(ctx.psNewLevel, ctx.pSaveName))
 	{
 		co_return LoadOutcome::Failure;
 	}
 
-	co_await sched.yield_frame();
+	co_await controller.yield_frame();
 
 	if (!levLoadBaseDatasetAndStageOne(ctx.psNewLevel))
 	{
 		co_return LoadOutcome::Failure;
 	}
 
-	co_await sched.yield_frame();
+	co_await controller.yield_frame();
 
 	if (!levLoadMissionBranchesBeforeMainLoop(ctx))
 	{
 		co_return LoadOutcome::Failure;
 	}
 
-	co_await sched.yield_frame();
+	co_await controller.yield_frame();
 
 	if (!levLoadMissionDataLoop(ctx))
 	{
 		co_return LoadOutcome::Failure;
 	}
 
-	co_await sched.yield_frame();
+	co_await controller.yield_frame();
 
 	co_return levFinalizeLevelLoad(ctx) ? LoadOutcome::Success : LoadOutcome::Failure;
 }
 
 } // anonymous namespace
 
-LoadingTask makeLevLoadDataLoadingTask(LoadingScheduler &sched,
+LoadingTask makeLevLoadDataLoadingTask(ResourceLoadingController &controller,
                                        char const *name,
                                        Sha256 const *hash,
                                        char *pSaveName,
                                        GAME_TYPE saveType)
 {
 	LevLoadJobParams params{name, hash, pSaveName, saveType};
-	return levLoadDataTask(sched, params);
+	return levLoadDataTask(controller, params);
 }
 
 std::unique_ptr<ResourceLoadingJob> makeLevLoadDataJob(char const *name, Sha256 const *hash, char *pSaveName, GAME_TYPE saveType)
 {
 	LevLoadJobParams params{name, hash, pSaveName, saveType};
-	return makeResourceLoadingJob([params](LoadingScheduler &sched) -> LoadingTask {
-		return levLoadDataTask(sched, params);
+	return makeResourceLoadingJob([params](ResourceLoadingController &controller) -> LoadingTask {
+		return levLoadDataTask(controller, params);
 	});
 }
 
@@ -1501,8 +1501,7 @@ bool levLoadData(char const *name, Sha256 const *hash, char *pSaveName, GAME_TYP
 	debug(LOG_WZ, "Loading level %s hash %s (%s, type %d)", name, hash == nullptr ? "builtin" : hash->toString().c_str(),
 	      pSaveName != nullptr ? pSaveName : "<none>", static_cast<int>(saveType));
 
-	auto job = makeLevLoadDataJob(name, hash, pSaveName, saveType);
-	return runLoadingJobToCompletion(*job);
+	return runLoadingJobToCompletion(makeLevLoadDataJob(name, hash, pSaveName, saveType));
 }
 
 std::string mapNameWithoutTechlevel(const char *mapName)

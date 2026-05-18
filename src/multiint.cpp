@@ -917,7 +917,7 @@ LoadingTask mapPreviewLoadTask(ResourceLoadingRequest request)
 std::unique_ptr<ResourceLoadingJob> makeMapPreviewJob(ResourceLoadingRequest request)
 {
 	return makeResourceLoadingJob(
-	    [request = std::move(request)](LoadingScheduler &) mutable -> LoadingTask {
+	    [request = std::move(request)](ResourceLoadingController &) mutable -> LoadingTask {
 		    return mapPreviewLoadTask(std::move(request));
 	    },
 	    {},

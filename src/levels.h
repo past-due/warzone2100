@@ -33,8 +33,8 @@
 #include <array>
 #include <memory>
 
+class ResourceLoadingController;
 class ResourceLoadingJob;
-class LoadingScheduler;
 class LoadingTask;
 
 /// maximum number of data files
@@ -107,8 +107,8 @@ bool levInitialise();
 
 std::unique_ptr<ResourceLoadingJob> makeLevLoadDataJob(char const *name, Sha256 const *hash, char *pSaveName, GAME_TYPE saveType);
 
-/// Cooperative level-load coroutine for nesting under another `LoadingScheduler` task.
-LoadingTask makeLevLoadDataLoadingTask(LoadingScheduler &sched,
+/// Cooperative level-load coroutine for nesting under another loading task on the same controller.
+LoadingTask makeLevLoadDataLoadingTask(ResourceLoadingController &controller,
                                        char const *name,
                                        Sha256 const *hash,
                                        char *pSaveName,

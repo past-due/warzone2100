@@ -19,7 +19,7 @@
 	Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 */
 /** \file loading_task.cpp
- * \brief `LoadingScheduler` implementation.
+ * \brief `LoadingTask` and `ResourceLoadingJob` implementation.
  */
 
 #include "loading_task.h"
@@ -31,95 +31,6 @@ LoadOutcome LoadingTask::result() const noexcept
 	return coro ? coro.promise().result : LoadOutcome::Failure;
 }
 
-LoadingScheduler::FrameYield LoadingScheduler::yield_frame() noexcept
-{
-	return FrameYield{this};
-}
-
-LoadingScheduler::Bind LoadingScheduler::bind() noexcept
-{
-	return Bind{this};
-}
-
-LoadingScheduler::SetFrameMode LoadingScheduler::set_frame_mode(
-    ResourceLoadingController::FrameProcessingMode mode) noexcept
-{
-	return SetFrameMode{this, mode};
-}
-
-void LoadingScheduler::start(LoadingTask task)
-{
-	ASSERT(!root_coro, "LoadingScheduler.start called while a task is already active");
-	root_coro = task.release();
-	ASSERT(root_coro, "LoadingScheduler.start given an empty task");
-	root_coro.promise().scheduler = this;
-	task_finished = false;
-	root_outcome = LoadOutcome::Success;
-	current = root_coro;
-	parent_coro = {};
-	frame_mode = ResourceLoadingController::FrameProcessingMode::ConsumeFrame;
-}
-
-LoadStepStatus LoadingScheduler::step_one_quantum()
-{
-	ASSERT(root_coro, "LoadingScheduler.step_one_quantum without an active task");
-
-	if (task_finished)
-	{
-		return root_outcome == LoadOutcome::Success ? LoadStepStatus::Completed : LoadStepStatus::Failed;
-	}
-
-	if (!current)
-	{
-		current = root_coro;
-	}
-
-	current.resume();
-
-	if (task_finished)
-	{
-		return root_outcome == LoadOutcome::Success ? LoadStepStatus::Completed : LoadStepStatus::Failed;
-	}
-
-	if (root_coro.done())
-	{
-		on_root_task_finished(root_coro.promise().result);
-		return root_outcome == LoadOutcome::Success ? LoadStepStatus::Completed : LoadStepStatus::Failed;
-	}
-
-	return LoadStepStatus::InProgress;
-}
-
-void LoadingScheduler::on_root_task_finished(LoadOutcome result) noexcept
-{
-	root_outcome = result;
-	task_finished = true;
-	current = {};
-	parent_coro = {};
-	if (root_coro)
-	{
-		root_coro.destroy();
-		root_coro = {};
-	}
-}
-
-void LoadingScheduler::on_nested_child_finished() noexcept
-{
-	if (current && (!root_coro || current.address() != root_coro.address()))
-	{
-		current.destroy();
-	}
-	current = parent_coro;
-	parent_coro = {};
-}
-
-void LoadingScheduler::push_nested(std::coroutine_handle<LoadingTaskPromise> child,
-                                   std::coroutine_handle<> parent) noexcept
-{
-	parent_coro = parent;
-	current = child;
-}
-
 void LoadingTask::NestedAwaiter::await_suspend(std::coroutine_handle<> h)
 {
 	parent = h;
@@ -127,40 +38,55 @@ void LoadingTask::NestedAwaiter::await_suspend(std::coroutine_handle<> h)
 	child->coro = {};
 
 	auto parent_coro = std::coroutine_handle<LoadingTaskPromise>::from_address(h.address());
-	LoadingScheduler *sched = parent_coro.promise().scheduler;
-	ASSERT(sched, "co_await LoadingTask from a coroutine that is not bound to a LoadingScheduler");
+	ResourceLoadingController *controller = parent_coro.promise().controller;
+	ASSERT(controller, "co_await LoadingTask from a coroutine that is not bound to a ResourceLoadingController");
 
 	auto &child_promise = child_coro.promise();
-	if (child_promise.scheduler == nullptr)
+	if (child_promise.controller == nullptr)
 	{
-		child_promise.scheduler = sched;
+		child_promise.controller = controller;
 	}
 
-	sched->push_nested(child_coro, parent);
+	controller->push_nested(child_coro, parent);
 }
 
 ResourceLoadingJob::ResourceLoadingJob(LoadingTask task, FinalizeCallback onSuccessIn, FinalizeCallback onFailureIn)
-	: onSuccess(std::move(onSuccessIn))
+	: pending_task(std::move(task))
+	, onSuccess(std::move(onSuccessIn))
 	, onFailure(std::move(onFailureIn))
 {
-	scheduler.start(std::move(task));
 }
 
 ResourceLoadingJob::ResourceLoadingJob(TaskFactory taskFactory,
-                                         FinalizeCallback onSuccessIn,
-                                         FinalizeCallback onFailureIn,
-                                         ResourceLoadingController::FrameProcessingMode initialFrameMode)
-	: onSuccess(std::move(onSuccessIn))
+                                       FinalizeCallback onSuccessIn,
+                                       FinalizeCallback onFailureIn,
+                                       ResourceLoadingController::FrameProcessingMode initialFrameMode)
+	: task_factory(std::move(taskFactory))
+	, onSuccess(std::move(onSuccessIn))
 	, onFailure(std::move(onFailureIn))
+	, initial_frame_mode(initialFrameMode)
+	, use_factory(true)
 {
-	ASSERT(taskFactory, "ResourceLoadingJob constructed with null task factory");
-	scheduler.start(taskFactory(scheduler));
-	scheduler.set_frame_processing_mode(initialFrameMode);
 }
 
-LoadStepStatus ResourceLoadingJob::step()
+void ResourceLoadingJob::bindAndStart(ResourceLoadingController &controller)
 {
-	return scheduler.step_one_quantum();
+	controller.reset_task_state();
+	if (use_factory)
+	{
+		ASSERT(task_factory, "ResourceLoadingJob factory is null");
+		controller.start(task_factory(controller));
+	}
+	else
+	{
+		controller.start(std::move(pending_task));
+	}
+	controller.set_frame_processing_mode(initial_frame_mode);
+}
+
+LoadStepStatus ResourceLoadingJob::step(ResourceLoadingController &controller)
+{
+	return controller.step_one_quantum();
 }
 
 void ResourceLoadingJob::finalizeSuccess()
@@ -179,17 +105,6 @@ void ResourceLoadingJob::finalizeFailure()
 	}
 }
 
-ResourceLoadingController::FrameProcessingMode ResourceLoadingJob::frameProcessingMode() const
-{
-	return scheduler.frame_processing_mode();
-}
-
-std::unique_ptr<ResourceLoadingJob> makeResourceLoadingJob(LoadingTask task,
-                                                             ResourceLoadingJob::FinalizeCallback onSuccess,
-                                                             ResourceLoadingJob::FinalizeCallback onFailure)
-{
-	return std::make_unique<ResourceLoadingJob>(std::move(task), std::move(onSuccess), std::move(onFailure));
-}
 
 std::unique_ptr<ResourceLoadingJob> makeResourceLoadingJob(
     ResourceLoadingJob::TaskFactory taskFactory,
@@ -201,30 +116,8 @@ std::unique_ptr<ResourceLoadingJob> makeResourceLoadingJob(
 	    std::move(taskFactory), std::move(onSuccess), std::move(onFailure), initialFrameMode);
 }
 
-void requestResourceLoad(ResourceLoadingController &controller,
-                          ResourceLoadingRequest request,
-                          LoadingTask task,
-                          ResourceLoadingJob::FinalizeCallback finalizeSuccess,
-                          ResourceLoadingJob::FinalizeCallback finalizeFailure)
+bool runLoadingJobToCompletion(std::unique_ptr<ResourceLoadingJob> job)
 {
-	controller.request(std::move(request),
-	                   makeResourceLoadingJob(std::move(task), std::move(finalizeSuccess), std::move(finalizeFailure)));
-}
-
-bool runLoadingJobToCompletion(ResourceLoadingJob &job)
-{
-	while (true)
-	{
-		switch (job.step())
-		{
-		case LoadStepStatus::InProgress:
-			continue;
-		case LoadStepStatus::Completed:
-			job.finalizeSuccess();
-			return true;
-		case LoadStepStatus::Failed:
-			job.finalizeFailure();
-			return false;
-		}
-	}
+	ResourceLoadingController runner;
+	return runner.runJobToCompletion(std::move(job));
 }

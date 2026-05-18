@@ -38,6 +38,133 @@ ResourceLoadingController& ResourceLoadingController::instance()
 	return instance;
 }
 
+ResourceLoadingController::FrameYield ResourceLoadingController::yield_frame() noexcept
+{
+	return FrameYield{this};
+}
+
+ResourceLoadingController::Bind ResourceLoadingController::bind() noexcept
+{
+	return Bind{this};
+}
+
+ResourceLoadingController::SetFrameMode ResourceLoadingController::set_frame_mode(FrameProcessingMode mode) noexcept
+{
+	return SetFrameMode{this, mode};
+}
+
+void ResourceLoadingController::start(LoadingTask task)
+{
+	ASSERT(!root_coro, "ResourceLoadingController.start called while a task is already active");
+	root_coro = task.release();
+	ASSERT(root_coro, "ResourceLoadingController.start given an empty task");
+	root_coro.promise().controller = this;
+	task_finished = false;
+	root_outcome = LoadOutcome::Success;
+	current = root_coro;
+	parent_coro = {};
+	frame_mode = FrameProcessingMode::ConsumeFrame;
+}
+
+LoadStepStatus ResourceLoadingController::step_one_quantum()
+{
+	ASSERT(root_coro, "ResourceLoadingController.step_one_quantum without an active task");
+
+	if (task_finished)
+	{
+		return root_outcome == LoadOutcome::Success ? LoadStepStatus::Completed : LoadStepStatus::Failed;
+	}
+
+	if (!current)
+	{
+		current = root_coro;
+	}
+
+	current.resume();
+
+	if (task_finished)
+	{
+		return root_outcome == LoadOutcome::Success ? LoadStepStatus::Completed : LoadStepStatus::Failed;
+	}
+
+	if (root_coro.done())
+	{
+		on_root_task_finished(root_coro.promise().result);
+		return root_outcome == LoadOutcome::Success ? LoadStepStatus::Completed : LoadStepStatus::Failed;
+	}
+
+	return LoadStepStatus::InProgress;
+}
+
+void ResourceLoadingController::reset_task_state() noexcept
+{
+	if (root_coro)
+	{
+		root_coro.destroy();
+		root_coro = {};
+	}
+	current = {};
+	parent_coro = {};
+	task_finished = false;
+	root_outcome = LoadOutcome::Success;
+	frame_mode = FrameProcessingMode::ConsumeFrame;
+}
+
+void ResourceLoadingController::on_root_task_finished(LoadOutcome result) noexcept
+{
+	root_outcome = result;
+	task_finished = true;
+	current = {};
+	parent_coro = {};
+	if (root_coro)
+	{
+		root_coro.destroy();
+		root_coro = {};
+	}
+}
+
+void ResourceLoadingController::on_nested_child_finished() noexcept
+{
+	if (current && (!root_coro || current.address() != root_coro.address()))
+	{
+		current.destroy();
+	}
+	current = parent_coro;
+	parent_coro = {};
+}
+
+void ResourceLoadingController::push_nested(std::coroutine_handle<LoadingTaskPromise> child,
+                                            std::coroutine_handle<> parent) noexcept
+{
+	parent_coro = parent;
+	current = child;
+}
+
+bool ResourceLoadingController::runJobToCompletion(std::unique_ptr<ResourceLoadingJob> job)
+{
+	ASSERT(job, "runJobToCompletion called with null job");
+	ASSERT(!root_coro, "runJobToCompletion called while this controller already has an active task");
+
+	job->bindAndStart(*this);
+
+	while (true)
+	{
+		switch (step_one_quantum())
+		{
+		case LoadStepStatus::InProgress:
+			continue;
+		case LoadStepStatus::Completed:
+			job->finalizeSuccess();
+			reset_task_state();
+			return true;
+		case LoadStepStatus::Failed:
+			job->finalizeFailure();
+			reset_task_state();
+			return false;
+		}
+	}
+}
+
 void ResourceLoadingController::request(ResourceLoadingRequest requestIn)
 {
 	if (activeJob)
@@ -50,8 +177,7 @@ void ResourceLoadingController::request(ResourceLoadingRequest requestIn)
 	begin(std::move(requestIn));
 }
 
-void ResourceLoadingController::request(ResourceLoadingRequest requestIn,
-                                      std::unique_ptr<ResourceLoadingJob> job)
+void ResourceLoadingController::request(ResourceLoadingRequest requestIn, std::unique_ptr<ResourceLoadingJob> job)
 {
 	ASSERT(job, "ResourceLoadingController.request called with null job");
 	if (activeJob)
@@ -71,6 +197,8 @@ void ResourceLoadingController::begin(ResourceLoadingRequest requestIn, std::uni
 	activeJob = job ? std::move(job) : makeJob(activeRequest.value());
 	ASSERT(activeJob, "Failed to create loading job");
 
+	activeJob->bindAndStart(*this);
+
 	const bool hadLoadingScreen = isLoadingScreenActive();
 	if (activeRequest->showLoadingScreen && !hadLoadingScreen)
 	{
@@ -86,7 +214,7 @@ bool ResourceLoadingController::active() const
 void ResourceLoadingController::step()
 {
 	ASSERT(activeJob, "LoadingController.step called without an active job");
-	LoadStepStatus const result = activeJob->step();
+	LoadStepStatus const result = activeJob->step(*this);
 	switch (result)
 	{
 	case LoadStepStatus::InProgress:
@@ -101,6 +229,7 @@ void ResourceLoadingController::step()
 
 	activeJob.reset();
 	activeRequest.reset();
+	reset_task_state();
 
 	if (queuedRequest.has_value())
 	{
@@ -123,7 +252,7 @@ void ResourceLoadingController::presentLoadingScreenIfNeeded()
 ResourceLoadingController::FrameProcessingMode ResourceLoadingController::currentFrameProcessingMode() const
 {
 	ASSERT(activeJob, "LoadingController.currentFrameProcessingMode called without an active job");
-	return activeJob->frameProcessingMode();
+	return frame_processing_mode();
 }
 
 bool ResourceLoadingController::loadingScreenHandledByController() const

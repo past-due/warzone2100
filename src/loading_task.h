@@ -21,9 +21,9 @@
 /** \file loading_task.h
  * \brief C++20 coroutine primitives for cooperative resource loading.
  *
- * `LoadingScheduler` drives tasks from `ResourceLoadingController::step()` (one
- * resume per frame). Loading coroutines use `co_await scheduler.yield_frame()` to
- * split work across frames and `co_await child_task` to compose nested loads.
+ * `ResourceLoadingController` drives tasks from `step()` (one resume per frame).
+ * Loading coroutines use `co_await controller.yield_frame()` to split work across
+ * frames and `co_await child_task` to compose nested loads.
  */
 
 #pragma once
@@ -34,22 +34,6 @@
 #include <exception>
 #include <functional>
 #include <memory>
-
-enum class LoadOutcome
-{
-	Success,
-	Failure,
-};
-
-/// Returned by `ResourceLoadingJob::step()` for controller integration.
-enum class LoadStepStatus
-{
-	InProgress,
-	Completed,
-	Failed,
-};
-
-class LoadingScheduler;
 
 struct LoadingTaskPromise;
 
@@ -87,7 +71,7 @@ public:
 
 	LoadOutcome result() const noexcept;
 
-	/// Detach handle for `LoadingScheduler::start` (scheduler owns destruction).
+	/// Detach handle for `ResourceLoadingController::start` (controller owns destruction).
 	std::coroutine_handle<promise_type> release() noexcept
 	{
 		return std::exchange(coro, {});
@@ -98,7 +82,7 @@ public:
 	NestedAwaiter operator co_await() &&;
 
 private:
-	friend class LoadingScheduler;
+	friend class ResourceLoadingController;
 	friend struct LoadingTaskPromise;
 
 	explicit LoadingTask(std::coroutine_handle<promise_type> h) noexcept
@@ -120,7 +104,7 @@ private:
 
 struct LoadingTaskPromise
 {
-	LoadingScheduler *scheduler = nullptr;
+	ResourceLoadingController *controller = nullptr;
 	LoadOutcome result = LoadOutcome::Success;
 	std::exception_ptr exception;
 
@@ -144,60 +128,6 @@ struct LoadingTaskPromise
 	}
 };
 
-/// Cooperative scheduler: one `step_one_quantum()` resumes the active coroutine once.
-class LoadingScheduler
-{
-public:
-	struct FrameYield;
-	struct Bind;
-	struct SetFrameMode;
-
-	FrameYield yield_frame() noexcept;
-	Bind bind() noexcept;
-	SetFrameMode set_frame_mode(ResourceLoadingController::FrameProcessingMode mode) noexcept;
-
-	/// Install the root task; must be called before the first `step_one_quantum()`.
-	/// Binds the root promise to this scheduler (no `co_await bind()` needed for root tasks).
-	void start(LoadingTask task);
-
-	void set_frame_processing_mode(ResourceLoadingController::FrameProcessingMode mode) noexcept
-	{
-		frame_mode = mode;
-	}
-
-	/// Resume the active coroutine once. Returns terminal status when the root task finishes.
-	LoadStepStatus step_one_quantum();
-
-	bool active() const noexcept { return root_coro != nullptr && !task_finished; }
-	bool is_finished() const noexcept { return task_finished; }
-	LoadOutcome outcome() const noexcept { return root_outcome; }
-
-	ResourceLoadingController::FrameProcessingMode frame_processing_mode() const noexcept
-	{
-		return frame_mode;
-	}
-
-private:
-	friend class LoadingTask;
-	friend struct LoadingTaskPromise;
-	friend struct FrameYield;
-	friend struct Bind;
-	friend struct SetFrameMode;
-
-	void on_root_task_finished(LoadOutcome result) noexcept;
-	void on_nested_child_finished() noexcept;
-	void push_nested(std::coroutine_handle<LoadingTaskPromise> child,
-	                 std::coroutine_handle<> parent) noexcept;
-
-	std::coroutine_handle<> current{};
-	std::coroutine_handle<> parent_coro{};
-	std::coroutine_handle<LoadingTaskPromise> root_coro{};
-	LoadOutcome root_outcome = LoadOutcome::Success;
-	bool task_finished = false;
-	ResourceLoadingController::FrameProcessingMode frame_mode =
-	    ResourceLoadingController::FrameProcessingMode::ConsumeFrame;
-};
-
 struct LoadingTaskPromise::FinalAwaiter
 {
 	bool await_ready() const noexcept { return false; }
@@ -205,18 +135,18 @@ struct LoadingTaskPromise::FinalAwaiter
 	void await_suspend(std::coroutine_handle<LoadingTaskPromise> h) const noexcept
 	{
 		auto &promise = h.promise();
-		if (promise.scheduler == nullptr)
+		if (promise.controller == nullptr)
 		{
 			return;
 		}
 
-		if (h == promise.scheduler->root_coro)
+		if (h == promise.controller->root_coro)
 		{
-			promise.scheduler->on_root_task_finished(promise.result);
+			promise.controller->on_root_task_finished(promise.result);
 		}
 		else
 		{
-			promise.scheduler->on_nested_child_finished();
+			promise.controller->on_nested_child_finished();
 		}
 	}
 
@@ -227,55 +157,6 @@ inline LoadingTaskPromise::FinalAwaiter LoadingTaskPromise::final_suspend() noex
 {
 	return {};
 }
-
-/// `co_await scheduler.yield_frame()` — suspend until the next `step_one_quantum()`.
-struct LoadingScheduler::FrameYield
-{
-	LoadingScheduler *scheduler = nullptr;
-
-	bool await_ready() const noexcept { return false; }
-
-	void await_suspend(std::coroutine_handle<> h) const noexcept
-	{
-		scheduler->current = h;
-	}
-
-	void await_resume() const noexcept {}
-};
-
-/// `co_await scheduler.bind()` — attach this coroutine to the scheduler (first line of a task).
-struct LoadingScheduler::Bind
-{
-	LoadingScheduler *scheduler = nullptr;
-
-	bool await_ready() const noexcept { return false; }
-
-	template<typename Promise>
-	void await_suspend(std::coroutine_handle<Promise> h) const noexcept
-	{
-		h.promise().scheduler = scheduler;
-		scheduler->current = h;
-	}
-
-	void await_resume() const noexcept {}
-};
-
-/// `co_await scheduler.set_frame_mode(...)` — policy for the current main-loop frame.
-struct LoadingScheduler::SetFrameMode
-{
-	LoadingScheduler *scheduler = nullptr;
-	ResourceLoadingController::FrameProcessingMode mode =
-	    ResourceLoadingController::FrameProcessingMode::ConsumeFrame;
-
-	bool await_ready() const noexcept { return false; }
-
-	void await_suspend(std::coroutine_handle<> /*h*/) const noexcept
-	{
-		scheduler->frame_mode = mode;
-	}
-
-	void await_resume() const noexcept {}
-};
 
 struct LoadingTask::NestedAwaiter
 {
@@ -300,14 +181,13 @@ inline LoadingTask::NestedAwaiter LoadingTask::operator co_await() &&
 	return NestedAwaiter{this};
 }
 
-/// Cooperative loading job: drives a `LoadingTask` via `LoadingScheduler`.
-/// `ResourceLoadingController::step()` calls `step()` at most once per main-loop iteration.
+/// Cooperative loading job: finalize callbacks + deferred task start on a controller.
 class ResourceLoadingJob
 {
 public:
 	using FinalizeCallback = std::function<void()>;
 
-	using TaskFactory = std::function<LoadingTask(LoadingScheduler &)>;
+	using TaskFactory = std::function<LoadingTask(ResourceLoadingController &)>;
 
 	ResourceLoadingJob(LoadingTask task, FinalizeCallback onSuccess, FinalizeCallback onFailure);
 	ResourceLoadingJob(TaskFactory taskFactory,
@@ -316,21 +196,24 @@ public:
 	                    ResourceLoadingController::FrameProcessingMode initialFrameMode =
 	                        ResourceLoadingController::FrameProcessingMode::ConsumeFrame);
 
-	LoadStepStatus step();
+	void bindAndStart(ResourceLoadingController &controller);
+	LoadStepStatus step(ResourceLoadingController &controller);
 	void finalizeSuccess();
 	void finalizeFailure();
-	ResourceLoadingController::FrameProcessingMode frameProcessingMode() const;
+	ResourceLoadingController::FrameProcessingMode frameProcessingMode() const noexcept
+	{
+		return initial_frame_mode;
+	}
 
 private:
-	LoadingScheduler scheduler;
+	LoadingTask pending_task;
+	TaskFactory task_factory;
 	FinalizeCallback onSuccess;
 	FinalizeCallback onFailure;
+	ResourceLoadingController::FrameProcessingMode initial_frame_mode =
+	    ResourceLoadingController::FrameProcessingMode::ConsumeFrame;
+	bool use_factory = false;
 };
-
-std::unique_ptr<ResourceLoadingJob> makeResourceLoadingJob(
-    LoadingTask task,
-    ResourceLoadingJob::FinalizeCallback onSuccess = {},
-    ResourceLoadingJob::FinalizeCallback onFailure = {});
 
 std::unique_ptr<ResourceLoadingJob> makeResourceLoadingJob(
     ResourceLoadingJob::TaskFactory taskFactory,
@@ -339,12 +222,5 @@ std::unique_ptr<ResourceLoadingJob> makeResourceLoadingJob(
     ResourceLoadingController::FrameProcessingMode initialFrameMode =
         ResourceLoadingController::FrameProcessingMode::ConsumeFrame);
 
-/// Convenience: `makeResourceLoadingJob` + `ResourceLoadingController::request`.
-void requestResourceLoad(ResourceLoadingController &controller,
-                          ResourceLoadingRequest request,
-                          LoadingTask task,
-                          ResourceLoadingJob::FinalizeCallback finalizeSuccess = {},
-                          ResourceLoadingJob::FinalizeCallback finalizeFailure = {});
-
-/// Drive any loading job to completion on the current thread (for blocking callers).
-bool runLoadingJobToCompletion(ResourceLoadingJob &job);
+/// Drive any loading job to completion on the current thread (blocking callers).
+bool runLoadingJobToCompletion(std::unique_ptr<ResourceLoadingJob> job);

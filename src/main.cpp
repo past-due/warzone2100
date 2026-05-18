@@ -920,23 +920,23 @@ bool startGameAfterLevelLoad()
 	return true;
 }
 
-LoadingTask startGameResourceTask(LoadingScheduler &sched)
+LoadingTask startGameResourceTask(ResourceLoadingController &controller)
 {
-	co_await sched.yield_frame();
+	co_await controller.yield_frame();
 
 	startGameBeforeLevelLoad();
 
-	co_await sched.yield_frame();
+	co_await controller.yield_frame();
 
 	// Not sure what aLevelName is, in relation to game.map. But need to use aLevelName here, to be able to start the right map for campaign, and need game.hash, to start the right non-campaign map, if there are multiple identically named maps.
 	LoadOutcome const lev =
-	    co_await makeLevLoadDataLoadingTask(sched, aLevelName, &game.hash, nullptr, GTYPE_SCENARIO_START);
+	    co_await makeLevLoadDataLoadingTask(controller, aLevelName, &game.hash, nullptr, GTYPE_SCENARIO_START);
 	if (lev != LoadOutcome::Success)
 	{
 		co_return LoadOutcome::Failure;
 	}
 
-	co_await sched.yield_frame();
+	co_await controller.yield_frame();
 
 	co_return startGameAfterLevelLoad() ? LoadOutcome::Success : LoadOutcome::Failure;
 }
@@ -957,20 +957,20 @@ void saveGameLoadAbortOnFailure()
 	SetGameMode(GS_TITLE_SCREEN);
 }
 
-LoadingTask loadSaveGameResourceTask(LoadingScheduler &sched)
+LoadingTask loadSaveGameResourceTask(ResourceLoadingController &controller)
 {
-	co_await sched.yield_frame();
+	co_await controller.yield_frame();
 
 	SetGameMode(GS_NORMAL);
 
-	co_await sched.yield_frame();
+	co_await controller.yield_frame();
 
 	if (!loadGameInit(GameLoadDetails::makeUserSaveGameLoad(saveGameName)))
 	{
 		co_return LoadOutcome::Failure;
 	}
 
-	co_await sched.yield_frame();
+	co_await controller.yield_frame();
 
 	co_return saveGameLoadAfter() ? LoadOutcome::Success : LoadOutcome::Failure;
 }
@@ -980,7 +980,7 @@ LoadingTask loadSaveGameResourceTask(LoadingScheduler &sched)
 std::unique_ptr<ResourceLoadingJob> makeStartGameResourceJob()
 {
 	return makeResourceLoadingJob(
-	    [](LoadingScheduler &sched) -> LoadingTask { return startGameResourceTask(sched); },
+	    [](ResourceLoadingController &controller) -> LoadingTask { return startGameResourceTask(controller); },
 	    [] { closeLoadingScreen(); },
 	    [] {
 		    startGameAbortLevelLoadFailure();
@@ -992,7 +992,9 @@ std::unique_ptr<ResourceLoadingJob> makeStartGameResourceJob()
 std::unique_ptr<ResourceLoadingJob> makeLoadSaveGameResourceJob()
 {
 	return makeResourceLoadingJob(
-	    [](LoadingScheduler &sched) -> LoadingTask { return loadSaveGameResourceTask(sched); },
+	    [](ResourceLoadingController &controller) -> LoadingTask {
+		    return loadSaveGameResourceTask(controller);
+	    },
 	    [] { closeLoadingScreen(); },
 	    [] {
 		    saveGameLoadAbortOnFailure();
