@@ -87,6 +87,7 @@
 #include "radar.h"
 #include "research.h"
 #include "resource_loading_controller.h"
+#include "loading_task.h"
 #include "lib/framework/cursors.h"
 #include "text.h"
 #include "transporter.h"
@@ -1188,99 +1189,59 @@ void systemShutdown()
 namespace
 {
 
-/// <summary>
-/// Frontend boot job:
-/// 1. Setup
-/// 2. cooperative WRF load (`ResLoadPlan` + `resLoadPlanStep`)
-///    * prepare load plan
-///    * load resources
-///    * complete load
-/// 3. finalize initialization
-/// </summary>
-class FrontendInitJob final : public IResourceLoadingJob
+LoadingTask frontendInitTask(LoadingScheduler &sched, ResourceLoadingRequest request)
 {
-public:
-	explicit FrontendInitJob(ResourceLoadingRequest requestIn)
-		: request(std::move(requestIn))
+	SetGameMode(GS_TITLE_SCREEN);
+	frontendIsShuttingDown();
+	debug(LOG_WZ, "== Initializing frontend == : %s", request.resourceFile.c_str());
+	if (!frontendInitialiseSetup())
 	{
+		co_return LoadOutcome::Failure;
 	}
 
-	StepResult step() override
-	{
-		switch (phase)
-		{
-		case Phase::Setup:
-			SetGameMode(GS_TITLE_SCREEN);
-			frontendIsShuttingDown();
-			debug(LOG_WZ, "== Initializing frontend == : %s", request.resourceFile.c_str());
-			if (!frontendInitialiseSetup())
-			{
-				return StepResult::Failed;
-			}
-			phase = Phase::PrepareResLoadPlan;
-			return StepResult::InProgress;
-		case Phase::PrepareResLoadPlan:
-			debug(LOG_MAIN, "frontEndInitialise: loading resource file .....");
-			if (!resPrepareLoadPlan(request.resourceFile.c_str(), 0, plan))
-			{
-				return StepResult::Failed;
-			}
-			phase = Phase::LoadResources;
-			return StepResult::InProgress;
-		case Phase::LoadResources:
-			if (!resLoadPlanStep(plan, resGetLoadPlanEntriesPerStep()))
-			{
-				return StepResult::Failed;
-			}
-			if (!resLoadPlanComplete(plan))
-			{
-				return StepResult::InProgress;
-			}
-			phase = Phase::Finalize;
-			return StepResult::InProgress;
-		case Phase::Finalize:
-			return frontendInitialiseFinalize() ? StepResult::Completed : StepResult::Failed;
-		}
+	co_await sched.yield_frame();
 
-		return StepResult::Failed;
-	}
-
-	void finalizeSuccess() override
-	{
-		closeLoadingScreen();
-	}
-
-	void finalizeFailure() override
-	{
-		closeLoadingScreen();
-		debug(LOG_FATAL, "Shutting down after failure");
-		exit(EXIT_FAILURE);
-	}
-
-	ResourceLoadingController::FrameProcessingMode frameProcessingMode() const override
-	{
-		return ResourceLoadingController::FrameProcessingMode::ConsumeFrame;
-	}
-
-private:
-	enum class Phase
-	{
-		Setup,
-		PrepareResLoadPlan,
-		LoadResources,
-		Finalize,
-	};
-
-	ResourceLoadingRequest request;
-	Phase phase = Phase::Setup;
+	debug(LOG_MAIN, "frontEndInitialise: loading resource file .....");
 	ResLoadPlan plan;
-};
+	if (!resPrepareLoadPlan(request.resourceFile.c_str(), 0, plan))
+	{
+		co_return LoadOutcome::Failure;
+	}
+
+	co_await sched.yield_frame();
+
+	while (true)
+	{
+		if (!resLoadPlanStep(plan, resGetLoadPlanEntriesPerStep()))
+		{
+			co_return LoadOutcome::Failure;
+		}
+		if (resLoadPlanComplete(plan))
+		{
+			break;
+		}
+		co_await sched.yield_frame();
+	}
+
+	co_await sched.yield_frame();
+
+	co_return frontendInitialiseFinalize() ? LoadOutcome::Success : LoadOutcome::Failure;
+}
 
 } // anonymous namespace
 
 std::unique_ptr<IResourceLoadingJob> makeFrontendInitJob(ResourceLoadingRequest request)
 {
-	return std::make_unique<FrontendInitJob>(std::move(request));
+	return makeCoroutineLoadingJob(
+	    [request = std::move(request)](LoadingScheduler &sched) mutable -> LoadingTask {
+		    return frontendInitTask(sched, std::move(request));
+	    },
+	    [] { closeLoadingScreen(); },
+	    [] {
+		    closeLoadingScreen();
+		    debug(LOG_FATAL, "Shutting down after failure");
+		    exit(EXIT_FAILURE);
+	    });
 }
 
 bool frontendInitialise(const char *ResourceFile)

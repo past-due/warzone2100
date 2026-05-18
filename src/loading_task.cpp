@@ -125,7 +125,18 @@ void LoadingTask::NestedAwaiter::await_suspend(std::coroutine_handle<> h)
 	parent = h;
 	auto child_coro = child->coro;
 	child->coro = {};
-	child_coro.promise().scheduler->push_nested(child_coro, parent);
+
+	auto parent_coro = std::coroutine_handle<LoadingTaskPromise>::from_address(h.address());
+	LoadingScheduler *sched = parent_coro.promise().scheduler;
+	ASSERT(sched, "co_await LoadingTask from a coroutine that is not bound to a LoadingScheduler");
+
+	auto &child_promise = child_coro.promise();
+	if (child_promise.scheduler == nullptr)
+	{
+		child_promise.scheduler = sched;
+	}
+
+	sched->push_nested(child_coro, parent);
 }
 
 namespace

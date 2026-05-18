@@ -1476,6 +1476,16 @@ LoadingTask levLoadDataTask(LoadingScheduler &sched, LevLoadJobParams params)
 
 } // anonymous namespace
 
+LoadingTask makeLevLoadDataLoadingTask(LoadingScheduler &sched,
+                                       char const *name,
+                                       Sha256 const *hash,
+                                       char *pSaveName,
+                                       GAME_TYPE saveType)
+{
+	LevLoadJobParams params{name, hash, pSaveName, saveType};
+	return levLoadDataTask(sched, params);
+}
+
 std::unique_ptr<IResourceLoadingJob> makeLevLoadDataJob(char const *name, Sha256 const *hash, char *pSaveName, GAME_TYPE saveType)
 {
 	LevLoadJobParams params{name, hash, pSaveName, saveType};

@@ -83,6 +83,7 @@
 #include "game.h"
 #include "init.h"
 #include "resource_loading_controller.h"
+#include "loading_task.h"
 #include "main_resource_loading.h"
 #include "levels.h"
 #include "lighting.h"
@@ -919,75 +920,26 @@ bool startGameAfterLevelLoad()
 	return true;
 }
 
-/// <summary>
-/// Start game from lobby/menu job:
-/// Uses hooks before/after a nested cooperative `levLoadData` job.
-/// </summary>
-class StartGameResourceJob final : public IResourceLoadingJob
+LoadingTask startGameResourceTask(LoadingScheduler &sched)
 {
-public:
-	StepResult step() override
+	co_await sched.yield_frame();
+
+	startGameBeforeLevelLoad();
+
+	co_await sched.yield_frame();
+
+	// Not sure what aLevelName is, in relation to game.map. But need to use aLevelName here, to be able to start the right map for campaign, and need game.hash, to start the right non-campaign map, if there are multiple identically named maps.
+	LoadOutcome const lev =
+	    co_await makeLevLoadDataLoadingTask(sched, aLevelName, &game.hash, nullptr, GTYPE_SCENARIO_START);
+	if (lev != LoadOutcome::Success)
 	{
-		switch (phase)
-		{
-		case Phase::PresentInitialFrame:
-			phase = Phase::BeforeLevelLoad;
-			return StepResult::InProgress;
-		case Phase::BeforeLevelLoad:
-			startGameBeforeLevelLoad();
-			phase = Phase::LevelLoad;
-			return StepResult::InProgress;
-		case Phase::LevelLoad:
-			if (!levelLoadJob)
-			{
-				// Not sure what aLevelName is, in relation to game.map. But need to use aLevelName here, to be able to start the right map for campaign, and need game.hash, to start the right non-campaign map, if there are multiple identically named maps.
-				levelLoadJob = makeLevLoadDataJob(aLevelName, &game.hash, nullptr, GTYPE_SCENARIO_START);
-			}
-			switch (levelLoadJob->step())
-			{
-			case StepResult::InProgress:
-				return StepResult::InProgress;
-			case StepResult::Completed:
-				levelLoadJob.reset();
-				phase = Phase::AfterLevelLoad;
-				return StepResult::InProgress;
-			case StepResult::Failed:
-				return StepResult::Failed;
-			}
-			return StepResult::Failed;
-		case Phase::AfterLevelLoad:
-			return startGameAfterLevelLoad()
-			           ? StepResult::Completed
-			           : StepResult::Failed;
-		}
-		return StepResult::Failed;
+		co_return LoadOutcome::Failure;
 	}
 
-	void finalizeSuccess() override
-	{
-		closeLoadingScreen();
-	}
+	co_await sched.yield_frame();
 
-	void finalizeFailure() override
-	{
-		levelLoadJob.reset();
-		startGameAbortLevelLoadFailure();
-		closeLoadingScreen();
-		debug(LOG_POPUP, _("Failed to load level data or map. Exiting to main menu."));
-	}
-
-private:
-	enum class Phase
-	{
-		PresentInitialFrame,
-		BeforeLevelLoad,
-		LevelLoad,
-		AfterLevelLoad,
-	};
-
-	Phase phase = Phase::PresentInitialFrame;
-	std::unique_ptr<IResourceLoadingJob> levelLoadJob;
-};
+	co_return startGameAfterLevelLoad() ? LoadOutcome::Success : LoadOutcome::Failure;
+}
 
 // On save load failure: log/popup, fast-exit game loop, return to title.
 void saveGameLoadAbortOnFailure()
@@ -1005,72 +957,47 @@ void saveGameLoadAbortOnFailure()
 	SetGameMode(GS_TITLE_SCREEN);
 }
 
-/// <summary>
-/// Load a save game job:
-/// Currently uses hooks before/after a single blocking save-load path (macro-phases only).
-/// </summary>
-class LoadSaveGameResourceJob final : public IResourceLoadingJob
+LoadingTask loadSaveGameResourceTask(LoadingScheduler &sched)
 {
-public:
-	StepResult step() override
+	co_await sched.yield_frame();
+
+	SetGameMode(GS_NORMAL);
+
+	co_await sched.yield_frame();
+
+	if (!loadGameInit(GameLoadDetails::makeUserSaveGameLoad(saveGameName)))
 	{
-		switch (phase)
-		{
-		case Phase::PresentInitialFrame:
-			phase = Phase::BeforeSaveLoad;
-			return StepResult::InProgress;
-		case Phase::BeforeSaveLoad:
-			SetGameMode(GS_NORMAL);
-			phase = Phase::RunSaveLoad;
-			return StepResult::InProgress;
-		case Phase::RunSaveLoad:
-			if (!loadGameInit(GameLoadDetails::makeUserSaveGameLoad(saveGameName)))
-			{
-				return StepResult::Failed;
-			}
-			phase = Phase::AfterSaveLoad;
-			return StepResult::InProgress;
-		case Phase::AfterSaveLoad:
-			return saveGameLoadAfter()
-			           ? StepResult::Completed
-			           : StepResult::Failed;
-		}
-		return StepResult::Failed;
+		co_return LoadOutcome::Failure;
 	}
 
-	void finalizeSuccess() override
-	{
-		closeLoadingScreen();
-	}
+	co_await sched.yield_frame();
 
-	void finalizeFailure() override
-	{
-		saveGameLoadAbortOnFailure();
-		closeLoadingScreen();
-	}
-
-private:
-	enum class Phase
-	{
-		PresentInitialFrame,
-		BeforeSaveLoad,
-		RunSaveLoad,
-		AfterSaveLoad,
-	};
-
-	Phase phase = Phase::PresentInitialFrame;
-};
+	co_return saveGameLoadAfter() ? LoadOutcome::Success : LoadOutcome::Failure;
+}
 
 } // anonymous namespace
 
 std::unique_ptr<IResourceLoadingJob> makeStartGameResourceJob()
 {
-	return std::make_unique<StartGameResourceJob>();
+	return makeCoroutineLoadingJob(
+	    [](LoadingScheduler &sched) -> LoadingTask { return startGameResourceTask(sched); },
+	    [] { closeLoadingScreen(); },
+	    [] {
+		    startGameAbortLevelLoadFailure();
+		    closeLoadingScreen();
+		    debug(LOG_POPUP, _("Failed to load level data or map. Exiting to main menu."));
+	    });
 }
 
 std::unique_ptr<IResourceLoadingJob> makeLoadSaveGameResourceJob()
 {
-	return std::make_unique<LoadSaveGameResourceJob>();
+	return makeCoroutineLoadingJob(
+	    [](LoadingScheduler &sched) -> LoadingTask { return loadSaveGameResourceTask(sched); },
+	    [] { closeLoadingScreen(); },
+	    [] {
+		    saveGameLoadAbortOnFailure();
+		    closeLoadingScreen();
+	    });
 }
 
 // Runs blocking levLoadData for the current `aLevelName` / `game.hash`; returns success.

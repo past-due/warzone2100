@@ -34,6 +34,8 @@
 #include <memory>
 
 class IResourceLoadingJob;
+class LoadingScheduler;
+class LoadingTask;
 
 /// maximum number of data files
 #define LEVEL_MAXFILES	9
@@ -104,6 +106,13 @@ void levShutDown();
 bool levInitialise();
 
 std::unique_ptr<IResourceLoadingJob> makeLevLoadDataJob(char const *name, Sha256 const *hash, char *pSaveName, GAME_TYPE saveType);
+
+/// Cooperative level-load coroutine for nesting under another `LoadingScheduler` task.
+LoadingTask makeLevLoadDataLoadingTask(LoadingScheduler &sched,
+                                       char const *name,
+                                       Sha256 const *hash,
+                                       char *pSaveName,
+                                       GAME_TYPE saveType);
 
 // load up the data for a level
 bool levLoadData(char const *name, Sha256 const *hash, char *pSaveName, GAME_TYPE saveType);
