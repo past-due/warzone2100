@@ -140,13 +140,13 @@ struct LoadingTaskPromise::FinalAwaiter
 			return;
 		}
 
-		if (h == promise.controller->root_coro)
+		if (h == promise.controller->rootCoro)
 		{
-			promise.controller->on_root_task_finished(promise.result);
+			promise.controller->onRootTaskFinished(promise.result);
 		}
 		else
 		{
-			promise.controller->on_nested_child_finished();
+			promise.controller->onNestedChildFinished();
 		}
 	}
 
@@ -189,7 +189,6 @@ public:
 
 	using TaskFactory = std::function<LoadingTask(ResourceLoadingController &)>;
 
-	ResourceLoadingJob(LoadingTask task, FinalizeCallback onSuccess, FinalizeCallback onFailure);
 	ResourceLoadingJob(TaskFactory taskFactory,
 	                    FinalizeCallback onSuccess,
 	                    FinalizeCallback onFailure,
@@ -202,7 +201,7 @@ public:
 	void finalizeFailure();
 	ResourceLoadingController::FrameProcessingMode frameProcessingMode() const noexcept
 	{
-		return initial_frame_mode;
+		return initialFrameMode;
 	}
 
 private:
@@ -210,9 +209,8 @@ private:
 	TaskFactory task_factory;
 	FinalizeCallback onSuccess;
 	FinalizeCallback onFailure;
-	ResourceLoadingController::FrameProcessingMode initial_frame_mode =
+	ResourceLoadingController::FrameProcessingMode initialFrameMode =
 	    ResourceLoadingController::FrameProcessingMode::ConsumeFrame;
-	bool use_factory = false;
 };
 
 std::unique_ptr<ResourceLoadingJob> makeResourceLoadingJob(

@@ -1429,7 +1429,7 @@ LoadingTask levLoadDataTask(ResourceLoadingController &controller, LevLoadJobPar
 	ctx.pSaveName = params.pSaveName;
 	ctx.saveType = params.saveType;
 
-	co_await controller.yield_frame();
+	co_await controller.yieldFrame();
 
 	switch (levResolveDatasetForLoad(ctx))
 	{
@@ -1441,35 +1441,35 @@ LoadingTask levLoadDataTask(ResourceLoadingController &controller, LevLoadJobPar
 		break;
 	}
 
-	co_await controller.yield_frame();
+	co_await controller.yieldFrame();
 
 	if (!levPrepareLoadEnvironment(ctx.psNewLevel, ctx.pSaveName))
 	{
 		co_return LoadOutcome::Failure;
 	}
 
-	co_await controller.yield_frame();
+	co_await controller.yieldFrame();
 
 	if (!levLoadBaseDatasetAndStageOne(ctx.psNewLevel))
 	{
 		co_return LoadOutcome::Failure;
 	}
 
-	co_await controller.yield_frame();
+	co_await controller.yieldFrame();
 
 	if (!levLoadMissionBranchesBeforeMainLoop(ctx))
 	{
 		co_return LoadOutcome::Failure;
 	}
 
-	co_await controller.yield_frame();
+	co_await controller.yieldFrame();
 
 	if (!levLoadMissionDataLoop(ctx))
 	{
 		co_return LoadOutcome::Failure;
 	}
 
-	co_await controller.yield_frame();
+	co_await controller.yieldFrame();
 
 	co_return levFinalizeLevelLoad(ctx) ? LoadOutcome::Success : LoadOutcome::Failure;
 }

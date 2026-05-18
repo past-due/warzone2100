@@ -922,11 +922,11 @@ bool startGameAfterLevelLoad()
 
 LoadingTask startGameResourceTask(ResourceLoadingController &controller)
 {
-	co_await controller.yield_frame();
+	co_await controller.yieldFrame();
 
 	startGameBeforeLevelLoad();
 
-	co_await controller.yield_frame();
+	co_await controller.yieldFrame();
 
 	// Not sure what aLevelName is, in relation to game.map. But need to use aLevelName here, to be able to start the right map for campaign, and need game.hash, to start the right non-campaign map, if there are multiple identically named maps.
 	LoadOutcome const lev =
@@ -936,7 +936,7 @@ LoadingTask startGameResourceTask(ResourceLoadingController &controller)
 		co_return LoadOutcome::Failure;
 	}
 
-	co_await controller.yield_frame();
+	co_await controller.yieldFrame();
 
 	co_return startGameAfterLevelLoad() ? LoadOutcome::Success : LoadOutcome::Failure;
 }
@@ -959,18 +959,18 @@ void saveGameLoadAbortOnFailure()
 
 LoadingTask loadSaveGameResourceTask(ResourceLoadingController &controller)
 {
-	co_await controller.yield_frame();
+	co_await controller.yieldFrame();
 
 	SetGameMode(GS_NORMAL);
 
-	co_await controller.yield_frame();
+	co_await controller.yieldFrame();
 
 	if (!loadGameInit(GameLoadDetails::makeUserSaveGameLoad(saveGameName)))
 	{
 		co_return LoadOutcome::Failure;
 	}
 
-	co_await controller.yield_frame();
+	co_await controller.yieldFrame();
 
 	co_return saveGameLoadAfter() ? LoadOutcome::Success : LoadOutcome::Failure;
 }

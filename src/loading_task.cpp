@@ -47,14 +47,7 @@ void LoadingTask::NestedAwaiter::await_suspend(std::coroutine_handle<> h)
 		child_promise.controller = controller;
 	}
 
-	controller->push_nested(child_coro, parent);
-}
-
-ResourceLoadingJob::ResourceLoadingJob(LoadingTask task, FinalizeCallback onSuccessIn, FinalizeCallback onFailureIn)
-	: pending_task(std::move(task))
-	, onSuccess(std::move(onSuccessIn))
-	, onFailure(std::move(onFailureIn))
-{
+	controller->pushNested(child_coro, parent);
 }
 
 ResourceLoadingJob::ResourceLoadingJob(TaskFactory taskFactory,
@@ -64,29 +57,21 @@ ResourceLoadingJob::ResourceLoadingJob(TaskFactory taskFactory,
 	: task_factory(std::move(taskFactory))
 	, onSuccess(std::move(onSuccessIn))
 	, onFailure(std::move(onFailureIn))
-	, initial_frame_mode(initialFrameMode)
-	, use_factory(true)
+	, initialFrameMode(initialFrameMode)
 {
 }
 
 void ResourceLoadingJob::bindAndStart(ResourceLoadingController &controller)
 {
-	controller.reset_task_state();
-	if (use_factory)
-	{
-		ASSERT(task_factory, "ResourceLoadingJob factory is null");
-		controller.start(task_factory(controller));
-	}
-	else
-	{
-		controller.start(std::move(pending_task));
-	}
-	controller.set_frame_processing_mode(initial_frame_mode);
+	controller.resetTaskState();
+	ASSERT(task_factory, "ResourceLoadingJob factory is null");
+	controller.start(task_factory(controller));
+	controller.setFrameProcessingMode(initialFrameMode);
 }
 
 LoadStepStatus ResourceLoadingJob::step(ResourceLoadingController &controller)
 {
-	return controller.step_one_quantum();
+	return controller.stepOneQuantum();
 }
 
 void ResourceLoadingJob::finalizeSuccess()

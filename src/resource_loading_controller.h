@@ -149,8 +149,6 @@ public:
 	};
 
 	struct FrameYield;
-	struct Bind;
-	struct SetFrameMode;
 
 	static ResourceLoadingController &instance();
 
@@ -166,10 +164,6 @@ public:
 	// Submit a new loading request. If there is an active job, queue the request;
 	// otherwise begin a new job with the request.
 	void request(ResourceLoadingRequest request);
-
-	/// Submit a pre-built job (from `makeResourceLoadingJob` in `loading_task.h`).
-	/// Same queueing rules as `request(ResourceLoadingRequest)`.
-	void request(ResourceLoadingRequest request, std::unique_ptr<ResourceLoadingJob> job);
 
 	// Returns true if there is an active job.
 	bool active() const;
@@ -190,31 +184,27 @@ public:
 	/// coroutine state; do not call on `instance()` while `active()` on the singleton.
 	bool runJobToCompletion(std::unique_ptr<ResourceLoadingJob> job);
 
-	FrameYield yield_frame() noexcept;
-	Bind bind() noexcept;
-	SetFrameMode set_frame_mode(FrameProcessingMode mode) noexcept;
+	FrameYield yieldFrame() noexcept;
 
-	void set_frame_processing_mode(FrameProcessingMode mode) noexcept { frame_mode = mode; }
+	void setFrameProcessingMode(FrameProcessingMode mode) noexcept { frameMode = mode; }
 
-	FrameProcessingMode frame_processing_mode() const noexcept { return frame_mode; }
+	FrameProcessingMode frameProcessingMode() const noexcept { return frameMode; }
 
 private:
 	friend class LoadingTask;
 	friend struct LoadingTaskPromise;
 	friend class ResourceLoadingJob;
 	friend struct FrameYield;
-	friend struct Bind;
-	friend struct SetFrameMode;
 
 	void begin(ResourceLoadingRequest request, std::unique_ptr<ResourceLoadingJob> job = nullptr);
 	static std::unique_ptr<ResourceLoadingJob> makeJob(const ResourceLoadingRequest &request);
 
 	void start(LoadingTask task);
-	LoadStepStatus step_one_quantum();
-	void reset_task_state() noexcept;
-	void on_root_task_finished(LoadOutcome result) noexcept;
-	void on_nested_child_finished() noexcept;
-	void push_nested(std::coroutine_handle<LoadingTaskPromise> child, std::coroutine_handle<> parent) noexcept;
+	LoadStepStatus stepOneQuantum();
+	void resetTaskState() noexcept;
+	void onRootTaskFinished(LoadOutcome result) noexcept;
+	void onNestedChildFinished() noexcept;
+	void pushNested(std::coroutine_handle<LoadingTaskPromise> child, std::coroutine_handle<> parent) noexcept;
 
 	std::optional<ResourceLoadingRequest> activeRequest;
 	std::optional<ResourceLoadingRequest> queuedRequest;
@@ -222,11 +212,11 @@ private:
 	std::unique_ptr<ResourceLoadingJob> activeJob;
 
 	std::coroutine_handle<> current{};
-	std::coroutine_handle<> parent_coro{};
-	std::coroutine_handle<LoadingTaskPromise> root_coro{};
+	std::coroutine_handle<> parentCoro{};
+	std::coroutine_handle<LoadingTaskPromise> rootCoro{};
 	LoadOutcome root_outcome = LoadOutcome::Success;
-	bool task_finished = false;
-	FrameProcessingMode frame_mode = FrameProcessingMode::ConsumeFrame;
+	bool taskFinished = false;
+	FrameProcessingMode frameMode = FrameProcessingMode::ConsumeFrame;
 };
 
 /// `co_await controller.yield_frame()` — suspend until the next `step_one_quantum()`.
@@ -239,39 +229,6 @@ struct ResourceLoadingController::FrameYield
 	void await_suspend(std::coroutine_handle<> h) const noexcept
 	{
 		controller->current = h;
-	}
-
-	void await_resume() const noexcept {}
-};
-
-/// `co_await controller.bind()` — attach this coroutine to the controller.
-struct ResourceLoadingController::Bind
-{
-	ResourceLoadingController *controller = nullptr;
-
-	bool await_ready() const noexcept { return false; }
-
-	template<typename Promise>
-	void await_suspend(std::coroutine_handle<Promise> h) const noexcept
-	{
-		h.promise().controller = controller;
-		controller->current = h;
-	}
-
-	void await_resume() const noexcept {}
-};
-
-/// `co_await controller.set_frame_mode(...)` — policy for the current main-loop frame.
-struct ResourceLoadingController::SetFrameMode
-{
-	ResourceLoadingController *controller = nullptr;
-	ResourceLoadingController::FrameProcessingMode mode = ResourceLoadingController::FrameProcessingMode::ConsumeFrame;
-
-	bool await_ready() const noexcept { return false; }
-
-	void await_suspend(std::coroutine_handle<> /*h*/) const noexcept
-	{
-		controller->frame_mode = mode;
 	}
 
 	void await_resume() const noexcept {}
