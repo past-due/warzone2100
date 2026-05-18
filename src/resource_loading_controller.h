@@ -143,6 +143,10 @@ public:
 	// otherwise begin a new job with the request.
 	void request(ResourceLoadingRequest request);
 
+	/// Submit a pre-built job (e.g. from `makeCoroutineLoadingJob` in `loading_task.h`).
+	/// Same queueing rules as `request(ResourceLoadingRequest)`.
+	void request(ResourceLoadingRequest request, std::unique_ptr<IResourceLoadingJob> job);
+
 	// Returns true if there is an active job.
 	bool active() const;
 
@@ -160,7 +164,7 @@ public:
 
 private:
 
-	void begin(ResourceLoadingRequest request);
+	void begin(ResourceLoadingRequest request, std::unique_ptr<IResourceLoadingJob> job = nullptr);
 	static std::unique_ptr<IResourceLoadingJob> makeJob(const ResourceLoadingRequest &request);
 
 	std::optional<ResourceLoadingRequest> activeRequest;
@@ -172,6 +176,7 @@ private:
 	// So it's absolutely sufficient to only store the next loading step in the
 	// controller's state machine.
 	std::optional<ResourceLoadingRequest> queuedRequest;
+	std::unique_ptr<IResourceLoadingJob> queuedJob;
 	std::unique_ptr<IResourceLoadingJob> activeJob;
 };
 

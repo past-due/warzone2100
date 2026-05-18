@@ -32,6 +32,8 @@
 
 #include <coroutine>
 #include <exception>
+#include <functional>
+#include <memory>
 
 enum class LoadOutcome
 {
@@ -291,3 +293,34 @@ inline LoadingTask::NestedAwaiter LoadingTask::operator co_await() &&
 {
 	return NestedAwaiter{this};
 }
+
+/// `IResourceLoadingJob` adapter: drives a `LoadingTask` via `LoadingScheduler`.
+class CoroutineLoadingJob final : public IResourceLoadingJob
+{
+public:
+	using FinalizeCallback = std::function<void()>;
+
+	CoroutineLoadingJob(LoadingTask task, FinalizeCallback onSuccess, FinalizeCallback onFailure);
+
+	StepResult step() override;
+	void finalizeSuccess() override;
+	void finalizeFailure() override;
+	ResourceLoadingController::FrameProcessingMode frameProcessingMode() const override;
+
+private:
+	LoadingScheduler scheduler;
+	FinalizeCallback onSuccess;
+	FinalizeCallback onFailure;
+};
+
+std::unique_ptr<IResourceLoadingJob> makeCoroutineLoadingJob(
+    LoadingTask task,
+    CoroutineLoadingJob::FinalizeCallback onSuccess = {},
+    CoroutineLoadingJob::FinalizeCallback onFailure = {});
+
+/// Convenience: `makeCoroutineLoadingJob` + `ResourceLoadingController::request`.
+void requestCoroutineLoad(ResourceLoadingController &controller,
+                          ResourceLoadingRequest request,
+                          LoadingTask task,
+                          CoroutineLoadingJob::FinalizeCallback finalizeSuccess = {},
+                          CoroutineLoadingJob::FinalizeCallback finalizeFailure = {});

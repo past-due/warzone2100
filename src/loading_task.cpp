@@ -126,3 +126,72 @@ void LoadingTask::NestedAwaiter::await_suspend(std::coroutine_handle<> h)
 	child->coro = {};
 	child_coro.promise().scheduler->push_nested(child_coro, parent);
 }
+
+namespace
+{
+
+IResourceLoadingJob::StepResult to_step_result(LoadStepStatus status)
+{
+	switch (status)
+	{
+	case LoadStepStatus::InProgress:
+		return IResourceLoadingJob::StepResult::InProgress;
+	case LoadStepStatus::Completed:
+		return IResourceLoadingJob::StepResult::Completed;
+	case LoadStepStatus::Failed:
+		return IResourceLoadingJob::StepResult::Failed;
+	}
+	return IResourceLoadingJob::StepResult::Failed;
+}
+
+} // namespace
+
+CoroutineLoadingJob::CoroutineLoadingJob(LoadingTask task, FinalizeCallback onSuccessIn, FinalizeCallback onFailureIn)
+	: onSuccess(std::move(onSuccessIn))
+	, onFailure(std::move(onFailureIn))
+{
+	scheduler.start(std::move(task));
+}
+
+IResourceLoadingJob::StepResult CoroutineLoadingJob::step()
+{
+	return to_step_result(scheduler.step_one_quantum());
+}
+
+void CoroutineLoadingJob::finalizeSuccess()
+{
+	if (onSuccess)
+	{
+		onSuccess();
+	}
+}
+
+void CoroutineLoadingJob::finalizeFailure()
+{
+	if (onFailure)
+	{
+		onFailure();
+	}
+}
+
+ResourceLoadingController::FrameProcessingMode CoroutineLoadingJob::frameProcessingMode() const
+{
+	return scheduler.frame_processing_mode();
+}
+
+std::unique_ptr<IResourceLoadingJob> makeCoroutineLoadingJob(LoadingTask task,
+                                                             CoroutineLoadingJob::FinalizeCallback onSuccess,
+                                                             CoroutineLoadingJob::FinalizeCallback onFailure)
+{
+	return std::make_unique<CoroutineLoadingJob>(std::move(task), std::move(onSuccess), std::move(onFailure));
+}
+
+void requestCoroutineLoad(ResourceLoadingController &controller,
+                          ResourceLoadingRequest request,
+                          LoadingTask task,
+                          CoroutineLoadingJob::FinalizeCallback finalizeSuccess,
+                          CoroutineLoadingJob::FinalizeCallback finalizeFailure)
+{
+	controller.request(std::move(request),
+	                   makeCoroutineLoadingJob(std::move(task), std::move(finalizeSuccess), std::move(finalizeFailure)));
+}

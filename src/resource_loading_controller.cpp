@@ -24,6 +24,7 @@
 
 #include "resource_loading_controller.h"
 
+#include "loading_task.h"
 #include "init.h"
 #include "main_resource_loading.h"
 #include "multiint.h"
@@ -42,17 +43,32 @@ void ResourceLoadingController::request(ResourceLoadingRequest requestIn)
 	if (activeJob)
 	{
 		queuedRequest = std::move(requestIn);
+		queuedJob.reset();
 		return;
 	}
 
 	begin(std::move(requestIn));
 }
 
-void ResourceLoadingController::begin(ResourceLoadingRequest requestIn)
+void ResourceLoadingController::request(ResourceLoadingRequest requestIn,
+                                      std::unique_ptr<IResourceLoadingJob> job)
+{
+	ASSERT(job, "ResourceLoadingController.request called with null job");
+	if (activeJob)
+	{
+		queuedRequest = std::move(requestIn);
+		queuedJob = std::move(job);
+		return;
+	}
+
+	begin(std::move(requestIn), std::move(job));
+}
+
+void ResourceLoadingController::begin(ResourceLoadingRequest requestIn, std::unique_ptr<IResourceLoadingJob> job)
 {
 	ASSERT(!activeJob, "LoadingController.begin called while another loading job is active");
 	activeRequest = std::move(requestIn);
-	activeJob = makeJob(activeRequest.value());
+	activeJob = job ? std::move(job) : makeJob(activeRequest.value());
 	ASSERT(activeJob, "Failed to create loading job");
 
 	const bool hadLoadingScreen = isLoadingScreenActive();
@@ -89,8 +105,10 @@ void ResourceLoadingController::step()
 	if (queuedRequest.has_value())
 	{
 		ResourceLoadingRequest nextRequest = std::move(queuedRequest.value());
+		std::unique_ptr<IResourceLoadingJob> nextJob = std::move(queuedJob);
 		queuedRequest.reset();
-		begin(std::move(nextRequest));
+		queuedJob.reset();
+		begin(std::move(nextRequest), std::move(nextJob));
 	}
 }
 
