@@ -344,3 +344,6 @@ void requestCoroutineLoad(ResourceLoadingController &controller,
                           LoadingTask task,
                           CoroutineLoadingJob::FinalizeCallback finalizeSuccess = {},
                           CoroutineLoadingJob::FinalizeCallback finalizeFailure = {});
+
+/// Drive any loading job to completion on the current thread (for blocking callers).
+bool runLoadingJobToCompletion(IResourceLoadingJob &job);

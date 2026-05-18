@@ -218,3 +218,21 @@ void requestCoroutineLoad(ResourceLoadingController &controller,
 	controller.request(std::move(request),
 	                   makeCoroutineLoadingJob(std::move(task), std::move(finalizeSuccess), std::move(finalizeFailure)));
 }
+
+bool runLoadingJobToCompletion(IResourceLoadingJob &job)
+{
+	while (true)
+	{
+		switch (job.step())
+		{
+		case IResourceLoadingJob::StepResult::InProgress:
+			continue;
+		case IResourceLoadingJob::StepResult::Completed:
+			job.finalizeSuccess();
+			return true;
+		case IResourceLoadingJob::StepResult::Failed:
+			job.finalizeFailure();
+			return false;
+		}
+	}
+}
