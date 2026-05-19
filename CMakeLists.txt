@@ -239,7 +239,7 @@ elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU|Clang" AND NOT APPLE AND NOT CMAK
 	# Ensure all builds always have debug info built (Xcode is handled separately below, Emscripten handled above)
 	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -g")
 	# Ensure symbols can be demangled on Linux Debug builds
-	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -rdynamic")
+	#set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -rdynamic")
 endif()
 if(MINGW AND ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang"))
 	# Ensure LLVM/Clang-based MINGW produces debug info in codeview format (for PDB)
@@ -412,6 +412,8 @@ macro(CONFIGURE_WZ_COMPILER_WARNINGS)
 			set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++14")
 		elseif (CMAKE_CXX_STANDARD EQUAL 17)
 			set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++1z")
+		elseif (CMAKE_CXX_STANDARD EQUAL 20)
+			set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++2a")
 		else()
 			# Additional mapping required for CMAKE_CXX_STANDARD => Xcode's CLANG_CXX_LANGUAGE_STANDARD attribute (above)
 			# Also may need to bump the minimum supported version of Xcode for compilation
