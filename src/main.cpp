@@ -965,7 +965,7 @@ LoadingTask loadSaveGameResourceTask(ResourceLoadingController &controller)
 
 	co_await controller.yieldFrame();
 
-	if (!loadGameInit(GameLoadDetails::makeUserSaveGameLoad(saveGameName)))
+	if (co_await loadGameInit(controller, GameLoadDetails::makeUserSaveGameLoad(saveGameName)) == LoadOutcome::Failure)
 	{
 		co_return LoadOutcome::Failure;
 	}

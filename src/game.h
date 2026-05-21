@@ -83,7 +83,7 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 
 /*This just loads up the .gam file to determine which level data to set up - split up
 so can be called in levLoadData when starting a game from a load save game*/
-bool loadGameInit(const GameLoadDetails& gameToLoad);
+LoadingTask loadGameInit(ResourceLoadingController& controller, const GameLoadDetails& gameToLoad);
 
 bool loadMissionExtras(const char* pGameToLoad, LEVEL_TYPE levelType);
 

@@ -924,87 +924,87 @@ static void levPreloadFactionModelsFromLoadedSet()
 	// Former loading-screen callback boundary; keep as guidance if this path needs a finer-grained loading step.
 }
 
-static bool levStartMissionForLevelType(LEVEL_DATASET* psNewLevel, SWORD i)
+static LoadingTask levStartMissionForLevelType(ResourceLoadingController& controller, LEVEL_DATASET* psNewLevel, SWORD i)
 {
 	switch (psNewLevel->type)
 	{
 	case LEVEL_TYPE::LDS_COMPLETE:
 	case LEVEL_TYPE::LDS_CAMSTART:
 		debug(LOG_WZ, "LDS_COMPLETE / LDS_CAMSTART");
-		if (!startMission(LEVEL_TYPE::LDS_CAMSTART, levConstructGameLoadDetails(psNewLevel, i)))
+		if (LoadOutcome::Failure == co_await startMission(controller, LEVEL_TYPE::LDS_CAMSTART, levConstructGameLoadDetails(psNewLevel, i)))
 		{
 			debug(LOG_ERROR, "Failed startMission(%d, %s)!", static_cast<int8_t>(LEVEL_TYPE::LDS_CAMSTART), psNewLevel->apDataFiles[i].c_str());
-			return false;
+			co_return LoadOutcome::Failure;
 		}
-		return true;
+		co_return LoadOutcome::Success;
 	case LEVEL_TYPE::LDS_BETWEEN:
 		debug(LOG_WZ, "LDS_BETWEEN");
-		if (!startMission(LEVEL_TYPE::LDS_BETWEEN, levConstructGameLoadDetails(psNewLevel, i)))
+		if (LoadOutcome::Failure == co_await startMission(controller, LEVEL_TYPE::LDS_BETWEEN, levConstructGameLoadDetails(psNewLevel, i)))
 		{
 			debug(LOG_ERROR, "Failed startMission(%d, %s)!", static_cast<int8_t>(LEVEL_TYPE::LDS_BETWEEN), psNewLevel->apDataFiles[i].c_str());
-			return false;
+			co_return LoadOutcome::Failure;
 		}
-		return true;
+		co_return LoadOutcome::Success;
 
 	case LEVEL_TYPE::LDS_MKEEP:
 		debug(LOG_WZ, "LDS_MKEEP");
-		if (!startMission(LEVEL_TYPE::LDS_MKEEP, levConstructGameLoadDetails(psNewLevel, i)))
+		if (LoadOutcome::Failure == co_await startMission(controller, LEVEL_TYPE::LDS_MKEEP, levConstructGameLoadDetails(psNewLevel, i)))
 		{
 			debug(LOG_ERROR, "Failed startMission(%d, %s)!", static_cast<int8_t>(LEVEL_TYPE::LDS_MKEEP), psNewLevel->apDataFiles[i].c_str());
-			return false;
+			co_return LoadOutcome::Failure;
 		}
-		return true;
+		co_return LoadOutcome::Success;
 	case LEVEL_TYPE::LDS_CAMCHANGE:
 		debug(LOG_WZ, "LDS_CAMCHANGE");
-		if (!startMission(LEVEL_TYPE::LDS_CAMCHANGE, levConstructGameLoadDetails(psNewLevel, i)))
+		if (LoadOutcome::Failure == co_await startMission(controller, LEVEL_TYPE::LDS_CAMCHANGE, levConstructGameLoadDetails(psNewLevel, i)))
 		{
 			debug(LOG_ERROR, "Failed startMission(%d, %s)!", static_cast<int8_t>(LEVEL_TYPE::LDS_CAMCHANGE), psNewLevel->apDataFiles[i].c_str());
-			return false;
+			co_return LoadOutcome::Failure;
 		}
-		return true;
+		co_return LoadOutcome::Success;
 
 	case LEVEL_TYPE::LDS_EXPAND:
 		debug(LOG_WZ, "LDS_EXPAND");
-		if (!startMission(LEVEL_TYPE::LDS_EXPAND, levConstructGameLoadDetails(psNewLevel, i)))
+		if (LoadOutcome::Failure == co_await startMission(controller, LEVEL_TYPE::LDS_EXPAND, levConstructGameLoadDetails(psNewLevel, i)))
 		{
 			debug(LOG_ERROR, "Failed startMission(%d, %s)!", static_cast<int8_t>(LEVEL_TYPE::LDS_EXPAND), psNewLevel->apDataFiles[i].c_str());
-			return false;
+			co_return LoadOutcome::Failure;
 		}
-		return true;
+		co_return LoadOutcome::Success;
 	case LEVEL_TYPE::LDS_EXPAND_LIMBO:
 		debug(LOG_WZ, "LDS_LIMBO");
-		if (!startMission(LEVEL_TYPE::LDS_EXPAND_LIMBO, levConstructGameLoadDetails(psNewLevel, i)))
+		if (LoadOutcome::Failure == co_await startMission(controller, LEVEL_TYPE::LDS_EXPAND_LIMBO, levConstructGameLoadDetails(psNewLevel, i)))
 		{
 			debug(LOG_ERROR, "Failed startMission(%d, %s)!", static_cast<int8_t>(LEVEL_TYPE::LDS_EXPAND_LIMBO), psNewLevel->apDataFiles[i].c_str());
-			return false;
+			co_return LoadOutcome::Failure;
 		}
-		return true;
+		co_return LoadOutcome::Success;
 
 	case LEVEL_TYPE::LDS_MCLEAR:
 		debug(LOG_WZ, "LDS_MCLEAR");
-		if (!startMission(LEVEL_TYPE::LDS_MCLEAR, levConstructGameLoadDetails(psNewLevel, i)))
+		if (LoadOutcome::Failure == co_await startMission(controller, LEVEL_TYPE::LDS_MCLEAR, levConstructGameLoadDetails(psNewLevel, i)))
 		{
 			debug(LOG_ERROR, "Failed startMission(%d, %s)!", static_cast<int8_t>(LEVEL_TYPE::LDS_MCLEAR), psNewLevel->apDataFiles[i].c_str());
-			return false;
+			co_return LoadOutcome::Failure;
 		}
-		return true;
+		co_return LoadOutcome::Success;
 	case LEVEL_TYPE::LDS_MKEEP_LIMBO:
 		debug(LOG_WZ, "LDS_MKEEP_LIMBO");
-		if (!startMission(LEVEL_TYPE::LDS_MKEEP_LIMBO, levConstructGameLoadDetails(psNewLevel, i)))
+		if (LoadOutcome::Failure == co_await startMission(controller, LEVEL_TYPE::LDS_MKEEP_LIMBO, levConstructGameLoadDetails(psNewLevel, i)))
 		{
 			debug(LOG_ERROR, "Failed startMission(%d, %s)!", static_cast<int8_t>(LEVEL_TYPE::LDS_MKEEP_LIMBO), psNewLevel->apDataFiles[i].c_str());
-			return false;
+			co_return LoadOutcome::Failure;
 		}
-		return true;
+		co_return LoadOutcome::Success;
 	default:
 		ASSERT(psNewLevel->type >= LEVEL_TYPE::LDS_MULTI_TYPE_START, "Unexpected mission type");
 		debug(LOG_WZ, "default (MULTIPLAYER)");
-		if (!startMission(LEVEL_TYPE::LDS_CAMSTART, levConstructGameLoadDetails(psNewLevel, i)))
+		if (LoadOutcome::Failure == co_await startMission(controller, LEVEL_TYPE::LDS_CAMSTART, levConstructGameLoadDetails(psNewLevel, i)))
 		{
 			debug(LOG_ERROR, "Failed startMission(%d, %s) (default)!", static_cast<int8_t>(LEVEL_TYPE::LDS_CAMSTART), psNewLevel->apDataFiles[i].c_str());
-			return false;
+			co_return LoadOutcome::Failure;
 		}
-		return true;
+		co_return LoadOutcome::Success;
 	}
 }
 
@@ -1153,7 +1153,7 @@ static LevDatasetResolveResult levResolveDatasetForLoad(LevLoadContext& ctx)
 	return LevDatasetResolveResult::Ok;
 }
 
-static bool levLoadMissionBranchesBeforeMainLoop(LevLoadContext& ctx)
+static LoadingTask levLoadMissionBranchesBeforeMainLoop(ResourceLoadingController& controller, LevLoadContext& ctx)
 {
 	LEVEL_DATASET *psNewLevel = ctx.psNewLevel;
 
@@ -1162,7 +1162,7 @@ static bool levLoadMissionBranchesBeforeMainLoop(LevLoadContext& ctx)
 		if (!campaignReset())
 		{
 			debug(LOG_ERROR, "Failed campaignReset()!");
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 	if (psNewLevel->game == -1)  //no .gam file to load - BETWEEN missions (for Editor games only)
@@ -1176,7 +1176,7 @@ static bool levLoadMissionBranchesBeforeMainLoop(LevLoadContext& ctx)
 				if (!stageTwoInitialise())
 				{
 					debug(LOG_ERROR, "Failed stageTwoInitialise()!");
-					return false;
+					co_return LoadOutcome::Failure;
 				}
 			}
 
@@ -1187,7 +1187,7 @@ static bool levLoadMissionBranchesBeforeMainLoop(LevLoadContext& ctx)
 				if (!startMissionSave(psNewLevel->type))
 				{
 					debug(LOG_ERROR, "Failed startMissionSave(%d)!", static_cast<int8_t>(psNewLevel->type));
-					return false;
+					co_return LoadOutcome::Failure;
 				}
 
 				debug(LOG_NEVER, "dataSetSaveFlag");
@@ -1198,17 +1198,17 @@ static bool levLoadMissionBranchesBeforeMainLoop(LevLoadContext& ctx)
 			if (!loadGame(GameLoadDetails::makeUserSaveGameLoad(ctx.pSaveName), false, true))
 			{
 				debug(LOG_ERROR, "Failed loadGame(%s)!", ctx.pSaveName);
-				return false;
+				co_return LoadOutcome::Failure;
 			}
 		}
 
 		if (ctx.pSaveName == nullptr || ctx.saveType == GTYPE_SAVE_START)
 		{
 			debug(LOG_NEVER, "Start mission - no .gam");
-			if (!startMission((LEVEL_TYPE)psNewLevel->type, GameLoadDetails::makeLevelFileLoad("")))
+			if (LoadOutcome::Failure == co_await startMission(controller, (LEVEL_TYPE)psNewLevel->type, GameLoadDetails::makeLevelFileLoad("")))
 			{
 				debug(LOG_ERROR, "Failed startMission(%d)!", static_cast<int8_t>(psNewLevel->type));
-				return false;
+				co_return LoadOutcome::Failure;
 			}
 		}
 	}
@@ -1223,7 +1223,7 @@ static bool levLoadMissionBranchesBeforeMainLoop(LevLoadContext& ctx)
 				if (!stageTwoInitialise())
 				{
 					debug(LOG_ERROR, "Failed stageTwoInitialise() [camchange]!");
-					return false;
+					co_return LoadOutcome::Failure;
 				}
 			}
 
@@ -1231,17 +1231,17 @@ static bool levLoadMissionBranchesBeforeMainLoop(LevLoadContext& ctx)
 			if (!loadGame(GameLoadDetails::makeUserSaveGameLoad(ctx.pSaveName), false, true))
 			{
 				debug(LOG_ERROR, "Failed loadGame(%s)!", ctx.pSaveName);
-				return false;
+				co_return LoadOutcome::Failure;
 			}
 
 			campaignReset();
 		}
 	}
 
-	return true;
+	co_return LoadOutcome::Success;
 }
 
-static bool levLoadMissionDataLoop(LevLoadContext& ctx)
+static LoadingTask levLoadMissionDataLoop(ResourceLoadingController& controller, LevLoadContext& ctx)
 {
 	LEVEL_DATASET *psNewLevel = ctx.psNewLevel;
 
@@ -1257,7 +1257,7 @@ static bool levLoadMissionDataLoop(LevLoadContext& ctx)
 				if (!stageTwoInitialise())
 				{
 					debug(LOG_ERROR, "Failed stageTwoInitialise() [newdata]!");
-					return false;
+					co_return LoadOutcome::Failure;
 				}
 			}
 
@@ -1271,7 +1271,7 @@ static bool levLoadMissionDataLoop(LevLoadContext& ctx)
 					if (!startMissionSave(psNewLevel->type))
 					{
 						debug(LOG_ERROR, "Failed startMissionSave(%d)!", static_cast<uint8_t>(psNewLevel->type));
-						return false;
+						co_return LoadOutcome::Failure;
 					}
 
 					debug(LOG_NEVER, "dataSetSaveFlag");
@@ -1282,7 +1282,7 @@ static bool levLoadMissionDataLoop(LevLoadContext& ctx)
 				if (!loadGame(GameLoadDetails::makeUserSaveGameLoad(ctx.pSaveName), false, true))
 				{
 					debug(LOG_ERROR, "Failed loadGame(%s)!", ctx.pSaveName);
-					return false;
+					co_return LoadOutcome::Failure;
 				}
 			}
 
@@ -1290,9 +1290,9 @@ static bool levLoadMissionDataLoop(LevLoadContext& ctx)
 			{
 				// load the game
 				debug(LOG_WZ, "Loading scenario file %s", psNewLevel->apDataFiles[i].c_str());
-				if (!levStartMissionForLevelType(psNewLevel, i))
+				if (LoadOutcome::Failure == co_await levStartMissionForLevelType(controller, psNewLevel, i))
 				{
-					return false;
+					co_return LoadOutcome::Failure;
 				}
 			}
 		}
@@ -1303,12 +1303,12 @@ static bool levLoadMissionDataLoop(LevLoadContext& ctx)
 			if (!resLoad(psNewLevel->apDataFiles[i].c_str(), i + CURRENT_DATAID))
 			{
 				debug(LOG_ERROR, "Failed resLoad(%s, %d) (default)!", psNewLevel->apDataFiles[i].c_str(), i + CURRENT_DATAID);
-				return false;
+				co_return LoadOutcome::Failure;
 			}
 		}
 	}
 
-	return true;
+	co_return LoadOutcome::Success;
 }
 
 static bool levFinalizeLevelLoad(LevLoadContext& ctx)
@@ -1457,14 +1457,14 @@ LoadingTask levLoadDataTask(ResourceLoadingController &controller, LevLoadJobPar
 
 	co_await controller.yieldFrame();
 
-	if (!levLoadMissionBranchesBeforeMainLoop(ctx))
+	if (co_await levLoadMissionBranchesBeforeMainLoop(controller, ctx) == LoadOutcome::Failure)
 	{
 		co_return LoadOutcome::Failure;
 	}
 
 	co_await controller.yieldFrame();
 
-	if (!levLoadMissionDataLoop(ctx))
+	if (co_await levLoadMissionDataLoop(controller, ctx) == LoadOutcome::Failure)
 	{
 		co_return LoadOutcome::Failure;
 	}

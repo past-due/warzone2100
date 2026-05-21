@@ -45,6 +45,7 @@
 #include "challenge.h"
 #include "projectile.h"
 #include "power.h"
+#include "src/resource_loading_controller.h"
 #include "structure.h"
 #include "message.h"
 #include "research.h"
@@ -85,6 +86,7 @@
 #include "game_world.h"
 #include "wzapi.h"
 #include "screens/guidescreen.h"
+#include "loading_task.h"
 
 #define		IDMISSIONRES_TXT		11004
 #define		IDMISSIONRES_LOAD		11005
@@ -385,7 +387,7 @@ void setMissionCountDown()
 }
 
 
-bool startMission(LEVEL_TYPE missionType, const GameLoadDetails& gameDetails)
+LoadingTask startMission(ResourceLoadingController& controller, LEVEL_TYPE missionType, const GameLoadDetails& gameDetails)
 {
 	bool	loaded = true;
 
@@ -406,7 +408,7 @@ bool startMission(LEVEL_TYPE missionType, const GameLoadDetails& gameDetails)
 		/*mission type gets set to none when you have returned from a mission
 		so don't want to go another mission when already on one! - so ignore*/
 		debug(LOG_SAVE, "Already on a mission");
-		return true;
+		co_return LoadOutcome::Success;
 	}
 
 	initEffectsSystem();
@@ -414,7 +416,10 @@ bool startMission(LEVEL_TYPE missionType, const GameLoadDetails& gameDetails)
 	//load the game file for all types of mission except a Between Mission
 	if (missionType != LEVEL_TYPE::LDS_BETWEEN)
 	{
-		loadGameInit(gameDetails);
+		if (co_await loadGameInit(controller, gameDetails) == LoadOutcome::Failure)
+		{
+			co_return LoadOutcome::Failure;
+		}
 	}
 
 	//all proximity messages are removed between missions now
@@ -476,7 +481,7 @@ bool startMission(LEVEL_TYPE missionType, const GameLoadDetails& gameDetails)
 	if (!loaded)
 	{
 		debug(LOG_ERROR, "Failed to start mission, missiontype = %d, game, %s", (int)missionType, gameDetails.filePath.c_str());
-		return false;
+		co_return LoadOutcome::Failure;
 	}
 
 	mission.type = missionType;
@@ -498,7 +503,7 @@ bool startMission(LEVEL_TYPE missionType, const GameLoadDetails& gameDetails)
 
 	scoreInitSystem();
 
-	return true;
+	co_return LoadOutcome::Success;
 }
 
 

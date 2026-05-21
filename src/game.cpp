@@ -59,6 +59,7 @@
 #include "power.h"
 #include "projectile.h"
 #include "loadsave.h"
+#include "src/resource_loading_controller.h"
 #include "text.h"
 #include "message.h"
 #include "hci.h"
@@ -103,6 +104,7 @@
 #include "screens/guidescreen.h"
 #include "game_world.h"
 #include <array>
+#include "loading_task.h"
 
 #include "wzphysfszipioprovider.h"
 #include <wzmaplib/map_package.h>
@@ -2240,7 +2242,7 @@ static bool IsScenario;
  */
 /***************************************************************************/
 static bool gameLoadV7(PHYSFS_file *fileHandle, nonstd::optional<nlohmann::json>&);
-static bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<nlohmann::json>&);
+static LoadingTask gameLoadV(ResourceLoadingController& controller, PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<nlohmann::json>&);
 static bool loadMainFile(const std::string &fileName);
 static bool loadMainFileFinal(const std::string &fileName);
 static bool writeMainFile(const std::string &fileName, SDWORD saveType);
@@ -2296,7 +2298,7 @@ static bool loadSaveGuideTopics(const char *pFileName);
 
 static bool loadRulesetJson();
 
-static bool gameLoad(const char *fileName);
+static LoadingTask gameLoad(ResourceLoadingController& controller, const char *fileName);
 
 /* set the global scroll values to use for the save game */
 static void setMapScroll(WorldMapState& mapState);
@@ -2310,9 +2312,9 @@ static char *getSaveStructNameV19(SAVE_STRUCTURE_V17 *psSaveStructure)
 so can be called in levLoadData when starting a game from a load save game*/
 
 // -----------------------------------------------------------------------------------------
-bool loadGameInit(const GameLoadDetails& gameToLoad)
+LoadingTask loadGameInit(ResourceLoadingController& controller, const GameLoadDetails& gameToLoad)
 {
-	ASSERT_OR_RETURN(false, !gameToLoad.filePath.empty(), "filePath is empty??");
+	CORO_ASSERT_OR_RETURN(LoadOutcome::Failure, !gameToLoad.filePath.empty(), "filePath is empty??");
 
 	if (gameToLoad.loadType == GameLoadDetails::GameLoadType::MapPackage)
 	{
@@ -2321,7 +2323,7 @@ bool loadGameInit(const GameLoadDetails& gameToLoad)
 		{
 			// Failed to load map package
 			debug(LOG_ERROR, "Failed to load map package: %s", gameToLoad.filePath.c_str());
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 
 		loadRulesetJson();
@@ -2339,14 +2341,14 @@ bool loadGameInit(const GameLoadDetails& gameToLoad)
 			debug(LOG_FATAL, "Should not be called with gameType GTYPE_SAVE_START");
 		}
 		IsScenario = true;
-		return true;
+		co_return LoadOutcome::Success;
 	}
 
 	// Otherwise, for level load or savegame load cases:
 
 	if (strEndsWith(gameToLoad.filePath, ".wzrp"))
 	{
-		ASSERT_OR_RETURN(false, (gameToLoad.loadType == GameLoadDetails::GameLoadType::UserSaveGame), "Invalid load type");
+		CORO_ASSERT_OR_RETURN(LoadOutcome::Failure, (gameToLoad.loadType == GameLoadDetails::GameLoadType::UserSaveGame), "Invalid load type");
 
 		SetGameMode(GS_TITLE_SCREEN); // hack - the caller sets this to GS_NORMAL but we actually want to proceed with normal startGameLoop
 
@@ -2354,24 +2356,24 @@ bool loadGameInit(const GameLoadDetails& gameToLoad)
 		WZGameReplayOptionsHandler optionsHandler;
 		if (!NETloadReplay(gameToLoad.filePath, optionsHandler))
 		{
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 
 		bMultiPlayer = true;
 		bMultiMessages = true;
 		changeTitleMode(STARTGAME);
 	}
-	else if (!gameLoad(gameToLoad.filePath.c_str()))
+	else if (co_await gameLoad(controller, gameToLoad.filePath.c_str()) == LoadOutcome::Failure)
 	{
 		debug(LOG_ERROR, "Corrupted / unsupported savegame file %s, Unable to load!", gameToLoad.filePath.c_str());
 		// NOTE: why do we start the game clock on a *failed* load?
 		// Start the game clock
 		gameTimeStart();
 
-		return false;
+		co_return LoadOutcome::Failure;
 	}
 
-	return true;
+	co_return LoadOutcome::Success;
 }
 
 
@@ -3895,7 +3897,7 @@ static bool loadRulesetJson()
 }
 
 // -----------------------------------------------------------------------------------------
-static bool gameLoad(const char *fileName)
+static LoadingTask gameLoad(ResourceLoadingController& controller, const char *fileName)
 {
 	char CurrentFileName[PATH_MAX];
 	strcpy(CurrentFileName, fileName);
@@ -3911,7 +3913,7 @@ static bool gameLoad(const char *fileName)
 		{
 			debug(LOG_ERROR, "gameLoad: error while reading header from file (%s): %s", fileName, WZ_PHYSFS_getLastError());
 			PHYSFS_close(fileHandle);
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 	else if (gamJsonSave.has_value())
@@ -3927,7 +3929,7 @@ static bool gameLoad(const char *fileName)
 	if (!fileHandle && !gamJsonSave.has_value())
 	{
 		// Failure to open the file is a failure to load the specified savegame
-		return false;
+		co_return LoadOutcome::Failure;
 	}
 	debug(LOG_WZ, "gameLoad");
 
@@ -3942,7 +3944,7 @@ static bool gameLoad(const char *fileName)
 
 		PHYSFS_close(fileHandle);
 
-		return false;
+		co_return LoadOutcome::Failure;
 	}
 
 	debug(LOG_NEVER, "gl .gam file is version %u\n", fileHeader.version);
@@ -3960,13 +3962,13 @@ static bool gameLoad(const char *fileName)
 		debug(LOG_ERROR, "gameLoad: unsupported save format version %d", fileHeader.version);
 		PHYSFS_close(fileHandle);
 
-		return false;
+		co_return LoadOutcome::Failure;
 	}
 	else if (fileHeader.version < VERSION_9)
 	{
 		bool retVal = gameLoadV7(fileHandle, gamJsonSave);
 		PHYSFS_close(fileHandle);
-		return retVal;
+		co_return retVal ? LoadOutcome::Success : LoadOutcome::Failure;
 	}
 	else if (fileHeader.version <= CURRENT_VERSION_NUM)
 	{
@@ -3983,19 +3985,19 @@ static bool gameLoad(const char *fileName)
 		CurrentFileName[strlen(CurrentFileName) - 4] = '\0';
 		loadMainFile(std::string(CurrentFileName) + "/main.json");
 
-		bool retVal = gameLoadV(fileHandle, fileHeader.version, gamJsonSave);
+		const LoadOutcome retVal = co_await gameLoadV(controller, fileHandle, fileHeader.version, gamJsonSave);
 		PHYSFS_close(fileHandle);
 
 		loadMainFileFinal(std::string(CurrentFileName) + "/main.json");
 
-		return retVal;
+		co_return retVal;
 	}
 	else
 	{
 		debug(LOG_ERROR, "Unsupported main save format version %u", fileHeader.version);
 		PHYSFS_close(fileHandle);
 
-		return false;
+		co_return LoadOutcome::Failure;
 	}
 }
 
@@ -4182,7 +4184,7 @@ bool gameLoadV7(PHYSFS_file *fileHandle, nonstd::optional<nlohmann::json> &gamJs
 
 // -----------------------------------------------------------------------------------------
 /* non specific version of a save game */
-bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<nlohmann::json> &gamJson)
+LoadingTask gameLoadV(ResourceLoadingController& controller, PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<nlohmann::json> &gamJson)
 {
 	unsigned int i, j;
 	static	SAVE_POWER	powerSaved[MAX_PLAYERS];
@@ -4199,7 +4201,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 		{
 			debug(LOG_ERROR, "gameLoadV: error while reading file (with version number %u): %s", version, WZ_PHYSFS_getLastError());
 
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 	else if (version == VERSION_11)
@@ -4208,7 +4210,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 		{
 			debug(LOG_ERROR, "gameLoadV: error while reading file (with version number %u): %s", version, WZ_PHYSFS_getLastError());
 
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 	else if (version <= VERSION_12)
@@ -4217,7 +4219,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 		{
 			debug(LOG_ERROR, "gameLoadV: error while reading file (with version number %u): %s", version, WZ_PHYSFS_getLastError());
 
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 	else if (version <= VERSION_14)
@@ -4226,7 +4228,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 		{
 			debug(LOG_ERROR, "gameLoadV: error while reading file (with version number %u): %s", version, WZ_PHYSFS_getLastError());
 
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 	else if (version <= VERSION_15)
@@ -4235,7 +4237,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 		{
 			debug(LOG_ERROR, "gameLoadV: error while reading file (with version number %u): %s", version, WZ_PHYSFS_getLastError());
 
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 	else if (version <= VERSION_16)
@@ -4244,7 +4246,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 		{
 			debug(LOG_ERROR, "gameLoadV: error while reading file (with version number %u): %s", version, WZ_PHYSFS_getLastError());
 
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 	else if (version <= VERSION_17)
@@ -4253,7 +4255,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 		{
 			debug(LOG_ERROR, "gameLoadV: error while reading file (with version number %u): %s", version, WZ_PHYSFS_getLastError());
 
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 	else if (version <= VERSION_18)
@@ -4262,7 +4264,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 		{
 			debug(LOG_ERROR, "gameLoadV: error while reading file (with version number %u): %s", version, WZ_PHYSFS_getLastError());
 
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 	else if (version <= VERSION_19)
@@ -4271,7 +4273,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 		{
 			debug(LOG_ERROR, "gameLoadV: error while reading file (with version number %u): %s", version, WZ_PHYSFS_getLastError());
 
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 	else if (version <= VERSION_21)
@@ -4280,7 +4282,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 		{
 			debug(LOG_ERROR, "gameLoadV: error while reading file (with version number %u): %s", version, WZ_PHYSFS_getLastError());
 
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 	else if (version <= VERSION_23)
@@ -4289,7 +4291,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 		{
 			debug(LOG_ERROR, "gameLoadV: error while reading file (with version number %u): %s", version, WZ_PHYSFS_getLastError());
 
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 	else if (version <= VERSION_26)
@@ -4298,7 +4300,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 		{
 			debug(LOG_ERROR, "gameLoadV: error while reading file (with version number %u): %s", version, WZ_PHYSFS_getLastError());
 
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 	else if (version <= VERSION_28)
@@ -4307,7 +4309,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 		{
 			debug(LOG_ERROR, "gameLoadV: error while reading file (with version number %u): %s", version, WZ_PHYSFS_getLastError());
 
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 	else if (version <= VERSION_29)
@@ -4316,7 +4318,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 		{
 			debug(LOG_ERROR, "gameLoadV: error while reading file (with version number %u): %s", version, WZ_PHYSFS_getLastError());
 
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 	else if (version <= VERSION_30)
@@ -4325,7 +4327,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 		{
 			debug(LOG_ERROR, "gameLoadV: error while reading file (with version number %u): %s", version, WZ_PHYSFS_getLastError());
 
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 	else if (version <= VERSION_32)
@@ -4334,7 +4336,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 		{
 			debug(LOG_ERROR, "gameLoadV: error while reading file (with version number %u): %s", version, WZ_PHYSFS_getLastError());
 
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 	else if (version <= VERSION_33)
@@ -4343,7 +4345,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 		{
 			debug(LOG_ERROR, "gameLoadV: error while reading file (with version number %u): %s", version, WZ_PHYSFS_getLastError());
 
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 	else if (version <= VERSION_34)
@@ -4352,13 +4354,13 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 		{
 			debug(LOG_ERROR, "gameLoadV: error while reading file (with version number %u): %s", version, WZ_PHYSFS_getLastError());
 
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 	else if (version < VERSION_39)
 	{
 		debug(LOG_ERROR, "Unsupported savegame version");
-		return false;
+		co_return LoadOutcome::Failure;
 	}
 	else if (version <= CURRENT_VERSION_NUM)
 	{
@@ -4368,7 +4370,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 			if (!deserializeSaveGameData_json(gamJson.value(), &saveGameData))
 			{
 				debug(LOG_ERROR, "failed to load gamjson");
-				return false;
+				co_return LoadOutcome::Failure;
 			}
 		}
 		else
@@ -4377,7 +4379,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 			if (!deserializeSaveGameData(fileHandle, &saveGameData))
 			{
 				debug(LOG_ERROR, "gameLoadV: error while reading data from file for deserialization (with version number %u): %s", version, WZ_PHYSFS_getLastError());
-				return false;
+				co_return LoadOutcome::Failure;
 			}
 		}
 	}
@@ -4385,7 +4387,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 	{
 		debug(LOG_ERROR, "Unsupported version number (%u) for savegame", version);
 
-		return false;
+		co_return LoadOutcome::Failure;
 	}
 
 	debug(LOG_SAVE, "Savegame is of type: %u", static_cast<uint8_t>(saveGameData.sGame.type));
@@ -4581,9 +4583,10 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 		sstrcpy(aLevelName, saveGameData.levelName);
 		//load up the level dataset
 		// Not sure what aLevelName is, in relation to game.map. But need to use aLevelName here, to be able to start the right map for campaign, and need game.hash, to start the right non-campaign map, if there are multiple identically named maps.
-		if (!levLoadData(aLevelName, &saveGameData.sGame.hash, saveGameName, (GAME_TYPE)gameType))
+		const LoadOutcome lev_load_res = co_await makeLevLoadDataLoadingTask(controller, aLevelName, &saveGameData.sGame.hash, saveGameName, (GAME_TYPE)gameType);
+		if (lev_load_res == LoadOutcome::Failure)
 		{
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 
 		if (saveGameVersion >= VERSION_33)
@@ -4629,7 +4632,7 @@ bool gameLoadV(PHYSFS_file *fileHandle, unsigned int version, nonstd::optional<n
 	radarPermitted = (bool)powerSaved[0].extractedPower; // nice hack, eh? don't want to break savegames now...
 	allowDesign = (bool)powerSaved[1].extractedPower; // nice hack, eh? don't want to break savegames now...
 
-	return true;
+	co_return LoadOutcome::Success;
 }
 
 // -----------------------------------------------------------------------------------------

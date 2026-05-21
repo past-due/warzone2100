@@ -29,6 +29,7 @@
 #include "levels.h"
 #include "missiondef.h"
 #include "group.h"
+#include "src/resource_loading_controller.h"
 
 /**
  * The number of areas that can be defined to prevent buildings being placed -
@@ -56,7 +57,7 @@ void releaseMission();
 void setMissionCountDown();
 
 struct GameLoadDetails;
-bool startMission(LEVEL_TYPE missionType, const GameLoadDetails& gameDetails);
+LoadingTask startMission(ResourceLoadingController& controller, LEVEL_TYPE missionType, const GameLoadDetails& gameDetails);
 void endMission();
 
 /** Initialise the mission stuff for a save game. */
