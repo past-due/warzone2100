@@ -164,10 +164,7 @@ public:
 
 	struct FrameYield;
 
-	static ResourceLoadingController &instance();
-
-	explicit ResourceLoadingController() = default;
-	~ResourceLoadingController() = default;
+	static ResourceLoadingController& instance();
 
 	ResourceLoadingController(const ResourceLoadingController&) = delete;
 	ResourceLoadingController &operator=(const ResourceLoadingController&) = delete;
@@ -201,10 +198,14 @@ public:
 	FrameProcessingMode frameProcessingMode() const noexcept { return frameMode; }
 
 private:
+
 	friend class LoadingTask;
 	friend struct LoadingTaskPromise;
 	friend class ResourceLoadingJob;
 	friend struct FrameYield;
+
+	explicit ResourceLoadingController() = default;
+	~ResourceLoadingController() = default;
 
 	void begin(ResourceLoadingRequest request);
 	static std::unique_ptr<ResourceLoadingJob> makeJob(const ResourceLoadingRequest &request);
