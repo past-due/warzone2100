@@ -158,31 +158,6 @@ void ResourceLoadingController::resetTaskState() noexcept
 	ASSERT(!hasActiveExecution() && !sessionFinished, "resetTaskState must clear execution state");
 }
 
-bool ResourceLoadingController::runJobToCompletion(std::unique_ptr<ResourceLoadingJob> job)
-{
-	ASSERT(job, "runJobToCompletion called with null job");
-	ASSERT(!hasActiveExecution(), "runJobToCompletion called while this controller already has active execution");
-
-	job->bindAndStart(*this);
-
-	while (true)
-	{
-		switch (stepOneQuantum())
-		{
-		case LoadStepStatus::InProgress:
-			continue;
-		case LoadStepStatus::Completed:
-			job->finalizeSuccess();
-			resetTaskState();
-			return true;
-		case LoadStepStatus::Failed:
-			job->finalizeFailure();
-			resetTaskState();
-			return false;
-		}
-	}
-}
-
 void ResourceLoadingController::request(ResourceLoadingRequest requestIn)
 {
 	if (activeJob)

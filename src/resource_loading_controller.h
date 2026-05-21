@@ -194,10 +194,6 @@ public:
 	// When true, mainLoop presents the loading screen; callback must not flip frames.
 	bool loadingScreenHandledByController() const;
 
-	/// Run a job to completion on the current thread (blocking). Uses this controller's
-	/// coroutine state; do not call on `instance()` while `active()` on the singleton.
-	bool runJobToCompletion(std::unique_ptr<ResourceLoadingJob> job);
-
 	FrameYield yieldFrame() noexcept;
 
 	void setFrameProcessingMode(FrameProcessingMode mode) noexcept { frameMode = mode; }
