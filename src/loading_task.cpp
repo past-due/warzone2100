@@ -31,10 +31,22 @@ LoadOutcome LoadingTask::result() const noexcept
 	return coro ? coro.promise().result : LoadOutcome::Failure;
 }
 
+void LoadingTaskPromise::FinalAwaiter::await_suspend(std::coroutine_handle<LoadingTaskPromise> h) const noexcept
+{
+	auto &promise = h.promise();
+	if (promise.controller != nullptr)
+	{
+		ASSERT(promise.controller->topFrame().handle.address() == h.address(),
+		       "completing frame must be execution stack top");
+		promise.controller->onFrameFinished(promise.result);
+	}
+}
+
 LoadOutcome LoadingTask::NestedAwaiter::await_resume() const noexcept
 {
 	if (child_handle)
 	{
+		ASSERT(child_handle.done(), "nested child must be done before destroy");
 		LoadOutcome const outcome = child_handle.promise().result;
 		child_handle.destroy();
 		return outcome;
@@ -44,13 +56,18 @@ LoadOutcome LoadingTask::NestedAwaiter::await_resume() const noexcept
 
 void LoadingTask::NestedAwaiter::await_suspend(std::coroutine_handle<> h)
 {
+	ASSERT(child != nullptr, "co_await null LoadingTask");
 	auto child_coro = child->coro;
+	ASSERT(child_coro, "co_await empty LoadingTask");
+	ASSERT(!child_coro.done(), "co_await already-completed LoadingTask");
 	child->coro = {};
 	child_handle = child_coro;
 
 	auto parent_coro = std::coroutine_handle<LoadingTaskPromise>::from_address(h.address());
 	ResourceLoadingController *controller = parent_coro.promise().controller;
 	ASSERT(controller, "co_await LoadingTask from a coroutine that is not bound to a ResourceLoadingController");
+	ASSERT(controller->topFrame().handle.address() == h.address(),
+	       "co_await child must suspend the execution stack top");
 
 	auto &child_promise = child_coro.promise();
 	if (child_promise.controller == nullptr)

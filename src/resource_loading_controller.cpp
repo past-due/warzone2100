@@ -66,6 +66,9 @@ ExecutionFrame const &ResourceLoadingController::topFrame() const
 
 void ResourceLoadingController::pushFrame(std::coroutine_handle<> handle)
 {
+	ASSERT(handle, "pushFrame with null handle");
+	ASSERT(!handle.done(), "pushFrame with already-completed coroutine");
+	ASSERT(!sessionFinished, "pushFrame after load session finished");
 	executionStack.push(ExecutionFrame{handle, ExecutionFrameState::Paused});
 }
 
@@ -85,8 +88,10 @@ void ResourceLoadingController::popAndDestroyTop() noexcept
 
 void ResourceLoadingController::onFrameFinished(LoadOutcome outcome) noexcept
 {
+	ASSERT(!sessionFinished, "onFrameFinished after load session finished");
 	ASSERT(hasActiveExecution(), "onFrameFinished without active execution");
 	std::coroutine_handle<> const finished = executionStack.top().handle;
+	ASSERT(finished.done(), "onFrameFinished for a coroutine that is not done");
 	executionStack.pop();
 	if (executionStack.empty())
 	{
@@ -96,6 +101,7 @@ void ResourceLoadingController::onFrameFinished(LoadOutcome outcome) noexcept
 		}
 		terminalOutcome = outcome;
 		sessionFinished = true;
+		ASSERT(!hasActiveExecution(), "sessionFinished requires empty execution stack");
 	}
 	// Nested completion: keep `finished` alive until the parent's NestedAwaiter::await_resume.
 }
@@ -110,26 +116,33 @@ void ResourceLoadingController::start(LoadingTask task)
 	terminalOutcome = LoadOutcome::Success;
 	frameMode = FrameProcessingMode::ConsumeFrame;
 	pushFrame(root);
+	ASSERT(executionStack.size() == 1, "start must leave a single root execution frame");
 }
 
 LoadStepStatus ResourceLoadingController::stepOneQuantum()
 {
 	if (sessionFinished)
 	{
+		ASSERT(!hasActiveExecution(), "sessionFinished requires empty execution stack");
 		return terminalOutcome == LoadOutcome::Success ? LoadStepStatus::Completed : LoadStepStatus::Failed;
 	}
 
 	ASSERT(hasActiveExecution(), "ResourceLoadingController.stepOneQuantum without active execution");
 
 	ExecutionFrame &top = topFrame();
+	ASSERT(top.state == ExecutionFrameState::Paused,
+	       "stepOneQuantum must resume a paused execution frame");
 	top.state = ExecutionFrameState::Running;
 	top.handle.resume();
 
 	if (sessionFinished)
 	{
+		ASSERT(!hasActiveExecution(), "sessionFinished requires empty execution stack");
 		return terminalOutcome == LoadOutcome::Success ? LoadStepStatus::Completed : LoadStepStatus::Failed;
 	}
 
+	ASSERT(hasActiveExecution() && !sessionFinished,
+	       "InProgress requires active execution and an unfinished session");
 	return LoadStepStatus::InProgress;
 }
 
@@ -142,6 +155,7 @@ void ResourceLoadingController::resetTaskState() noexcept
 	sessionFinished = false;
 	terminalOutcome = LoadOutcome::Success;
 	frameMode = FrameProcessingMode::ConsumeFrame;
+	ASSERT(!hasActiveExecution() && !sessionFinished, "resetTaskState must clear execution state");
 }
 
 bool ResourceLoadingController::runJobToCompletion(std::unique_ptr<ResourceLoadingJob> job)

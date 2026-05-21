@@ -132,14 +132,7 @@ struct LoadingTaskPromise::FinalAwaiter
 {
 	bool await_ready() const noexcept { return false; }
 
-	void await_suspend(std::coroutine_handle<LoadingTaskPromise> h) const noexcept
-	{
-		auto &promise = h.promise();
-		if (promise.controller != nullptr)
-		{
-			promise.controller->onFrameFinished(promise.result);
-		}
-	}
+	void await_suspend(std::coroutine_handle<LoadingTaskPromise> h) const noexcept;
 
 	void await_resume() const noexcept {}
 };
