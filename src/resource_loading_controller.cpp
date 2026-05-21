@@ -43,44 +43,91 @@ ResourceLoadingController::FrameYield ResourceLoadingController::yieldFrame() no
 	return FrameYield{this};
 }
 
+void ResourceLoadingController::FrameYield::await_suspend(std::coroutine_handle<> h) const noexcept
+{
+	ASSERT(controller != nullptr, "yieldFrame without controller");
+	auto &top = controller->topFrame();
+	ASSERT(top.handle.address() == h.address(),
+	       "yieldFrame must suspend the execution stack top");
+	top.state = ExecutionFrameState::Paused;
+}
+
+ExecutionFrame &ResourceLoadingController::topFrame()
+{
+	ASSERT(hasActiveExecution(), "topFrame without active execution");
+	return executionStack.top();
+}
+
+ExecutionFrame const &ResourceLoadingController::topFrame() const
+{
+	ASSERT(hasActiveExecution(), "topFrame without active execution");
+	return executionStack.top();
+}
+
+void ResourceLoadingController::pushFrame(std::coroutine_handle<> handle)
+{
+	executionStack.push(ExecutionFrame{handle, ExecutionFrameState::Paused});
+}
+
+void ResourceLoadingController::popAndDestroyTop() noexcept
+{
+	if (executionStack.empty())
+	{
+		return;
+	}
+	std::coroutine_handle<> const handle = executionStack.top().handle;
+	executionStack.pop();
+	if (handle)
+	{
+		handle.destroy();
+	}
+}
+
+void ResourceLoadingController::onFrameFinished(LoadOutcome outcome) noexcept
+{
+	ASSERT(hasActiveExecution(), "onFrameFinished without active execution");
+	std::coroutine_handle<> const finished = executionStack.top().handle;
+	executionStack.pop();
+	if (executionStack.empty())
+	{
+		if (finished)
+		{
+			finished.destroy();
+		}
+		terminalOutcome = outcome;
+		sessionFinished = true;
+	}
+	// Nested completion: keep `finished` alive until the parent's NestedAwaiter::await_resume.
+}
+
 void ResourceLoadingController::start(LoadingTask task)
 {
-	ASSERT(!rootCoro, "ResourceLoadingController.start called while a task is already active");
-	rootCoro = task.release();
-	ASSERT(rootCoro, "ResourceLoadingController.start given an empty task");
-	rootCoro.promise().controller = this;
-	taskFinished = false;
-	root_outcome = LoadOutcome::Success;
-	current = rootCoro;
-	parentCoro = {};
+	ASSERT(!hasActiveExecution(), "ResourceLoadingController.start called while execution is active");
+	std::coroutine_handle<LoadingTaskPromise> const root = task.release();
+	ASSERT(root, "ResourceLoadingController.start given an empty task");
+	root.promise().controller = this;
+	sessionFinished = false;
+	terminalOutcome = LoadOutcome::Success;
 	frameMode = FrameProcessingMode::ConsumeFrame;
+	pushFrame(root);
 }
 
 LoadStepStatus ResourceLoadingController::stepOneQuantum()
 {
-	ASSERT(rootCoro, "ResourceLoadingController.step_one_quantum without an active task");
-
-	if (taskFinished)
+	if (sessionFinished)
 	{
-		return root_outcome == LoadOutcome::Success ? LoadStepStatus::Completed : LoadStepStatus::Failed;
+		return terminalOutcome == LoadOutcome::Success ? LoadStepStatus::Completed : LoadStepStatus::Failed;
 	}
 
-	if (!current)
-	{
-		current = rootCoro;
-	}
+	ASSERT(hasActiveExecution(), "ResourceLoadingController.stepOneQuantum without active execution");
 
-	current.resume();
+	ExecutionFrame &top = topFrame();
+	top.state = ExecutionFrameState::Running;
+	top.handle.resume();
 
-	if (taskFinished)
+	if (sessionFinished)
 	{
-		return root_outcome == LoadOutcome::Success ? LoadStepStatus::Completed : LoadStepStatus::Failed;
-	}
-
-	if (rootCoro.done())
-	{
-		onRootTaskFinished(rootCoro.promise().result);
-		return root_outcome == LoadOutcome::Success ? LoadStepStatus::Completed : LoadStepStatus::Failed;
+		return terminalOutcome == LoadOutcome::Success ? LoadStepStatus::Completed : LoadStepStatus::Failed;
 	}
 
 	return LoadStepStatus::InProgress;
@@ -88,52 +135,19 @@ LoadStepStatus ResourceLoadingController::stepOneQuantum()
 
 void ResourceLoadingController::resetTaskState() noexcept
 {
-	if (rootCoro)
+	while (!executionStack.empty())
 	{
-		rootCoro.destroy();
-		rootCoro = {};
+		popAndDestroyTop();
 	}
-	current = {};
-	parentCoro = {};
-	taskFinished = false;
-	root_outcome = LoadOutcome::Success;
+	sessionFinished = false;
+	terminalOutcome = LoadOutcome::Success;
 	frameMode = FrameProcessingMode::ConsumeFrame;
-}
-
-void ResourceLoadingController::onRootTaskFinished(LoadOutcome result) noexcept
-{
-	root_outcome = result;
-	taskFinished = true;
-	current = {};
-	parentCoro = {};
-	if (rootCoro)
-	{
-		rootCoro.destroy();
-		rootCoro = {};
-	}
-}
-
-void ResourceLoadingController::onNestedChildFinished() noexcept
-{
-	if (current && (!rootCoro || current.address() != rootCoro.address()))
-	{
-		current.destroy();
-	}
-	current = parentCoro;
-	parentCoro = {};
-}
-
-void ResourceLoadingController::pushNested(std::coroutine_handle<LoadingTaskPromise> child,
-                                            std::coroutine_handle<> parent) noexcept
-{
-	parentCoro = parent;
-	current = child;
 }
 
 bool ResourceLoadingController::runJobToCompletion(std::unique_ptr<ResourceLoadingJob> job)
 {
 	ASSERT(job, "runJobToCompletion called with null job");
-	ASSERT(!rootCoro, "runJobToCompletion called while this controller already has an active task");
+	ASSERT(!hasActiveExecution(), "runJobToCompletion called while this controller already has active execution");
 
 	job->bindAndStart(*this);
 

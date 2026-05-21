@@ -39,7 +39,9 @@
 #include <coroutine>
 #include <memory>
 #include <optional>
+#include <stack>
 #include <string>
+#include <vector>
 
 class ResourceLoadingJob;
 class LoadingTask;
@@ -51,12 +53,24 @@ enum class LoadOutcome
 	Failure,
 };
 
-/// Returned by `step_one_quantum()` / `ResourceLoadingJob::step()`.
+/// Returned by `stepOneQuantum()` / `ResourceLoadingJob::step()`.
 enum class LoadStepStatus
 {
 	InProgress,
 	Completed,
 	Failed,
+};
+
+enum class ExecutionFrameState
+{
+	Paused,
+	Running,
+};
+
+struct ExecutionFrame
+{
+	std::coroutine_handle<> handle{};
+	ExecutionFrameState state = ExecutionFrameState::Paused;
 };
 
 /// <summary>
@@ -202,20 +216,22 @@ private:
 	void start(LoadingTask task);
 	LoadStepStatus stepOneQuantum();
 	void resetTaskState() noexcept;
-	void onRootTaskFinished(LoadOutcome result) noexcept;
-	void onNestedChildFinished() noexcept;
-	void pushNested(std::coroutine_handle<LoadingTaskPromise> child, std::coroutine_handle<> parent) noexcept;
+
+	ExecutionFrame &topFrame();
+	ExecutionFrame const &topFrame() const;
+	void pushFrame(std::coroutine_handle<> handle);
+	void popAndDestroyTop() noexcept;
+	void onFrameFinished(LoadOutcome outcome) noexcept;
+	bool hasActiveExecution() const noexcept { return !executionStack.empty(); }
 
 	std::optional<ResourceLoadingRequest> activeRequest;
 	std::optional<ResourceLoadingRequest> queuedRequest;
 	std::unique_ptr<ResourceLoadingJob> queuedJob;
 	std::unique_ptr<ResourceLoadingJob> activeJob;
 
-	std::coroutine_handle<> current{};
-	std::coroutine_handle<> parentCoro{};
-	std::coroutine_handle<LoadingTaskPromise> rootCoro{};
-	LoadOutcome root_outcome = LoadOutcome::Success;
-	bool taskFinished = false;
+	std::stack<ExecutionFrame, std::vector<ExecutionFrame>> executionStack;
+	LoadOutcome terminalOutcome = LoadOutcome::Success;
+	bool sessionFinished = false;
 	FrameProcessingMode frameMode = FrameProcessingMode::ConsumeFrame;
 };
 
@@ -226,10 +242,7 @@ struct ResourceLoadingController::FrameYield
 
 	bool await_ready() const noexcept { return false; }
 
-	void await_suspend(std::coroutine_handle<> h) const noexcept
-	{
-		controller->current = h;
-	}
+	void await_suspend(std::coroutine_handle<> h) const noexcept;
 
 	void await_resume() const noexcept {}
 };

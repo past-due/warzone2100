@@ -135,18 +135,9 @@ struct LoadingTaskPromise::FinalAwaiter
 	void await_suspend(std::coroutine_handle<LoadingTaskPromise> h) const noexcept
 	{
 		auto &promise = h.promise();
-		if (promise.controller == nullptr)
+		if (promise.controller != nullptr)
 		{
-			return;
-		}
-
-		if (h == promise.controller->rootCoro)
-		{
-			promise.controller->onRootTaskFinished(promise.result);
-		}
-		else
-		{
-			promise.controller->onNestedChildFinished();
+			promise.controller->onFrameFinished(promise.result);
 		}
 	}
 
@@ -161,17 +152,14 @@ inline LoadingTaskPromise::FinalAwaiter LoadingTaskPromise::final_suspend() noex
 struct LoadingTask::NestedAwaiter
 {
 	LoadingTask *child = nullptr;
-	std::coroutine_handle<> parent{};
+	mutable std::coroutine_handle<LoadingTaskPromise> child_handle{};
 
 	bool await_ready() const noexcept
 	{
 		return child == nullptr || child->done();
 	}
 
-	LoadOutcome await_resume() const noexcept
-	{
-		return child ? child->result() : LoadOutcome::Failure;
-	}
+	LoadOutcome await_resume() const noexcept;
 
 	void await_suspend(std::coroutine_handle<> h);
 };

@@ -31,11 +31,22 @@ LoadOutcome LoadingTask::result() const noexcept
 	return coro ? coro.promise().result : LoadOutcome::Failure;
 }
 
+LoadOutcome LoadingTask::NestedAwaiter::await_resume() const noexcept
+{
+	if (child_handle)
+	{
+		LoadOutcome const outcome = child_handle.promise().result;
+		child_handle.destroy();
+		return outcome;
+	}
+	return child ? child->result() : LoadOutcome::Failure;
+}
+
 void LoadingTask::NestedAwaiter::await_suspend(std::coroutine_handle<> h)
 {
-	parent = h;
 	auto child_coro = child->coro;
 	child->coro = {};
+	child_handle = child_coro;
 
 	auto parent_coro = std::coroutine_handle<LoadingTaskPromise>::from_address(h.address());
 	ResourceLoadingController *controller = parent_coro.promise().controller;
@@ -47,7 +58,7 @@ void LoadingTask::NestedAwaiter::await_suspend(std::coroutine_handle<> h)
 		child_promise.controller = controller;
 	}
 
-	controller->pushNested(child_coro, parent);
+	controller->pushFrame(child_coro);
 }
 
 ResourceLoadingJob::ResourceLoadingJob(TaskFactory taskFactory,
