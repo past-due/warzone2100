@@ -27,7 +27,6 @@ using json = nlohmann::json;
 #include <unordered_set>
 #include <functional>
 #include <chrono>
-#include <sstream>
 
 #include "lib/framework/wzglobal.h" // required for config.h
 #include "lib/framework/frame.h"
@@ -44,6 +43,23 @@ using json = nlohmann::json;
 
 #include <sodium.h>
 #include <re2/re2.h>
+
+#if defined(__GNUC__) && !defined(__INTEL_COMPILER) && !defined(__clang__) && ((4 < __GNUC__) || ((4 == __GNUC__) && (7 <= __GNUC_MINOR__)))
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wmaybe-uninitialized" // Ignore on GCC 4.7+
+#endif
+#if defined(__GNUC__) && !defined(__INTEL_COMPILER) && !defined(__clang__) && (12 <= __GNUC__)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wstringop-overflow" // Ignore on GCC 12+`
+#endif
+#define ONLY_C_LOCALE 1
+#include <date/date.h>
+#if defined(__GNUC__) && !defined(__INTEL_COMPILER) && !defined(__clang__) && (12 <= __GNUC__)
+# pragma GCC diagnostic pop
+#endif
+#if defined(__GNUC__) && !defined(__INTEL_COMPILER) && !defined(__clang__) && ((4 < __GNUC__) || ((4 == __GNUC__) && (7 <= __GNUC_MINOR__)))
+# pragma GCC diagnostic pop
+#endif
 
 enum class ProcessResult {
 	INVALID_JSON,
@@ -132,16 +148,16 @@ void setCompatCheckResults(CompatCheckResults results, bool onlyIfUnset = false)
 }
 
 template<class Duration>
-std::chrono::sys_time<Duration> parse_ISO_8601(const std::string& timeStr)
+date::sys_time<Duration> parse_ISO_8601(const std::string& timeStr)
 {
 	std::istringstream inputStream(timeStr);
-	std::chrono::sys_time<Duration> timepoint;
-	inputStream >> std::chrono::parse("%FT%TZ", timepoint);
+	date::sys_time<Duration> timepoint;
+	inputStream >> date::parse("%FT%TZ", timepoint);
 	if (inputStream.fail())
 	{
 		inputStream.clear();
 		inputStream.str(timeStr);
-		inputStream >> std::chrono::parse("%FT%T%Ez", timepoint);
+		inputStream >> date::parse("%FT%T%Ez", timepoint);
 		if (inputStream.fail())
 		{
 			throw std::runtime_error("Failed to parse time string");
