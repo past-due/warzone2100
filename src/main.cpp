@@ -920,8 +920,16 @@ bool startGameAfterLevelLoad()
 	return true;
 }
 
+/*!
+ * Preparations before entering the game loop
+ * Would start the timer in an event based mainloop
+ */
 LoadingTask startGameResourceTask(ResourceLoadingController &controller)
 {
+	co_await controller.yieldFrame();
+
+	initLoadingScreen(true);
+
 	co_await controller.yieldFrame();
 
 	startGameBeforeLevelLoad();
@@ -1002,13 +1010,6 @@ std::unique_ptr<ResourceLoadingJob> makeLoadSaveGameResourceJob()
 	    });
 }
 
-// Runs blocking levLoadData for the current `aLevelName` / `game.hash`; returns success.
-static bool startGameRunLevelLoad()
-{
-	// Not sure what aLevelName is, in relation to game.map. But need to use aLevelName here, to be able to start the right map for campaign, and need game.hash, to start the right non-campaign map, if there are multiple identically named maps.
-	return levLoadData(aLevelName, &game.hash, nullptr, GTYPE_SCENARIO_START);
-}
-
 static bool saveGameLoadAfter()
 {
 	ActivityManager::instance().startingSavedGame();
@@ -1036,25 +1037,6 @@ static bool saveGameLoadAfter()
 }
 
 } // namespace main_resource_loading
-
-/*!
- * Preparations before entering the game loop
- * Would start the timer in an event based mainloop
- */
-static bool startGameLoop()
-{
-	using namespace main_resource_loading;
-
-	initLoadingScreen(true);
-	startGameBeforeLevelLoad();
-	if (!startGameRunLevelLoad())
-	{
-		startGameAbortLevelLoadFailure();
-		return false;
-	}
-	return startGameAfterLevelLoad();
-}
-
 
 /*!
  * Shutdown/cleanup after the game loop
@@ -2202,12 +2184,7 @@ int realmain(int argc, char *argv[])
 		ResourceLoadingController::instance().request(ResourceLoadingRequest::loadSaveGame());
 		break;
 	case GS_NORMAL:
-		if (!startGameLoop())
-		{
-			// Attempted to load straight into a game from the command-line, but starting the game loop (loading the map, etc) failed
-			// Treat this as a failure and queue an exit
-			wzQuit(EXIT_FAILURE);
-		}
+		ResourceLoadingController::instance().request(ResourceLoadingRequest::startGame());
 		break;
 	default:
 		debug(LOG_ERROR, "Weirdy game status, I'm afraid!!");
