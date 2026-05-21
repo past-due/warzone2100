@@ -103,7 +103,7 @@ void ResourceLoadingController::onFrameFinished(LoadOutcome outcome) noexcept
 		sessionFinished = true;
 		ASSERT(!hasActiveExecution(), "sessionFinished requires empty execution stack");
 	}
-	// Nested completion: keep `finished` alive until the parent's NestedAwaiter::await_resume.
+	// Nested completion: keep `finished` alive until the parent's ChildTaskAwaiter::await_resume.
 }
 
 void ResourceLoadingController::start(LoadingTask task)

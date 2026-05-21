@@ -42,7 +42,7 @@ void LoadingTaskPromise::FinalAwaiter::await_suspend(std::coroutine_handle<Loadi
 	}
 }
 
-LoadOutcome LoadingTask::NestedAwaiter::await_resume() const noexcept
+LoadOutcome LoadingTask::ChildTaskAwaiter::await_resume() const noexcept
 {
 	if (child_handle)
 	{
@@ -54,7 +54,7 @@ LoadOutcome LoadingTask::NestedAwaiter::await_resume() const noexcept
 	return child ? child->result() : LoadOutcome::Failure;
 }
 
-void LoadingTask::NestedAwaiter::await_suspend(std::coroutine_handle<> h)
+void LoadingTask::ChildTaskAwaiter::await_suspend(std::coroutine_handle<> h)
 {
 	ASSERT(child != nullptr, "co_await null LoadingTask");
 	auto child_coro = child->coro;

@@ -77,9 +77,9 @@ public:
 		return std::exchange(coro, {});
 	}
 
-	struct NestedAwaiter;
+	struct ChildTaskAwaiter;
 
-	NestedAwaiter operator co_await() &&;
+	ChildTaskAwaiter operator co_await() &&;
 
 private:
 	friend class ResourceLoadingController;
@@ -142,7 +142,7 @@ inline LoadingTaskPromise::FinalAwaiter LoadingTaskPromise::final_suspend() noex
 	return {};
 }
 
-struct LoadingTask::NestedAwaiter
+struct LoadingTask::ChildTaskAwaiter
 {
 	LoadingTask *child = nullptr;
 	mutable std::coroutine_handle<LoadingTaskPromise> child_handle{};
@@ -157,9 +157,9 @@ struct LoadingTask::NestedAwaiter
 	void await_suspend(std::coroutine_handle<> h);
 };
 
-inline LoadingTask::NestedAwaiter LoadingTask::operator co_await() &&
+inline LoadingTask::ChildTaskAwaiter LoadingTask::operator co_await() &&
 {
-	return NestedAwaiter{this};
+	return ChildTaskAwaiter{this};
 }
 
 /// Cooperative loading job: finalize callbacks + deferred task start on a controller.
