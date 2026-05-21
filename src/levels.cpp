@@ -1486,14 +1486,6 @@ LoadingTask makeLevLoadDataLoadingTask(ResourceLoadingController &controller,
 	return levLoadDataTask(controller, params);
 }
 
-std::unique_ptr<ResourceLoadingJob> makeLevLoadDataJob(char const *name, Sha256 const *hash, char *pSaveName, GAME_TYPE saveType)
-{
-	LevLoadJobParams params{name, hash, pSaveName, saveType};
-	return makeResourceLoadingJob([params](ResourceLoadingController &controller) -> LoadingTask {
-		return levLoadDataTask(controller, params);
-	});
-}
-
 std::string mapNameWithoutTechlevel(const char *mapName)
 {
 	ASSERT_OR_RETURN("", mapName != nullptr, "null mapName provided");
