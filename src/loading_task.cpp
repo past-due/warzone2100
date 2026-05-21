@@ -128,9 +128,3 @@ std::unique_ptr<ResourceLoadingJob> makeResourceLoadingJob(
 	return std::make_unique<ResourceLoadingJob>(
 	    std::move(taskFactory), std::move(onSuccess), std::move(onFailure), initialFrameMode);
 }
-
-bool runLoadingJobToCompletion(std::unique_ptr<ResourceLoadingJob> job)
-{
-	ResourceLoadingController runner;
-	return runner.runJobToCompletion(std::move(job));
-}

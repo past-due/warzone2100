@@ -1494,16 +1494,6 @@ std::unique_ptr<ResourceLoadingJob> makeLevLoadDataJob(char const *name, Sha256 
 	});
 }
 
-// load up the data for a level
-bool levLoadData(char const *name, Sha256 const *hash, char *pSaveName, GAME_TYPE saveType)
-{
-	ASSERT_OR_RETURN(false, name != nullptr, "null level name provided");
-	debug(LOG_WZ, "Loading level %s hash %s (%s, type %d)", name, hash == nullptr ? "builtin" : hash->toString().c_str(),
-	      pSaveName != nullptr ? pSaveName : "<none>", static_cast<int>(saveType));
-
-	return runLoadingJobToCompletion(makeLevLoadDataJob(name, hash, pSaveName, saveType));
-}
-
 std::string mapNameWithoutTechlevel(const char *mapName)
 {
 	ASSERT_OR_RETURN("", mapName != nullptr, "null mapName provided");

@@ -200,6 +200,3 @@ std::unique_ptr<ResourceLoadingJob> makeResourceLoadingJob(
     ResourceLoadingJob::FinalizeCallback onFailure = {},
     ResourceLoadingController::FrameProcessingMode initialFrameMode =
         ResourceLoadingController::FrameProcessingMode::ConsumeFrame);
-
-/// Drive any loading job to completion on the current thread (blocking callers).
-bool runLoadingJobToCompletion(std::unique_ptr<ResourceLoadingJob> job);

@@ -114,9 +114,6 @@ LoadingTask makeLevLoadDataLoadingTask(ResourceLoadingController &controller,
                                        char *pSaveName,
                                        GAME_TYPE saveType);
 
-// load up the data for a level
-bool levLoadData(char const *name, Sha256 const *hash, char *pSaveName, GAME_TYPE saveType);
-
 // find the level dataset
 LEVEL_DATASET *levFindDataSet(char const *name, Sha256 const *hash = nullptr);
 
