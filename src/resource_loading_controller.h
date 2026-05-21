@@ -210,7 +210,7 @@ private:
 	friend class ResourceLoadingJob;
 	friend struct FrameYield;
 
-	void begin(ResourceLoadingRequest request, std::unique_ptr<ResourceLoadingJob> job = nullptr);
+	void begin(ResourceLoadingRequest request);
 	static std::unique_ptr<ResourceLoadingJob> makeJob(const ResourceLoadingRequest &request);
 
 	void start(LoadingTask task);
@@ -226,7 +226,6 @@ private:
 
 	std::optional<ResourceLoadingRequest> activeRequest;
 	std::optional<ResourceLoadingRequest> queuedRequest;
-	std::unique_ptr<ResourceLoadingJob> queuedJob;
 	std::unique_ptr<ResourceLoadingJob> activeJob;
 
 	std::stack<ExecutionFrame, std::vector<ExecutionFrame>> executionStack;

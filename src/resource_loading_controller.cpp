@@ -188,18 +188,17 @@ void ResourceLoadingController::request(ResourceLoadingRequest requestIn)
 	if (activeJob)
 	{
 		queuedRequest = std::move(requestIn);
-		queuedJob.reset();
 		return;
 	}
 
 	begin(std::move(requestIn));
 }
 
-void ResourceLoadingController::begin(ResourceLoadingRequest requestIn, std::unique_ptr<ResourceLoadingJob> job)
+void ResourceLoadingController::begin(ResourceLoadingRequest requestIn)
 {
 	ASSERT(!activeJob, "LoadingController.begin called while another loading job is active");
 	activeRequest = std::move(requestIn);
-	activeJob = job ? std::move(job) : makeJob(activeRequest.value());
+	activeJob = makeJob(activeRequest.value());
 	ASSERT(activeJob, "Failed to create loading job");
 
 	activeJob->bindAndStart(*this);
@@ -239,10 +238,8 @@ void ResourceLoadingController::step()
 	if (queuedRequest.has_value())
 	{
 		ResourceLoadingRequest nextRequest = std::move(queuedRequest.value());
-		std::unique_ptr<ResourceLoadingJob> nextJob = std::move(queuedJob);
 		queuedRequest.reset();
-		queuedJob.reset();
-		begin(std::move(nextRequest), std::move(nextJob));
+		begin(std::move(nextRequest));
 	}
 }
 
