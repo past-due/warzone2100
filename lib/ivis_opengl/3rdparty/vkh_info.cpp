@@ -10,6 +10,11 @@
 // See accompanying file LICENSE or copy at https://opensource.org/licenses/MIT
 //
 
+#if __cplusplus >= 202002L && defined __cpp_lib_format && defined __clang__ && defined WZ_OS_MAC
+# include <version>
+# undef __cpp_lib_format
+#endif
+
 #define VULKAN_HPP_TYPESAFE_CONVERSION 1
 #include "vkh_info.hpp"
 
