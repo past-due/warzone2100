@@ -160,6 +160,15 @@ if(WZ_ENABLE_BACKEND_VULKAN)
 		# Do *NOT* link to the Vulkan library - should be loaded dynamically
 
 		add_dependencies(ivis-opengl glsl_compilation)
+
+		# Xcode added support for C++20's std::chrono::operator<< in SDK version 14.4,
+        # but the target macOS version must also be >= 13.3 for it to be used.
+		#
+		# Looks like `vulkan_to_string.hpp` somehow includes this portion of the code automatically,
+		# so disable including it for now to avoid raising minimal target version.
+		if (CMAKE_CXX_STANDARD GREATER_EQUAL 20 AND APPLE)
+			target_compile_definitions(ivis-opengl PUBLIC VULKAN_HPP_NO_TO_STRING)
+		endif()
 	else()
 		if(NOT VulkanHeaders_FOUND)
 			message(STATUS "Vulkan headers not found - disabling Vulkan backend")
