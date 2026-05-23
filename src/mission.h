@@ -29,7 +29,7 @@
 #include "levels.h"
 #include "missiondef.h"
 #include "group.h"
-#include "src/resource_loading_controller.h"
+#include "lib/framework/resource_loading_controller.h"
 
 /**
  * The number of areas that can be defined to prevent buildings being placed -

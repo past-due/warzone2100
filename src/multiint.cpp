@@ -95,8 +95,9 @@
 #include "random.h"
 #include "notifications.h"
 #include "radar.h"
-#include "resource_loading_controller.h"
-#include "loading_task.h"
+#include "lib/framework/resource_loading_controller.h"
+#include "lib/framework/loading_task.h"
+#include "resource_loading_request.h"
 #include "lib/framework/wztime.h"
 
 #include "multiplay.h"

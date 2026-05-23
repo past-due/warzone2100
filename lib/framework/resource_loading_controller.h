@@ -19,23 +19,14 @@
 	Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 */
 /** \file resource_loading_controller.h
- * \brief Cooperative loading: schedule heavy load work from the main loop
- * instead of freezing the game in one long call (or be dependent on
- * `RESLOAD_CALLBACK` deep within the call chains to update the loading screen
- * frames).
+ * \brief Cooperative loading scheduler: drive coroutine-based load work from the main loop
+ * instead of freezing the game in one long call.
  *
- * Exposes the controller API used to submit work and drive progress each frame,
- * including when to show the normal loading screen.
- *
- * Coroutine tasks (see `loading_task.h`) use `co_await controller.yield_frame()` to
+ * Coroutine tasks (see `loading_task.h`) use `co_await controller.yieldFrame()` to
  * split work across frames.
- *
- * Game-specific request types live in `resource_loading_request.h`.
  */
 
 #pragma once
-
-#include "resource_loading_request.h"
 
 #include <coroutine>
 #include <memory>
@@ -73,14 +64,7 @@ struct ExecutionFrame
 	ExecutionFrameState state = ExecutionFrameState::Paused;
 };
 
-/// <summary>
-/// Global cooperative loading scheduler used from `mainLoop`: at most one active job,
-/// optional single queued follow-up `request`. `step` runs once per frame while active.
-/// Jobs may consume the whole frame or allow the normal title/game loop to run afterward
-/// (`FrameProcessingMode`).
-///
-/// Loading screen UI is driven here when `showLoadingScreen` is set.
-/// </summary>
+/// Global cooperative loading scheduler: at most one active job, optional single queued follow-up.
 class ResourceLoadingController
 {
 public:
@@ -104,18 +88,15 @@ public:
 	ResourceLoadingController(ResourceLoadingController&&) = delete;
 	ResourceLoadingController &operator=(ResourceLoadingController&&) = delete;
 
-	// Submit a new loading request. If there is an active job, queue the request;
-	// otherwise begin a new job with the request.
-	void request(ResourceLoadingRequest request);
+	// Submit a new loading job. If there is an active job, queue the follow-up;
+	// otherwise begin immediately.
+	void request(std::unique_ptr<ResourceLoadingJob> job, bool showLoadingScreen = true);
 
 	// Returns true if there is an active job.
 	bool active() const;
 
 	// Advance the active job's state machine.
 	void step();
-
-	// Present the loading screen if needed.
-	void presentLoadingScreenIfNeeded();
 
 	// Valid only while `active()`; reflects the active job's policy for this frame.
 	FrameProcessingMode currentFrameProcessingMode() const;
@@ -139,8 +120,7 @@ private:
 	explicit ResourceLoadingController() = default;
 	~ResourceLoadingController() = default;
 
-	void begin(ResourceLoadingRequest request);
-	static std::unique_ptr<ResourceLoadingJob> makeJob(const ResourceLoadingRequest &request);
+	void begin(std::unique_ptr<ResourceLoadingJob> job, bool showLoadingScreen);
 
 	void start(LoadingTask task);
 	LoadStepStatus stepOneQuantum();
@@ -153,9 +133,10 @@ private:
 	void onFrameFinished(LoadOutcome outcome) noexcept;
 	bool hasActiveExecution() const noexcept { return !executionStack.empty(); }
 
-	std::optional<ResourceLoadingRequest> activeRequest;
-	std::optional<ResourceLoadingRequest> queuedRequest;
 	std::unique_ptr<ResourceLoadingJob> activeJob;
+	std::optional<std::unique_ptr<ResourceLoadingJob>> queuedJob;
+	bool activeShowLoadingScreen = false;
+	bool queuedShowLoadingScreen = false;
 
 	std::stack<ExecutionFrame, std::vector<ExecutionFrame>> executionStack;
 	LoadOutcome terminalOutcome = LoadOutcome::Success;
@@ -163,7 +144,7 @@ private:
 	FrameProcessingMode frameMode = FrameProcessingMode::ConsumeFrame;
 };
 
-/// `co_await controller.yield_frame()` — suspend until the next `step_one_quantum()`.
+/// `co_await controller.yieldFrame()` — suspend until the next `stepOneQuantum()`.
 struct ResourceLoadingController::FrameYield
 {
 	ResourceLoadingController *controller = nullptr;

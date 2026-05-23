@@ -43,7 +43,7 @@
 #include "multistat.h"
 #include "warzoneconfig.h"
 #include "wrappers.h"
-#include "resource_loading_controller.h"
+#include "lib/framework/resource_loading_controller.h"
 #include "titleui/titleui.h"
 #include "stdinreader.h"
 #include "multijoin_helpers.h"

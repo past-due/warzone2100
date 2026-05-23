@@ -25,10 +25,8 @@
 #include "resource_loading_controller.h"
 
 #include "loading_task.h"
-#include "init.h"
-#include "main_resource_loading.h"
-#include "multiint.h"
-#include "wrappers.h"
+
+#include "lib/framework/wzapp.h"
 
 #include <utility>
 
@@ -158,31 +156,25 @@ void ResourceLoadingController::resetTaskState() noexcept
 	ASSERT(!hasActiveExecution() && !sessionFinished, "resetTaskState must clear execution state");
 }
 
-void ResourceLoadingController::request(ResourceLoadingRequest requestIn)
+void ResourceLoadingController::request(std::unique_ptr<ResourceLoadingJob> job, bool showLoadingScreen)
 {
 	if (activeJob)
 	{
-		queuedRequest = std::move(requestIn);
+		queuedJob = std::move(job);
+		queuedShowLoadingScreen = showLoadingScreen;
 		return;
 	}
 
-	begin(std::move(requestIn));
+	begin(std::move(job), showLoadingScreen);
 }
 
-void ResourceLoadingController::begin(ResourceLoadingRequest requestIn)
+void ResourceLoadingController::begin(std::unique_ptr<ResourceLoadingJob> job, bool showLoadingScreen)
 {
 	ASSERT(!activeJob, "LoadingController.begin called while another loading job is active");
-	activeRequest = std::move(requestIn);
-	activeJob = makeJob(activeRequest.value());
-	ASSERT(activeJob, "Failed to create loading job");
-
+	ASSERT(job, "LoadingController.begin given null job");
+	activeJob = std::move(job);
+	activeShowLoadingScreen = showLoadingScreen;
 	activeJob->bindAndStart(*this);
-
-	const bool hadLoadingScreen = isLoadingScreenActive();
-	if (activeRequest->showLoadingScreen && !hadLoadingScreen)
-	{
-		initLoadingScreen(activeRequest->drawBackdrop);
-	}
 }
 
 bool ResourceLoadingController::active() const
@@ -207,22 +199,15 @@ void ResourceLoadingController::step()
 	}
 
 	activeJob.reset();
-	activeRequest.reset();
+	activeShowLoadingScreen = false;
 	resetTaskState();
 
-	if (queuedRequest.has_value())
+	if (queuedJob.has_value())
 	{
-		ResourceLoadingRequest nextRequest = std::move(queuedRequest.value());
-		queuedRequest.reset();
-		begin(std::move(nextRequest));
-	}
-}
-
-void ResourceLoadingController::presentLoadingScreenIfNeeded()
-{
-	if (activeRequest && activeRequest->showLoadingScreen)
-	{
-		presentLoadingScreenForCurrentFrame();
+		std::unique_ptr<ResourceLoadingJob> nextJob = std::move(queuedJob.value());
+		bool const nextShowLoadingScreen = queuedShowLoadingScreen;
+		queuedJob.reset();
+		begin(std::move(nextJob), nextShowLoadingScreen);
 	}
 }
 
@@ -234,21 +219,5 @@ ResourceLoadingController::FrameProcessingMode ResourceLoadingController::curren
 
 bool ResourceLoadingController::loadingScreenHandledByController() const
 {
-	return activeJob != nullptr && activeRequest.has_value() && activeRequest->showLoadingScreen;
-}
-
-std::unique_ptr<ResourceLoadingJob> ResourceLoadingController::makeJob(const ResourceLoadingRequest &request)
-{
-	switch (request.kind)
-	{
-	case ResourceLoadingRequest::Kind::FrontendInit:
-		return makeFrontendInitJob(request);
-	case ResourceLoadingRequest::Kind::StartGame:
-		return main_resource_loading::makeStartGameResourceJob();
-	case ResourceLoadingRequest::Kind::LoadSaveGame:
-		return main_resource_loading::makeLoadSaveGameResourceJob();
-	case ResourceLoadingRequest::Kind::MapPreview:
-		return makeMapPreviewJob(request);
-	}
-	return nullptr;
+	return activeJob != nullptr && activeShowLoadingScreen;
 }

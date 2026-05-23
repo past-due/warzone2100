@@ -59,7 +59,7 @@
 #include "power.h"
 #include "projectile.h"
 #include "loadsave.h"
-#include "src/resource_loading_controller.h"
+#include "lib/framework/resource_loading_controller.h"
 #include "text.h"
 #include "message.h"
 #include "hci.h"
@@ -104,7 +104,7 @@
 #include "screens/guidescreen.h"
 #include "game_world.h"
 #include <array>
-#include "loading_task.h"
+#include "lib/framework/loading_task.h"
 
 #include "wzphysfszipioprovider.h"
 #include <wzmaplib/map_package.h>

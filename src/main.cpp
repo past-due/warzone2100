@@ -82,8 +82,10 @@
 #include "frontend.h"
 #include "game.h"
 #include "init.h"
-#include "resource_loading_controller.h"
-#include "loading_task.h"
+#include "lib/framework/resource_loading_controller.h"
+#include "lib/framework/loading_task.h"
+#include "resource_loading_dispatch.h"
+#include "resource_loading_request.h"
 #include "main_resource_loading.h"
 #include "levels.h"
 #include "lighting.h"
@@ -1116,14 +1118,14 @@ static void runGameLoop()
 		debug(LOG_MAIN, "GAMECODE_LOADGAME");
 		stopGameLoop();
 		// Restart and load a savegame
-		ResourceLoadingController::instance().request(ResourceLoadingRequest::loadSaveGame());
+		requestResourceLoading(ResourceLoadingRequest::loadSaveGame());
 		gameLoopStatus = GAMECODE_CONTINUE;
 		return;
 	case GAMECODE_NEWLEVEL:
 		debug(LOG_MAIN, "GAMECODE_NEWLEVEL");
 		stopGameLoop();
 		// Restart gameloop
-		ResourceLoadingController::instance().request(ResourceLoadingRequest::startGame());
+		requestResourceLoading(ResourceLoadingRequest::startGame());
 		gameLoopStatus = GAMECODE_CONTINUE;
 		return;
 	default:
@@ -1180,14 +1182,14 @@ static void runTitleLoop()
 				debug(LOG_MAIN, "TITLECODE_SAVEGAMELOAD");
 				// Restart into gameloop and load a savegame, ONLY on a good savegame load!
 				stopTitleLoop();
-				ResourceLoadingController::instance().request(ResourceLoadingRequest::loadSaveGame());
+				requestResourceLoading(ResourceLoadingRequest::loadSaveGame());
 				return;
 			}
 		case TITLECODE_STARTGAME:
 			debug(LOG_MAIN, "TITLECODE_STARTGAME");
 			stopTitleLoop();
 			// Restart into gameloop
-			ResourceLoadingController::instance().request(ResourceLoadingRequest::startGame());
+			requestResourceLoading(ResourceLoadingRequest::startGame());
 			return;
 		default:
 			// ignore unexpected value
@@ -1256,13 +1258,14 @@ void mainLoop()
 		{
 			ResourceLoadingController::FrameProcessingMode loadingFrameMode = loadingController.currentFrameProcessingMode();
 			loadingController.step();
-			loadingController.presentLoadingScreenIfNeeded();
+			presentResourceLoadingScreenIfNeeded();
 			if (loadingFrameMode == ResourceLoadingController::FrameProcessingMode::ConsumeFrame)
 			{
 				pie_ScreenFrameRenderEnd();
 				frameEnded = true;
 			}
 		}
+		processResourceLoadingQueue();
 		if (!frameEnded && loop_GetVideoStatus())
 		{
 			videoLoop(); // Display the video if necessary
@@ -1300,12 +1303,12 @@ void mainLoop()
 
 void requestMapPreviewLoad(bool hideInterface)
 {
-	ResourceLoadingController::instance().request(ResourceLoadingRequest::mapPreview(hideInterface));
+	requestResourceLoading(ResourceLoadingRequest::mapPreview(hideInterface));
 }
 
 void requestMapPreviewLoad(bool hideInterface, const char *mapName, const Sha256& mapHash)
 {
-	ResourceLoadingController::instance().request(ResourceLoadingRequest::mapPreview(hideInterface, mapName, mapHash));
+	requestResourceLoading(ResourceLoadingRequest::mapPreview(hideInterface, mapName, mapHash));
 }
 
 bool getUTF8CmdLine(int *const _utfargc WZ_DECL_UNUSED, char *** const _utfargv WZ_DECL_UNUSED) // explicitely pass by reference
@@ -2174,17 +2177,17 @@ int realmain(int argc, char *argv[])
 	{
 	case GS_TITLE_SCREEN:
 		// The usual case (unless command-line flags specify otherwise): Load into the title menu
-		ResourceLoadingController::instance().request(ResourceLoadingRequest::frontendInit(true));
+		requestResourceLoading(ResourceLoadingRequest::frontendInit(true));
 		break;
 	case GS_SAVEGAMELOAD:
 		if (headlessGameMode())
 		{
 			fprintf(stdout, "Loading savegame ...\n");
 		}
-		ResourceLoadingController::instance().request(ResourceLoadingRequest::loadSaveGame());
+		requestResourceLoading(ResourceLoadingRequest::loadSaveGame());
 		break;
 	case GS_NORMAL:
-		ResourceLoadingController::instance().request(ResourceLoadingRequest::startGame());
+		requestResourceLoading(ResourceLoadingRequest::startGame());
 		break;
 	default:
 		debug(LOG_ERROR, "Weirdy game status, I'm afraid!!");

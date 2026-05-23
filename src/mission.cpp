@@ -45,7 +45,7 @@
 #include "challenge.h"
 #include "projectile.h"
 #include "power.h"
-#include "src/resource_loading_controller.h"
+#include "lib/framework/resource_loading_controller.h"
 #include "structure.h"
 #include "message.h"
 #include "research.h"
@@ -86,7 +86,7 @@
 #include "game_world.h"
 #include "wzapi.h"
 #include "screens/guidescreen.h"
-#include "loading_task.h"
+#include "lib/framework/loading_task.h"
 
 #define		IDMISSIONRES_TXT		11004
 #define		IDMISSIONRES_LOAD		11005

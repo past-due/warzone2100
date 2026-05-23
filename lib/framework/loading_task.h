@@ -22,7 +22,7 @@
  * \brief C++20 coroutine primitives for cooperative resource loading.
  *
  * `ResourceLoadingController` drives tasks from `step()` (one resume per frame).
- * Loading coroutines use `co_await controller.yield_frame()` to split work across
+ * Loading coroutines use `co_await controller.yieldFrame()` to split work across
  * frames and `co_await child_task` to compose nested loads.
  */
 
@@ -34,6 +34,7 @@
 #include <exception>
 #include <functional>
 #include <memory>
+#include <utility>
 
 struct LoadingTaskPromise;
 
