@@ -66,8 +66,12 @@ void LoadingTask::ChildTaskAwaiter::await_suspend(std::coroutine_handle<> h)
 	auto parent_coro = std::coroutine_handle<LoadingTaskPromise>::from_address(h.address());
 	ResourceLoadingController *controller = parent_coro.promise().controller;
 	ASSERT(controller, "co_await LoadingTask from a coroutine that is not bound to a ResourceLoadingController");
-	ASSERT(controller->topFrame().handle.address() == h.address(),
+	ExecutionFrame &parent_frame = controller->topFrame();
+	ASSERT(parent_frame.handle.address() == h.address(),
 	       "co_await child must suspend the execution stack top");
+	// Parent waits on the child until a later quantum resumes it; mark Paused so
+	// stepOneQuantum() can resume the parent after the child frame is popped.
+	parent_frame.state = ExecutionFrameState::Paused;
 
 	auto &child_promise = child_coro.promise();
 	if (child_promise.controller == nullptr)
