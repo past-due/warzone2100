@@ -24,23 +24,23 @@
  * `RESLOAD_CALLBACK` deep within the call chains to update the loading screen
  * frames).
  *
- * Describes what to load (`frontendInit`, `startGame`, `loadSaveGame`, `mapPreview`)
- * and exposes the controller API used to submit work and drive progress each frame,
+ * Exposes the controller API used to submit work and drive progress each frame,
  * including when to show the normal loading screen.
  *
  * Coroutine tasks (see `loading_task.h`) use `co_await controller.yield_frame()` to
  * split work across frames.
+ *
+ * Game-specific request types live in `resource_loading_request.h`.
  */
 
 #pragma once
 
-#include "lib/framework/crc.h"
+#include "resource_loading_request.h"
 
 #include <coroutine>
 #include <memory>
 #include <optional>
 #include <stack>
-#include <string>
 #include <vector>
 
 class ResourceLoadingJob;
@@ -71,74 +71,6 @@ struct ExecutionFrame
 {
 	std::coroutine_handle<> handle{};
 	ExecutionFrameState state = ExecutionFrameState::Paused;
-};
-
-/// <summary>
-/// Describes one unit of loading work submitted to the resource loading controller.
-///
-/// NOTE: uses only a subset of the fields specific to each kind of loading request.
-/// </summary>
-struct ResourceLoadingRequest
-{
-	enum class Kind
-	{
-		FrontendInit,
-		StartGame,
-		LoadSaveGame,
-		MapPreview,
-	};
-
-	Kind kind;
-	bool drawBackdrop = true;
-	bool showLoadingScreen = true;
-	std::string resourceFile;
-	bool onInitialStartup = false;
-	bool hideInterface = false;
-	std::string previewMapName;
-	Sha256 previewMapHash;
-
-	static ResourceLoadingRequest frontendInit(bool onInitialStartup = false)
-	{
-		ResourceLoadingRequest request;
-		request.kind = Kind::FrontendInit;
-		request.drawBackdrop = !onInitialStartup;
-		request.showLoadingScreen = !onInitialStartup;
-		request.resourceFile = "wrf/frontend.wrf";
-		request.onInitialStartup = onInitialStartup;
-		return request;
-	}
-
-	static ResourceLoadingRequest startGame()
-	{
-		ResourceLoadingRequest request;
-		request.kind = Kind::StartGame;
-		return request;
-	}
-
-	static ResourceLoadingRequest loadSaveGame()
-	{
-		ResourceLoadingRequest request;
-		request.kind = Kind::LoadSaveGame;
-		return request;
-	}
-
-	static ResourceLoadingRequest mapPreview(bool hideInterface)
-	{
-		ResourceLoadingRequest request;
-		request.kind = Kind::MapPreview;
-		request.drawBackdrop = false;
-		request.showLoadingScreen = false;
-		request.hideInterface = hideInterface;
-		return request;
-	}
-
-	static ResourceLoadingRequest mapPreview(bool hideInterface, std::string mapName, Sha256 mapHash)
-	{
-		ResourceLoadingRequest request = mapPreview(hideInterface);
-		request.previewMapName = std::move(mapName);
-		request.previewMapHash = mapHash;
-		return request;
-	}
 };
 
 /// <summary>
