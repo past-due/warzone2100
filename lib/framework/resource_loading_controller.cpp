@@ -30,6 +30,14 @@
 
 #include <utility>
 
+struct ResourceLoadingController::ResourceLoadingSubmission
+{
+	LoadingTask task;
+	FramePolicy policy{};
+};
+
+ResourceLoadingController::~ResourceLoadingController() = default;
+
 ResourceLoadingController& ResourceLoadingController::instance()
 {
 	static ResourceLoadingController instance;
@@ -154,14 +162,14 @@ void ResourceLoadingController::resetTaskState() noexcept
 	ASSERT(!hasActiveExecution() && !sessionFinished, "resetTaskState must clear execution state");
 }
 
-void ResourceLoadingController::request(std::unique_ptr<ResourceLoadingJob> job, FramePolicy policy)
+void ResourceLoadingController::request(LoadingTask task, FramePolicy policy)
 {
-	ASSERT(job, "request given null job");
-	ResourceLoadingSubmission submission;
-	submission.job = std::move(job);
-	submission.policy = policy;
+	ASSERT(!task.empty(), "request given empty LoadingTask");
+	auto submission = std::make_unique<ResourceLoadingSubmission>();
+	submission->task = std::move(task);
+	submission->policy = policy;
 
-	if (activeSubmission.has_value())
+	if (activeSubmission)
 	{
 		queuedSubmission = std::move(submission);
 		return;
@@ -170,25 +178,25 @@ void ResourceLoadingController::request(std::unique_ptr<ResourceLoadingJob> job,
 	begin(std::move(submission));
 }
 
-void ResourceLoadingController::begin(ResourceLoadingSubmission submission)
+void ResourceLoadingController::begin(std::unique_ptr<ResourceLoadingSubmission> submission)
 {
-	ASSERT(!activeSubmission.has_value(), "begin called while another submission is active");
-	ASSERT(submission.job, "begin given null job");
-	ResourceLoadingJob *job = submission.job.get();
-	FramePolicy const policy = submission.policy;
+	ASSERT(!activeSubmission, "begin called while another submission is active");
+	ASSERT(submission && !submission->task.empty(), "begin given empty LoadingTask");
+	FramePolicy const policy = submission->policy;
 	activeSubmission = std::move(submission);
-	job->bindAndStart(*this, policy);
+	resetTaskState();
+	start(std::move(activeSubmission->task), policy);
 }
 
 bool ResourceLoadingController::active() const
 {
-	return activeSubmission.has_value();
+	return activeSubmission != nullptr;
 }
 
 void ResourceLoadingController::step()
 {
-	ASSERT(activeSubmission.has_value(), "step called without an active submission");
-	LoadStepStatus const result = activeSubmission->job->step(*this);
+	ASSERT(activeSubmission, "step called without an active submission");
+	LoadStepStatus const result = stepOneQuantum();
 	if (result == LoadStepStatus::InProgress)
 	{
 		return;
@@ -197,9 +205,9 @@ void ResourceLoadingController::step()
 	activeSubmission.reset();
 	resetTaskState();
 
-	if (queuedSubmission.has_value())
+	if (queuedSubmission)
 	{
-		ResourceLoadingSubmission nextSubmission = std::move(queuedSubmission.value());
+		std::unique_ptr<ResourceLoadingSubmission> nextSubmission = std::move(queuedSubmission);
 		queuedSubmission.reset();
 		begin(std::move(nextSubmission));
 	}
@@ -207,14 +215,14 @@ void ResourceLoadingController::step()
 
 ResourceLoadingController::FrameProcessingMode ResourceLoadingController::currentFrameProcessingMode() const
 {
-	ASSERT(activeSubmission.has_value(), "currentFrameProcessingMode without active submission");
+	ASSERT(activeSubmission, "currentFrameProcessingMode without active submission");
 	ASSERT(hasActiveExecution(), "currentFrameProcessingMode without active execution");
 	return topFrame().policy.frameMode;
 }
 
 bool ResourceLoadingController::loadingScreenHandledByController() const
 {
-	if (!activeSubmission.has_value())
+	if (!activeSubmission)
 	{
 		return false;
 	}

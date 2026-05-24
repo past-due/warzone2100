@@ -31,14 +31,13 @@
 
 #pragma once
 
-#include <memory>
-
-class ResourceLoadingJob;
+class LoadingTask;
+class ResourceLoadingController;
 
 namespace main_resource_loading
 {
 
-std::unique_ptr<ResourceLoadingJob> makeStartGameResourceJob();
-std::unique_ptr<ResourceLoadingJob> makeLoadSaveGameResourceJob();
+LoadingTask makeStartGameResourceJob(ResourceLoadingController &controller);
+LoadingTask makeLoadSaveGameResourceJob(ResourceLoadingController &controller);
 
 } // namespace main_resource_loading

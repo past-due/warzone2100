@@ -34,7 +34,6 @@
 #include <memory>
 
 class ResourceLoadingController;
-class ResourceLoadingJob;
 class LoadingTask;
 
 /// maximum number of data files

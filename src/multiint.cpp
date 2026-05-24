@@ -914,22 +914,14 @@ LoadingTask mapPreviewLoadTask(bool hideInterface, std::string mapName, Sha256 m
 
 } // anonymous namespace
 
-std::unique_ptr<ResourceLoadingJob> makeMapPreviewJob(bool hideInterface)
+LoadingTask makeMapPreviewJob(ResourceLoadingController &, bool hideInterface)
 {
-	return makeResourceLoadingJob(
-	    [hideInterface](ResourceLoadingController &) -> LoadingTask {
-		    return mapPreviewLoadTask(hideInterface);
-	    },
-	    ResourceLoadingController::FrameProcessingMode::ContinueMainLoop);
+	return mapPreviewLoadTask(hideInterface);
 }
 
-std::unique_ptr<ResourceLoadingJob> makeMapPreviewJob(bool hideInterface, std::string mapName, Sha256 mapHash)
+LoadingTask makeMapPreviewJob(ResourceLoadingController &, bool hideInterface, std::string mapName, Sha256 mapHash)
 {
-	return makeResourceLoadingJob(
-	    [hideInterface, mapName = std::move(mapName), mapHash](ResourceLoadingController &) mutable -> LoadingTask {
-		    return mapPreviewLoadTask(hideInterface, std::move(mapName), mapHash);
-	    },
-	    ResourceLoadingController::FrameProcessingMode::ContinueMainLoop);
+	return mapPreviewLoadTask(hideInterface, std::move(mapName), mapHash);
 }
 
 // ////////////////////////////////////////////////////////////////////////////

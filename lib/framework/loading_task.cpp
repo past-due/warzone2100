@@ -19,7 +19,7 @@
 	Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 */
 /** \file loading_task.cpp
- * \brief `LoadingTask` and `ResourceLoadingJob` implementation.
+ * \brief `LoadingTask` implementation.
  */
 
 #include "loading_task.h"
@@ -94,31 +94,4 @@ void LoadingTask::ChildTaskAwaiter::await_suspend(std::coroutine_handle<> h)
 	}
 
 	controller->pushFrame(child_coro, child_policy);
-}
-
-ResourceLoadingJob::ResourceLoadingJob(TaskFactory taskFactory,
-                                       ResourceLoadingController::FrameProcessingMode initialFrameMode)
-	: task_factory(std::move(taskFactory))
-	, initialFrameMode(initialFrameMode)
-{
-}
-
-void ResourceLoadingJob::bindAndStart(ResourceLoadingController &controller,
-                                       ResourceLoadingController::FramePolicy policy)
-{
-	controller.resetTaskState();
-	ASSERT(task_factory, "ResourceLoadingJob factory is null");
-	controller.start(task_factory(controller), policy);
-}
-
-LoadStepStatus ResourceLoadingJob::step(ResourceLoadingController &controller)
-{
-	return controller.stepOneQuantum();
-}
-
-std::unique_ptr<ResourceLoadingJob> makeResourceLoadingJob(
-    ResourceLoadingJob::TaskFactory taskFactory,
-    ResourceLoadingController::FrameProcessingMode initialFrameMode)
-{
-	return std::make_unique<ResourceLoadingJob>(std::move(taskFactory), initialFrameMode);
 }

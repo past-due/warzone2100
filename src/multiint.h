@@ -173,10 +173,11 @@ void kickPlayer(uint32_t player_id, const char *reason, LOBBY_ERROR_TYPES type, 
 void displayKickReasonPopup(const std::string &reason);
 
 struct Sha256;
-class ResourceLoadingJob;
+class LoadingTask;
+class ResourceLoadingController;
 
-std::unique_ptr<ResourceLoadingJob> makeMapPreviewJob(bool hideInterface);
-std::unique_ptr<ResourceLoadingJob> makeMapPreviewJob(bool hideInterface, std::string mapName, Sha256 mapHash);
+LoadingTask makeMapPreviewJob(ResourceLoadingController &controller, bool hideInterface);
+LoadingTask makeMapPreviewJob(ResourceLoadingController &controller, bool hideInterface, std::string mapName, Sha256 mapHash);
 
 bool changeReadyStatus(UBYTE player, bool bReady);
 WzString formatGameName(WzString name);

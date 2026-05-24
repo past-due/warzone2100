@@ -24,12 +24,18 @@
 
 #pragma once
 
-#include <memory>
+#include "lib/framework/resource_loading_controller.h"
 
-class ResourceLoadingJob;
+#include <functional>
 
-void submitResourceLoadingJob(std::unique_ptr<ResourceLoadingJob> job,
+class LoadingTask;
+
+using ResourceLoadingTaskFactory = std::function<LoadingTask(ResourceLoadingController &)>;
+
+void submitResourceLoadingJob(ResourceLoadingTaskFactory taskFactory,
                               bool showLoadingScreen = true,
-                              bool drawBackdrop = true);
+                              bool drawBackdrop = true,
+                              ResourceLoadingController::FrameProcessingMode frameMode =
+                                  ResourceLoadingController::FrameProcessingMode::ConsumeFrame);
 
 void presentResourceLoadingScreenIfNeeded();

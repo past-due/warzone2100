@@ -31,7 +31,8 @@
 #include "terrain_defs.h"
 
 struct IMAGEFILE;
-class ResourceLoadingJob;
+class LoadingTask;
+class ResourceLoadingController;
 class WzMapZipIO;
 
 // the size of the file loading buffer
@@ -41,7 +42,7 @@ extern char fileLoadBuffer[];
 
 bool systemInitialise(unsigned int horizScalePercentage, unsigned int vertScalePercentage);
 void systemShutdown();
-std::unique_ptr<ResourceLoadingJob> makeFrontendInitJob(bool onInitialStartup = false);
+LoadingTask makeFrontendInitJob(ResourceLoadingController &controller, bool onInitialStartup = false);
 bool frontendInitialise(const char *ResourceFile);
 bool frontendInitialiseSetup();
 bool frontendInitialiseFinalize();

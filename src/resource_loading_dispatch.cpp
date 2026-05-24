@@ -25,17 +25,15 @@
 #include "resource_loading_dispatch.h"
 
 #include "lib/framework/loading_task.h"
-#include "lib/framework/resource_loading_controller.h"
 #include "lib/framework/wzapp.h"
 #include "wrappers.h"
 
-#include <utility>
-
-void submitResourceLoadingJob(std::unique_ptr<ResourceLoadingJob> job,
+void submitResourceLoadingJob(ResourceLoadingTaskFactory taskFactory,
                               bool showLoadingScreen,
-                              bool drawBackdrop)
+                              bool drawBackdrop,
+                              ResourceLoadingController::FrameProcessingMode frameMode)
 {
-	ASSERT(job, "submitResourceLoadingJob given null job");
+	ASSERT(taskFactory, "submitResourceLoadingJob given null task factory");
 	ResourceLoadingController &controller = ResourceLoadingController::instance();
 	if (!controller.active() && showLoadingScreen && !isLoadingScreenActive())
 	{
@@ -43,8 +41,8 @@ void submitResourceLoadingJob(std::unique_ptr<ResourceLoadingJob> job,
 	}
 	ResourceLoadingController::FramePolicy policy;
 	policy.showLoadingScreen = showLoadingScreen;
-	policy.frameMode = job->frameProcessingMode();
-	controller.request(std::move(job), policy);
+	policy.frameMode = frameMode;
+	controller.request(taskFactory(controller), policy);
 }
 
 void presentResourceLoadingScreenIfNeeded()

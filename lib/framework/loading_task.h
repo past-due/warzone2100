@@ -32,8 +32,6 @@
 
 #include <coroutine>
 #include <exception>
-#include <functional>
-#include <memory>
 #include <optional>
 #include <utility>
 
@@ -166,32 +164,3 @@ inline LoadingTask::ChildTaskAwaiter LoadingTask::operator co_await() &&
 {
 	return ChildTaskAwaiter{this};
 }
-
-/// Cooperative loading job: deferred task start on a controller.
-class ResourceLoadingJob
-{
-public:
-	using TaskFactory = std::function<LoadingTask(ResourceLoadingController &)>;
-
-	ResourceLoadingJob(TaskFactory taskFactory,
-	                    ResourceLoadingController::FrameProcessingMode initialFrameMode =
-	                        ResourceLoadingController::FrameProcessingMode::ConsumeFrame);
-
-	void bindAndStart(ResourceLoadingController &controller, ResourceLoadingController::FramePolicy policy);
-	LoadStepStatus step(ResourceLoadingController &controller);
-	ResourceLoadingController::FrameProcessingMode frameProcessingMode() const noexcept
-	{
-		return initialFrameMode;
-	}
-
-private:
-	LoadingTask pending_task;
-	TaskFactory task_factory;
-	ResourceLoadingController::FrameProcessingMode initialFrameMode =
-	    ResourceLoadingController::FrameProcessingMode::ConsumeFrame;
-};
-
-std::unique_ptr<ResourceLoadingJob> makeResourceLoadingJob(
-    ResourceLoadingJob::TaskFactory taskFactory,
-    ResourceLoadingController::FrameProcessingMode initialFrameMode =
-        ResourceLoadingController::FrameProcessingMode::ConsumeFrame);

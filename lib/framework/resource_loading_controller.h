@@ -30,11 +30,10 @@
 
 #include <coroutine>
 #include <memory>
-#include <optional>
 #include <stack>
+#include <utility>
 #include <vector>
 
-class ResourceLoadingJob;
 class LoadingTask;
 struct LoadingTaskPromise;
 
@@ -44,7 +43,7 @@ enum class LoadOutcome
 	Failure,
 };
 
-/// Returned by `stepOneQuantum()` / `ResourceLoadingJob::step()`.
+/// Returned by `stepOneQuantum()`.
 enum class LoadStepStatus
 {
 	InProgress,
@@ -58,12 +57,12 @@ enum class ExecutionFrameState
 	Running,
 };
 
-/// Global cooperative loading scheduler: at most one active job, optional single queued follow-up.
+/// Global cooperative loading scheduler: at most one active submission, optional single queued follow-up.
 class ResourceLoadingController
 {
 public:
 
-	// How `mainLoop` should finish the current iteration after `step()` for the active job.
+	// How `mainLoop` should finish the current iteration after `step()` for the active load.
 	enum class FrameProcessingMode
 	{
 		// End frame after loading step + optional loading UI; skip title/game loop this tick.
@@ -89,14 +88,14 @@ public:
 	ResourceLoadingController(ResourceLoadingController&&) = delete;
 	ResourceLoadingController &operator=(ResourceLoadingController&&) = delete;
 
-	// Submit a new loading job. If there is an active submission, queue the follow-up;
+	// Submit loading work. If there is an active submission, queue the follow-up;
 	// otherwise begin immediately.
-	void request(std::unique_ptr<ResourceLoadingJob> job, FramePolicy policy);
+	void request(LoadingTask task, FramePolicy policy);
 
 	// Returns true if there is an active submission.
 	bool active() const;
 
-	// Advance the active job's state machine.
+	// Advance the active load by one frame quantum.
 	void step();
 
 	// Valid only while `active()` and execution is running; reads the execution stack top.
@@ -111,7 +110,6 @@ private:
 
 	friend class LoadingTask;
 	friend struct LoadingTaskPromise;
-	friend class ResourceLoadingJob;
 	friend struct FrameYield;
 
 	struct ExecutionFrame
@@ -121,16 +119,12 @@ private:
 		FramePolicy policy{};
 	};
 
-	struct ResourceLoadingSubmission
-	{
-		std::unique_ptr<ResourceLoadingJob> job;
-		FramePolicy policy{};
-	};
+	struct ResourceLoadingSubmission;
 
 	explicit ResourceLoadingController() = default;
-	~ResourceLoadingController() = default;
+	~ResourceLoadingController();
 
-	void begin(ResourceLoadingSubmission submission);
+	void begin(std::unique_ptr<ResourceLoadingSubmission> submission);
 
 	void start(LoadingTask task, FramePolicy policy);
 	LoadStepStatus stepOneQuantum();
@@ -143,8 +137,8 @@ private:
 	void onFrameFinished(LoadOutcome outcome) noexcept;
 	bool hasActiveExecution() const noexcept { return !executionStack.empty(); }
 
-	std::optional<ResourceLoadingSubmission> activeSubmission;
-	std::optional<ResourceLoadingSubmission> queuedSubmission;
+	std::unique_ptr<ResourceLoadingSubmission> activeSubmission;
+	std::unique_ptr<ResourceLoadingSubmission> queuedSubmission;
 
 	std::stack<ExecutionFrame, std::vector<ExecutionFrame>> executionStack;
 	LoadOutcome terminalOutcome = LoadOutcome::Success;

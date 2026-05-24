@@ -1236,22 +1236,17 @@ LoadingTask frontendInitTask(ResourceLoadingController &controller, bool onIniti
 
 } // anonymous namespace
 
-std::unique_ptr<ResourceLoadingJob> makeFrontendInitJob(bool onInitialStartup)
+LoadingTask makeFrontendInitJob(ResourceLoadingController &controller, bool onInitialStartup)
 {
-	return makeResourceLoadingJob(
-	    [onInitialStartup](ResourceLoadingController &controller) -> LoadingTask {
-		    return [onInitialStartup](ResourceLoadingController &c) -> LoadingTask {
-			    LoadOutcome const outcome = co_await frontendInitTask(c, onInitialStartup);
-			    if (outcome == LoadOutcome::Failure)
-			    {
-				    closeLoadingScreen();
-				    debug(LOG_FATAL, "Shutting down after failure");
-				    exit(EXIT_FAILURE);
-			    }
-			    closeLoadingScreen();
-			    co_return LoadOutcome::Success;
-		    }(controller);
-	    });
+	LoadOutcome const outcome = co_await frontendInitTask(controller, onInitialStartup);
+	if (outcome == LoadOutcome::Failure)
+	{
+		closeLoadingScreen();
+		debug(LOG_FATAL, "Shutting down after failure");
+		exit(EXIT_FAILURE);
+	}
+	closeLoadingScreen();
+	co_return LoadOutcome::Success;
 }
 
 bool frontendInitialise(const char *ResourceFile)
