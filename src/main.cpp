@@ -990,12 +990,19 @@ LoadingTask loadSaveGameResourceTask(ResourceLoadingController &controller)
 std::unique_ptr<ResourceLoadingJob> makeStartGameResourceJob()
 {
 	return makeResourceLoadingJob(
-	    [](ResourceLoadingController &controller) -> LoadingTask { return startGameResourceTask(controller); },
-	    [] { closeLoadingScreen(); },
-	    [] {
-		    startGameAbortLevelLoadFailure();
-		    closeLoadingScreen();
-		    debug(LOG_POPUP, _("Failed to load level data or map. Exiting to main menu."));
+	    [](ResourceLoadingController &controller) -> LoadingTask {
+		    return [](ResourceLoadingController &c) -> LoadingTask {
+			    LoadOutcome const outcome = co_await startGameResourceTask(c);
+			    if (outcome == LoadOutcome::Failure)
+			    {
+				    startGameAbortLevelLoadFailure();
+				    closeLoadingScreen();
+				    debug(LOG_POPUP, _("Failed to load level data or map. Exiting to main menu."));
+				    co_return LoadOutcome::Failure;
+			    }
+			    closeLoadingScreen();
+			    co_return LoadOutcome::Success;
+		    }(controller);
 	    });
 }
 
@@ -1003,12 +1010,17 @@ std::unique_ptr<ResourceLoadingJob> makeLoadSaveGameResourceJob()
 {
 	return makeResourceLoadingJob(
 	    [](ResourceLoadingController &controller) -> LoadingTask {
-		    return loadSaveGameResourceTask(controller);
-	    },
-	    [] { closeLoadingScreen(); },
-	    [] {
-		    saveGameLoadAbortOnFailure();
-		    closeLoadingScreen();
+		    return [](ResourceLoadingController &c) -> LoadingTask {
+			    LoadOutcome const outcome = co_await loadSaveGameResourceTask(c);
+			    if (outcome == LoadOutcome::Failure)
+			    {
+				    saveGameLoadAbortOnFailure();
+				    closeLoadingScreen();
+				    co_return LoadOutcome::Failure;
+			    }
+			    closeLoadingScreen();
+			    co_return LoadOutcome::Success;
+		    }(controller);
 	    });
 }
 

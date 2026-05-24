@@ -167,24 +167,18 @@ inline LoadingTask::ChildTaskAwaiter LoadingTask::operator co_await() &&
 	return ChildTaskAwaiter{this};
 }
 
-/// Cooperative loading job: finalize callbacks + deferred task start on a controller.
+/// Cooperative loading job: deferred task start on a controller.
 class ResourceLoadingJob
 {
 public:
-	using FinalizeCallback = std::function<void()>;
-
 	using TaskFactory = std::function<LoadingTask(ResourceLoadingController &)>;
 
 	ResourceLoadingJob(TaskFactory taskFactory,
-	                    FinalizeCallback onSuccess,
-	                    FinalizeCallback onFailure,
 	                    ResourceLoadingController::FrameProcessingMode initialFrameMode =
 	                        ResourceLoadingController::FrameProcessingMode::ConsumeFrame);
 
 	void bindAndStart(ResourceLoadingController &controller, ResourceLoadingController::FramePolicy policy);
 	LoadStepStatus step(ResourceLoadingController &controller);
-	void finalizeSuccess();
-	void finalizeFailure();
 	ResourceLoadingController::FrameProcessingMode frameProcessingMode() const noexcept
 	{
 		return initialFrameMode;
@@ -193,15 +187,11 @@ public:
 private:
 	LoadingTask pending_task;
 	TaskFactory task_factory;
-	FinalizeCallback onSuccess;
-	FinalizeCallback onFailure;
 	ResourceLoadingController::FrameProcessingMode initialFrameMode =
 	    ResourceLoadingController::FrameProcessingMode::ConsumeFrame;
 };
 
 std::unique_ptr<ResourceLoadingJob> makeResourceLoadingJob(
     ResourceLoadingJob::TaskFactory taskFactory,
-    ResourceLoadingJob::FinalizeCallback onSuccess = {},
-    ResourceLoadingJob::FinalizeCallback onFailure = {},
     ResourceLoadingController::FrameProcessingMode initialFrameMode =
         ResourceLoadingController::FrameProcessingMode::ConsumeFrame);

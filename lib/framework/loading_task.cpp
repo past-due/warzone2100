@@ -97,12 +97,8 @@ void LoadingTask::ChildTaskAwaiter::await_suspend(std::coroutine_handle<> h)
 }
 
 ResourceLoadingJob::ResourceLoadingJob(TaskFactory taskFactory,
-                                       FinalizeCallback onSuccessIn,
-                                       FinalizeCallback onFailureIn,
                                        ResourceLoadingController::FrameProcessingMode initialFrameMode)
 	: task_factory(std::move(taskFactory))
-	, onSuccess(std::move(onSuccessIn))
-	, onFailure(std::move(onFailureIn))
 	, initialFrameMode(initialFrameMode)
 {
 }
@@ -120,29 +116,9 @@ LoadStepStatus ResourceLoadingJob::step(ResourceLoadingController &controller)
 	return controller.stepOneQuantum();
 }
 
-void ResourceLoadingJob::finalizeSuccess()
-{
-	if (onSuccess)
-	{
-		onSuccess();
-	}
-}
-
-void ResourceLoadingJob::finalizeFailure()
-{
-	if (onFailure)
-	{
-		onFailure();
-	}
-}
-
-
 std::unique_ptr<ResourceLoadingJob> makeResourceLoadingJob(
     ResourceLoadingJob::TaskFactory taskFactory,
-    ResourceLoadingJob::FinalizeCallback onSuccess,
-    ResourceLoadingJob::FinalizeCallback onFailure,
     ResourceLoadingController::FrameProcessingMode initialFrameMode)
 {
-	return std::make_unique<ResourceLoadingJob>(
-	    std::move(taskFactory), std::move(onSuccess), std::move(onFailure), initialFrameMode);
+	return std::make_unique<ResourceLoadingJob>(std::move(taskFactory), initialFrameMode);
 }

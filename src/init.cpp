@@ -1240,13 +1240,17 @@ std::unique_ptr<ResourceLoadingJob> makeFrontendInitJob(bool onInitialStartup)
 {
 	return makeResourceLoadingJob(
 	    [onInitialStartup](ResourceLoadingController &controller) -> LoadingTask {
-		    return frontendInitTask(controller, onInitialStartup);
-	    },
-	    [] { closeLoadingScreen(); },
-	    [] {
-		    closeLoadingScreen();
-		    debug(LOG_FATAL, "Shutting down after failure");
-		    exit(EXIT_FAILURE);
+		    return [onInitialStartup](ResourceLoadingController &c) -> LoadingTask {
+			    LoadOutcome const outcome = co_await frontendInitTask(c, onInitialStartup);
+			    if (outcome == LoadOutcome::Failure)
+			    {
+				    closeLoadingScreen();
+				    debug(LOG_FATAL, "Shutting down after failure");
+				    exit(EXIT_FAILURE);
+			    }
+			    closeLoadingScreen();
+			    co_return LoadOutcome::Success;
+		    }(controller);
 	    });
 }
 

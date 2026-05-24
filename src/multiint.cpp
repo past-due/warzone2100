@@ -920,8 +920,6 @@ std::unique_ptr<ResourceLoadingJob> makeMapPreviewJob(bool hideInterface)
 	    [hideInterface](ResourceLoadingController &) -> LoadingTask {
 		    return mapPreviewLoadTask(hideInterface);
 	    },
-	    {},
-	    {},
 	    ResourceLoadingController::FrameProcessingMode::ContinueMainLoop);
 }
 
@@ -931,8 +929,6 @@ std::unique_ptr<ResourceLoadingJob> makeMapPreviewJob(bool hideInterface, std::s
 	    [hideInterface, mapName = std::move(mapName), mapHash](ResourceLoadingController &) mutable -> LoadingTask {
 		    return mapPreviewLoadTask(hideInterface, std::move(mapName), mapHash);
 	    },
-	    {},
-	    {},
 	    ResourceLoadingController::FrameProcessingMode::ContinueMainLoop);
 }
 

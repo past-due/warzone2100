@@ -189,16 +189,9 @@ void ResourceLoadingController::step()
 {
 	ASSERT(activeSubmission.has_value(), "step called without an active submission");
 	LoadStepStatus const result = activeSubmission->job->step(*this);
-	switch (result)
+	if (result == LoadStepStatus::InProgress)
 	{
-	case LoadStepStatus::InProgress:
 		return;
-	case LoadStepStatus::Completed:
-		activeSubmission->job->finalizeSuccess();
-		break;
-	case LoadStepStatus::Failed:
-		activeSubmission->job->finalizeFailure();
-		break;
 	}
 
 	activeSubmission.reset();
