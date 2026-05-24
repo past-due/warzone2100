@@ -28,7 +28,7 @@
 #include "lib/framework/wzapp.h"
 #include "wrappers.h"
 
-void submitResourceLoadingJob(ResourceLoadingTaskFactory taskFactory,
+void submitResourceLoadingTask(ResourceLoadingTaskFactory taskFactory,
                               bool showLoadingScreen,
                               bool drawBackdrop,
                               ResourceLoadingController::FrameProcessingMode frameMode)

@@ -900,13 +900,13 @@ static void loadMapPreview(bool hideInterface)
 namespace
 {
 
-LoadingTask mapPreviewLoadTask(bool hideInterface)
+LoadingTask mapPreviewLoadTaskImpl(bool hideInterface)
 {
 	loadMapPreview(hideInterface);
 	co_return LoadOutcome::Success;
 }
 
-LoadingTask mapPreviewLoadTask(bool hideInterface, std::string mapName, Sha256 mapHash)
+LoadingTask mapPreviewLoadTaskImpl(bool hideInterface, std::string mapName, Sha256 mapHash)
 {
 	loadMapPreview(hideInterface, mapName.c_str(), mapHash);
 	co_return LoadOutcome::Success;
@@ -914,14 +914,14 @@ LoadingTask mapPreviewLoadTask(bool hideInterface, std::string mapName, Sha256 m
 
 } // anonymous namespace
 
-LoadingTask makeMapPreviewJob(ResourceLoadingController &, bool hideInterface)
+LoadingTask mapPreviewLoadTask(ResourceLoadingController &, bool hideInterface)
 {
-	return mapPreviewLoadTask(hideInterface);
+	return mapPreviewLoadTaskImpl(hideInterface);
 }
 
-LoadingTask makeMapPreviewJob(ResourceLoadingController &, bool hideInterface, std::string mapName, Sha256 mapHash)
+LoadingTask mapPreviewLoadTask(ResourceLoadingController &, bool hideInterface, std::string mapName, Sha256 mapHash)
 {
-	return mapPreviewLoadTask(hideInterface, std::move(mapName), mapHash);
+	return mapPreviewLoadTaskImpl(hideInterface, std::move(mapName), mapHash);
 }
 
 // ////////////////////////////////////////////////////////////////////////////

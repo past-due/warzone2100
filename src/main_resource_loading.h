@@ -37,7 +37,7 @@ class ResourceLoadingController;
 namespace main_resource_loading
 {
 
-LoadingTask makeStartGameResourceJob(ResourceLoadingController &controller);
-LoadingTask makeLoadSaveGameResourceJob(ResourceLoadingController &controller);
+LoadingTask startGameResourceTask(ResourceLoadingController &controller);
+LoadingTask loadSaveGameResourceTask(ResourceLoadingController &controller);
 
 } // namespace main_resource_loading

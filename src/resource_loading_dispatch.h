@@ -32,7 +32,7 @@ class LoadingTask;
 
 using ResourceLoadingTaskFactory = std::function<LoadingTask(ResourceLoadingController &)>;
 
-void submitResourceLoadingJob(ResourceLoadingTaskFactory taskFactory,
+void submitResourceLoadingTask(ResourceLoadingTaskFactory taskFactory,
                               bool showLoadingScreen = true,
                               bool drawBackdrop = true,
                               ResourceLoadingController::FrameProcessingMode frameMode =

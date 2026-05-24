@@ -926,7 +926,7 @@ bool startGameAfterLevelLoad()
  * Preparations before entering the game loop
  * Would start the timer in an event based mainloop
  */
-LoadingTask startGameResourceTask(ResourceLoadingController &controller)
+LoadingTask startGameResourceTaskImpl(ResourceLoadingController &controller)
 {
 	co_await controller.yieldFrame();
 
@@ -967,7 +967,7 @@ void saveGameLoadAbortOnFailure()
 	SetGameMode(GS_TITLE_SCREEN);
 }
 
-LoadingTask loadSaveGameResourceTask(ResourceLoadingController &controller)
+LoadingTask loadSaveGameResourceTaskImpl(ResourceLoadingController &controller)
 {
 	co_await controller.yieldFrame();
 
@@ -987,9 +987,9 @@ LoadingTask loadSaveGameResourceTask(ResourceLoadingController &controller)
 
 } // anonymous namespace
 
-LoadingTask makeStartGameResourceJob(ResourceLoadingController &controller)
+LoadingTask startGameResourceTask(ResourceLoadingController &controller)
 {
-	LoadOutcome const outcome = co_await startGameResourceTask(controller);
+	LoadOutcome const outcome = co_await startGameResourceTaskImpl(controller);
 	if (outcome == LoadOutcome::Failure)
 	{
 		startGameAbortLevelLoadFailure();
@@ -1001,9 +1001,9 @@ LoadingTask makeStartGameResourceJob(ResourceLoadingController &controller)
 	co_return LoadOutcome::Success;
 }
 
-LoadingTask makeLoadSaveGameResourceJob(ResourceLoadingController &controller)
+LoadingTask loadSaveGameResourceTask(ResourceLoadingController &controller)
 {
-	LoadOutcome const outcome = co_await loadSaveGameResourceTask(controller);
+	LoadOutcome const outcome = co_await loadSaveGameResourceTaskImpl(controller);
 	if (outcome == LoadOutcome::Failure)
 	{
 		saveGameLoadAbortOnFailure();
@@ -1120,14 +1120,14 @@ static void runGameLoop()
 		debug(LOG_MAIN, "GAMECODE_LOADGAME");
 		stopGameLoop();
 		// Restart and load a savegame
-		submitResourceLoadingJob(main_resource_loading::makeLoadSaveGameResourceJob);
+		submitResourceLoadingTask(main_resource_loading::loadSaveGameResourceTask);
 		gameLoopStatus = GAMECODE_CONTINUE;
 		return;
 	case GAMECODE_NEWLEVEL:
 		debug(LOG_MAIN, "GAMECODE_NEWLEVEL");
 		stopGameLoop();
 		// Restart gameloop
-		submitResourceLoadingJob(main_resource_loading::makeStartGameResourceJob);
+		submitResourceLoadingTask(main_resource_loading::startGameResourceTask);
 		gameLoopStatus = GAMECODE_CONTINUE;
 		return;
 	default:
@@ -1184,14 +1184,14 @@ static void runTitleLoop()
 				debug(LOG_MAIN, "TITLECODE_SAVEGAMELOAD");
 				// Restart into gameloop and load a savegame, ONLY on a good savegame load!
 				stopTitleLoop();
-				submitResourceLoadingJob(main_resource_loading::makeLoadSaveGameResourceJob);
+				submitResourceLoadingTask(main_resource_loading::loadSaveGameResourceTask);
 				return;
 			}
 		case TITLECODE_STARTGAME:
 			debug(LOG_MAIN, "TITLECODE_STARTGAME");
 			stopTitleLoop();
 			// Restart into gameloop
-			submitResourceLoadingJob(main_resource_loading::makeStartGameResourceJob);
+			submitResourceLoadingTask(main_resource_loading::startGameResourceTask);
 			return;
 		default:
 			// ignore unexpected value
@@ -1304,22 +1304,23 @@ void mainLoop()
 
 void requestMapPreviewLoad(bool hideInterface)
 {
-	submitResourceLoadingJob(
-	    [hideInterface](ResourceLoadingController &c) { return makeMapPreviewJob(c, hideInterface); },
-	    false,
-	    false,
-	    ResourceLoadingController::FrameProcessingMode::ContinueMainLoop);
+	submitResourceLoadingTask(
+		[hideInterface](ResourceLoadingController &c) { return mapPreviewLoadTask(c, hideInterface); },
+		false,
+		false,
+		ResourceLoadingController::FrameProcessingMode::ContinueMainLoop);
 }
 
 void requestMapPreviewLoad(bool hideInterface, const char *mapName, const Sha256& mapHash)
 {
-	submitResourceLoadingJob(
-	    [hideInterface, mapName = std::string(mapName), mapHash](ResourceLoadingController &c) {
-		    return makeMapPreviewJob(c, hideInterface, std::move(mapName), mapHash);
-	    },
-	    false,
-	    false,
-	    ResourceLoadingController::FrameProcessingMode::ContinueMainLoop);
+	submitResourceLoadingTask(
+		[hideInterface, mapName = std::string(mapName), mapHash](ResourceLoadingController &c)
+		{
+			return mapPreviewLoadTask(c, hideInterface, std::move(mapName), mapHash);
+		},
+		false,
+		false,
+		ResourceLoadingController::FrameProcessingMode::ContinueMainLoop);
 }
 
 bool getUTF8CmdLine(int *const _utfargc WZ_DECL_UNUSED, char *** const _utfargv WZ_DECL_UNUSED) // explicitely pass by reference
@@ -2188,17 +2189,17 @@ int realmain(int argc, char *argv[])
 	{
 	case GS_TITLE_SCREEN:
 		// The usual case (unless command-line flags specify otherwise): Load into the title menu
-		submitResourceLoadingJob([](ResourceLoadingController &c) { return makeFrontendInitJob(c, true); }, false, false);
+		submitResourceLoadingTask([](ResourceLoadingController &c) { return frontendInitTask(c, true); }, false, false);
 		break;
 	case GS_SAVEGAMELOAD:
 		if (headlessGameMode())
 		{
 			fprintf(stdout, "Loading savegame ...\n");
 		}
-		submitResourceLoadingJob(main_resource_loading::makeLoadSaveGameResourceJob);
+		submitResourceLoadingTask(main_resource_loading::loadSaveGameResourceTask);
 		break;
 	case GS_NORMAL:
-		submitResourceLoadingJob(main_resource_loading::makeStartGameResourceJob);
+		submitResourceLoadingTask(main_resource_loading::startGameResourceTask);
 		break;
 	default:
 		debug(LOG_ERROR, "Weirdy game status, I'm afraid!!");

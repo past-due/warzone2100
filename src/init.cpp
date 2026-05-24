@@ -1190,7 +1190,7 @@ void systemShutdown()
 namespace
 {
 
-LoadingTask frontendInitTask(ResourceLoadingController &controller, bool onInitialStartup)
+LoadingTask frontendInitTaskImpl(ResourceLoadingController &controller, bool onInitialStartup)
 {
 	SetGameMode(GS_TITLE_SCREEN);
 	frontendIsShuttingDown();
@@ -1236,9 +1236,9 @@ LoadingTask frontendInitTask(ResourceLoadingController &controller, bool onIniti
 
 } // anonymous namespace
 
-LoadingTask makeFrontendInitJob(ResourceLoadingController &controller, bool onInitialStartup)
+LoadingTask frontendInitTask(ResourceLoadingController &controller, bool onInitialStartup)
 {
-	LoadOutcome const outcome = co_await frontendInitTask(controller, onInitialStartup);
+	LoadOutcome const outcome = co_await frontendInitTaskImpl(controller, onInitialStartup);
 	if (outcome == LoadOutcome::Failure)
 	{
 		closeLoadingScreen();

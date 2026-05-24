@@ -176,8 +176,8 @@ struct Sha256;
 class LoadingTask;
 class ResourceLoadingController;
 
-LoadingTask makeMapPreviewJob(ResourceLoadingController &controller, bool hideInterface);
-LoadingTask makeMapPreviewJob(ResourceLoadingController &controller, bool hideInterface, std::string mapName, Sha256 mapHash);
+LoadingTask mapPreviewLoadTask(ResourceLoadingController &controller, bool hideInterface);
+LoadingTask mapPreviewLoadTask(ResourceLoadingController &controller, bool hideInterface, std::string mapName, Sha256 mapHash);
 
 bool changeReadyStatus(UBYTE player, bool bReady);
 WzString formatGameName(WzString name);
