@@ -97,7 +97,7 @@
 #include "radar.h"
 #include "lib/framework/resource_loading_controller.h"
 #include "lib/framework/loading_task.h"
-#include "resource_loading_request.h"
+#include "lib/framework/crc.h"
 #include "lib/framework/wztime.h"
 
 #include "multiplay.h"
@@ -900,26 +900,36 @@ static void loadMapPreview(bool hideInterface)
 namespace
 {
 
-LoadingTask mapPreviewLoadTask(ResourceLoadingRequest request)
+LoadingTask mapPreviewLoadTask(bool hideInterface)
 {
-	if (request.previewMapName.empty())
-	{
-		loadMapPreview(request.hideInterface);
-	}
-	else
-	{
-		loadMapPreview(request.hideInterface, request.previewMapName.c_str(), request.previewMapHash);
-	}
+	loadMapPreview(hideInterface);
+	co_return LoadOutcome::Success;
+}
+
+LoadingTask mapPreviewLoadTask(bool hideInterface, std::string mapName, Sha256 mapHash)
+{
+	loadMapPreview(hideInterface, mapName.c_str(), mapHash);
 	co_return LoadOutcome::Success;
 }
 
 } // anonymous namespace
 
-std::unique_ptr<ResourceLoadingJob> makeMapPreviewJob(ResourceLoadingRequest request)
+std::unique_ptr<ResourceLoadingJob> makeMapPreviewJob(bool hideInterface)
 {
 	return makeResourceLoadingJob(
-	    [request = std::move(request)](ResourceLoadingController &) mutable -> LoadingTask {
-		    return mapPreviewLoadTask(std::move(request));
+	    [hideInterface](ResourceLoadingController &) -> LoadingTask {
+		    return mapPreviewLoadTask(hideInterface);
+	    },
+	    {},
+	    {},
+	    ResourceLoadingController::FrameProcessingMode::ContinueMainLoop);
+}
+
+std::unique_ptr<ResourceLoadingJob> makeMapPreviewJob(bool hideInterface, std::string mapName, Sha256 mapHash)
+{
+	return makeResourceLoadingJob(
+	    [hideInterface, mapName = std::move(mapName), mapHash](ResourceLoadingController &) mutable -> LoadingTask {
+		    return mapPreviewLoadTask(hideInterface, std::move(mapName), mapHash);
 	    },
 	    {},
 	    {},

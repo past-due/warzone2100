@@ -32,7 +32,6 @@
 
 struct IMAGEFILE;
 class ResourceLoadingJob;
-struct ResourceLoadingRequest;
 class WzMapZipIO;
 
 // the size of the file loading buffer
@@ -42,7 +41,7 @@ extern char fileLoadBuffer[];
 
 bool systemInitialise(unsigned int horizScalePercentage, unsigned int vertScalePercentage);
 void systemShutdown();
-std::unique_ptr<ResourceLoadingJob> makeFrontendInitJob(ResourceLoadingRequest request);
+std::unique_ptr<ResourceLoadingJob> makeFrontendInitJob(bool onInitialStartup = false);
 bool frontendInitialise(const char *ResourceFile);
 bool frontendInitialiseSetup();
 bool frontendInitialiseFinalize();

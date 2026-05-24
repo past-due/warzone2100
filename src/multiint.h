@@ -31,6 +31,7 @@
 #include "lib/widget/button.h"
 #include <functional>
 #include <memory>
+#include <string>
 #include <vector>
 #include <set>
 #include "lib/framework/wzstring.h"
@@ -173,9 +174,9 @@ void displayKickReasonPopup(const std::string &reason);
 
 struct Sha256;
 class ResourceLoadingJob;
-struct ResourceLoadingRequest;
 
-std::unique_ptr<ResourceLoadingJob> makeMapPreviewJob(ResourceLoadingRequest request);
+std::unique_ptr<ResourceLoadingJob> makeMapPreviewJob(bool hideInterface);
+std::unique_ptr<ResourceLoadingJob> makeMapPreviewJob(bool hideInterface, std::string mapName, Sha256 mapHash);
 
 bool changeReadyStatus(UBYTE player, bool bReady);
 WzString formatGameName(WzString name);

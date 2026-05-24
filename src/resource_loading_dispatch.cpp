@@ -24,76 +24,24 @@
 
 #include "resource_loading_dispatch.h"
 
-#include "init.h"
 #include "lib/framework/loading_task.h"
 #include "lib/framework/resource_loading_controller.h"
-#include "main_resource_loading.h"
-#include "multiint.h"
+#include "lib/framework/wzapp.h"
 #include "wrappers.h"
 
-#include <optional>
 #include <utility>
 
-namespace
+void submitResourceLoadingJob(std::unique_ptr<ResourceLoadingJob> job,
+                              bool showLoadingScreen,
+                              bool drawBackdrop)
 {
-
-std::optional<ResourceLoadingRequest> queuedRequest;
-
-std::unique_ptr<ResourceLoadingJob> makeJob(const ResourceLoadingRequest &request)
-{
-	switch (request.kind)
-	{
-	case ResourceLoadingRequest::Kind::FrontendInit:
-		return makeFrontendInitJob(request);
-	case ResourceLoadingRequest::Kind::StartGame:
-		return main_resource_loading::makeStartGameResourceJob();
-	case ResourceLoadingRequest::Kind::LoadSaveGame:
-		return main_resource_loading::makeLoadSaveGameResourceJob();
-	case ResourceLoadingRequest::Kind::MapPreview:
-		return makeMapPreviewJob(request);
-	}
-	return nullptr;
-}
-
-void beginResourceLoading(ResourceLoadingRequest request)
-{
+	ASSERT(job, "submitResourceLoadingJob given null job");
 	ResourceLoadingController &controller = ResourceLoadingController::instance();
-	ASSERT(!controller.active(), "beginResourceLoading called while another loading job is active");
-
-	const bool hadLoadingScreen = isLoadingScreenActive();
-	if (request.showLoadingScreen && !hadLoadingScreen)
+	if (!controller.active() && showLoadingScreen && !isLoadingScreenActive())
 	{
-		initLoadingScreen(request.drawBackdrop);
+		initLoadingScreen(drawBackdrop);
 	}
-
-	std::unique_ptr<ResourceLoadingJob> job = makeJob(request);
-	ASSERT(job, "Failed to create loading job");
-	controller.request(std::move(job), request.showLoadingScreen);
-}
-
-} // namespace
-
-void requestResourceLoading(ResourceLoadingRequest request)
-{
-	if (ResourceLoadingController::instance().active())
-	{
-		queuedRequest = std::move(request);
-		return;
-	}
-
-	beginResourceLoading(std::move(request));
-}
-
-void processResourceLoadingQueue()
-{
-	if (ResourceLoadingController::instance().active() || !queuedRequest.has_value())
-	{
-		return;
-	}
-
-	ResourceLoadingRequest nextRequest = std::move(queuedRequest.value());
-	queuedRequest.reset();
-	beginResourceLoading(std::move(nextRequest));
+	controller.request(std::move(job), showLoadingScreen);
 }
 
 void presentResourceLoadingScreenIfNeeded()

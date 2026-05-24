@@ -19,16 +19,17 @@
 	Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 */
 /** \file resource_loading_dispatch.h
- * \brief Game-level loading submission: map `ResourceLoadingRequest` to jobs and drive loading UI.
+ * \brief Game-level loading submission and loading-screen presentation.
  */
 
 #pragma once
 
-#include "resource_loading_request.h"
+#include <memory>
 
-void requestResourceLoading(ResourceLoadingRequest request);
+class ResourceLoadingJob;
 
-/// Call after `ResourceLoadingController::step()` when the active job has finished.
-void processResourceLoadingQueue();
+void submitResourceLoadingJob(std::unique_ptr<ResourceLoadingJob> job,
+                              bool showLoadingScreen = true,
+                              bool drawBackdrop = true);
 
 void presentResourceLoadingScreenIfNeeded();

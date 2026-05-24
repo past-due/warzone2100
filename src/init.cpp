@@ -88,7 +88,7 @@
 #include "research.h"
 #include "lib/framework/resource_loading_controller.h"
 #include "lib/framework/loading_task.h"
-#include "resource_loading_request.h"
+#include "wrappers.h"
 #include "lib/framework/cursors.h"
 #include "text.h"
 #include "transporter.h"
@@ -1190,11 +1190,16 @@ void systemShutdown()
 namespace
 {
 
-LoadingTask frontendInitTask(ResourceLoadingController &controller, ResourceLoadingRequest request)
+LoadingTask frontendInitTask(ResourceLoadingController &controller, bool onInitialStartup)
 {
 	SetGameMode(GS_TITLE_SCREEN);
 	frontendIsShuttingDown();
-	debug(LOG_WZ, "== Initializing frontend == : %s", request.resourceFile.c_str());
+	static constexpr char resourceFile[] = "wrf/frontend.wrf";
+	debug(LOG_WZ, "== Initializing frontend == : %s", resourceFile);
+	if (!onInitialStartup && !isLoadingScreenActive())
+	{
+		initLoadingScreen(true);
+	}
 	if (!frontendInitialiseSetup())
 	{
 		co_return LoadOutcome::Failure;
@@ -1204,7 +1209,7 @@ LoadingTask frontendInitTask(ResourceLoadingController &controller, ResourceLoad
 
 	debug(LOG_MAIN, "frontEndInitialise: loading resource file .....");
 	ResLoadPlan plan;
-	if (!resPrepareLoadPlan(request.resourceFile.c_str(), 0, plan))
+	if (!resPrepareLoadPlan(resourceFile, 0, plan))
 	{
 		co_return LoadOutcome::Failure;
 	}
@@ -1231,11 +1236,11 @@ LoadingTask frontendInitTask(ResourceLoadingController &controller, ResourceLoad
 
 } // anonymous namespace
 
-std::unique_ptr<ResourceLoadingJob> makeFrontendInitJob(ResourceLoadingRequest request)
+std::unique_ptr<ResourceLoadingJob> makeFrontendInitJob(bool onInitialStartup)
 {
 	return makeResourceLoadingJob(
-	    [request = std::move(request)](ResourceLoadingController &controller) mutable -> LoadingTask {
-		    return frontendInitTask(controller, std::move(request));
+	    [onInitialStartup](ResourceLoadingController &controller) -> LoadingTask {
+		    return frontendInitTask(controller, onInitialStartup);
 	    },
 	    [] { closeLoadingScreen(); },
 	    [] {
