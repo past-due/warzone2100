@@ -58,12 +58,6 @@ enum class ExecutionFrameState
 	Running,
 };
 
-struct ExecutionFrame
-{
-	std::coroutine_handle<> handle{};
-	ExecutionFrameState state = ExecutionFrameState::Paused;
-};
-
 /// Global cooperative loading scheduler: at most one active job, optional single queued follow-up.
 class ResourceLoadingController
 {
@@ -78,6 +72,13 @@ public:
 		ContinueMainLoop,
 	};
 
+	/// Per-frame policy for mainLoop; stored on each execution stack entry.
+	struct FramePolicy
+	{
+		FrameProcessingMode frameMode = FrameProcessingMode::ConsumeFrame;
+		bool showLoadingScreen = true;
+	};
+
 	struct FrameYield;
 
 	static ResourceLoadingController& instance();
@@ -88,27 +89,23 @@ public:
 	ResourceLoadingController(ResourceLoadingController&&) = delete;
 	ResourceLoadingController &operator=(ResourceLoadingController&&) = delete;
 
-	// Submit a new loading job. If there is an active job, queue the follow-up;
+	// Submit a new loading job. If there is an active submission, queue the follow-up;
 	// otherwise begin immediately.
-	void request(std::unique_ptr<ResourceLoadingJob> job, bool showLoadingScreen = true);
+	void request(std::unique_ptr<ResourceLoadingJob> job, FramePolicy policy);
 
-	// Returns true if there is an active job.
+	// Returns true if there is an active submission.
 	bool active() const;
 
 	// Advance the active job's state machine.
 	void step();
 
-	// Valid only while `active()`; reflects the active job's policy for this frame.
+	// Valid only while `active()` and execution is running; reads the execution stack top.
 	FrameProcessingMode currentFrameProcessingMode() const;
 
 	// When true, mainLoop presents the loading screen; callback must not flip frames.
 	bool loadingScreenHandledByController() const;
 
 	FrameYield yieldFrame() noexcept;
-
-	void setFrameProcessingMode(FrameProcessingMode mode) noexcept { frameMode = mode; }
-
-	FrameProcessingMode frameProcessingMode() const noexcept { return frameMode; }
 
 private:
 
@@ -117,31 +114,41 @@ private:
 	friend class ResourceLoadingJob;
 	friend struct FrameYield;
 
+	struct ExecutionFrame
+	{
+		std::coroutine_handle<> handle{};
+		ExecutionFrameState state = ExecutionFrameState::Paused;
+		FramePolicy policy{};
+	};
+
+	struct ResourceLoadingSubmission
+	{
+		std::unique_ptr<ResourceLoadingJob> job;
+		FramePolicy policy{};
+	};
+
 	explicit ResourceLoadingController() = default;
 	~ResourceLoadingController() = default;
 
-	void begin(std::unique_ptr<ResourceLoadingJob> job, bool showLoadingScreen);
+	void begin(ResourceLoadingSubmission submission);
 
-	void start(LoadingTask task);
+	void start(LoadingTask task, FramePolicy policy);
 	LoadStepStatus stepOneQuantum();
 	void resetTaskState() noexcept;
 
 	ExecutionFrame &topFrame();
 	ExecutionFrame const &topFrame() const;
-	void pushFrame(std::coroutine_handle<> handle);
+	void pushFrame(std::coroutine_handle<> handle, FramePolicy policy);
 	void popAndDestroyTop() noexcept;
 	void onFrameFinished(LoadOutcome outcome) noexcept;
 	bool hasActiveExecution() const noexcept { return !executionStack.empty(); }
 
-	std::unique_ptr<ResourceLoadingJob> activeJob;
-	std::optional<std::unique_ptr<ResourceLoadingJob>> queuedJob;
-	bool activeShowLoadingScreen = false;
-	bool queuedShowLoadingScreen = false;
+	std::optional<ResourceLoadingSubmission> activeSubmission;
+	std::optional<ResourceLoadingSubmission> queuedSubmission;
 
 	std::stack<ExecutionFrame, std::vector<ExecutionFrame>> executionStack;
 	LoadOutcome terminalOutcome = LoadOutcome::Success;
 	bool sessionFinished = false;
-	FrameProcessingMode frameMode = FrameProcessingMode::ConsumeFrame;
 };
 
 /// `co_await controller.yieldFrame()` — suspend until the next `stepOneQuantum()`.

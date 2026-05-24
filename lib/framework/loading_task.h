@@ -34,6 +34,7 @@
 #include <exception>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <utility>
 
 struct LoadingTaskPromise;
@@ -72,6 +73,8 @@ public:
 
 	LoadOutcome result() const noexcept;
 
+	void setFramePolicy(ResourceLoadingController::FramePolicy policy) noexcept;
+
 	/// Detach handle for `ResourceLoadingController::start` (controller owns destruction).
 	std::coroutine_handle<promise_type> release() noexcept
 	{
@@ -108,6 +111,7 @@ struct LoadingTaskPromise
 	ResourceLoadingController *controller = nullptr;
 	LoadOutcome result = LoadOutcome::Success;
 	std::exception_ptr exception;
+	std::optional<ResourceLoadingController::FramePolicy> framePolicy;
 
 	LoadingTask get_return_object() noexcept
 	{
@@ -177,7 +181,7 @@ public:
 	                    ResourceLoadingController::FrameProcessingMode initialFrameMode =
 	                        ResourceLoadingController::FrameProcessingMode::ConsumeFrame);
 
-	void bindAndStart(ResourceLoadingController &controller);
+	void bindAndStart(ResourceLoadingController &controller, ResourceLoadingController::FramePolicy policy);
 	LoadStepStatus step(ResourceLoadingController &controller);
 	void finalizeSuccess();
 	void finalizeFailure();

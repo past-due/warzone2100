@@ -41,7 +41,10 @@ void submitResourceLoadingJob(std::unique_ptr<ResourceLoadingJob> job,
 	{
 		initLoadingScreen(drawBackdrop);
 	}
-	controller.request(std::move(job), showLoadingScreen);
+	ResourceLoadingController::FramePolicy policy;
+	policy.showLoadingScreen = showLoadingScreen;
+	policy.frameMode = job->frameProcessingMode();
+	controller.request(std::move(job), policy);
 }
 
 void presentResourceLoadingScreenIfNeeded()

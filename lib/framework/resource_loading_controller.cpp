@@ -50,24 +50,24 @@ void ResourceLoadingController::FrameYield::await_suspend(std::coroutine_handle<
 	top.state = ExecutionFrameState::Paused;
 }
 
-ExecutionFrame &ResourceLoadingController::topFrame()
+ResourceLoadingController::ExecutionFrame &ResourceLoadingController::topFrame()
 {
 	ASSERT(hasActiveExecution(), "topFrame without active execution");
 	return executionStack.top();
 }
 
-ExecutionFrame const &ResourceLoadingController::topFrame() const
+ResourceLoadingController::ExecutionFrame const &ResourceLoadingController::topFrame() const
 {
 	ASSERT(hasActiveExecution(), "topFrame without active execution");
 	return executionStack.top();
 }
 
-void ResourceLoadingController::pushFrame(std::coroutine_handle<> handle)
+void ResourceLoadingController::pushFrame(std::coroutine_handle<> handle, FramePolicy policy)
 {
 	ASSERT(handle, "pushFrame with null handle");
 	ASSERT(!handle.done(), "pushFrame with already-completed coroutine");
 	ASSERT(!sessionFinished, "pushFrame after load session finished");
-	executionStack.push(ExecutionFrame{handle, ExecutionFrameState::Paused});
+	executionStack.push(ExecutionFrame{handle, ExecutionFrameState::Paused, policy});
 }
 
 void ResourceLoadingController::popAndDestroyTop() noexcept
@@ -104,7 +104,7 @@ void ResourceLoadingController::onFrameFinished(LoadOutcome outcome) noexcept
 	// Nested completion: keep `finished` alive until the parent's ChildTaskAwaiter::await_resume.
 }
 
-void ResourceLoadingController::start(LoadingTask task)
+void ResourceLoadingController::start(LoadingTask task, FramePolicy policy)
 {
 	ASSERT(!hasActiveExecution(), "ResourceLoadingController.start called while execution is active");
 	std::coroutine_handle<LoadingTaskPromise> const root = task.release();
@@ -112,8 +112,7 @@ void ResourceLoadingController::start(LoadingTask task)
 	root.promise().controller = this;
 	sessionFinished = false;
 	terminalOutcome = LoadOutcome::Success;
-	frameMode = FrameProcessingMode::ConsumeFrame;
-	pushFrame(root);
+	pushFrame(root, policy);
 	ASSERT(executionStack.size() == 1, "start must leave a single root execution frame");
 }
 
@@ -152,72 +151,83 @@ void ResourceLoadingController::resetTaskState() noexcept
 	}
 	sessionFinished = false;
 	terminalOutcome = LoadOutcome::Success;
-	frameMode = FrameProcessingMode::ConsumeFrame;
 	ASSERT(!hasActiveExecution() && !sessionFinished, "resetTaskState must clear execution state");
 }
 
-void ResourceLoadingController::request(std::unique_ptr<ResourceLoadingJob> job, bool showLoadingScreen)
+void ResourceLoadingController::request(std::unique_ptr<ResourceLoadingJob> job, FramePolicy policy)
 {
-	if (activeJob)
+	ASSERT(job, "request given null job");
+	ResourceLoadingSubmission submission;
+	submission.job = std::move(job);
+	submission.policy = policy;
+
+	if (activeSubmission.has_value())
 	{
-		queuedJob = std::move(job);
-		queuedShowLoadingScreen = showLoadingScreen;
+		queuedSubmission = std::move(submission);
 		return;
 	}
 
-	begin(std::move(job), showLoadingScreen);
+	begin(std::move(submission));
 }
 
-void ResourceLoadingController::begin(std::unique_ptr<ResourceLoadingJob> job, bool showLoadingScreen)
+void ResourceLoadingController::begin(ResourceLoadingSubmission submission)
 {
-	ASSERT(!activeJob, "LoadingController.begin called while another loading job is active");
-	ASSERT(job, "LoadingController.begin given null job");
-	activeJob = std::move(job);
-	activeShowLoadingScreen = showLoadingScreen;
-	activeJob->bindAndStart(*this);
+	ASSERT(!activeSubmission.has_value(), "begin called while another submission is active");
+	ASSERT(submission.job, "begin given null job");
+	ResourceLoadingJob *job = submission.job.get();
+	FramePolicy const policy = submission.policy;
+	activeSubmission = std::move(submission);
+	job->bindAndStart(*this, policy);
 }
 
 bool ResourceLoadingController::active() const
 {
-	return activeJob != nullptr;
+	return activeSubmission.has_value();
 }
 
 void ResourceLoadingController::step()
 {
-	ASSERT(activeJob, "LoadingController.step called without an active job");
-	LoadStepStatus const result = activeJob->step(*this);
+	ASSERT(activeSubmission.has_value(), "step called without an active submission");
+	LoadStepStatus const result = activeSubmission->job->step(*this);
 	switch (result)
 	{
 	case LoadStepStatus::InProgress:
 		return;
 	case LoadStepStatus::Completed:
-		activeJob->finalizeSuccess();
+		activeSubmission->job->finalizeSuccess();
 		break;
 	case LoadStepStatus::Failed:
-		activeJob->finalizeFailure();
+		activeSubmission->job->finalizeFailure();
 		break;
 	}
 
-	activeJob.reset();
-	activeShowLoadingScreen = false;
+	activeSubmission.reset();
 	resetTaskState();
 
-	if (queuedJob.has_value())
+	if (queuedSubmission.has_value())
 	{
-		std::unique_ptr<ResourceLoadingJob> nextJob = std::move(queuedJob.value());
-		bool const nextShowLoadingScreen = queuedShowLoadingScreen;
-		queuedJob.reset();
-		begin(std::move(nextJob), nextShowLoadingScreen);
+		ResourceLoadingSubmission nextSubmission = std::move(queuedSubmission.value());
+		queuedSubmission.reset();
+		begin(std::move(nextSubmission));
 	}
 }
 
 ResourceLoadingController::FrameProcessingMode ResourceLoadingController::currentFrameProcessingMode() const
 {
-	ASSERT(activeJob, "LoadingController.currentFrameProcessingMode called without an active job");
-	return frameProcessingMode();
+	ASSERT(activeSubmission.has_value(), "currentFrameProcessingMode without active submission");
+	ASSERT(hasActiveExecution(), "currentFrameProcessingMode without active execution");
+	return topFrame().policy.frameMode;
 }
 
 bool ResourceLoadingController::loadingScreenHandledByController() const
 {
-	return activeJob != nullptr && activeShowLoadingScreen;
+	if (!activeSubmission.has_value())
+	{
+		return false;
+	}
+	if (!hasActiveExecution())
+	{
+		return activeSubmission->policy.showLoadingScreen;
+	}
+	return topFrame().policy.showLoadingScreen;
 }

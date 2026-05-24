@@ -31,6 +31,14 @@ LoadOutcome LoadingTask::result() const noexcept
 	return coro ? coro.promise().result : LoadOutcome::Failure;
 }
 
+void LoadingTask::setFramePolicy(ResourceLoadingController::FramePolicy policy) noexcept
+{
+	if (coro)
+	{
+		coro.promise().framePolicy = policy;
+	}
+}
+
 void LoadingTaskPromise::FinalAwaiter::await_suspend(std::coroutine_handle<LoadingTaskPromise> h) const noexcept
 {
 	auto &promise = h.promise();
@@ -66,7 +74,7 @@ void LoadingTask::ChildTaskAwaiter::await_suspend(std::coroutine_handle<> h)
 	auto parent_coro = std::coroutine_handle<LoadingTaskPromise>::from_address(h.address());
 	ResourceLoadingController *controller = parent_coro.promise().controller;
 	ASSERT(controller, "co_await LoadingTask from a coroutine that is not bound to a ResourceLoadingController");
-	ExecutionFrame &parent_frame = controller->topFrame();
+	ResourceLoadingController::ExecutionFrame &parent_frame = controller->topFrame();
 	ASSERT(parent_frame.handle.address() == h.address(),
 	       "co_await child must suspend the execution stack top");
 	// Parent waits on the child until a later quantum resumes it; mark Paused so
@@ -79,7 +87,13 @@ void LoadingTask::ChildTaskAwaiter::await_suspend(std::coroutine_handle<> h)
 		child_promise.controller = controller;
 	}
 
-	controller->pushFrame(child_coro);
+	ResourceLoadingController::FramePolicy child_policy = parent_frame.policy;
+	if (child_promise.framePolicy.has_value())
+	{
+		child_policy = child_promise.framePolicy.value();
+	}
+
+	controller->pushFrame(child_coro, child_policy);
 }
 
 ResourceLoadingJob::ResourceLoadingJob(TaskFactory taskFactory,
@@ -93,12 +107,12 @@ ResourceLoadingJob::ResourceLoadingJob(TaskFactory taskFactory,
 {
 }
 
-void ResourceLoadingJob::bindAndStart(ResourceLoadingController &controller)
+void ResourceLoadingJob::bindAndStart(ResourceLoadingController &controller,
+                                       ResourceLoadingController::FramePolicy policy)
 {
 	controller.resetTaskState();
 	ASSERT(task_factory, "ResourceLoadingJob factory is null");
-	controller.start(task_factory(controller));
-	controller.setFrameProcessingMode(initialFrameMode);
+	controller.start(task_factory(controller), policy);
 }
 
 LoadStepStatus ResourceLoadingJob::step(ResourceLoadingController &controller)
