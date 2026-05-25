@@ -112,7 +112,8 @@ void WzMultiLimitTitleUI::start()
 	{
 		initLoadingScreen(true);
 
-		if (!resLoad("wrf/limiter_data.wrf", 503))
+		auto& controller = ResourceLoadingController::instance();
+		if (controller.runTaskToCompletion(resLoad(controller, "wrf/limiter_data.wrf", 503)) == LoadOutcome::Failure)
 		{
 			debug(LOG_INFO, "Unable to load limiter_data during WzMultiLimitTitleUI start; returning...");
 			changeTitleUI(parent);

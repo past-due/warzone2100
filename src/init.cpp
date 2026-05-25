@@ -1228,27 +1228,6 @@ LoadingTask frontendInitTask(ResourceLoadingController &controller, bool onIniti
 	co_return LoadOutcome::Success;
 }
 
-bool frontendInitialise(const char *ResourceFile)
-{
-	frontendIsShuttingDown();
-
-	debug(LOG_WZ, "== Initializing frontend == : %s", ResourceFile);
-
-	if (!frontendInitialiseSetup())
-	{
-		return false;
-	}
-
-	debug(LOG_MAIN, "frontEndInitialise: loading resource file .....");
-	if (!resLoad(ResourceFile, 0))
-	{
-		//need the object heaps to have been set up before loading in the save game
-		return false;
-	}
-
-	return frontendInitialiseFinalize();
-}
-
 bool frontendInitialiseSetup()
 {
 	if (!InitialiseGlobals())				// Initialise all globals and statics everywhere.

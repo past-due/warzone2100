@@ -43,7 +43,6 @@ extern char fileLoadBuffer[];
 bool systemInitialise(unsigned int horizScalePercentage, unsigned int vertScalePercentage);
 void systemShutdown();
 LoadingTask frontendInitTask(ResourceLoadingController &controller, bool onInitialStartup = false);
-bool frontendInitialise(const char *ResourceFile);
 bool frontendInitialiseSetup();
 bool frontendInitialiseFinalize();
 bool frontendShutdown();

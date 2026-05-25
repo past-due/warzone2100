@@ -266,7 +266,9 @@ bool recvOptions(NETQUEUE queue)
 		if (!modHashesSize && !bLimiterLoaded)
 		{
 			initLoadingScreen(true);
-			if (!resLoad("wrf/limiter_data.wrf", 503))
+
+			auto& controller = ResourceLoadingController::instance();
+			if (controller.runTaskToCompletion(resLoad(controller, "wrf/limiter_data.wrf", 503)) == LoadOutcome::Failure)
 			{
 				debug(LOG_INFO, "Unable to load limiter_data during recvOptions!");
 			}

@@ -5326,7 +5326,8 @@ void multiLobbyRandomizeOptions()
 	if (!bLimiterLoaded || !asStructureStats)
 	{
 		initLoadingScreen(true);
-		if (resLoad("wrf/limiter_data.wrf", 503))
+		auto& controller = ResourceLoadingController::instance();
+		if (controller.runTaskToCompletion(resLoad(controller, "wrf/limiter_data.wrf", 503)) == LoadOutcome::Success)
 		{
 			bLimiterLoaded = true;
 		}
@@ -5599,7 +5600,8 @@ void startMultiplayerGame()
 		{
 			debug(LOG_NET, "limiter was NOT activated, setting defaults");
 
-			if (!resLoad("wrf/limiter_data.wrf", 503))
+			auto& controller = ResourceLoadingController::instance();
+			if (controller.runTaskToCompletion(resLoad(controller, "wrf/limiter_data.wrf", 503)) == LoadOutcome::Failure)
 			{
 				debug(LOG_INFO, "Unable to load limiter_data.");
 			}
