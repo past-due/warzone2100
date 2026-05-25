@@ -25,6 +25,7 @@
 #define _frameresource_h
 
 #include "lib/framework/frame.h"
+#include "lib/framework/loading_task.h"
 
 #include <list>
 #include <string>
@@ -108,15 +109,10 @@ void resShutDown();
 WZ_DECL_NONNULL(1) void resSetBaseDir(const char *pResDir);
 WZ_DECL_NONNULL(1) void resForceBaseDir(const char *pResDir);
 
-/** Parse the res file. */
-WZ_DECL_NONNULL(1) bool resLoad(const char *pResFile, SDWORD blockID);
-WZ_DECL_NONNULL(1) bool resPrepareLoadPlan(const char *pResFile, SDWORD blockID, ResLoadPlan &plan);
-bool resLoadPlanStep(ResLoadPlan &plan, size_t maxEntriesPerStep = 1);
-bool resLoadPlanComplete(const ResLoadPlan &plan);
+class ResourceLoadingController;
 
-/** Default max resource entries processed per resLoadPlanStep for cooperative loading. Min 1. */
-size_t resGetLoadPlanEntriesPerStep();
-void resSetLoadPlanEntriesPerStep(size_t entriesPerStep);
+/** Parse the res file. */
+WZ_DECL_NONNULL(2) LoadingTask resLoad(ResourceLoadingController& controller, const char *pResFile, SDWORD blockID);
 
 /** Release all the resources currently loaded and the resource load functions. */
 void resReleaseAll();

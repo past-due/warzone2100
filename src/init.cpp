@@ -1208,28 +1208,7 @@ LoadingTask frontendInitTaskImpl(ResourceLoadingController &controller, bool onI
 	co_await controller.yieldFrame();
 
 	debug(LOG_MAIN, "frontEndInitialise: loading resource file .....");
-	ResLoadPlan plan;
-	if (!resPrepareLoadPlan(resourceFile, 0, plan))
-	{
-		co_return LoadOutcome::Failure;
-	}
-
-	co_await controller.yieldFrame();
-
-	while (true)
-	{
-		if (!resLoadPlanStep(plan, resGetLoadPlanEntriesPerStep()))
-		{
-			co_return LoadOutcome::Failure;
-		}
-		if (resLoadPlanComplete(plan))
-		{
-			break;
-		}
-		co_await controller.yieldFrame();
-	}
-
-	co_await controller.yieldFrame();
+	co_await resLoad(controller, resourceFile, 0);
 
 	co_return frontendInitialiseFinalize() ? LoadOutcome::Success : LoadOutcome::Failure;
 }

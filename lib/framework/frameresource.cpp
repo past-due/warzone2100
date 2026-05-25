@@ -51,7 +51,7 @@ static void ResetResourceFile();
 // callback to resload screen.
 static RESLOAD_CALLBACK resLoadCallback = nullptr;
 static ResLoadPlan *activeResLoadPlan = nullptr;
-static size_t resLoadPlanEntriesPerStepSetting = 2;
+static size_t resLoadPlanEntriesPerStepSetting = 1;
 
 bool resParserBeginLoadPlanBuild(ResLoadPlan *plan)
 {
@@ -264,25 +264,8 @@ void resSetBaseDir(const char *pResDir)
 	sstrcpy(aResDir, pResDir);
 }
 
-/* Parse the res file */
-bool resLoad(const char *pResFile, SDWORD blockID)
+namespace
 {
-	ResLoadPlan plan;
-	if (!resPrepareLoadPlan(pResFile, blockID, plan))
-	{
-		return false;
-	}
-
-	while (!resLoadPlanComplete(plan))
-	{
-		if (!resLoadPlanStep(plan, resGetLoadPlanEntriesPerStep()))
-		{
-			return false;
-		}
-	}
-
-	return true;
-}
 
 bool resPrepareLoadPlan(const char *pResFile, SDWORD blockID, ResLoadPlan &plan)
 {
@@ -356,11 +339,30 @@ size_t resGetLoadPlanEntriesPerStep()
 	return resLoadPlanEntriesPerStepSetting;
 }
 
-void resSetLoadPlanEntriesPerStep(size_t entriesPerStep)
-{
-	resLoadPlanEntriesPerStepSetting = entriesPerStep > 0 ? entriesPerStep : 1;
-}
+} // anonymous namespace
 
+/* Parse the res file */
+LoadingTask resLoad(ResourceLoadingController& controller, const char *pResFile, SDWORD blockID)
+{
+	ResLoadPlan plan;
+	if (!resPrepareLoadPlan(pResFile, blockID, plan))
+	{
+		co_return LoadOutcome::Failure;
+	}
+
+	co_await controller.yieldFrame();
+
+	while (!resLoadPlanComplete(plan))
+	{
+		if (!resLoadPlanStep(plan, resGetLoadPlanEntriesPerStep()))
+		{
+			co_return LoadOutcome::Failure;
+		}
+		co_await controller.yieldFrame();
+	}
+
+	co_return LoadOutcome::Success;
+}
 
 /* Allocate a RES_TYPE structure */
 static RES_TYPE *resAlloc(const char *pType)

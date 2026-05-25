@@ -823,12 +823,12 @@ bool levReleaseAll(bool forceOnError)
 }
 
 // load up a single wrf file
-static bool levLoadSingleWRF(const char *name)
+static LoadingTask levLoadSingleWRF(ResourceLoadingController& controller, const char *name)
 {
 	// free the old data
 	if (!levReleaseAll())
 	{
-		return false;
+		co_return LoadOutcome::Failure;
 	}
 
 	// create the dummy level data
@@ -838,24 +838,25 @@ static bool levLoadSingleWRF(const char *name)
 	// load up the WRF
 	if (!stageOneInitialise())
 	{
-		return false;
+		co_return LoadOutcome::Failure;
 	}
 
 	// load the data
 	debug(LOG_WZ, "Loading %s ...", name);
-	if (!resLoad(name, 0))
+	const auto loadResult = co_await resLoad(controller, name, 0);
+	if (loadResult == LoadOutcome::Failure)
 	{
-		return false;
+		co_return LoadOutcome::Failure;
 	}
 
 	if (!stageThreeInitialise())
 	{
-		return false;
+		co_return LoadOutcome::Failure;
 	}
 
 	psCurrLevel = &sSingleWRF;
 
-	return true;
+	co_return LoadOutcome::Success;
 }
 
 const char *getLevelName()
@@ -1008,7 +1009,7 @@ static LoadingTask levStartMissionForLevelType(ResourceLoadingController& contro
 	}
 }
 
-static bool levLoadBaseDatasetAndStageOne(LEVEL_DATASET* psNewLevel)
+static LoadingTask levLoadBaseDatasetAndStageOne(ResourceLoadingController& controller, LEVEL_DATASET* psNewLevel)
 {
 	// initialise if necessary
 	if (psNewLevel->type == LEVEL_TYPE::LDS_COMPLETE || psBaseData != nullptr)
@@ -1017,7 +1018,7 @@ static bool levLoadBaseDatasetAndStageOne(LEVEL_DATASET* psNewLevel)
 		if (!stageOneInitialise())
 		{
 			debug(LOG_ERROR, "Failed stageOneInitialise!");
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 	}
 
@@ -1031,10 +1032,10 @@ static bool levLoadBaseDatasetAndStageOne(LEVEL_DATASET* psNewLevel)
 			{
 				// load the data
 				debug(LOG_WZ, "Loading [directory: %s] %s ...", WZ_PHYSFS_getRealDir_String(psBaseData->apDataFiles[i].c_str()).c_str(), psBaseData->apDataFiles[i].c_str());
-				if (!resLoad(psBaseData->apDataFiles[i].c_str(), i))
+				if (co_await resLoad(controller, psBaseData->apDataFiles[i].c_str(), i) == LoadOutcome::Failure)
 				{
 					debug(LOG_ERROR, "Failed resLoad(%s)!", psBaseData->apDataFiles[i].c_str());
-					return false;
+					co_return LoadOutcome::Failure;
 				}
 			}
 		}
@@ -1042,7 +1043,7 @@ static bool levLoadBaseDatasetAndStageOne(LEVEL_DATASET* psNewLevel)
 
 	// preload faction IMDs
 	levPreloadFactionModelsFromLoadedSet();
-	return true;
+	co_return LoadOutcome::Success;
 }
 
 static bool levPrepareLoadEnvironment(LEVEL_DATASET* psNewLevel, char* pSaveName)
@@ -1300,7 +1301,7 @@ static LoadingTask levLoadMissionDataLoop(ResourceLoadingController& controller,
 		{
 			// load the data
 			debug(LOG_WZ, "Loading %s", psNewLevel->apDataFiles[i].c_str());
-			if (!resLoad(psNewLevel->apDataFiles[i].c_str(), i + CURRENT_DATAID))
+			if (co_await resLoad(controller, psNewLevel->apDataFiles[i].c_str(), i + CURRENT_DATAID) == LoadOutcome::Failure)
 			{
 				debug(LOG_ERROR, "Failed resLoad(%s, %d) (default)!", psNewLevel->apDataFiles[i].c_str(), i + CURRENT_DATAID);
 				co_return LoadOutcome::Failure;
@@ -1436,7 +1437,7 @@ LoadingTask levLoadDataTask(ResourceLoadingController &controller, LevLoadJobPar
 	case LevDatasetResolveResult::Failed:
 		co_return LoadOutcome::Failure;
 	case LevDatasetResolveResult::SingleWRF:
-		co_return levLoadSingleWRF(ctx.name.c_str()) ? LoadOutcome::Success : LoadOutcome::Failure;
+		co_return co_await levLoadSingleWRF(controller, ctx.name.c_str());
 	case LevDatasetResolveResult::Ok:
 		break;
 	}
@@ -1450,7 +1451,7 @@ LoadingTask levLoadDataTask(ResourceLoadingController &controller, LevLoadJobPar
 
 	co_await controller.yieldFrame();
 
-	if (!levLoadBaseDatasetAndStageOne(ctx.psNewLevel))
+	if (co_await levLoadBaseDatasetAndStageOne(controller, ctx.psNewLevel) == LoadOutcome::Failure)
 	{
 		co_return LoadOutcome::Failure;
 	}
