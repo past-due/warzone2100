@@ -222,6 +222,28 @@ void ResourceLoadingController::step()
 	completeActiveSubmission(stepOneQuantum());
 }
 
+LoadOutcome ResourceLoadingController::runTaskToCompletion(LoadingTask task, FramePolicy policy)
+{
+	ASSERT(!task.empty(), "runTaskToCompletion given empty LoadingTask");
+	ASSERT(!isExecutingLoadingCoroutine(),
+	       "runTaskToCompletion called from inside a LoadingTask coroutine; use co_await instead");
+	ASSERT(!active(), "runTaskToCompletion requires idle controller");
+
+	request(std::move(task), policy);
+
+	LoadOutcome outcome = LoadOutcome::Failure;
+	while (active())
+	{
+		LoadStepStatus const status = stepOneQuantum();
+		if (status != LoadStepStatus::InProgress)
+		{
+			outcome = status == LoadStepStatus::Completed ? LoadOutcome::Success : LoadOutcome::Failure;
+			completeActiveSubmission(status);
+		}
+	}
+	return outcome;
+}
+
 ResourceLoadingController::FrameProcessingMode ResourceLoadingController::currentFrameProcessingMode() const
 {
 	ASSERT(activeSubmission, "currentFrameProcessingMode without active submission");

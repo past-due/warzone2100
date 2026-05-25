@@ -99,6 +99,11 @@ public:
 	// Advance the active load by one frame quantum.
 	void step();
 
+	// Run a loading task to completion on the calling thread.
+	// Preconditions (debug ASSERT): !active(), !isExecutingLoadingCoroutine().
+	LoadOutcome runTaskToCompletion(LoadingTask task,
+	                              FramePolicy policy = {FrameProcessingMode::ConsumeFrame, false});
+
 	// Valid only while `active()` and execution is running; reads the execution stack top.
 	FrameProcessingMode currentFrameProcessingMode() const;
 
