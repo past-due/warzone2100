@@ -2650,9 +2650,34 @@ const WzMap::GamInfo* GameLoadDetails::getGamInfoFromPackage() const
 	return nullptr; // silence compiler warning
 }
 
+namespace
+{
+
+LoadingTask loadGameCleanupOnFailure(ResourceLoadingController& controller, const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
+{
+	const bool		UserSaveGame = (gameToLoad.loadType == GameLoadDetails::GameLoadType::UserSaveGame);
+
+	debug(LOG_ERROR, "Game load failed for %s, FS:%s, params=%s,%s,%s", gameToLoad.filePath.c_str(), WZ_PHYSFS_getRealDir_String(gameToLoad.filePath.c_str()).c_str(),
+	keepObjects ? "true" : "false", freeMem ? "true" : "false", UserSaveGame ? "true" : "false");
+
+	/* Clear all the objects off the map and free up the map memory */
+	freeAllDroids(gameWorld);
+	freeAllStructs(gameWorld);
+	freeAllFeatures(gameWorld);
+	droidTemplateShutDown();
+	gameWorld.map.tiles = nullptr;
+
+	/* Start the game clock */
+	gameTimeStart();
+
+	co_return LoadOutcome::Failure;
+}
+
+} // anonymous namespace
+
 // -----------------------------------------------------------------------------------------
 // UserSaveGame ... this is true when you are loading a players save game
-bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
+LoadingTask loadGame(ResourceLoadingController& controller, const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 {
 	std::shared_ptr<WzMap::Map> data;
 	std::map<WzString, PerPlayerDroidLists *> droidMap;
@@ -2894,6 +2919,8 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 	sstrcpy(aFileName, gameToLoad.getMapFolderPath().c_str());
 	fileExten = strlen(aFileName);
 
+	co_await controller.yieldFrame();
+
 	// construct the WzMap object for loading map data
 	aFileName[fileExten] = '\0';
 	data = gameToLoad.getMap(gameRandU32());
@@ -2910,13 +2937,13 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 		if (!data)
 		{
 			debug(LOG_ERROR, "Failed to load map from path: %s", aFileName);
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 		//load the terrain type data
 		if (!loadTerrainTypeMap(data->mapTerrainTypes()))
 		{
 			debug(LOG_ERROR, "Failed loading terrain types: %s/ttypes.ttp", aFileName);
-			goto error;
+			co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 		}
 	}
 
@@ -2969,7 +2996,7 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 		if (!loadSaveTemplate(aFileName))
 		{
 			debug(LOG_ERROR, "Failed with: %s", aFileName);
-			goto error;
+			co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 		}
 	}
 
@@ -2982,7 +3009,7 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 		if (!loadSaveLimits(aFileName))
 		{
 			debug(LOG_ERROR, "failed to load %s", aFileName);
-			goto error;
+			co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 		}
 	}
 
@@ -2995,9 +3022,11 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 		if (!loadSaveResearch(aFileName))
 		{
 			debug(LOG_ERROR, "Failed to load research data from %s", aFileName);
-			goto error;
+			co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 		}
 	}
+
+	co_await controller.yieldFrame();
 
 	if (saveGameOnMission && UserSaveGame)
 	{
@@ -3018,7 +3047,7 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 		if (!mapLoad(aFileName, gameWorld.map))
 		{
 			debug(LOG_ERROR, "Failed with: %s", aFileName);
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 
 		//load in the visibility file
@@ -3029,7 +3058,7 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 		if (!readVisibilityData(aFileName, gameWorld.map))
 		{
 			debug(LOG_ERROR, "Failed with: %s", aFileName);
-			goto error;
+			co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 		}
 
 		// reload the objects that were in the mission list
@@ -3047,12 +3076,12 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 			if (!loadFileToBuffer(aFileName, pFileData, FILE_LOAD_BUFFER_SIZE, &fileSize))
 			{
 				debug(LOG_ERROR, "Failed with: %s", aFileName);
-				goto error;
+				co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 			}
 			if (!loadSaveFeature(pFileData, fileSize, gameWorld))
 			{
 				debug(LOG_ERROR, "Failed with: %s", aFileName);
-				goto error;
+				co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 			}
 		}
 
@@ -3070,13 +3099,13 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 			if (!loadFileToBuffer(aFileName, pFileData, FILE_LOAD_BUFFER_SIZE, &fileSize))
 			{
 				debug(LOG_ERROR, "Failed with: %s", aFileName);
-				goto error;
+				co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 			}
 			//load the data into apsStructLists
 			if (!loadSaveStructure(pFileData, fileSize, gameWorld))
 			{
 				debug(LOG_ERROR, "Failed with: %s", aFileName);
-				goto error;
+				co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 			}
 		}
 		else
@@ -3131,13 +3160,13 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 		if (!data)
 		{
 			debug(LOG_ERROR, "Failed to load map from path: %s", aFileName);
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 		auto mapData = data->mapData();
 		if (!mapData)
 		{
 			debug(LOG_ERROR, "Failed to load map data from path: %s", aFileName);
-			return false;
+			co_return LoadOutcome::Failure;
 		}
 		if (data->wasScriptGenerated())
 		{
@@ -3147,11 +3176,16 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 			syncDebug("crc(droids) = 0x%08x", data->crcSumDroids(0));
 			syncDebug("crc(features) = 0x%08x", data->crcSumFeatures(0));
 		}
+
+		co_await controller.yieldFrame();
+
 		if (!mapLoadFromWzMapData(mapData, gameWorld.map))
 		{
 			debug(LOG_ERROR, "Failed to process map data from path: %s", aFileName);
-			return false;
+			co_return LoadOutcome::Failure;
 		}
+
+		co_await controller.yieldFrame();
 	}
 
 	// FIXME THIS FILE IS A HUGE MESS, this code should probably appear at another position...
@@ -3169,7 +3203,7 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 			if (!readFXData(aFileName, gameWorld.map))
 			{
 				debug(LOG_ERROR, "Failed with: %s", aFileName);
-				goto error;
+				co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 			}
 		}
 	}
@@ -3207,7 +3241,7 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 			{
 				aFileName[fileExten] = '\0';
 				debug(LOG_ERROR, "Failed to load map droid init from map directory: %s", aFileName);
-				goto error;
+				co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 			}
 		}
 		else
@@ -3229,7 +3263,7 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 		if (!loadSaveDroid(aFileName, gameWorld, gameWorld.objects.droids))
 		{
 			debug(LOG_ERROR, "failed to load %s", aFileName);
-			goto error;
+			co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 		}
 		droidMap[aFileName] = &gameWorld.objects.droids;	// load pointers later
 
@@ -3275,6 +3309,8 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 		}
 	}
 
+	co_await controller.yieldFrame();
+
 	//load in the features -do before the structures
 	aFileName[fileExten] = '\0';
 	if (!UserSaveGame)
@@ -3283,7 +3319,7 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 		if (!loadWzMapFeature(*(data.get()), fixedMapIdToGeneratedId))
 		{
 			debug(LOG_ERROR, "Failed to load map feature init from map directory: %s", aFileName);
-			goto error;
+			co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 		}
 	}
 	else
@@ -3293,9 +3329,11 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 		if (!loadSaveFeature2(aFileName, gameWorld))
 		{
 			debug(LOG_ERROR, "Failed with: %s", aFileName);
-			goto error;
+			co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 		}
 	}
+
+	co_await controller.yieldFrame();
 
 	//load in the structures
 	initStructLimits();
@@ -3312,7 +3350,7 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 		{
 			aFileName[fileExten] = '\0';
 			debug(LOG_ERROR, "Failed to load map structure init from map directory: %s", aFileName);
-			goto error;
+			co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 		}
 		if (game.type != LEVEL_TYPE::CAMPAIGN)
 		{
@@ -3324,10 +3362,12 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 		if (!loadSaveStructure2(aFileName, gameWorld))
 		{
 			debug(LOG_ERROR, "Failed with: %s", aFileName);
-			goto error;
+			co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 		}
 		structMap[aFileName] = &gameWorld.objects.structures;
 	}
+
+	co_await controller.yieldFrame();
 
 	//if user save game then load up the current level for structs and components
 	if (gameType == GTYPE_SAVE_START || gameType == GTYPE_SAVE_MIDMISSION)
@@ -3338,7 +3378,7 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 		if (!loadSaveCompList(aFileName))
 		{
 			debug(LOG_ERROR, "failed to load %s", aFileName);
-			goto error;
+			co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 		}
 		//load in the structure type list file
 		aFileName[fileExten] = '\0';
@@ -3346,7 +3386,7 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 		if (!loadSaveStructTypeList(aFileName))
 		{
 			debug(LOG_ERROR, "failed to load %s", aFileName);
-			goto error;
+			co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 		}
 
 		// load in the game guide topics
@@ -3373,7 +3413,7 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 			if (!readVisibilityData(aFileName, gameWorld.map))
 			{
 				debug(LOG_ERROR, "Failed with: %s", aFileName);
-				goto error;
+				co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 			}
 		}
 	}
@@ -3391,7 +3431,7 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 			if (!readScoreData(aFileName))
 			{
 				debug(LOG_ERROR, "Failed with: %s", aFileName);
-				goto error;
+				co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 			}
 		}
 	}
@@ -3409,7 +3449,7 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 			if (!readFiresupportDesignators(aFileName))
 			{
 				debug(LOG_ERROR, "Failed with: %s", aFileName);
-				goto error;
+				co_return co_await loadGameCleanupOnFailure(controller, gameToLoad, keepObjects, freeMem);
 			}
 		}
 	}
@@ -3490,6 +3530,8 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 	//set up the mission countdown flag
 	setMissionCountDown();
 
+	co_await controller.yieldFrame();
+
 	/* Start the game clock */
 	gameTimeStart();
 
@@ -3522,23 +3564,7 @@ bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem)
 
 	debug(LOG_NEVER, "Done loading");
 
-	return true;
-
-error:
-	debug(LOG_ERROR, "Game load failed for %s, FS:%s, params=%s,%s,%s", gameToLoad.filePath.c_str(), WZ_PHYSFS_getRealDir_String(gameToLoad.filePath.c_str()).c_str(),
-	      keepObjects ? "true" : "false", freeMem ? "true" : "false", UserSaveGame ? "true" : "false");
-
-	/* Clear all the objects off the map and free up the map memory */
-	freeAllDroids(gameWorld);
-	freeAllStructs(gameWorld);
-	freeAllFeatures(gameWorld);
-	droidTemplateShutDown();
-	gameWorld.map.tiles = nullptr;
-
-	/* Start the game clock */
-	gameTimeStart();
-
-	return false;
+	co_return LoadOutcome::Success;
 }
 // -----------------------------------------------------------------------------------------
 

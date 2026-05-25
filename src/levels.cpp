@@ -1196,7 +1196,7 @@ static LoadingTask levLoadMissionBranchesBeforeMainLoop(ResourceLoadingControlle
 			}
 
 			debug(LOG_NEVER, "Loading savegame: %s", ctx.pSaveName);
-			if (!loadGame(GameLoadDetails::makeUserSaveGameLoad(ctx.pSaveName), false, true))
+			if (LoadOutcome::Failure == co_await loadGame(controller, GameLoadDetails::makeUserSaveGameLoad(ctx.pSaveName), false, true))
 			{
 				debug(LOG_ERROR, "Failed loadGame(%s)!", ctx.pSaveName);
 				co_return LoadOutcome::Failure;
@@ -1229,7 +1229,7 @@ static LoadingTask levLoadMissionBranchesBeforeMainLoop(ResourceLoadingControlle
 			}
 
 			debug(LOG_NEVER, "loading savegame: %s", ctx.pSaveName);
-			if (!loadGame(GameLoadDetails::makeUserSaveGameLoad(ctx.pSaveName), false, true))
+			if (LoadOutcome::Failure == co_await loadGame(controller, GameLoadDetails::makeUserSaveGameLoad(ctx.pSaveName), false, true))
 			{
 				debug(LOG_ERROR, "Failed loadGame(%s)!", ctx.pSaveName);
 				co_return LoadOutcome::Failure;
@@ -1280,7 +1280,7 @@ static LoadingTask levLoadMissionDataLoop(ResourceLoadingController& controller,
 				}
 
 				debug(LOG_NEVER, "Loading save game %s", ctx.pSaveName);
-				if (!loadGame(GameLoadDetails::makeUserSaveGameLoad(ctx.pSaveName), false, true))
+				if (LoadOutcome::Failure == co_await loadGame(controller, GameLoadDetails::makeUserSaveGameLoad(ctx.pSaveName), false, true))
 				{
 					debug(LOG_ERROR, "Failed loadGame(%s)!", ctx.pSaveName);
 					co_return LoadOutcome::Failure;

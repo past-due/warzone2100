@@ -79,7 +79,7 @@ private:
 	mutable std::shared_ptr<WzMap::MapPackage> m_loadedPackage;
 };
 
-bool loadGame(const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem);
+LoadingTask loadGame(ResourceLoadingController& controller, const GameLoadDetails& gameToLoad, bool keepObjects, bool freeMem);
 
 /*This just loads up the .gam file to determine which level data to set up - split up
 so can be called in levLoadData when starting a game from a load save game*/
