@@ -171,7 +171,7 @@ void ResourceLoadingController::request(LoadingTask task, FramePolicy policy)
 
 	if (activeSubmission)
 	{
-		queuedSubmission = std::move(submission);
+		pendingSubmissions.push(std::move(submission));
 		return;
 	}
 
@@ -186,6 +186,17 @@ void ResourceLoadingController::begin(std::unique_ptr<ResourceLoadingSubmission>
 	activeSubmission = std::move(submission);
 	resetTaskState();
 	start(std::move(activeSubmission->task), policy);
+}
+
+void ResourceLoadingController::startNextPendingSubmission()
+{
+	if (pendingSubmissions.empty())
+	{
+		return;
+	}
+	std::unique_ptr<ResourceLoadingSubmission> nextSubmission = std::move(pendingSubmissions.front());
+	pendingSubmissions.pop();
+	begin(std::move(nextSubmission));
 }
 
 bool ResourceLoadingController::active() const
@@ -204,13 +215,7 @@ void ResourceLoadingController::step()
 
 	activeSubmission.reset();
 	resetTaskState();
-
-	if (queuedSubmission)
-	{
-		std::unique_ptr<ResourceLoadingSubmission> nextSubmission = std::move(queuedSubmission);
-		queuedSubmission.reset();
-		begin(std::move(nextSubmission));
-	}
+	startNextPendingSubmission();
 }
 
 ResourceLoadingController::FrameProcessingMode ResourceLoadingController::currentFrameProcessingMode() const

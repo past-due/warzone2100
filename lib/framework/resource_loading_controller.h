@@ -30,6 +30,7 @@
 
 #include <coroutine>
 #include <memory>
+#include <queue>
 #include <stack>
 #include <utility>
 #include <vector>
@@ -57,7 +58,7 @@ enum class ExecutionFrameState
 	Running,
 };
 
-/// Global cooperative loading scheduler: at most one active submission, optional single queued follow-up.
+/// Global cooperative loading scheduler: at most one active submission, FIFO queue for pending work.
 class ResourceLoadingController
 {
 public:
@@ -125,6 +126,7 @@ private:
 	~ResourceLoadingController();
 
 	void begin(std::unique_ptr<ResourceLoadingSubmission> submission);
+	void startNextPendingSubmission();
 
 	void start(LoadingTask task, FramePolicy policy);
 	LoadStepStatus stepOneQuantum();
@@ -138,7 +140,7 @@ private:
 	bool hasActiveExecution() const noexcept { return !executionStack.empty(); }
 
 	std::unique_ptr<ResourceLoadingSubmission> activeSubmission;
-	std::unique_ptr<ResourceLoadingSubmission> queuedSubmission;
+	std::queue<std::unique_ptr<ResourceLoadingSubmission>> pendingSubmissions;
 
 	std::stack<ExecutionFrame, std::vector<ExecutionFrame>> executionStack;
 	LoadOutcome terminalOutcome = LoadOutcome::Success;
