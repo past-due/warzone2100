@@ -3044,7 +3044,7 @@ LoadingTask loadGame(ResourceLoadingController& controller, const GameLoadDetail
 		//load in the map file
 		aFileName[fileExten] = '\0';
 		strcat(aFileName, "mission.map");
-		if (!mapLoad(aFileName, gameWorld.map))
+		if (LoadOutcome::Failure == co_await mapLoad(controller, aFileName, gameWorld.map))
 		{
 			debug(LOG_ERROR, "Failed with: %s", aFileName);
 			co_return LoadOutcome::Failure;
@@ -3179,7 +3179,7 @@ LoadingTask loadGame(ResourceLoadingController& controller, const GameLoadDetail
 
 		co_await controller.yieldFrame();
 
-		if (!mapLoadFromWzMapData(mapData, gameWorld.map))
+		if (LoadOutcome::Failure == co_await mapLoadFromWzMapData(controller, mapData, gameWorld.map))
 		{
 			debug(LOG_ERROR, "Failed to process map data from path: %s", aFileName);
 			co_return LoadOutcome::Failure;

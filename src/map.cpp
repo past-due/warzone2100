@@ -1001,7 +1001,7 @@ void WzMapDebugLogger::printLog(WzMap::LoggingProtocol::LogLevel level, const ch
 }
 
 /* Initialise the map structure */
-bool mapLoad(char const *filename, WorldMapState& mapState)
+LoadingTask mapLoad(ResourceLoadingController& controller, char const *filename, WorldMapState& mapState)
 {
 	WzMapPhysFSIO mapIO;
 	WzMapDebugLogger debugLoggerInstance;
@@ -1010,10 +1010,9 @@ bool mapLoad(char const *filename, WorldMapState& mapState)
 	if (!loadedMap)
 	{
 		// loadMapData call handles logging errors
-		return false;
+		co_return LoadOutcome::Failure;
 	}
-	return mapLoadFromWzMapData(loadedMap, mapState);
-
+	co_return co_await mapLoadFromWzMapData(controller, loadedMap, mapState);
 }
 
 // -----------------------------------------------------------------------------------------
@@ -1047,7 +1046,7 @@ bool loadTerrainTypeMap(const std::shared_ptr<WzMap::TerrainTypeData>& ttypeData
 }
 
 ///* Initialise the map structure */
-bool mapLoadFromWzMapData(std::shared_ptr<WzMap::MapData> loadedMap, WorldMapState& mapState)
+LoadingTask mapLoadFromWzMapData(ResourceLoadingController& controller, std::shared_ptr<WzMap::MapData> loadedMap, WorldMapState& mapState)
 {
 	uint32_t		width, height;
 	const bool		preview = false;
@@ -1077,14 +1076,18 @@ bool mapLoadFromWzMapData(std::shared_ptr<WzMap::MapData> loadedMap, WorldMapSta
 	// load the ground types
 	if (!mapLoadGroundTypes(preview))
 	{
-		return false;
+		co_return LoadOutcome::Failure;
 	}
+
+	co_await controller.yieldFrame();
 
 	if (!preview)
 	{
 		//preload the terrain textures
 		loadTerrainTextures(currentMapTileset);
 	}
+
+	co_await controller.yieldFrame();
 
 	//load in the map data itself
 
@@ -1107,8 +1110,10 @@ bool mapLoadFromWzMapData(std::shared_ptr<WzMap::MapData> loadedMap, WorldMapSta
 	if (preview)
 	{
 		// no need to do anything else for the map preview
-		return true;
+		co_return LoadOutcome::Success;
 	}
+
+	co_await controller.yieldFrame();
 
 	size_t gwIdx = 0;
 	for (const auto gateway : loadedMap->mGateways)
@@ -1120,12 +1125,14 @@ bool mapLoadFromWzMapData(std::shared_ptr<WzMap::MapData> loadedMap, WorldMapSta
 		gwIdx++;
 	}
 
+	co_await controller.yieldFrame();
+
 	if (!afterMapLoad(mapState))
 	{
-		return false;
+		co_return LoadOutcome::Failure;
 	}
 
-	return true;
+	co_return LoadOutcome::Success;
 }
 
 static bool afterMapLoad(WorldMapState& mapState)

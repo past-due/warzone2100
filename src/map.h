@@ -26,8 +26,10 @@
 
 #include "lib/framework/frame.h"
 #include "lib/framework/debug.h"
+#include "lib/framework/loading_task.h"
 #include <wzmaplib/map.h>
 #include <wzmaplib/terrain_type.h>
+#include "lib/framework/resource_loading_controller.h"
 #include "objects.h"
 #include "terrain.h"
 #include "multiplay.h"
@@ -355,11 +357,13 @@ static inline void clip_world_offmap(const WorldMapState& mapState, int *worldX,
 /* Shutdown the map module */
 bool mapShutdown();
 
+class ResourceLoadingController;
+
 /* Load the map data */
-bool mapLoad(char const *filename, WorldMapState& mapState);
+LoadingTask mapLoad(ResourceLoadingController& controller, char const *filename, WorldMapState& mapState);
 struct ScriptMapData;
 bool loadTerrainTypeMap(const std::shared_ptr<WzMap::TerrainTypeData>& ttypeData);
-bool mapLoadFromWzMapData(std::shared_ptr<WzMap::MapData> mapData, WorldMapState& mapState);
+LoadingTask mapLoadFromWzMapData(ResourceLoadingController& controller, std::shared_ptr<WzMap::MapData> mapData, WorldMapState& mapState);
 
 // used to reload decal + ground types types when switching terrain overrides
 bool mapReloadGroundTypes();
