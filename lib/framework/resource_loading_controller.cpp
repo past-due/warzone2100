@@ -151,6 +151,18 @@ LoadStepStatus ResourceLoadingController::stepOneQuantum()
 	return LoadStepStatus::InProgress;
 }
 
+void ResourceLoadingController::completeActiveSubmission(LoadStepStatus result)
+{
+	if (result == LoadStepStatus::InProgress)
+	{
+		return;
+	}
+
+	activeSubmission.reset();
+	resetTaskState();
+	startNextPendingSubmission();
+}
+
 void ResourceLoadingController::resetTaskState() noexcept
 {
 	while (!executionStack.empty())
@@ -207,15 +219,7 @@ bool ResourceLoadingController::active() const
 void ResourceLoadingController::step()
 {
 	ASSERT(activeSubmission, "step called without an active submission");
-	LoadStepStatus const result = stepOneQuantum();
-	if (result == LoadStepStatus::InProgress)
-	{
-		return;
-	}
-
-	activeSubmission.reset();
-	resetTaskState();
-	startNextPendingSubmission();
+	completeActiveSubmission(stepOneQuantum());
 }
 
 ResourceLoadingController::FrameProcessingMode ResourceLoadingController::currentFrameProcessingMode() const

@@ -130,6 +130,7 @@ private:
 
 	void start(LoadingTask task, FramePolicy policy);
 	LoadStepStatus stepOneQuantum();
+	void completeActiveSubmission(LoadStepStatus result);
 	void resetTaskState() noexcept;
 
 	ExecutionFrame &topFrame();
@@ -138,6 +139,11 @@ private:
 	void popAndDestroyTop() noexcept;
 	void onFrameFinished(LoadOutcome outcome) noexcept;
 	bool hasActiveExecution() const noexcept { return !executionStack.empty(); }
+	bool isExecutingLoadingCoroutine() const noexcept
+	{
+		return hasActiveExecution()
+		    && topFrame().state == ExecutionFrameState::Running;
+	}
 
 	std::unique_ptr<ResourceLoadingSubmission> activeSubmission;
 	std::queue<std::unique_ptr<ResourceLoadingSubmission>> pendingSubmissions;
