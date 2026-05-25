@@ -230,6 +230,7 @@ if (CMAKE_CXX_STANDARD GREATER_EQUAL 20)
 	set(cpp17_source_files
 		"3rdparty/vkh_renderpasscompat.cpp"
 		"3rdparty/vkh_info.cpp"
-		"gfx_api_vk.cpp")
+		"gfx_api_vk.cpp"
+		"gfx_api.cpp")
 	set_source_files_properties(${cpp17_source_files} PROPERTIES COMPILE_FLAGS "-std=c++17")
 endif()
