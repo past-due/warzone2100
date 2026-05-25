@@ -204,6 +204,7 @@ static bool ignoredSIGPIPE = false;
 
 static void stopGameLoop();
 static void startTitleLoop(bool onInitialStartup = false);
+static LoadingTask startTitleLoopTask(ResourceLoadingController& controller, bool onInitialStartup = false);
 
 #if defined(WZ_OS_WIN)
 
@@ -738,21 +739,28 @@ static void make_dir(char *dest, const char *dirname, const char *subdir)
  */
 static void startTitleLoop(bool onInitialStartup)
 {
+	auto& controller = ResourceLoadingController::instance();
+	controller.runTaskToCompletion(startTitleLoopTask(controller, onInitialStartup));
+}
+
+static LoadingTask startTitleLoopTask(ResourceLoadingController& controller, bool onInitialStartup /* = false */)
+{
 	SetGameMode(GS_TITLE_SCREEN);
 
 	if (!onInitialStartup)
 	{
 		initLoadingScreen(true);
 	}
-	if (!frontendInitialise("wrf/frontend.wrf"))
+	if (co_await frontendInitTask(controller, onInitialStartup) == LoadOutcome::Failure)
 	{
 		debug(LOG_FATAL, "Shutting down after failure");
 		exit(EXIT_FAILURE);
 	}
 
 	closeLoadingScreen(); // always ensure the loading screen is closed
-}
 
+	co_return LoadOutcome::Success;
+}
 
 /*!
  * Shutdown/cleanup after the title (mainmenu) loop
@@ -819,7 +827,7 @@ void startGameBeforeLevelLoad()
 }
 
 // Tears down after a failed start-game load and returns to the title loop.
-void startGameAbortLevelLoadFailure()
+LoadingTask startGameAbortLevelLoadFailure(ResourceLoadingController& controller)
 {
 	debug(LOG_ERROR, "Failed to load level data / map: %s %s", aLevelName, (!game.hash.isZero()) ? game.hash.toString().c_str() : "");
 	if (bMultiPlayer)
@@ -831,8 +839,10 @@ void startGameAbortLevelLoadFailure()
 	cdAudio_SetGameMode(MusicGameMode::MENUS);
 	stopGameLoop();
 	pie_LoadBackDrop(SCREEN_RANDOMBDROP);
-	startTitleLoop(); // Restart into titleloop
+	co_await startTitleLoopTask(controller); // Restart into titleloop
 	gameLoopStatus = GAMECODE_CONTINUE;
+
+	co_return LoadOutcome::Success;
 }
 
 // Post-success setup after `levLoadData()` (UI, gameInitialised, triggers, replay-related, etc.).
@@ -952,7 +962,7 @@ LoadingTask startGameResourceTaskImpl(ResourceLoadingController &controller)
 }
 
 // On save load failure: log/popup, fast-exit game loop, return to title.
-void saveGameLoadAbortOnFailure()
+LoadingTask saveGameLoadAbortOnFailure(ResourceLoadingController& controller)
 {
 	// FIXME: we really should throw up a error window, but we can't (easily) so I won't.
 	debug(LOG_ERROR, "Trying to load Game %s failed!", saveGameName);
@@ -962,9 +972,11 @@ void saveGameLoadAbortOnFailure()
 	gameLoopStatus = GAMECODE_FASTEXIT;
 	// we had a error loading savegame (corrupt?), so go back to title screen?
 	stopGameLoop();
-	startTitleLoop(); // Restart into titleloop
+	co_await startTitleLoopTask(controller); // Restart into titleloop
 	changeTitleMode(TITLE);
 	SetGameMode(GS_TITLE_SCREEN);
+
+	co_return LoadOutcome::Success;
 }
 
 LoadingTask loadSaveGameResourceTaskImpl(ResourceLoadingController &controller)
@@ -992,7 +1004,7 @@ LoadingTask startGameResourceTask(ResourceLoadingController &controller)
 	LoadOutcome const outcome = co_await startGameResourceTaskImpl(controller);
 	if (outcome == LoadOutcome::Failure)
 	{
-		startGameAbortLevelLoadFailure();
+		co_await startGameAbortLevelLoadFailure(controller);
 		closeLoadingScreen();
 		debug(LOG_POPUP, _("Failed to load level data or map. Exiting to main menu."));
 		co_return LoadOutcome::Failure;
@@ -1006,7 +1018,7 @@ LoadingTask loadSaveGameResourceTask(ResourceLoadingController &controller)
 	LoadOutcome const outcome = co_await loadSaveGameResourceTaskImpl(controller);
 	if (outcome == LoadOutcome::Failure)
 	{
-		saveGameLoadAbortOnFailure();
+		co_await saveGameLoadAbortOnFailure(controller);
 		closeLoadingScreen();
 		co_return LoadOutcome::Failure;
 	}
