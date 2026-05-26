@@ -218,8 +218,13 @@ bool ResourceLoadingController::active() const
 
 void ResourceLoadingController::step()
 {
+	using MinimumStepDuration = std::chrono::duration<int, std::ratio<1, 60>>;
+
 	ASSERT(activeSubmission, "step called without an active submission");
-	completeActiveSubmission(stepOneQuantum());
+	const auto minDeadline = std::chrono::steady_clock::now() + MinimumStepDuration(1);
+	do {
+		completeActiveSubmission(stepOneQuantum());
+	} while (std::chrono::steady_clock::now() < minDeadline && hasActiveExecution());
 }
 
 LoadOutcome ResourceLoadingController::runTaskToCompletion(LoadingTask task, FramePolicy policy)
