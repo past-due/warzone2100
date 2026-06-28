@@ -228,6 +228,8 @@ struct gl_pipeline_state_object final : public gfx_api::pipeline_state_object
 	gfx_api::state_description desc;
 	GLuint program = 0;
 	GLuint vertexShader = 0;
+	GLuint tessControlShader = 0;
+	GLuint tessEvalShader = 0;
 	GLuint fragmentShader = 0;
 	std::vector<gfx_api::vertex_buffer> vertex_buffer_desc;
 	std::vector<GLint> locations;
@@ -268,6 +270,7 @@ private:
 					   bool fragmentHighpFloatAvailable, bool fragmentHighpIntAvailable, bool patchFragmentShaderMipLodBias,
 					   const std::string& programName,
 					   const char * vertex_header, const std::string& vertexPath,
+					   const char * tess_header, const std::string& tessControlPath, const std::string& tessEvalPath,
 					   const char * fragment_header, const std::string& fragmentPath,
 					   const std::vector<std::string> &uniformNames,
 					   const std::vector<std::tuple<std::string, GLint>> &samplersToBind,
@@ -322,6 +325,7 @@ private:
 	void set_constants(const gfx_api::constant_buffer_type<SHADER_LINE>& cbuf);
 	void set_constants(const gfx_api::constant_buffer_type<SHADER_TEXT>& cbuf);
 	void set_constants(const gfx_api::constant_buffer_type<SHADER_DEBUG_TEXTURE2D_QUAD>& cbuf);
+	void set_constants(const gfx_api::constant_buffer_type<SHADER_DEBUG_TESS_QUAD>& cbuf);
 	void set_constants(const gfx_api::constant_buffer_type<SHADER_DEBUG_TEXTURE2DARRAY_QUAD>& cbuf);
 	void set_constants(const gfx_api::constant_buffer_type<SHADER_WORLD_TO_SCREEN>& cbuf);
 };
@@ -411,6 +415,7 @@ struct gl_context final : public gfx_api::context
 	virtual size_t maxFramesInFlight() const override;
 	virtual gfx_api::lighting_constants getShadowConstants() override;
 	virtual bool setShadowConstants(gfx_api::lighting_constants values) override;
+	virtual bool supportsTessellationShaders() const override;
 	// instanced rendering APIs
 	virtual bool supportsInstancedRendering() override;
 	virtual void draw_instanced(const std::size_t& offset, const std::size_t &count, const gfx_api::primitive_type &primitive, std::size_t instance_count) override;
@@ -444,6 +449,8 @@ protected:
 
 private:
 	bool initGLContext();
+	bool initTessellationSupport();
+	bool ensurePatchVertices4();
 	bool enableDebugMessageCallbacks();
 	void enableVertexAttribArray(GLuint index);
 	void disableVertexAttribArray(GLuint index);
@@ -469,6 +476,8 @@ private:
 	bool has2DTextureArraySupport = false;
 	bool hasInstancedRenderingSupport = false;
 	bool hasBorderClampSupport = false;
+	bool hasTessellationSupport = false;
+	bool patchVertices4Set = false;
 	int32_t maxArrayTextureLayers = 0;
 	GLfloat maxTextureAnisotropy = 0.f;
 	GLuint vaoId = 0;
