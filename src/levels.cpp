@@ -45,6 +45,7 @@
 #include "mission.h"
 #include "levelint.h"
 #include "game.h"
+#include "gamestate_savegame.h"
 #include "lib/framework/resource_loading_controller.h"
 #include "lib/framework/loading_task.h"
 #include "lib/ivis_opengl/piestate.h"
@@ -876,6 +877,7 @@ struct LevLoadContext
 	GAME_TYPE      saveType = GTYPE_SCENARIO_START;
 	LEVEL_DATASET* psNewLevel = nullptr;
 	LEVEL_DATASET* psChangeLevel = nullptr;
+	bool           reconstructFromSnapshot = false; ///< New-format cold load: rebuild the world from the GameState snapshot instead of placing scenario units.
 };
 
 enum class LevDatasetResolveResult
@@ -1257,6 +1259,20 @@ static LoadingTask<> levLoadMissionDataLoop(ResourceLoadingController& controlle
 					co_return load_fail();
 				}
 			}
+
+			// New-format cold load (Hybrid A): the scenario load above placed the map (so the display
+			// layer - tileset/textures/ground/lightmap - comes from the proven map-load path) plus its
+			// starting units. Now replace the world from the GameState snapshot: clear those units +
+			// overwrite the terrain in place + rebuild the saved objects. Runs here, before
+			// stageThreeInitialise in levFinalizeLevelLoad, so prepareScripts/TRIGGER_GAME_LOADED see the
+			// restored world, exactly as a legacy save load does.
+			if (ctx.reconstructFromSnapshot)
+			{
+				if (!gamestate::savegame::coldLoadRestoreWorld())
+				{
+					co_return load_fail();
+				}
+			}
 		}
 		else if (!psNewLevel->apDataFiles[i].empty())
 		{
@@ -1280,6 +1296,14 @@ static LoadingTask<> levFinalizeLevelLoad(ResourceLoadingController& controller,
 	{
 		// This calls resLoadFile("SMSG", "multiplay.txt"). Must be before loadMissionExtras, which calls loadSaveMessage, which calls getViewData.
 		loadMultiScripts();
+	}
+
+	// New-format cold load: the messages section was deferred during the early world restore (its VIEWDATA
+	// was not yet loaded). Replay it now that all level data has loaded, matching the legacy loadSaveMessage
+	// timing below and before the deferred scripting pass in stageThreeInitialise.
+	if (ctx.reconstructFromSnapshot)
+	{
+		gamestate::savegame::applyDeferredColdLoadMessages();
 	}
 
 	if (ctx.pSaveName != nullptr)
@@ -1356,6 +1380,7 @@ struct LevLoadJobParams
 	std::optional<Sha256>    hash;
 	char                    *pSaveName = nullptr;
 	GAME_TYPE                saveType = GTYPE_SCENARIO_START;
+	bool                     reconstructFromSnapshot = false;
 };
 
 LoadingTask<> levLoadDataTask(ResourceLoadingController &controller, LevLoadJobParams params)
@@ -1390,6 +1415,7 @@ LoadingTask<> levLoadDataTask(ResourceLoadingController &controller, LevLoadJobP
 	ctx.hash = std::move(params.hash);
 	ctx.pSaveName = params.pSaveName;
 	ctx.saveType = params.saveType;
+	ctx.reconstructFromSnapshot = params.reconstructFromSnapshot;
 
 	co_await controller.yieldFrame();
 
@@ -1448,9 +1474,10 @@ LoadingTask<> makeLevLoadDataLoadingTask(ResourceLoadingController &controller,
                                        std::string name,
                                        std::optional<Sha256> hash,
                                        char *pSaveName,
-                                       GAME_TYPE saveType)
+                                       GAME_TYPE saveType,
+                                       bool reconstructFromSnapshot)
 {
-	LevLoadJobParams params{std::move(name), std::move(hash), pSaveName, saveType};
+	LevLoadJobParams params{std::move(name), std::move(hash), pSaveName, saveType, reconstructFromSnapshot};
 	return levLoadDataTask(controller, std::move(params));
 }
 

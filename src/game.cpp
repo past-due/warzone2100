@@ -90,6 +90,7 @@
 #include "multiint.h"
 #include "wrappers.h"
 #include "challenge.h"
+#include "gamestate_savegame.h"
 #include "combat.h"
 #include "template.h"
 #include "version.h"
@@ -3853,6 +3854,26 @@ bool saveGame(const char *aFileName, GAME_TYPE saveType, bool isAutoSave)
 	// strip the last filename
 	CurrentFileName[fileExtension - 1] = '\0';
 
+	// Coexistence: always write the self-contained GameState blob (gamestate.wz) into this same
+	// folder, alongside the legacy files. The load path prefers the blob when present; the legacy files
+	// remain so the save is still loadable the old way (see war_getDevForceOldSavegameLoad).
+	{
+		gamestate::savegame::SaveType sgType = gamestate::savegame::SaveType::Skirmish;
+		if (game.type == LEVEL_TYPE::CAMPAIGN)
+		{
+			sgType = gamestate::savegame::SaveType::Campaign;
+		}
+		else if (challengeActive)
+		{
+			sgType = gamestate::savegame::SaveType::Challenge;
+		}
+		if (!gamestate::savegame::writeGameStateBlobToFolder(CurrentFileName, sgType))
+		{
+			debug(LOG_ERROR, "Failed to write GameState savegame blob for %s", CurrentFileName);
+			// Non-fatal: the legacy save above already succeeded.
+		}
+	}
+
 #if defined(__EMSCRIPTEN__)
 	WZ_EmscriptenSyncPersistFSChanges(!isAutoSave); // NOTE: Will block main loop iterations until it finishes (asynchronously)
 #endif
@@ -4747,6 +4768,10 @@ static bool loadMainFile(const std::string &fileName)
 	{
 		game.playerLeaveMode = static_cast<PLAYER_LEAVE_MODE>(save.value("playerLeaveMode").toInt());
 	}
+	if (save.contains("playerReconnectWaitSeconds"))
+	{
+		game.playerReconnectWaitSeconds = clampPlayerReconnectWaitSeconds(save.value("playerReconnectWaitSeconds").toUInt());
+	}
 	if (save.contains("blindMode"))
 	{
 		game.blindMode = static_cast<BLIND_MODE>(save.value("blindMode").toInt());
@@ -4993,6 +5018,7 @@ static bool writeMainFile(const std::string &fileName, SDWORD saveType)
 	save.setValue("inactivityMinutes", game.inactivityMinutes);
 	save.setValue("gameTimeLimitMinutes", game.gameTimeLimitMinutes);
 	save.setValue("playerLeaveMode", game.playerLeaveMode);
+	save.setValue("playerReconnectWaitSeconds", game.playerReconnectWaitSeconds);
 	save.setValue("blindMode", game.blindMode);
 	save.setValue("tweakOptions", getCamTweakOptions());
 
