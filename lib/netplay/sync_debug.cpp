@@ -684,6 +684,11 @@ void setSyncCrcTraceFile(const std::string &filename)
 	}
 }
 
+std::string getSyncCrcTraceFilename()
+{
+	return g_syncCrcTraceFilename;
+}
+
 bool syncCrcTraceActive()
 {
 	return g_syncCrcTraceFile != nullptr;

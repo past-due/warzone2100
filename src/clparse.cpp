@@ -327,6 +327,7 @@ typedef enum
 	CLI_GAMESTATE_CRCTRACE,
 	CLI_GAMESTATE_CRCDETAIL,
 	CLI_GAMESTATE_CRCDETAIL_ONSAVE,
+	CLI_GAMESTATE_SCRIPTDUMP,
 	CLI_RESOLUTION,
 	CLI_SHADOWS,
 	CLI_NOSHADOWS,
@@ -418,6 +419,7 @@ static const struct poptOption *getOptionsTable()
 		{ "gamestate-crc-trace", POPT_ARG_STRING, CLI_GAMESTATE_CRCTRACE, N_("Write a per-tick sync-CRC trace to the given file (for the load sync test)"), N_("file") },
 		{ "gamestate-crc-detail-tick", POPT_ARG_STRING, CLI_GAMESTATE_CRCDETAIL, N_("At this game tick, dump the full sync-debug log to <crc-trace-file>.detail.txt (diff original vs loaded run to pinpoint a divergence)"), N_("game tick") },
 		{ "gamestate-crc-detail-on-save", POPT_ARG_NONE, CLI_GAMESTATE_CRCDETAIL_ONSAVE, N_("Auto-dump a window of full sync-debug logs to <crc-trace-file>.detail.txt around each GameState save/load (no need to know the save tick)"), nullptr },
+		{ "gamestate-script-dump-tick", POPT_ARG_STRING, CLI_GAMESTATE_SCRIPTDUMP, N_("At this game tick, dump the full script state (all instances) to <crc-trace-file>.scriptstate.<tick>.json (diff original vs loaded run to pinpoint a divergent script global/label/timer)"), N_("game tick") },
 		{ "resolution", POPT_ARG_STRING, CLI_RESOLUTION, N_("Set the resolution to use"),         N_("WIDTHxHEIGHT") },
 		{ "shadows", POPT_ARG_NONE, CLI_SHADOWS,    N_("Enable shadows"),                    nullptr },
 		{ "noshadows", POPT_ARG_NONE, CLI_NOSHADOWS,  N_("Disable shadows"),                   nullptr },
@@ -874,6 +876,14 @@ bool ParseCommandLine(int argc, const char * const *argv)
 			break;
 		case CLI_GAMESTATE_CRCDETAIL_ONSAVE:
 			setSyncCrcDetailOnSave(20); // dump a 20-tick window around each save/load (overlaps saving vs loaded run, with headroom for debugging divergences a few ticks past resume)
+			break;
+		case CLI_GAMESTATE_SCRIPTDUMP:
+			token = poptGetOptArg(poptCon);
+			if (token == nullptr)
+			{
+				qFatal("Missing game tick value for --gamestate-script-dump-tick");
+			}
+			gamestate::gamestateSetScriptStateDumpTick(static_cast<uint32_t>(atoi(token)));
 			break;
 
 		case CLI_GAME:

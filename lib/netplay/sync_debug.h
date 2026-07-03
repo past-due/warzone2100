@@ -59,6 +59,7 @@ bool checkDebugSync(uint32_t checkGameTime, GameCrcType checkCrc);  ///< Dumps a
 /// disables tracing.
 void setSyncCrcTraceFile(const std::string &filename);
 bool syncCrcTraceActive();                                        ///< True iff a sync-CRC trace file is open. Used to switch on deterministic, wall-clock-free latency negotiation so two independent runs' traces stay comparable.
+std::string getSyncCrcTraceFilename();                            ///< The base trace filename (empty if not tracing). Used to derive sibling diagnostic dumps, e.g. "<tracefile>.scriptstate.<gameTime>.json".
 void syncCrcTraceRecord(uint32_t atGameTime, GameCrcType crc);     ///< Append one (gameTime, crc) line if tracing is enabled; no-op otherwise.
 void setSyncCrcDetailTick(uint32_t tick);                         ///< At this gameTime, dump the full per-tick sync-debug log to "<tracefile>.detail.txt" (0 = disabled). Diff the original-run vs loaded-run detail to pinpoint exactly which object/subsystem/field diverges.
 void setSyncCrcDetailOnSave(int numTicks);                        ///< Enable auto-dump: arm a window of `numTicks` detailed dumps whenever a GameState savegame is written or restored (0 = disabled). Avoids having to know the save tick up front.

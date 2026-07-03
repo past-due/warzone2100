@@ -613,6 +613,9 @@ static void gameStateUpdate()
 
 	// Optional GameState reconstruct-fidelity test (no-op unless --gamestate-roundtrip was set).
 	gamestate::gamestateMaybeRunRoundTripTest();
+
+	// Optional script-state dump diagnostic (no-op unless --gamestate-script-dump-tick was set).
+	gamestate::gamestateMaybeDumpScriptState();
 }
 
 size_t getMaxFastForwardTicks()

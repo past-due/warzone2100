@@ -4724,6 +4724,55 @@ void gamestateMaybeRunRoundTripTest()
 	wzQuit(ok ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
+// MARK: - Script-state dump diagnostic
+//
+// Writes the full v2 script state (all instances: globals, groups, timers, labels, Math.random state)
+// to a JSON file at a chosen tick. Run on both the original and the loaded run and diff the two files
+// to pinpoint which script global / label / timer diverges when the sync-CRC trace splits.
+
+static uint32_t g_scriptStateDumpTick = 0;
+
+void gamestateSetScriptStateDumpTick(uint32_t tick)
+{
+	g_scriptStateDumpTick = tick;
+}
+
+void gamestateMaybeDumpScriptState()
+{
+	if (g_scriptStateDumpTick == 0 || gameTime < g_scriptStateDumpTick)
+	{
+		return;
+	}
+	g_scriptStateDumpTick = 0; // dump exactly once
+
+	nlohmann::ordered_json root;
+	if (!saveScriptStates(root, -1)) // -1: all instances (every player's script), not just the local one
+	{
+		debug(LOG_ERROR, "Script-state dump: saveScriptStates failed at gameTime %" PRIu32, gameTime);
+		return;
+	}
+
+	// Name it after the crc-trace file so two separate runs (original / loaded) produce distinct,
+	// self-describing dumps to diff. Falls back to a fixed base if no trace file is set.
+	std::string base = getSyncCrcTraceFilename();
+	if (base.empty())
+	{
+		base = "gamestate";
+	}
+	const std::string path = base + ".scriptstate." + std::to_string(gameTime) + ".json";
+
+	const std::string text = root.dump(1, '\t');
+	FILE *f = fopen(path.c_str(), "w");
+	if (f == nullptr)
+	{
+		debug(LOG_ERROR, "Script-state dump: could not open %s for writing", path.c_str());
+		return;
+	}
+	fwrite(text.data(), 1, text.size(), f);
+	fclose(f);
+	debug(LOG_INFO, "Dumped script state (%zu bytes) to %s at gameTime %" PRIu32, text.size(), path.c_str(), gameTime);
+}
+
 // MARK: - Self-test (determinism harness scaffold)
 
 bool runGameStateSelfTest()

@@ -125,4 +125,12 @@ void gamestateSetRoundTripTestTick(uint32_t tick);
 /// Per-tick hook: runs the round-trip test and exits when the configured tick is reached.
 void gamestateMaybeRunRoundTripTest();
 
+/// Configure a game tick at which to dump the full v2 script state (all instances) to
+/// "<crc-trace-file>.scriptstate.<gameTime>.json" (0 = disabled). Run on both the original and the
+/// loaded run and diff the JSON to pinpoint which script global/label/timer diverges.
+void gamestateSetScriptStateDumpTick(uint32_t tick);
+
+/// Per-tick hook: dumps the script state once when the configured tick is reached.
+void gamestateMaybeDumpScriptState();
+
 } // namespace gamestate
