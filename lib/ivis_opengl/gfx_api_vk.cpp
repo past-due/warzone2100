@@ -1253,6 +1253,10 @@ static const std::map<SHADER_MODE, shader_infos> spv_files
 	std::make_pair(SHADER_TERRAIN_COMBINED_CLASSIC, shader_infos{ "shaders/vk/terrain_combined.vert.spv", "shaders/vk/terrain_combined_classic.frag.spv", true, true, true, true }),
 	std::make_pair(SHADER_TERRAIN_COMBINED_MEDIUM, shader_infos{ "shaders/vk/terrain_combined.vert.spv", "shaders/vk/terrain_combined_medium.frag.spv", true, true, true, true }),
 	std::make_pair(SHADER_TERRAIN_COMBINED_HIGH, shader_infos{ "shaders/vk/terrain_combined.vert.spv", "shaders/vk/terrain_combined_high.frag.spv", true, true, true, true, true }),
+	std::make_pair(SHADER_TERRAIN_DEPTH_TESS, shader_infos{ "shaders/vk/terrain_depth_tess.vert.spv", "shaders/vk/terraindepth.frag.spv", false, false, false, false, false, "shaders/vk/terrain_depth_tess.tesc.spv", "shaders/vk/terrain_depth_tess.tese.spv" }),
+	std::make_pair(SHADER_TERRAIN_DEPTHMAP_TESS, shader_infos{ "shaders/vk/terrain_depth_tess.vert.spv", "shaders/vk/terrain_depth_only.frag.spv", false, false, false, false, false, "shaders/vk/terrain_depth_tess.tesc.spv", "shaders/vk/terrain_depthmap_tess.tese.spv" }),
+	std::make_pair(SHADER_TERRAIN_COMBINED_MEDIUM_TESS, shader_infos{ "shaders/vk/terrain_combined_tess.vert.spv", "shaders/vk/terrain_combined_medium.frag.spv", true, true, true, true, false, "shaders/vk/terrain_combined_tess.tesc.spv", "shaders/vk/terrain_combined_tess.tese.spv" }),
+	std::make_pair(SHADER_TERRAIN_COMBINED_HIGH_TESS, shader_infos{ "shaders/vk/terrain_combined_tess.vert.spv", "shaders/vk/terrain_combined_high.frag.spv", true, true, true, true, true, "shaders/vk/terrain_combined_tess.tesc.spv", "shaders/vk/terrain_combined_tess.tese.spv" }),
 	std::make_pair(SHADER_WATER, shader_infos{ "shaders/vk/terrain_water.vert.spv", "shaders/vk/water.frag.spv", true }),
 	std::make_pair(SHADER_WATER_HIGH, shader_infos{ "shaders/vk/terrain_water_high.vert.spv", "shaders/vk/terrain_water_high.frag.spv", true, true, true, true }),
 	std::make_pair(SHADER_WATER_CLASSIC, shader_infos{ "shaders/vk/terrain_water_classic.vert.spv", "shaders/vk/terrain_water_classic.frag.spv", true }),
@@ -2145,6 +2149,10 @@ size_t VkTexture::format_size(const gfx_api::pixel_format& format)
 			return 2;
 		case gfx_api::pixel_format::FORMAT_R8_UNORM:
 			return 1;
+		case gfx_api::pixel_format::FORMAT_R16_UNORM:
+			return 1;
+		case gfx_api::pixel_format::FORMAT_RG16_UNORM:
+			return 2;
 		// compressed formats
 		case gfx_api::pixel_format::FORMAT_RGB_BC1_UNORM:
 			return 3;
@@ -2162,6 +2170,9 @@ size_t VkTexture::format_size(const vk::Format& format)
 	switch (format)
 	{
 	case vk::Format::eR8Unorm: return sizeof(uint8_t);
+	case vk::Format::eR16Unorm: return sizeof(uint16_t);
+	case vk::Format::eR16G16Unorm: return 2 * sizeof(uint16_t);
+	case vk::Format::eR8G8Unorm: return 2 * sizeof(uint8_t);
 	case vk::Format::eR8G8B8Unorm: return 3 * sizeof(uint8_t);
 	case vk::Format::eB8G8R8A8Unorm:
 	case vk::Format::eR8G8B8A8Unorm: return 4 * sizeof(uint8_t);
@@ -2441,7 +2452,7 @@ bool VkTexture::upload(const size_t& mip_level, const iV_BaseImage& image)
 	return upload_internal(mip_level, 0, 0, image);
 }
 
-bool VkTexture::upload_sub(const size_t& mip_level, const size_t& offset_x, const size_t& offset_y, const iV_Image& image)
+bool VkTexture::upload_sub(const size_t& mip_level, const size_t& offset_x, const size_t& offset_y, const iV_BaseImage& image)
 {
 	return upload_internal(mip_level, offset_x, offset_y, image);
 }
@@ -5125,6 +5136,8 @@ bool VkRoot::initPixelFormatsSupport()
 	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_BGRA8_UNORM_PACK8)
 	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RG8_UNORM)
 	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_R8_UNORM)
+	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_R16_UNORM)
+	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RG16_UNORM)
 
 	// RGB8 is optional
 	PIXEL_FORMAT_SUPPORT_SET(gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8)
@@ -5578,6 +5591,10 @@ vk::Format VkRoot::get_format(const gfx_api::pixel_format& format) const
 		return vk::Format::eR8G8Unorm;
 	case gfx_api::pixel_format::FORMAT_R8_UNORM:
 		return vk::Format::eR8Unorm;
+	case gfx_api::pixel_format::FORMAT_R16_UNORM:
+		return vk::Format::eR16Unorm;
+	case gfx_api::pixel_format::FORMAT_RG16_UNORM:
+		return vk::Format::eR16G16Unorm;
 	case gfx_api::pixel_format::FORMAT_RGB_BC1_UNORM:
 		return vk::Format::eBc1RgbUnormBlock;
 	case gfx_api::pixel_format::FORMAT_RGBA_BC2_UNORM:

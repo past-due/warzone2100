@@ -616,6 +616,8 @@ const char* gfx_api::format_to_str(gfx_api::pixel_format format)
 		case gfx_api::pixel_format::FORMAT_RGB8_UNORM_PACK8: return "RGB8_UNORM";
 		case gfx_api::pixel_format::FORMAT_RG8_UNORM: return "RG8_UNORM";
 		case gfx_api::pixel_format::FORMAT_R8_UNORM: return "R8_UNORM";
+		case gfx_api::pixel_format::FORMAT_R16_UNORM: return "R16_UNORM";
+		case gfx_api::pixel_format::FORMAT_RG16_UNORM: return "RG16_UNORM";
 		case gfx_api::pixel_format::FORMAT_D24_UNORM_S8: return "D24_UNORM_S8";
 		// COMPRESSED FORMAT
 		case gfx_api::pixel_format::FORMAT_RGB_BC1_UNORM: return "RGB_BC1_UNORM";
@@ -653,6 +655,10 @@ unsigned int gfx_api::format_channels(gfx_api::pixel_format format)
 			return 2;
 		case gfx_api::pixel_format::FORMAT_R8_UNORM:
 			return 1;
+		case gfx_api::pixel_format::FORMAT_R16_UNORM:
+			return 1;
+		case gfx_api::pixel_format::FORMAT_RG16_UNORM:
+			return 2;
 		case gfx_api::pixel_format::FORMAT_D24_UNORM_S8:
 			return 0;
 		// COMPRESSED FORMAT
@@ -706,6 +712,10 @@ size_t gfx_api::format_memory_size(gfx_api::pixel_format format, size_t width, s
 			return width * height * 2;
 		case gfx_api::pixel_format::FORMAT_R8_UNORM:
 			return width * height;
+		case gfx_api::pixel_format::FORMAT_R16_UNORM:
+			return width * height * 2;
+		case gfx_api::pixel_format::FORMAT_RG16_UNORM:
+			return width * height * 4;
 		case gfx_api::pixel_format::FORMAT_D24_UNORM_S8:
 			return width * height * 4;
 		// [COMPRESSED FORMATS]
