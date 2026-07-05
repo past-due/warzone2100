@@ -132,7 +132,7 @@ static void recordShadowCascade(const gfx_api::RenderPassContext& passCtx)
 	const Vector3f cameraPos = toVector3f(fc.cameraPos);
 	if (getDrawTerrainShadows())
 	{
-		drawTerrainDepthOnly(fc.cascadeProj[cascadeIndex] * fc.cascadeView[cascadeIndex]);
+		drawTerrainDepthOnly(fc.cascadeProj[cascadeIndex] * fc.cascadeView[cascadeIndex], fc.perspectiveViewMatrix);
 	}
 	pie_DrawAllMeshes(fc.currentGameFrame, fc.cascadeProj[cascadeIndex], fc.cascadeView[cascadeIndex],
 		cameraPos, fc.shadowCascadesInfo, true);
