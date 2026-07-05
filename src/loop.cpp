@@ -24,6 +24,7 @@
  *
  */
 #include "lib/framework/frame.h"
+#include "lib/framework/gamepad_input.h"
 #include "lib/framework/input.h"
 #include "lib/framework/strres.h"
 #include "lib/framework/wzapp.h"
@@ -163,7 +164,7 @@ static GAMECODE renderLoop()
 
 	audio_Update();
 
-	wzShowMouse(true);
+	wzShowMouse(!isGamepadActiveInput());
 
 	INT_RETVAL intRetVal = INT_NONE;
 	if (!paused)
@@ -806,7 +807,7 @@ void loop_ClearVideoPlaybackMode()
 	gameTimeStart();
 	pie_SetFogStatus(true);
 	cdAudio_Resume();
-	wzShowMouse(true);
+	wzShowMouse(!isGamepadActiveInput());
 	ASSERT(videoMode == 0, "loop_ClearVideoPlaybackMode: out of sync.");
 	if (backdropWasActiveBeforeVideo)
 	{
