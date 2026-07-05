@@ -331,6 +331,7 @@ static GAMECODE renderLoop()
 			processInput();
 
 			processGestureInput();
+			processGamepadCameraInput();
 
 			//no key clicks or in Intelligence Screen
 			if (!isMouseOverRadar() && !isDraggingInGameNotification() && !isMouseClickDownOnScreenOverlayChild() && intRetVal == INT_NONE && !InGameOpUp)
