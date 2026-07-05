@@ -64,6 +64,7 @@
 #include "visibility.h"
 #include "multimenu.h"
 #include "intelmap.h"
+#include "input/gamepadbindings.h"
 #include "loadsave.h"
 #include "game.h"
 #include "multijoin.h"
@@ -339,6 +340,10 @@ static GAMECODE renderLoop()
 				processMouseClickInput();
 			}
 			displayWorld();
+		}
+		else
+		{
+			gamepadProcessPausedBindings();
 		}
 	}
 
