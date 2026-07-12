@@ -39,6 +39,7 @@
 #include "../input/manager.h"
 #include "../input/keyconfig.h"
 #include "../warzoneconfig.h"
+#include "../loop.h"
 
 #include <limits>
 #include <cstring>
@@ -807,4 +808,39 @@ void closeGamepadLayoutScreen()
 bool isGamepadLayoutScreenUp()
 {
 	return gamepadLayoutScreen != nullptr;
+}
+
+void gamepadLayoutMaybeAutoShow()
+{
+	if (!war_GetGamepadShowLayoutOnConnect() || !gamepadIsConnected() || isGamepadLayoutScreenUp())
+	{
+		return;
+	}
+	if (loop_GetVideoStatus())
+	{
+		return;
+	}
+	const char* deviceGUID = gamepadDeviceGUID();
+	if (deviceGUID[0] == '\0')
+	{
+		return;
+	}
+	std::string seen = war_GetGamepadLayoutSeenDevices();
+	if (seen.find(deviceGUID) != std::string::npos)
+	{
+		return;
+	}
+	// remember a bounded number of device models, dropping the oldest
+	seen = seen.empty() ? deviceGUID : seen + "," + deviceGUID;
+	while (seen.size() > 512)
+	{
+		const size_t comma = seen.find(',');
+		if (comma == std::string::npos)
+		{
+			break;
+		}
+		seen.erase(0, comma + 1);
+	}
+	war_SetGamepadLayoutSeenDevices(seen);
+	showGamepadLayoutScreen();
 }
