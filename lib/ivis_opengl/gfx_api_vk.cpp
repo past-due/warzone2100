@@ -3212,20 +3212,27 @@ void VkRoot::destroySceneRenderpass()
 	}
 }
 
-// throws a vk::SystemError on an unrecoverable error (like OOM)
-void VkRoot::createSceneRenderpass(vk::Format sceneFormat, vk::Format depthFormat)
+vk::Extent2D VkRoot::sceneTargetExtent() const
 {
+	return swapchainSize;
+}
+
+// throws a vk::SystemError on an unrecoverable error (like OOM)
+void VkRoot::createSceneRenderpass()
+{
+	ASSERT(sceneImageFormat != vk::Format::eUndefined && sceneDepthStencilFormat != vk::Format::eUndefined, "Scene target formats not initialized");
+	const vk::Extent2D sceneSize = sceneTargetExtent();
 	const bool msaaEnabled = (msaaSamples != vk::SampleCountFlagBits::e1);
 
 	// Create scene color/depth (and optional MSAA) images and register pipeline surfaces.
 	// VkRenderPass objects are created later by RenderPassLayoutCache::getOrCreate via beginPass / warmCompiledRenderGraph.
-	pSceneImage = new VkRenderedImage(*this, swapchainSize.width, swapchainSize.height, sceneFormat, "<scene image>");
+	pSceneImage = new VkRenderedImage(*this, sceneSize.width, sceneSize.height, sceneImageFormat, "<scene image>");
 
 	if (msaaEnabled)
 	{
 		// create sceneMSAAImage / sceneMSAAView / etc
 		try {
-			createColorAttachmentImage(physicalDevice, memprops, dev, swapchainSize, msaaSamples, sceneFormat,
+			createColorAttachmentImage(physicalDevice, memprops, dev, sceneSize, msaaSamples, sceneImageFormat,
 									   sceneMSAAImage, sceneMSAAMemory, sceneMSAAView, vkDynLoader, "sceneMSAAColorImage");
 		}
 		catch (const vk::SystemError& e)
@@ -3237,7 +3244,7 @@ void VkRoot::createSceneRenderpass(vk::Format sceneFormat, vk::Format depthForma
 
 	// create depth/stencil image
 	try {
-		createDepthStencilImage(physicalDevice, memprops, dev, swapchainSize, msaaSamples, depthFormat,
+		createDepthStencilImage(physicalDevice, memprops, dev, sceneSize, msaaSamples, sceneDepthStencilFormat,
 								sceneDepthStencilImage, sceneDepthStencilMemory, sceneDepthStencilView, vkDynLoader, "sceneDepthStencilImage");
 	}
 	catch (const vk::SystemError& e)
@@ -3246,16 +3253,16 @@ void VkRoot::createSceneRenderpass(vk::Format sceneFormat, vk::Format depthForma
 		throw;
 	}
 
-	_sceneDepthSurface = std::make_unique<VkAttachmentImage>(sceneDepthStencilImage, sceneDepthStencilView, depthFormat,
-		swapchainSize.width, swapchainSize.height, msaaSamples, "<scene depth stencil>");
+	_sceneDepthSurface = std::make_unique<VkAttachmentImage>(sceneDepthStencilImage, sceneDepthStencilView, sceneDepthStencilFormat,
+		sceneSize.width, sceneSize.height, msaaSamples, "<scene depth stencil>");
 	_pipelineSurfaces.registerSurface(gfx_api::PipelineSurfaceId::SceneColor, pSceneImage);
 	_pipelineSurfaces.registerSurface(gfx_api::PipelineSurfaceId::SceneDepth, _sceneDepthSurface.get());
 	const uint32_t sceneSamples = static_cast<uint32_t>(msaaSamples);
 	_pipelineSurfaces.setSurfaceSamples(gfx_api::PipelineSurfaceId::SceneDepth, sceneSamples);
 	if (msaaEnabled)
 	{
-		_sceneMsaaSurface = std::make_unique<VkAttachmentImage>(sceneMSAAImage, sceneMSAAView, sceneFormat,
-			swapchainSize.width, swapchainSize.height, msaaSamples, "<scene msaa color>");
+		_sceneMsaaSurface = std::make_unique<VkAttachmentImage>(sceneMSAAImage, sceneMSAAView, sceneImageFormat,
+			sceneSize.width, sceneSize.height, msaaSamples, "<scene msaa color>");
 		_pipelineSurfaces.registerSurface(gfx_api::PipelineSurfaceId::SceneMSAAColor, _sceneMsaaSurface.get());
 		_pipelineSurfaces.setSurfaceSamples(gfx_api::PipelineSurfaceId::SceneMSAAColor, sceneSamples);
 	}
@@ -3264,6 +3271,33 @@ void VkRoot::createSceneRenderpass(vk::Format sceneFormat, vk::Format depthForma
 		_sceneMsaaSurface.reset();
 		_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SceneMSAAColor);
 	}
+}
+
+bool VkRoot::recreateSceneTargets()
+{
+	if (!dev)
+	{
+		return false;
+	}
+	ASSERT_OR_RETURN(false, sceneImageFormat != vk::Format::eUndefined, "No scene targets created yet");
+
+	// the old scene images may still be referenced by in flight frames
+	submitPendingTransferWork();
+	finalizeActiveRecording();
+	waitForAllIdle();
+
+	destroySceneRenderpass();
+	bumpRenderGraphEpoch();
+	invalidateWarmEntries();
+	try {
+		createSceneRenderpass();
+	}
+	catch (const vk::SystemError& e)
+	{
+		debug(LOG_ERROR, "Failed to recreate scene targets: %s", e.what());
+		return false;
+	}
+	return true;
 }
 
 bool VkRoot::setupDebugUtilsCallbacks(const std::vector<const char*>& extensions, PFN_vkGetInstanceProcAddr _vkGetInstanceProcAddr)
@@ -4592,10 +4626,11 @@ void VkRoot::createSwapchain(bool allowHandleSurfaceLost)
 
 	// Dynamic passes: VkRenderPass instances are created on demand by RenderPassLayoutCache
 	// (via getOrCreatePassRenderPassId), typically from beginPass or warmCompiledRenderGraph.
-	vk::Format sceneFormat = findSceneColorBufferFormat(physicalDevice, vkDynLoader);
-	debug(LOG_3D, "Using scene color format: %s", to_string(sceneFormat).c_str());
+	sceneImageFormat = findSceneColorBufferFormat(physicalDevice, vkDynLoader);
+	sceneDepthStencilFormat = depthFormat;
+	debug(LOG_3D, "Using scene color format: %s", to_string(sceneImageFormat).c_str());
 	try {
-		createSceneRenderpass(sceneFormat, depthFormat);
+		createSceneRenderpass();
 	}
 	catch (const vk::SystemError &e) {
 		// Likely(?) possibilities: vk::OutOfHostMemoryError, vk::OutOfDeviceMemoryError

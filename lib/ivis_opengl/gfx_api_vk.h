@@ -777,6 +777,7 @@ struct VkRoot final : gfx_api::context
 
 	// scene render pass
 	vk::Format sceneImageFormat = vk::Format::eUndefined;
+	vk::Format sceneDepthStencilFormat = vk::Format::eUndefined;
 	VkRenderedImage* pSceneImage = nullptr;
 	vk::Image sceneMSAAImage;
 	vk::DeviceMemory sceneMSAAMemory;
@@ -880,8 +881,13 @@ private:
 	void registerSwapchainPipelineSurfaces(vk::Format colorFormat, vk::Format depthFormat);
 	void destroySwapchainPipelineSurfaces();
 	void createDepthPassImages(vk::Format depthFormat);
-	void createSceneRenderpass(vk::Format sceneFormat, vk::Format depthFormat);
+	/// Dimensions of the scene color/depth targets (derived from, but not tied to, the swapchain size)
+	vk::Extent2D sceneTargetExtent() const;
+	/// Create the scene color/depth targets (sized from sceneTargetExtent(), formats from sceneImageFormat / sceneDepthStencilFormat)
+	void createSceneRenderpass();
 	void destroySceneRenderpass();
+	/// Destroy and recreate the scene targets without a swapchain recreate (e.g. when sceneTargetExtent() changes)
+	bool recreateSceneTargets();
 	void setupSwapchainImages();
 
 public:
