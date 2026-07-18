@@ -699,7 +699,6 @@ struct VkRoot final : gfx_api::context
 	std::unique_ptr<gfx_api::backend_Vulkan_Impl> backend_impl;
 	VkhInfo debugInfo;
 	gfx_api::context::swap_interval_mode swapMode = gfx_api::context::swap_interval_mode::vsync;
-	optional<float> mipLodBias;
 	gfx_api::lighting_constants shadowConstants;
 
 	std::vector<VkExtensionProperties> supportedInstanceExtensionProperties;
@@ -720,13 +719,6 @@ struct VkRoot final : gfx_api::context
 #endif
 	bool hasPortabilitySubset = false;
 
-	enum class LodBiasMethod
-	{
-		Unsupported,
-		SpecializationConstant,
-		SamplerMipLodBias
-	};
-	LodBiasMethod lodBiasMethod = LodBiasMethod::Unsupported;
 
 	QueueFamilyIndices queueFamilyIndices;
 	std::vector<const char*> enabledDeviceExtensions;
