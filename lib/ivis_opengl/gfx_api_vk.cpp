@@ -3214,7 +3214,38 @@ void VkRoot::destroySceneRenderpass()
 
 vk::Extent2D VkRoot::sceneTargetExtent() const
 {
-	return swapchainSize;
+	const uint32_t scalePercent = getSceneRenderScalePercent();
+	if (scalePercent == 100)
+	{
+		return swapchainSize;
+	}
+	return vk::Extent2D{
+		std::max<uint32_t>((swapchainSize.width * scalePercent) / 100u, 2),
+		std::max<uint32_t>((swapchainSize.height * scalePercent) / 100u, 2)};
+}
+
+bool VkRoot::setSceneRenderScale(uint32_t scalePercent)
+{
+	const uint32_t oldScalePercent = getSceneRenderScalePercent();
+	gfx_api::context::setSceneRenderScale(scalePercent);
+	if (getSceneRenderScalePercent() == oldScalePercent)
+	{
+		return true;
+	}
+	if (!dev || sceneImageFormat == vk::Format::eUndefined)
+	{
+		// no scene targets exist yet, the scale applies when they are created
+		return true;
+	}
+
+	if (!recreateSceneTargets())
+	{
+		debug(LOG_ERROR, "Failed to apply scene render scale %" PRIu32 "%% - restoring %" PRIu32 "%%", getSceneRenderScalePercent(), oldScalePercent);
+		gfx_api::context::setSceneRenderScale(oldScalePercent);
+		recreateSceneTargets();
+		return false;
+	}
+	return true;
 }
 
 // throws a vk::SystemError on an unrecoverable error (like OOM)
