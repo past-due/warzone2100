@@ -5854,6 +5854,8 @@ bool gl_context::createSceneRenderpass()
 {
 	deleteSceneRenderpass();
 
+	debug(LOG_3D, "Creating scene framebuffer: %" PRIu32 " x %" PRIu32 " (drawable: %" PRIu32 " x %" PRIu32 ")", sceneFramebufferWidth, sceneFramebufferHeight, viewportWidth, viewportHeight);
+
 #if !defined(__EMSCRIPTEN__)
 	if ( ! ((!gles && GLAD_GL_VERSION_3_0) || (gles && GLAD_GL_ES_VERSION_3_0)) )
 	{

@@ -3255,6 +3255,8 @@ void VkRoot::createSceneRenderpass()
 	const vk::Extent2D sceneSize = sceneTargetExtent();
 	const bool msaaEnabled = (msaaSamples != vk::SampleCountFlagBits::e1);
 
+	debug(LOG_3D, "Creating scene targets: %" PRIu32 " x %" PRIu32 " (swapchain: %" PRIu32 " x %" PRIu32 ")", sceneSize.width, sceneSize.height, swapchainSize.width, swapchainSize.height);
+
 	// Create scene color/depth (and optional MSAA) images and register pipeline surfaces.
 	// VkRenderPass objects are created later by RenderPassLayoutCache::getOrCreate via beginPass / warmCompiledRenderGraph.
 	pSceneImage = new VkRenderedImage(*this, sceneSize.width, sceneSize.height, sceneImageFormat, "<scene image>");
