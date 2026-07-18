@@ -328,6 +328,8 @@ private:
 	void set_constants(const gfx_api::TerrainDepthMapTessUniforms& cbuf);
 	void set_constants(const gfx_api::constant_buffer_type<SHADER_DEBUG_TESS_QUAD>& cbuf);
 	void set_constants(const gfx_api::constant_buffer_type<SHADER_DEBUG_TEXTURE2DARRAY_QUAD>& cbuf);
+	void set_constants(const gfx_api::constant_buffer_type<SHADER_FSR1_EASU>& cbuf);
+	void set_constants(const gfx_api::constant_buffer_type<SHADER_FSR1_RCAS>& cbuf);
 };
 
 struct gl_context final : public gfx_api::context
@@ -372,6 +374,7 @@ struct gl_context final : public gfx_api::context
 	virtual size_t numDepthPasses() override;
 	virtual bool setDepthPassProperties(size_t numDepthPasses, size_t depthBufferResolution) override;
 	virtual bool setSceneRenderScale(uint32_t scalePercent) override;
+	virtual bool setSceneUpscalingMode(gfx_api::context::scene_upscaling_mode mode) override;
 	virtual void beginPass(const gfx_api::RenderPassDesc& pass, const gfx_api::CompiledPass* compiledPass = nullptr) override;
 	virtual void endPass(const gfx_api::CompiledPass* compiledPass = nullptr) override;
 	virtual void beginScreenFrame() override;
@@ -504,11 +507,13 @@ private:
 	uint32_t sceneFramebufferWidth = 0;
 	uint32_t sceneFramebufferHeight = 0;
 	uint32_t scaledSceneDimension(uint32_t drawableDimension) const;
+	bool sceneUpscalingNeedsIntermediate() const;
 	GLenum multiSampledBufferInternalFormat = GL_INVALID_ENUM;
 	GLenum multiSampledBufferBaseFormat = GL_INVALID_ENUM;
 	GLint maxMultiSampleBufferFormatSamples = 0;
 	uint32_t multisamples = 0;
 	gl_gpurendered_texture* sceneTexture = nullptr;
+	gl_gpurendered_texture* upscaledTexture = nullptr;
 	std::unique_ptr<gl_gpurendered_renderbuffer> _sceneMsaaSurface;
 	std::unique_ptr<gl_gpurendered_renderbuffer> _sceneDepthStencilSurface;
 	std::unique_ptr<gl_pipeline_surface_proxy> _swapchainColorSurface;

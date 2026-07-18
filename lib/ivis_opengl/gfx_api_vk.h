@@ -779,6 +779,7 @@ struct VkRoot final : gfx_api::context
 	vk::Format sceneImageFormat = vk::Format::eUndefined;
 	vk::Format sceneDepthStencilFormat = vk::Format::eUndefined;
 	VkRenderedImage* pSceneImage = nullptr;
+	VkRenderedImage* pUpscaledImage = nullptr;
 	vk::Image sceneMSAAImage;
 	vk::DeviceMemory sceneMSAAMemory;
 	vk::ImageView sceneMSAAView;
@@ -911,6 +912,7 @@ public:
 	virtual size_t numDepthPasses() override;
 	virtual bool setDepthPassProperties(size_t numDepthPasses, size_t depthBufferResolution) override;
 	virtual bool setSceneRenderScale(uint32_t scalePercent) override;
+	virtual bool setSceneUpscalingMode(gfx_api::context::scene_upscaling_mode mode) override;
 	virtual void beginPass(const gfx_api::RenderPassDesc& pass, const gfx_api::CompiledPass* compiledPass = nullptr) override;
 	virtual void endPass(const gfx_api::CompiledPass* compiledPass = nullptr) override;
 	virtual void beginScreenFrame() override;

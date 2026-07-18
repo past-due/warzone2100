@@ -1268,6 +1268,8 @@ static const std::map<SHADER_MODE, shader_infos> spv_files
 	std::make_pair(SHADER_LINE, shader_infos{ "shaders/vk/line.vert.spv", "shaders/vk/rect.frag.spv" }),
 	std::make_pair(SHADER_TEXT, shader_infos{ "shaders/vk/rect.vert.spv", "shaders/vk/text.frag.spv" }),
 	std::make_pair(SHADER_WORLD_TO_SCREEN, shader_infos{ "shaders/vk/world_to_screen.vert.spv", "shaders/vk/world_to_screen.frag.spv" }),
+	std::make_pair(SHADER_FSR1_EASU, shader_infos{ "shaders/vk/world_to_screen.vert.spv", "shaders/vk/fsr1_easu.frag.spv" }),
+	std::make_pair(SHADER_FSR1_RCAS, shader_infos{ "shaders/vk/world_to_screen.vert.spv", "shaders/vk/fsr1_rcas.frag.spv" }),
 	std::make_pair(SHADER_DEBUG_TEXTURE2D_QUAD, shader_infos{ "shaders/vk/quad_texture2d.vert.spv", "shaders/vk/quad_texture2d.frag.spv" }),
 	std::make_pair(SHADER_DEBUG_TEXTURE2DARRAY_QUAD, shader_infos{ "shaders/vk/quad_texture2darray.vert.spv", "shaders/vk/quad_texture2darray.frag.spv" }),
 	std::make_pair(SHADER_DEBUG_TESS_QUAD, shader_infos{ "shaders/vk/tess_quad.vert.spv", "shaders/vk/tess_quad.frag.spv", false, false, false, false, "shaders/vk/tess_quad.tesc.spv", "shaders/vk/tess_quad.tese.spv" })
@@ -3169,6 +3171,7 @@ void VkRoot::destroySceneRenderpass()
 	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SceneColor);
 	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SceneMSAAColor);
 	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SceneDepth);
+	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::UpscaledColor);
 	_sceneDepthSurface.reset();
 	_sceneMsaaSurface.reset();
 
@@ -3210,6 +3213,13 @@ void VkRoot::destroySceneRenderpass()
 		delete pSceneImage;
 		pSceneImage = nullptr;
 	}
+
+	if (pUpscaledImage)
+	{
+		pUpscaledImage->destroy(dev, allocator, vkDynLoader);
+		delete pUpscaledImage;
+		pUpscaledImage = nullptr;
+	}
 }
 
 vk::Extent2D VkRoot::sceneTargetExtent() const
@@ -3248,6 +3258,21 @@ bool VkRoot::setSceneRenderScale(uint32_t scalePercent)
 	return true;
 }
 
+bool VkRoot::setSceneUpscalingMode(gfx_api::context::scene_upscaling_mode mode)
+{
+	if (mode == getSceneUpscalingMode())
+	{
+		return true;
+	}
+	gfx_api::context::setSceneUpscalingMode(mode);
+	if (!dev || sceneImageFormat == vk::Format::eUndefined)
+	{
+		// no scene targets exist yet, the mode applies when they are created
+		return true;
+	}
+	return recreateSceneTargets();
+}
+
 // throws a vk::SystemError on an unrecoverable error (like OOM)
 void VkRoot::createSceneRenderpass()
 {
@@ -3260,6 +3285,13 @@ void VkRoot::createSceneRenderpass()
 	// Create scene color/depth (and optional MSAA) images and register pipeline surfaces.
 	// VkRenderPass objects are created later by RenderPassLayoutCache::getOrCreate via beginPass / warmCompiledRenderGraph.
 	pSceneImage = new VkRenderedImage(*this, sceneSize.width, sceneSize.height, sceneImageFormat, "<scene image>");
+
+	if (getSceneUpscalingMode() == gfx_api::context::scene_upscaling_mode::fsr1
+		&& (sceneSize.width != swapchainSize.width || sceneSize.height != swapchainSize.height))
+	{
+		pUpscaledImage = new VkRenderedImage(*this, swapchainSize.width, swapchainSize.height, sceneImageFormat, "<upscaled color>");
+		_pipelineSurfaces.registerSurface(gfx_api::PipelineSurfaceId::UpscaledColor, pUpscaledImage);
+	}
 
 	if (msaaEnabled)
 	{

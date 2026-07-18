@@ -1041,7 +1041,11 @@ static const std::map<SHADER_MODE, program_data> shader_to_file_table =
 	std::make_pair(SHADER_DEBUG_TESS_QUAD, program_data{ "Debug tessellated quad program", "shaders/tess_quad.vert", "shaders/tess_quad.frag",
 		{ "transformationMatrix", "color", "tessLevel" }, {},
 		"shaders/tess_quad.tesc", "shaders/tess_quad.tese" }),
-	std::make_pair(SHADER_WORLD_TO_SCREEN, program_data{ "World to screen quad program", "shaders/world_to_screen.vert", "shaders/world_to_screen.frag", {} })
+	std::make_pair(SHADER_WORLD_TO_SCREEN, program_data{ "World to screen quad program", "shaders/world_to_screen.vert", "shaders/world_to_screen.frag", {} }),
+	std::make_pair(SHADER_FSR1_EASU, program_data{ "FSR1 EASU program", "shaders/world_to_screen.vert", "shaders/fsr1_easu.frag",
+		{ "con0", "con1", "con2", "con3" } }),
+	std::make_pair(SHADER_FSR1_RCAS, program_data{ "FSR1 RCAS program", "shaders/world_to_screen.vert", "shaders/fsr1_rcas.frag",
+		{ "con0", "con1" } })
 };
 
 enum SHADER_VERSION
@@ -1364,7 +1368,9 @@ desc(createInfo.state_desc), vertex_buffer_desc(createInfo.attribute_description
 		uniform_binding_entry<SHADER_TEXT>(),
 		uniform_binding_entry<SHADER_DEBUG_TEXTURE2D_QUAD>(),
 		uniform_binding_entry<SHADER_DEBUG_TEXTURE2DARRAY_QUAD>(),
-		uniform_binding_entry<SHADER_DEBUG_TESS_QUAD>()
+		uniform_binding_entry<SHADER_DEBUG_TESS_QUAD>(),
+		uniform_binding_entry<SHADER_FSR1_EASU>(),
+		uniform_binding_entry<SHADER_FSR1_RCAS>()
 	};
 
 	for (auto& uniform_block : createInfo.uniform_blocks)
@@ -2524,6 +2530,20 @@ void gl_pipeline_state_object::set_constants(const gfx_api::constant_buffer_type
 	setUniforms(0, cbuf.transform_matrix);
 	setUniforms(1, cbuf.color);
 	setUniforms(2, cbuf.tessLevel);
+}
+
+void gl_pipeline_state_object::set_constants(const gfx_api::constant_buffer_type<SHADER_FSR1_EASU>& cbuf)
+{
+	setUniforms(0, cbuf.con0);
+	setUniforms(1, cbuf.con1);
+	setUniforms(2, cbuf.con2);
+	setUniforms(3, cbuf.con3);
+}
+
+void gl_pipeline_state_object::set_constants(const gfx_api::constant_buffer_type<SHADER_FSR1_RCAS>& cbuf)
+{
+	setUniforms(0, cbuf.con0);
+	setUniforms(1, cbuf.con1);
 }
 
 GLint get_size(const gfx_api::vertex_attribute_type& type)
@@ -5474,6 +5494,27 @@ uint32_t gl_context::scaledSceneDimension(uint32_t drawableDimension) const
 	return std::max<uint32_t>(static_cast<uint32_t>(scaled), 2);
 }
 
+bool gl_context::sceneUpscalingNeedsIntermediate() const
+{
+	return getSceneUpscalingMode() == gfx_api::context::scene_upscaling_mode::fsr1
+		&& (sceneFramebufferWidth != viewportWidth || sceneFramebufferHeight != viewportHeight);
+}
+
+bool gl_context::setSceneUpscalingMode(gfx_api::context::scene_upscaling_mode mode)
+{
+	if (mode == getSceneUpscalingMode())
+	{
+		return true;
+	}
+	gfx_api::context::setSceneUpscalingMode(mode);
+	if (viewportWidth == 0 || viewportHeight == 0)
+	{
+		// no usable drawable right now, the mode applies when the scene framebuffer is next created
+		return true;
+	}
+	return createSceneRenderpass();
+}
+
 bool gl_context::setSceneRenderScale(uint32_t scalePercent)
 {
 	const uint32_t oldScalePercent = getSceneRenderScalePercent();
@@ -5814,6 +5855,7 @@ void gl_context::deleteSceneRenderpass()
 	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SceneColor);
 	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SceneMSAAColor);
 	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SceneDepth);
+	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::UpscaledColor);
 
 	// delete prior scene texture & FBOs (if present)
 #if !defined(WZ_STATIC_GL_BINDINGS)
@@ -5826,6 +5868,11 @@ void gl_context::deleteSceneRenderpass()
 	{
 		delete sceneTexture;
 		sceneTexture = nullptr;
+	}
+	if (upscaledTexture)
+	{
+		delete upscaledTexture;
+		upscaledTexture = nullptr;
 	}
 	_sceneDepthStencilSurface.reset();
 }
@@ -5906,6 +5953,23 @@ bool gl_context::createSceneRenderpass()
 	ASSERT_GL_NOERRORS_OR_RETURN(false);
 
 	ASSERT_GL_NOERRORS_OR_RETURN(false);
+
+	if (sceneUpscalingNeedsIntermediate())
+	{
+		upscaledTexture = create_framebuffer_color_texture(GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, viewportWidth, viewportHeight, "<upscaled color>");
+		ASSERT_GL_NOERRORS_OR_RETURN(false);
+		if (!upscaledTexture)
+		{
+			debug(LOG_ERROR, "Failed to create upscale intermediate texture (%" PRIu32 " x %" PRIu32 ")", viewportWidth, viewportHeight);
+			return false;
+		}
+		upscaledTexture->bind();
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		upscaledTexture->unbind();
+		ASSERT_GL_NOERRORS_OR_RETURN(false);
+		_pipelineSurfaces.registerSurface(gfx_api::PipelineSurfaceId::UpscaledColor, upscaledTexture);
+	}
 
 	_pipelineSurfaces.registerSurface(gfx_api::PipelineSurfaceId::SceneColor, sceneTexture);
 	_pipelineSurfaces.registerSurface(gfx_api::PipelineSurfaceId::SceneDepth, _sceneDepthStencilSurface.get());

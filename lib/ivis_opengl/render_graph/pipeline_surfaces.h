@@ -49,6 +49,8 @@ enum class PipelineSurfaceId : uint8_t
 	SceneColor,
 	SceneMSAAColor,
 	SceneDepth,
+	/// Drawable-sized intermediate between the scene upscale and sharpen passes.
+	UpscaledColor,
 	ShadowMap,
 	SwapchainColor,
 	SwapchainMSAAColor,
