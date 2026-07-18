@@ -1814,7 +1814,7 @@ static float terrainTessMaxLevel()
 
 static glm::vec4 terrainTessParams()
 {
-	auto dimension = gfx_api::context::get().getDrawableDimensions();
+	auto dimension = gfx_api::context::get().getSceneRenderTargetDimensions();
 	return glm::vec4(terrainTessMaxLevel(), static_cast<float>(dimension.second), 0.f, 0.f);
 }
 
@@ -1964,7 +1964,7 @@ static void drawTerrainCombinedmpl(const glm::mat4 &ModelViewProjection, const g
 	}
 
 	auto bucketLight = getCurrentLightingManager().getPointLightBuckets();
-	auto dimension = gfx_api::context::get().getDrawableDimensions();
+	auto dimension = gfx_api::context::get().getSceneRenderTargetDimensions();
 	gfx_api::TerrainCombinedUniforms uniforms = {
 		ModelViewProjection, ViewMatrix, ModelUVLightmap, {shadowCascades.shadowMVPMatrix[0], shadowCascades.shadowMVPMatrix[1], shadowCascades.shadowMVPMatrix[2]}, groundScale,
 		glm::vec4(cameraPos, 0), glm::vec4(glm::normalize(sunPos), 0),
@@ -2014,7 +2014,7 @@ static void drawTerrainCombinedTessImpl(const glm::mat4 &ModelViewProjection, co
 	}
 
 	auto bucketLight = getCurrentLightingManager().getPointLightBuckets();
-	auto dimension = gfx_api::context::get().getDrawableDimensions();
+	auto dimension = gfx_api::context::get().getSceneRenderTargetDimensions();
 	gfx_api::TerrainCombinedUniforms uniforms = {
 		ModelViewProjection, ViewMatrix, ModelUVLightmap, {shadowCascades.shadowMVPMatrix[0], shadowCascades.shadowMVPMatrix[1], shadowCascades.shadowMVPMatrix[2]}, groundScale,
 		glm::vec4(cameraPos, 0), glm::vec4(glm::normalize(sunPos), 0),
