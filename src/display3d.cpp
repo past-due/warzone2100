@@ -71,6 +71,7 @@
 #include "display3d.h"
 #include "display3d_render_graph.h"
 #include "display3d_render_internal.h"
+#include "dynamicresolution.h"
 #include "lighting.h"
 #include "console.h"
 #include "projectile.h"
@@ -995,6 +996,8 @@ void draw3DScene()
 {
 	WZ_PROFILE_SCOPE(draw3DScene);
 	wzPerfBegin(PERF_START_FRAME, "Start 3D scene");
+
+	dynamicResolutionUpdate();
 
 	/* What frame number are we on? */
 	currentGameFrame = frameGetFrameNumber();
