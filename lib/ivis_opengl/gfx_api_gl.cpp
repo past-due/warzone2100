@@ -1050,9 +1050,10 @@ static const std::map<SHADER_MODE, program_data> shader_to_file_table =
 	std::make_pair(SHADER_DEBUG_TESS_QUAD, program_data{ "Debug tessellated quad program", "shaders/tess_quad.vert", "shaders/tess_quad.frag",
 		{ "transformationMatrix", "color", "tessLevel" }, {},
 		"shaders/tess_quad.tesc", "shaders/tess_quad.tese" }),
-	std::make_pair(SHADER_WORLD_TO_SCREEN, program_data{ "World to screen quad program", "shaders/world_to_screen.vert", "shaders/world_to_screen.frag", {} }),
+	std::make_pair(SHADER_WORLD_TO_SCREEN, program_data{ "World to screen quad program", "shaders/world_to_screen.vert", "shaders/world_to_screen.frag",
+		{ "uvScaleClamp" } }),
 	std::make_pair(SHADER_FSR1_EASU, program_data{ "FSR1 EASU program", "shaders/world_to_screen.vert", "shaders/fsr1_easu.frag",
-		{ "con0", "con1", "con2", "con3" }, {}, "", "", VERSION_ES_310 }),
+		{ "con0", "con1", "con2", "con3", "con4" }, {}, "", "", VERSION_ES_310 }),
 	std::make_pair(SHADER_FSR1_RCAS, program_data{ "FSR1 RCAS program", "shaders/world_to_screen.vert", "shaders/fsr1_rcas.frag",
 		{ "con0", "con1" } })
 };
@@ -1374,6 +1375,7 @@ desc(createInfo.state_desc), vertex_buffer_desc(createInfo.attribute_description
 		uniform_binding_entry<SHADER_DEBUG_TEXTURE2D_QUAD>(),
 		uniform_binding_entry<SHADER_DEBUG_TEXTURE2DARRAY_QUAD>(),
 		uniform_binding_entry<SHADER_DEBUG_TESS_QUAD>(),
+		uniform_binding_entry<SHADER_WORLD_TO_SCREEN>(),
 		uniform_binding_entry<SHADER_FSR1_EASU>(),
 		uniform_binding_entry<SHADER_FSR1_RCAS>()
 	};
@@ -2546,12 +2548,18 @@ void gl_pipeline_state_object::set_constants(const gfx_api::constant_buffer_type
 	setUniforms(2, cbuf.tessLevel);
 }
 
+void gl_pipeline_state_object::set_constants(const gfx_api::constant_buffer_type<SHADER_WORLD_TO_SCREEN>& cbuf)
+{
+	setUniforms(0, cbuf.uvScaleClamp);
+}
+
 void gl_pipeline_state_object::set_constants(const gfx_api::constant_buffer_type<SHADER_FSR1_EASU>& cbuf)
 {
 	setUniforms(0, cbuf.con0);
 	setUniforms(1, cbuf.con1);
 	setUniforms(2, cbuf.con2);
 	setUniforms(3, cbuf.con3);
+	setUniforms(4, cbuf.con4);
 }
 
 void gl_pipeline_state_object::set_constants(const gfx_api::constant_buffer_type<SHADER_FSR1_RCAS>& cbuf)
@@ -5716,7 +5724,8 @@ uint32_t gl_context::scaledSceneDimension(uint32_t drawableDimension) const
 bool gl_context::sceneUpscalingNeedsIntermediate() const
 {
 	return getSceneUpscalingMode() == gfx_api::context::scene_upscaling_mode::fsr1
-		&& (sceneFramebufferWidth != viewportWidth || sceneFramebufferHeight != viewportHeight);
+		&& (sceneFramebufferWidth != viewportWidth || sceneFramebufferHeight != viewportHeight
+			|| sceneDynamicResolutionEnabled());
 }
 
 bool gl_context::setSceneUpscalingMode(gfx_api::context::scene_upscaling_mode mode)
@@ -5729,6 +5738,21 @@ bool gl_context::setSceneUpscalingMode(gfx_api::context::scene_upscaling_mode mo
 	if (viewportWidth == 0 || viewportHeight == 0)
 	{
 		// no usable drawable right now, the mode applies when the scene framebuffer is next created
+		return true;
+	}
+	return createSceneRenderpass();
+}
+
+bool gl_context::setSceneDynamicResolution(bool enabled)
+{
+	if (enabled == sceneDynamicResolutionEnabled())
+	{
+		return true;
+	}
+	const bool intermediateBefore = sceneUpscalingNeedsIntermediate();
+	gfx_api::context::setSceneDynamicResolution(enabled);
+	if (viewportWidth == 0 || viewportHeight == 0 || intermediateBefore == sceneUpscalingNeedsIntermediate())
+	{
 		return true;
 	}
 	return createSceneRenderpass();

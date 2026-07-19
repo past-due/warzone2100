@@ -3418,6 +3418,22 @@ bool VkRoot::setSceneUpscalingMode(gfx_api::context::scene_upscaling_mode mode)
 	return recreateSceneTargets();
 }
 
+bool VkRoot::setSceneDynamicResolution(bool enabled)
+{
+	if (enabled == sceneDynamicResolutionEnabled())
+	{
+		return true;
+	}
+	gfx_api::context::setSceneDynamicResolution(enabled);
+	if (!dev || sceneImageFormat == vk::Format::eUndefined
+		|| getSceneUpscalingMode() != gfx_api::context::scene_upscaling_mode::fsr1)
+	{
+		// only the FSR1 intermediate surface depends on this flag
+		return true;
+	}
+	return recreateSceneTargets();
+}
+
 // throws a vk::SystemError on an unrecoverable error (like OOM)
 void VkRoot::createSceneRenderpass()
 {
@@ -3432,7 +3448,8 @@ void VkRoot::createSceneRenderpass()
 	pSceneImage = new VkRenderedImage(*this, sceneSize.width, sceneSize.height, sceneImageFormat, "<scene image>");
 
 	if (getSceneUpscalingMode() == gfx_api::context::scene_upscaling_mode::fsr1
-		&& (sceneSize.width != swapchainSize.width || sceneSize.height != swapchainSize.height))
+		&& (sceneSize.width != swapchainSize.width || sceneSize.height != swapchainSize.height
+			|| sceneDynamicResolutionEnabled()))
 	{
 		pUpscaledImage = new VkRenderedImage(*this, swapchainSize.width, swapchainSize.height, sceneImageFormat, "<upscaled color>");
 		_pipelineSurfaces.registerSurface(gfx_api::PipelineSurfaceId::UpscaledColor, pUpscaledImage);
