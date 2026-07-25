@@ -3175,6 +3175,9 @@ void VkRoot::destroySceneRenderpass()
 	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SceneMSAAColor);
 	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SceneDepth);
 	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::UpscaledColor);
+	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SmaaEdges);
+	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SmaaWeights);
+	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SmaaColor);
 	_sceneDepthSurface.reset();
 	_sceneMsaaSurface.reset();
 
@@ -3222,6 +3225,27 @@ void VkRoot::destroySceneRenderpass()
 		pUpscaledImage->destroy(dev, allocator, vkDynLoader);
 		delete pUpscaledImage;
 		pUpscaledImage = nullptr;
+	}
+
+	if (pSmaaEdgesImage)
+	{
+		pSmaaEdgesImage->destroy(dev, allocator, vkDynLoader);
+		delete pSmaaEdgesImage;
+		pSmaaEdgesImage = nullptr;
+	}
+
+	if (pSmaaWeightsImage)
+	{
+		pSmaaWeightsImage->destroy(dev, allocator, vkDynLoader);
+		delete pSmaaWeightsImage;
+		pSmaaWeightsImage = nullptr;
+	}
+
+	if (pSmaaColorImage)
+	{
+		pSmaaColorImage->destroy(dev, allocator, vkDynLoader);
+		delete pSmaaColorImage;
+		pSmaaColorImage = nullptr;
 	}
 }
 
@@ -3421,6 +3445,21 @@ bool VkRoot::setSceneUpscalingMode(gfx_api::context::scene_upscaling_mode mode)
 	return recreateSceneTargets();
 }
 
+bool VkRoot::setSmaaEnabled(bool enabled)
+{
+	if (enabled == smaaEnabled())
+	{
+		return true;
+	}
+	gfx_api::context::setSmaaEnabled(enabled);
+	if (!dev || sceneImageFormat == vk::Format::eUndefined)
+	{
+		// no scene targets exist yet, the setting applies when they are created
+		return true;
+	}
+	return recreateSceneTargets();
+}
+
 bool VkRoot::setSceneDynamicResolution(bool enabled)
 {
 	if (enabled == sceneDynamicResolutionEnabled())
@@ -3429,9 +3468,9 @@ bool VkRoot::setSceneDynamicResolution(bool enabled)
 	}
 	gfx_api::context::setSceneDynamicResolution(enabled);
 	if (!dev || sceneImageFormat == vk::Format::eUndefined
-		|| getSceneUpscalingMode() != gfx_api::context::scene_upscaling_mode::fsr1)
+		|| (getSceneUpscalingMode() != gfx_api::context::scene_upscaling_mode::fsr1 && !smaaEnabled()))
 	{
-		// only the FSR1 intermediate surface depends on this flag
+		// only the FSR1 and SMAA intermediate surfaces depend on this flag
 		return true;
 	}
 	return recreateSceneTargets();
@@ -3456,6 +3495,26 @@ void VkRoot::createSceneRenderpass()
 	{
 		pUpscaledImage = new VkRenderedImage(*this, swapchainSize.width, swapchainSize.height, sceneImageFormat, "<upscaled color>");
 		_pipelineSurfaces.registerSurface(gfx_api::PipelineSurfaceId::UpscaledColor, pUpscaledImage);
+	}
+
+	if (smaaEnabled())
+	{
+		// R8G8 and R8G8B8A8 color attachment and sampled support is mandatory in Vulkan.
+		// The weights image holds four independent blend weights, so it must not
+		// follow a scene color format with reduced alpha precision
+		pSmaaEdgesImage = new VkRenderedImage(*this, sceneSize.width, sceneSize.height, vk::Format::eR8G8Unorm, "<smaa edges>");
+		_pipelineSurfaces.registerSurface(gfx_api::PipelineSurfaceId::SmaaEdges, pSmaaEdgesImage);
+		pSmaaWeightsImage = new VkRenderedImage(*this, sceneSize.width, sceneSize.height, vk::Format::eR8G8B8A8Unorm, "<smaa weights>");
+		_pipelineSurfaces.registerSurface(gfx_api::PipelineSurfaceId::SmaaWeights, pSmaaWeightsImage);
+
+		// the neighborhood blend needs a scene-sized output for the blit or
+		// upscale chain to consume whenever the scene is not drawn 1:1
+		if (sceneSize.width != swapchainSize.width || sceneSize.height != swapchainSize.height
+			|| sceneDynamicResolutionEnabled())
+		{
+			pSmaaColorImage = new VkRenderedImage(*this, sceneSize.width, sceneSize.height, sceneImageFormat, "<smaa color>");
+			_pipelineSurfaces.registerSurface(gfx_api::PipelineSurfaceId::SmaaColor, pSmaaColorImage);
+		}
 	}
 
 	if (msaaEnabled)

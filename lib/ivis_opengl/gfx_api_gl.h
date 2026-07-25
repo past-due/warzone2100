@@ -379,6 +379,7 @@ struct gl_context final : public gfx_api::context
 	virtual bool setDepthPassProperties(size_t numDepthPasses, size_t depthBufferResolution) override;
 	virtual bool setSceneRenderScale(uint32_t scalePercent) override;
 	virtual bool setSceneUpscalingMode(gfx_api::context::scene_upscaling_mode mode) override;
+	virtual bool setSmaaEnabled(bool enabled) override;
 	virtual bool setSceneDynamicResolution(bool enabled) override;
 	virtual bool supportsGpuFrameTiming() const override;
 	virtual bool setGpuFrameTimingEnabled(bool enabled) override;
@@ -536,12 +537,16 @@ private:
 	uint32_t sceneFramebufferHeight = 0;
 	uint32_t scaledSceneDimension(uint32_t drawableDimension) const;
 	bool sceneUpscalingNeedsIntermediate() const;
+	bool smaaNeedsIntermediate() const;
 	GLenum multiSampledBufferInternalFormat = GL_INVALID_ENUM;
 	GLenum multiSampledBufferBaseFormat = GL_INVALID_ENUM;
 	GLint maxMultiSampleBufferFormatSamples = 0;
 	uint32_t multisamples = 0;
 	gl_gpurendered_texture* sceneTexture = nullptr;
 	gl_gpurendered_texture* upscaledTexture = nullptr;
+	gl_gpurendered_texture* smaaEdgesTexture = nullptr;
+	gl_gpurendered_texture* smaaWeightsTexture = nullptr;
+	gl_gpurendered_texture* smaaColorTexture = nullptr;
 	std::unique_ptr<gl_gpurendered_renderbuffer> _sceneMsaaSurface;
 	std::unique_ptr<gl_gpurendered_renderbuffer> _sceneDepthStencilSurface;
 	std::unique_ptr<gl_pipeline_surface_proxy> _swapchainColorSurface;

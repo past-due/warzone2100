@@ -5760,6 +5760,15 @@ bool gl_context::sceneUpscalingNeedsIntermediate() const
 			|| sceneDynamicResolutionEnabled());
 }
 
+bool gl_context::smaaNeedsIntermediate() const
+{
+	// the neighborhood blend needs a scene-sized output for the blit or
+	// upscale chain to consume whenever the scene is not drawn 1:1
+	return smaaEnabled()
+		&& (sceneFramebufferWidth != viewportWidth || sceneFramebufferHeight != viewportHeight
+			|| sceneDynamicResolutionEnabled());
+}
+
 bool gl_context::setSceneUpscalingMode(gfx_api::context::scene_upscaling_mode mode)
 {
 	if (mode == getSceneUpscalingMode())
@@ -5775,15 +5784,33 @@ bool gl_context::setSceneUpscalingMode(gfx_api::context::scene_upscaling_mode mo
 	return createSceneRenderpass();
 }
 
+bool gl_context::setSmaaEnabled(bool enabled)
+{
+	if (enabled == smaaEnabled())
+	{
+		return true;
+	}
+	gfx_api::context::setSmaaEnabled(enabled);
+	if (viewportWidth == 0 || viewportHeight == 0)
+	{
+		// no usable drawable right now, the setting applies when the scene framebuffer is next created
+		return true;
+	}
+	return createSceneRenderpass();
+}
+
 bool gl_context::setSceneDynamicResolution(bool enabled)
 {
 	if (enabled == sceneDynamicResolutionEnabled())
 	{
 		return true;
 	}
-	const bool intermediateBefore = sceneUpscalingNeedsIntermediate();
+	const bool upscaleIntermediateBefore = sceneUpscalingNeedsIntermediate();
+	const bool smaaIntermediateBefore = smaaNeedsIntermediate();
 	gfx_api::context::setSceneDynamicResolution(enabled);
-	if (viewportWidth == 0 || viewportHeight == 0 || intermediateBefore == sceneUpscalingNeedsIntermediate())
+	if (viewportWidth == 0 || viewportHeight == 0
+		|| (upscaleIntermediateBefore == sceneUpscalingNeedsIntermediate()
+			&& smaaIntermediateBefore == smaaNeedsIntermediate()))
 	{
 		return true;
 	}
@@ -6134,6 +6161,9 @@ void gl_context::deleteSceneRenderpass()
 	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SceneMSAAColor);
 	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SceneDepth);
 	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::UpscaledColor);
+	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SmaaEdges);
+	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SmaaWeights);
+	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SmaaColor);
 
 	// delete prior scene texture & FBOs (if present)
 #if !defined(WZ_STATIC_GL_BINDINGS)
@@ -6151,6 +6181,21 @@ void gl_context::deleteSceneRenderpass()
 	{
 		delete upscaledTexture;
 		upscaledTexture = nullptr;
+	}
+	if (smaaEdgesTexture)
+	{
+		delete smaaEdgesTexture;
+		smaaEdgesTexture = nullptr;
+	}
+	if (smaaWeightsTexture)
+	{
+		delete smaaWeightsTexture;
+		smaaWeightsTexture = nullptr;
+	}
+	if (smaaColorTexture)
+	{
+		delete smaaColorTexture;
+		smaaColorTexture = nullptr;
 	}
 	_sceneDepthStencilSurface.reset();
 }
@@ -6247,6 +6292,53 @@ bool gl_context::createSceneRenderpass()
 		upscaledTexture->unbind();
 		ASSERT_GL_NOERRORS_OR_RETURN(false);
 		_pipelineSurfaces.registerSurface(gfx_api::PipelineSurfaceId::UpscaledColor, upscaledTexture);
+	}
+
+	if (smaaEnabled())
+	{
+		const bool rg8Supported = textureFormatIsSupported(gfx_api::pixel_format_target::texture_2d,
+			gfx_api::pixel_format::FORMAT_RG8_UNORM, gfx_api::pixel_format_usage::sampled_image);
+		const GLenum edgesInternalFormat = rg8Supported ? GL_RG8 : GL_RGBA8;
+		const GLenum edgesBaseFormat = rg8Supported ? GL_RG : GL_RGBA;
+		smaaEdgesTexture = create_framebuffer_color_texture(edgesInternalFormat, edgesBaseFormat, GL_UNSIGNED_BYTE,
+			sceneFramebufferWidth, sceneFramebufferHeight, "<smaa edges>");
+		ASSERT_GL_NOERRORS_OR_RETURN(false);
+		smaaWeightsTexture = create_framebuffer_color_texture(GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE,
+			sceneFramebufferWidth, sceneFramebufferHeight, "<smaa weights>");
+		ASSERT_GL_NOERRORS_OR_RETURN(false);
+		if (!smaaEdgesTexture || !smaaWeightsTexture)
+		{
+			debug(LOG_ERROR, "Failed to create SMAA textures (%" PRIu32 " x %" PRIu32 ")", sceneFramebufferWidth, sceneFramebufferHeight);
+			return false;
+		}
+		for (gl_gpurendered_texture* smaaTexture : { smaaEdgesTexture, smaaWeightsTexture })
+		{
+			smaaTexture->bind();
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			smaaTexture->unbind();
+			ASSERT_GL_NOERRORS_OR_RETURN(false);
+		}
+		_pipelineSurfaces.registerSurface(gfx_api::PipelineSurfaceId::SmaaEdges, smaaEdgesTexture);
+		_pipelineSurfaces.registerSurface(gfx_api::PipelineSurfaceId::SmaaWeights, smaaWeightsTexture);
+
+		if (smaaNeedsIntermediate())
+		{
+			smaaColorTexture = create_framebuffer_color_texture(GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE,
+				sceneFramebufferWidth, sceneFramebufferHeight, "<smaa color>");
+			ASSERT_GL_NOERRORS_OR_RETURN(false);
+			if (!smaaColorTexture)
+			{
+				debug(LOG_ERROR, "Failed to create SMAA color texture (%" PRIu32 " x %" PRIu32 ")", sceneFramebufferWidth, sceneFramebufferHeight);
+				return false;
+			}
+			smaaColorTexture->bind();
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			smaaColorTexture->unbind();
+			ASSERT_GL_NOERRORS_OR_RETURN(false);
+			_pipelineSurfaces.registerSurface(gfx_api::PipelineSurfaceId::SmaaColor, smaaColorTexture);
+		}
 	}
 
 	_pipelineSurfaces.registerSurface(gfx_api::PipelineSurfaceId::SceneColor, sceneTexture);

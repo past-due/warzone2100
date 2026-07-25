@@ -51,6 +51,13 @@ enum class PipelineSurfaceId : uint8_t
 	SceneDepth,
 	/// Drawable-sized intermediate between the scene upscale and sharpen passes.
 	UpscaledColor,
+	/// Scene-sized SMAA edge detection output (RG edge flags).
+	SmaaEdges,
+	/// Scene-sized SMAA blending weights.
+	SmaaWeights,
+	/// Scene-sized SMAA neighborhood blend output, present only when a scaling
+	/// pass consumes it (otherwise the blend writes the swapchain directly).
+	SmaaColor,
 	ShadowMap,
 	SwapchainColor,
 	SwapchainMSAAColor,

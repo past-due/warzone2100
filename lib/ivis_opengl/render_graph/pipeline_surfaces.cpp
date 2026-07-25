@@ -56,6 +56,21 @@ PipelineSurfaceMeta getPipelineSurfaceMeta(PipelineSurfaceId id)
 		meta.format = pixel_format::FORMAT_RGBA8_UNORM_PACK8;
 		meta.samples = 1;
 		break;
+	case PipelineSurfaceId::SmaaEdges:
+		meta.usage = PipelineSurfaceUsage::ColorResolve;
+		meta.format = pixel_format::FORMAT_RG8_UNORM;
+		meta.samples = 1;
+		break;
+	case PipelineSurfaceId::SmaaWeights:
+		meta.usage = PipelineSurfaceUsage::ColorResolve;
+		meta.format = pixel_format::FORMAT_RGBA8_UNORM_PACK8;
+		meta.samples = 1;
+		break;
+	case PipelineSurfaceId::SmaaColor:
+		meta.usage = PipelineSurfaceUsage::ColorResolve;
+		meta.format = pixel_format::FORMAT_RGBA8_UNORM_PACK8;
+		meta.samples = 1;
+		break;
 	case PipelineSurfaceId::ShadowMap:
 		meta.usage = PipelineSurfaceUsage::DepthOnly;
 		meta.format = pixel_format::FORMAT_D24_UNORM_S8;
