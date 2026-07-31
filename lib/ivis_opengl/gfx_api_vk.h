@@ -146,6 +146,7 @@ public:
 	void * mapMemory(AllocationResult memoryAllocation);
 	void unmapMemory(AllocationResult memoryAllocation);
 	void unmapAutomappedMemory();
+	void remapAutomappedMemory();
 	void flushAutomappedMemory();
 	void clean();
 
@@ -849,6 +850,7 @@ struct VkRoot final : gfx_api::context
 
 	size_t frameNum = 0;
 	bool _screenFrameOpen = false;
+	bool _sceneTargetRecreatePending = false;
 	gfx_api::vk::ScreenFrameCoordinator _screenFrameCoordinator;
 
 public:
@@ -908,6 +910,8 @@ private:
 	void destroySceneRenderpass();
 	/// Destroy and recreate the scene targets without a swapchain recreate (e.g. when sceneTargetExtent() changes)
 	bool recreateSceneTargets();
+	/// Recreate the scene targets now, or at the next frame open if a screen frame is recording
+	bool requestSceneTargetRecreate();
 	void setupSwapchainImages();
 
 	// GPU frame timing (a ring of timestamp query pairs, read a few frames late)

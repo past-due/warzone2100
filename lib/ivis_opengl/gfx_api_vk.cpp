@@ -750,6 +750,18 @@ void BlockBufferAllocator::unmapAutomappedMemory()
 	}
 }
 
+void BlockBufferAllocator::remapAutomappedMemory()
+{
+	ASSERT(autoMap, "Only useful when autoMap == true");
+	for (auto& block : blocks)
+	{
+		if (block.pMappedMemory == nullptr)
+		{
+			vmaMapMemory(allocator, block.allocation, &block.pMappedMemory);
+		}
+	}
+}
+
 void BlockBufferAllocator::flushAutomappedMemory()
 {
 	ASSERT(autoMap, "Only useful when autoMap == true");
@@ -3171,6 +3183,16 @@ void VkRoot::destroySceneRenderpass()
 {
 	clearFramebufferCache();
 
+	// the layout tracker is keyed by texture address, so drop the destroyed
+	// images before a replacement at the same address inherits a stale layout
+	if (pSceneImage) { _frameLayoutTracker.erase(pSceneImage); }
+	if (pUpscaledImage) { _frameLayoutTracker.erase(pUpscaledImage); }
+	if (pSmaaEdgesImage) { _frameLayoutTracker.erase(pSmaaEdgesImage); }
+	if (pSmaaWeightsImage) { _frameLayoutTracker.erase(pSmaaWeightsImage); }
+	if (pSmaaColorImage) { _frameLayoutTracker.erase(pSmaaColorImage); }
+	if (_sceneDepthSurface) { _frameLayoutTracker.erase(_sceneDepthSurface.get()); }
+	if (_sceneMsaaSurface) { _frameLayoutTracker.erase(_sceneMsaaSurface.get()); }
+
 	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SceneColor);
 	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SceneMSAAColor);
 	_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SceneDepth);
@@ -3275,11 +3297,11 @@ bool VkRoot::setSceneRenderScale(uint32_t scalePercent)
 		return true;
 	}
 
-	if (!recreateSceneTargets())
+	if (!requestSceneTargetRecreate())
 	{
 		debug(LOG_ERROR, "Failed to apply scene render scale %" PRIu32 "%% - restoring %" PRIu32 "%%", getSceneRenderScalePercent(), oldScalePercent);
 		gfx_api::context::setSceneRenderScale(oldScalePercent);
-		recreateSceneTargets();
+		requestSceneTargetRecreate();
 		return false;
 	}
 	return true;
@@ -3442,7 +3464,7 @@ bool VkRoot::setSceneUpscalingMode(gfx_api::context::scene_upscaling_mode mode)
 		// no scene targets exist yet, the mode applies when they are created
 		return true;
 	}
-	return recreateSceneTargets();
+	return requestSceneTargetRecreate();
 }
 
 bool VkRoot::setSmaaEnabled(bool enabled)
@@ -3457,7 +3479,7 @@ bool VkRoot::setSmaaEnabled(bool enabled)
 		// no scene targets exist yet, the setting applies when they are created
 		return true;
 	}
-	return recreateSceneTargets();
+	return requestSceneTargetRecreate();
 }
 
 bool VkRoot::setSceneDynamicResolution(bool enabled)
@@ -3473,7 +3495,7 @@ bool VkRoot::setSceneDynamicResolution(bool enabled)
 		// only the FSR1 and SMAA intermediate surfaces depend on this flag
 		return true;
 	}
-	return recreateSceneTargets();
+	return requestSceneTargetRecreate();
 }
 
 // throws a vk::SystemError on an unrecoverable error (like OOM)
@@ -3560,6 +3582,8 @@ void VkRoot::createSceneRenderpass()
 		_sceneMsaaSurface.reset();
 		_pipelineSurfaces.invalidateSurface(gfx_api::PipelineSurfaceId::SceneMSAAColor);
 	}
+
+	_sceneTargetRecreatePending = false;
 }
 
 bool VkRoot::recreateSceneTargets()
@@ -3578,14 +3602,36 @@ bool VkRoot::recreateSceneTargets()
 	destroySceneRenderpass();
 	bumpRenderGraphEpoch();
 	invalidateWarmEntries();
+	bool createSucceeded = true;
 	try {
 		createSceneRenderpass();
 	}
 	catch (const vk::SystemError& e)
 	{
 		debug(LOG_ERROR, "Failed to recreate scene targets: %s", e.what());
-		return false;
+		createSucceeded = false;
 	}
+
+	if (buffering_mechanism::isInitialized())
+	{
+		// finalizeActiveRecording unmapped the automapped allocators, restore the
+		// mapped state the current ring slot expects at its end of frame flush
+		auto& frameResources = buffering_mechanism::get_current_resources();
+		frameResources.streamedVertexBufferAllocator.remapAutomappedMemory();
+		frameResources.uniformBufferAllocator.remapAutomappedMemory();
+	}
+	return createSucceeded;
+}
+
+bool VkRoot::requestSceneTargetRecreate()
+{
+	if (!_screenFrameOpen)
+	{
+		return recreateSceneTargets();
+	}
+	// a screen frame is recording, recreating now would orphan the frame's
+	// command buffers and layout state, so apply at the next frame open
+	_sceneTargetRecreatePending = true;
 	return true;
 }
 
@@ -6950,6 +6996,18 @@ void VkRoot::beginScreenFrame()
 void VkRoot::reconcileSwapchainAtFrameOpen()
 {
 	_screenFrameCoordinator.reconcileSwapchainAtFrameOpen();
+
+	// a swapchain recreate above already rebuilt the scene targets and cleared the flag
+	if (_sceneTargetRecreatePending && dev && sceneImageFormat != vk::Format::eUndefined)
+	{
+		_sceneTargetRecreatePending = false;
+		if (!recreateSceneTargets())
+		{
+			// the old targets are destroyed and replacements could not be created,
+			// there is nothing valid left to render the scene into
+			handleUnrecoverableError(vk::Result::eErrorOutOfDeviceMemory);
+		}
+	}
 }
 
 void VkRoot::acquireSwapchainForFrameDraw()
