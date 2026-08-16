@@ -209,3 +209,22 @@ void getValidatedManifestBytes(std::function<void(const optional<std::string>&)>
 		resultFunc(cachedManifestBytes);
 	});
 }
+
+void getValidatedManifest(std::function<void(const optional<nlohmann::json>&)> resultFunc)
+{
+	ASSERT_OR_RETURN(, resultFunc != nullptr, "Null resultFunc");
+	getValidatedManifestBytes([resultFunc](const optional<std::string>& cert) {
+		optional<nlohmann::json> manifest;
+		if (cert.has_value())
+		{
+			std::string parseError;
+			auto envelope = wzbuildcert::parseEnvelope(cert.value(), parseError);
+			try
+			{
+				manifest = nlohmann::json::parse(envelope.has_value() ? envelope.value().payload : cert.value());
+			}
+			catch (const std::exception&) { }
+		}
+		resultFunc(manifest);
+	});
+}
