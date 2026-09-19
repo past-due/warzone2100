@@ -49,6 +49,10 @@
 #include "../faction.h"
 #include "../multilobbycommands.h"
 #include "../multistat.h"
+#include "../structure.h"
+#include "../feature.h"
+#include "../research.h"
+#include "../game_world.h"
 
 #include <array>
 #include <chrono>
@@ -136,6 +140,11 @@ void recordPlayerMessageSent(uint32_t playerIdx)
 static bool isInternalMessage(WzQuickChatMessage msg)
 {
 	return static_cast<uint32_t>(msg) >= WzQuickChatMessage_FIRST_INTERNAL_MSG_VALUE;
+}
+
+static bool isSpamThrottleExempt(WzQuickChatMessage msg)
+{
+	return isInternalMessage(msg) && msg != WzQuickChatMessage::INTERNAL_CHEAT_NOTICE;
 }
 
 static bool isHostOnlyInternalMessage(WzQuickChatMessage msg)
@@ -2912,6 +2921,103 @@ namespace INTERNAL_LOBBY_COMMAND_RESPONSE {
 	}
 } // namespace INTERNAL_LOBBY_COMMAND_RESPONSE
 
+// - INTERNAL_CHEAT_NOTICE
+namespace INTERNAL_CHEAT_NOTICE {
+	WzQuickChatMessageData constructMessageData(Context ctx, uint32_t dataA, uint32_t dataB)
+	{
+		return WzQuickChatMessageData { static_cast<uint32_t>(ctx), dataA, dataB };
+	}
+
+	static const char* structureStatsName(uint32_t ref)
+	{
+		for (unsigned i = 0; i < numStructureStats; ++i)
+		{
+			if (asStructureStats[i].ref == ref)
+			{
+				return getLocalizedStatsName(&asStructureStats[i]);
+			}
+		}
+		return "";
+	}
+
+	static const char* featureStatsName(uint32_t ref)
+	{
+		for (const auto& stats : asFeatureStats)
+		{
+			if (stats.ref == ref)
+			{
+				return getLocalizedStatsName(&stats);
+			}
+		}
+		return "";
+	}
+
+	static std::string usingCheat(uint32_t sender, const char* cheat)
+	{
+		return astringf(_("(Player %u) is using cheat :%s"), sender, cheat);
+	}
+
+	std::string to_output_string(uint32_t sender, WzQuickChatMessageData messageData)
+	{
+		uint32_t dataA = messageData.dataA;
+		uint32_t dataB = messageData.dataB;
+
+		switch (messageData.dataContext)
+		{
+			case static_cast<uint32_t>(Context::Invalid):
+				return "";
+			case static_cast<uint32_t>(Context::CloneDroidArmy):
+			{
+				const DROID* psDroid = (sender < MAX_PLAYERS) ? IdToDroid(gameWorld.objects, dataB, sender) : nullptr;
+				return astringf(_("Player %u is cheating a new droid army of: %u × %s."), sender, dataA, (psDroid) ? psDroid->aName : "");
+			}
+			case static_cast<uint32_t>(Context::HardAsNails):
+				return usingCheat(sender, _("Hard as nails!!!"));
+			case static_cast<uint32_t>(Context::BigOnes):
+				return usingCheat(sender, _("1000 big ones!!!"));
+			case static_cast<uint32_t>(Context::PowerOverwhelming):
+				return usingCheat(sender, _("Power overwhelming"));
+			case static_cast<uint32_t>(Context::TwiceAsNice):
+				return usingCheat(sender, _("Twice as nice!"));
+			case static_cast<uint32_t>(Context::ObjectCounts):
+				return astringf(_("(Player %u) is using a cheat :Num Droids: %u  Num Structures: %u  Num Features: %u"), sender, dataA, dataB >> 16, dataB & 0xFFFF);
+			case static_cast<uint32_t>(Context::InfinitePower):
+				return usingCheat(sender, (dataA) ? _("Infinite power enabled") : _("Infinite power disabled"));
+			case static_cast<uint32_t>(Context::AllItemsAvailable):
+				return usingCheat(sender, _("All items made available"));
+			case static_cast<uint32_t>(Context::Fog):
+				return (dataA) ? _("Fog on") : _("Fog off");
+			case static_cast<uint32_t>(Context::GodMode):
+				return usingCheat(sender, (dataA) ? _("God Mode ON") : _("God Mode OFF"));
+			case static_cast<uint32_t>(Context::ResearchedEverything):
+				return usingCheat(sender, _("Researched EVERYTHING for you!"));
+			case static_cast<uint32_t>(Context::Researched):
+				return astringf(_("(Player %u) is using cheat :%s %s"), sender, _("Researched"), (dataA < asResearch.size()) ? getLocalizedStatsName(&asResearch[dataA]) : "");
+			case static_cast<uint32_t>(Context::DebugMenuOpen):
+				return usingCheat(sender, _("Debug menu is Open"));
+			case static_cast<uint32_t>(Context::DestroyAllEnemies):
+				return usingCheat(sender, _("All enemies destroyed by cheating!"));
+			case static_cast<uint32_t>(Context::DestroySelected):
+				return usingCheat(sender, _("Destroying selected droids and structures!"));
+			case static_cast<uint32_t>(Context::DebugNewStructure):
+				return astringf(_("Player %u is cheating (debug menu) him/herself a new structure: %s."), sender, structureStatsName(dataA));
+			case static_cast<uint32_t>(Context::DebugNewFeature):
+				return astringf(_("Player %u is cheating (debug menu) him/herself a new feature: %s."), sender, featureStatsName(dataA));
+			case static_cast<uint32_t>(Context::DebugNewDroid):
+			{
+				const DROID* psDroid = (dataA != 0 && sender < MAX_PLAYERS) ? IdToDroid(gameWorld.objects, dataA, sender) : nullptr;
+				if (psDroid)
+				{
+					return astringf(_("Player %u is cheating (debug menu) him/herself a new droid: %s."), sender, psDroid->aName);
+				}
+				return astringf(_("Player %u is cheating (debug menu) him/herself a new droid."), sender);
+			}
+		}
+
+		return ""; // Silence compiler warning
+	}
+} // namespace INTERNAL_CHEAT_NOTICE
+
 } // namespace WzQuickChatDataContexts
 
 // MARK: - Public functions
@@ -2925,6 +3031,7 @@ bool quickChatMessageExpectsExtraData(WzQuickChatMessage msg)
 		case WzQuickChatMessage::INTERNAL_LOCALIZED_LOBBY_NOTICE:
 		case WzQuickChatMessage::INTERNAL_LOCALIZED_HOST_NOTICE:
 		case WzQuickChatMessage::INTERNAL_LOBBY_COMMAND_RESPONSE:
+		case WzQuickChatMessage::INTERNAL_CHEAT_NOTICE:
 			return true;
 
 		default:
@@ -2946,13 +3053,15 @@ int32_t to_output_sender(WzQuickChatMessage msg, uint32_t sender, const optional
 			return NOTIFY_MESSAGE;
 		case WzQuickChatMessage::INTERNAL_LOBBY_COMMAND_RESPONSE:
 			return WzQuickChatDataContexts::INTERNAL_LOBBY_COMMAND_RESPONSE::to_output_sender(messageData.value());
+		case WzQuickChatMessage::INTERNAL_CHEAT_NOTICE:
+			return SYSTEM_MESSAGE;
 
 		default:
 			return sender;
 	}
 }
 
-std::string to_output_string(WzQuickChatMessage msg, const optional<WzQuickChatMessageData>& messageData)
+std::string to_output_string(WzQuickChatMessage msg, uint32_t sender, const optional<WzQuickChatMessageData>& messageData)
 {
 	switch (msg)
 	{
@@ -3005,6 +3114,8 @@ std::string to_output_string(WzQuickChatMessage msg, const optional<WzQuickChatM
 			return WzQuickChatDataContexts::INTERNAL_LOCALIZED_HOST_NOTICE::to_output_string(messageData.value());
 		case WzQuickChatMessage::INTERNAL_LOBBY_COMMAND_RESPONSE:
 			return WzQuickChatDataContexts::INTERNAL_LOBBY_COMMAND_RESPONSE::to_output_string(messageData.value());
+		case WzQuickChatMessage::INTERNAL_CHEAT_NOTICE:
+			return WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::to_output_string(sender, messageData.value());
 
 		default:
 			return to_display_string(msg);
@@ -3174,6 +3285,7 @@ const char* to_display_string(WzQuickChatMessage msg)
 		case WzQuickChatMessage::INTERNAL_LOCALIZED_LOBBY_NOTICE:
 		case WzQuickChatMessage::INTERNAL_LOCALIZED_HOST_NOTICE:
 		case WzQuickChatMessage::INTERNAL_LOBBY_COMMAND_RESPONSE:
+		case WzQuickChatMessage::INTERNAL_CHEAT_NOTICE:
 			return "";
 
 		// not a valid message
@@ -3347,7 +3459,7 @@ void addQuickChatMessageToConsole(WzQuickChatMessage message, uint32_t sender, c
 	auto outputSender = to_output_sender(message, sender, messageData);
 	if (outputSender < 0)
 	{
-		auto outputMsg = to_output_string(message, messageData);
+		auto outputMsg = to_output_string(message, sender, messageData);
 		if (outputMsg.empty())
 		{
 			return;
@@ -3356,14 +3468,14 @@ void addQuickChatMessageToConsole(WzQuickChatMessage message, uint32_t sender, c
 		return;
 	}
 	char formatted[MAX_CONSOLE_STRING_LENGTH];
-	ssprintf(formatted, "[%s] %s (%s): %s", formatLocalDateTime("%H:%M").c_str(), getPlayerName(sender), formatReceivers(sender, targeting).c_str(), to_output_string(message, messageData).c_str());
+	ssprintf(formatted, "[%s] %s (%s): %s", formatLocalDateTime("%H:%M").c_str(), getPlayerName(sender), formatReceivers(sender, targeting).c_str(), to_output_string(message, sender, messageData).c_str());
 	addConsoleMessage(formatted, DEFAULT_JUSTIFY, outputSender, teamSpecific);
 }
 
 void addLobbyQuickChatMessageToConsole(WzQuickChatMessage message, uint32_t sender, const WzQuickChatTargeting& targeting, const optional<WzQuickChatMessageData>& messageData)
 {
 	bool teamSpecific = !targeting.all && (targeting.humanTeammates || targeting.aiTeammates);
-	auto outputMsg = to_output_string(message, messageData);
+	auto outputMsg = to_output_string(message, sender, messageData);
 	if (outputMsg.empty())
 	{
 		return;
@@ -3385,6 +3497,8 @@ bool shouldHideQuickChatMessageFromLocalDisplay(WzQuickChatMessage message, cons
 		case WzQuickChatMessage::INTERNAL_LOCALIZED_HOST_NOTICE:
 		case WzQuickChatMessage::INTERNAL_LOBBY_COMMAND_RESPONSE:
 			return !targeting.all && targeting.specificPlayers.count(selectedPlayer) == 0;
+		case WzQuickChatMessage::INTERNAL_CHEAT_NOTICE:
+			return false;
 		default:
 			break;
 	}
@@ -3402,7 +3516,7 @@ void sendQuickChat(WzQuickChatMessage message, uint32_t fromPlayer, WzQuickChatT
 	bool internalHostMessage = internalMessage && fromPlayer == NetPlay.hostPlayer;
 
 	auto mutedUntil = playerSpamMutedUntil(fromPlayer);
-	if (mutedUntil.has_value() && !internalMessage)
+	if (mutedUntil.has_value() && !isSpamThrottleExempt(message))
 	{
 		auto currentTime = std::chrono::steady_clock::now();
 		addConsoleMessage(_("You have sent too many messages in the last few seconds. Please wait and try again."), DEFAULT_JUSTIFY, INFO_MESSAGE, false, static_cast<UDWORD>(std::chrono::duration_cast<std::chrono::milliseconds>(mutedUntil.value() - currentTime).count()));
@@ -3558,7 +3672,7 @@ void sendQuickChat(WzQuickChatMessage message, uint32_t fromPlayer, WzQuickChatT
 		NETend(wref);
 	}
 
-	if (fromPlayer == selectedPlayer && (!recipients.empty() || !isInGame) && !shouldHideQuickChatMessageFromLocalDisplay(message, targeting))
+	if (fromPlayer == selectedPlayer && (!recipients.empty() || !isInGame || internalMessage) && !shouldHideQuickChatMessageFromLocalDisplay(message, targeting))
 	{
 		if (isInGame)
 		{
@@ -3570,7 +3684,7 @@ void sendQuickChat(WzQuickChatMessage message, uint32_t fromPlayer, WzQuickChatT
 		}
 	}
 
-	if (!recipients.empty() && !internalMessage)
+	if (!recipients.empty() && !isSpamThrottleExempt(message))
 	{
 		recordPlayerMessageSent(fromPlayer);
 	}
@@ -3590,6 +3704,11 @@ void sendHostNoticeToPlayer(uint32_t receiver, WzQuickChatDataContexts::INTERNAL
 	sendQuickChat(WzQuickChatMessage::INTERNAL_LOCALIZED_HOST_NOTICE, realSelectedPlayer, targeting, WzQuickChatDataContexts::INTERNAL_LOCALIZED_HOST_NOTICE::constructMessageData(ctx, additionalData, targetPlayerIdx));
 }
 
+void sendCheatNotice(WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::Context ctx, uint32_t dataA, uint32_t dataB)
+{
+	sendQuickChat(WzQuickChatMessage::INTERNAL_CHEAT_NOTICE, selectedPlayer, WzQuickChatTargeting::targetAll(), WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::constructMessageData(ctx, dataA, dataB));
+}
+
 void sendLobbyCommandResponse(optional<uint32_t> receiver, WzQuickChatDataContexts::INTERNAL_LOBBY_COMMAND_RESPONSE::Context ctx, WzQuickChatDataContexts::INTERNAL_LOBBY_COMMAND_RESPONSE::Command cmd, uint32_t additionalData)
 {
 	ASSERT_HOST_ONLY(return);
@@ -3607,9 +3726,8 @@ void sendLobbyCommandResponse(optional<uint32_t> receiver, WzQuickChatDataContex
 
 bool shouldProcessQuickChatMessage(const NETQUEUE& queue, bool isInGame, WzQuickChatMessage message, uint32_t sender, uint32_t recipient, const WzQuickChatTargeting& targeting, const optional<WzQuickChatMessageData>& messageData)
 {
-	bool internalMessage = isInternalMessage(message);
 	bool hostOnlyInternalMessage = isHostOnlyInternalMessage(message);
-	bool internalHostMessage = internalMessage && sender == NetPlay.hostPlayer;
+	bool internalHostMessage = isInternalMessage(message) && sender == NetPlay.hostPlayer;
 
 	if (sender >= MAX_CONNECTED_PLAYERS || recipient >= MAX_CONNECTED_PLAYERS)
 	{
@@ -3634,7 +3752,7 @@ bool shouldProcessQuickChatMessage(const NETQUEUE& queue, bool isInGame, WzQuick
 	}
 
 	auto senderSpamMute = playerSpamMutedUntil(sender);
-	if (senderSpamMute.has_value() && !internalMessage)
+	if (senderSpamMute.has_value() && !isSpamThrottleExempt(message))
 	{
 		// ignore message sent while player send was throttled
 		return false;
@@ -3715,8 +3833,7 @@ bool recvQuickChat(NETQUEUE queue)
 		return false;
 	}
 
-	bool internalMessage = isInternalMessage(msgEnumVal);
-	if (!internalMessage && recipient == selectedPlayer)
+	if (!isSpamThrottleExempt(msgEnumVal) && recipient == selectedPlayer)
 	{
 		recordPlayerMessageSent(sender);
 	}

@@ -110,7 +110,8 @@
 	MSG(INTERNAL_ADMIN_ACTION_NOTICE) \
 	MSG(INTERNAL_LOCALIZED_LOBBY_NOTICE) \
 	MSG(INTERNAL_LOCALIZED_HOST_NOTICE) \
-	MSG(INTERNAL_LOBBY_COMMAND_RESPONSE)
+	MSG(INTERNAL_LOBBY_COMMAND_RESPONSE) \
+	MSG(INTERNAL_CHEAT_NOTICE)
 
 #define GENERATE_ENUM(ENUM) ENUM,
 
@@ -276,10 +277,38 @@ namespace INTERNAL_LOBBY_COMMAND_RESPONSE {
 	WzQuickChatMessageData constructMessageData(Context ctx, Command cmd = Command::None, uint32_t additionalData = 0);
 } // namespace INTERNAL_LOBBY_COMMAND_RESPONSE
 
+// - INTERNAL_CHEAT_NOTICE
+namespace INTERNAL_CHEAT_NOTICE {
+	enum class Context : uint32_t
+	{
+		Invalid = 0,
+		CloneDroidArmy,
+		HardAsNails,
+		BigOnes,
+		PowerOverwhelming,
+		TwiceAsNice,
+		ObjectCounts,
+		InfinitePower,
+		AllItemsAvailable,
+		Fog,
+		GodMode,
+		ResearchedEverything,
+		Researched,
+		DebugMenuOpen,
+		DestroyAllEnemies,
+		DestroySelected,
+		DebugNewStructure,
+		DebugNewFeature,
+		DebugNewDroid
+	};
+	WzQuickChatMessageData constructMessageData(Context ctx, uint32_t dataA = 0, uint32_t dataB = 0);
+} // namespace INTERNAL_CHEAT_NOTICE
+
 } // namespace WzQuickChatDataContexts
 
 void sendHostNotice(WzQuickChatDataContexts::INTERNAL_LOCALIZED_HOST_NOTICE::Context ctx, uint32_t additionalData = 0, optional<uint32_t> targetPlayerIdx = nullopt);
 void sendHostNoticeToPlayer(uint32_t receiver, WzQuickChatDataContexts::INTERNAL_LOCALIZED_HOST_NOTICE::Context ctx, uint32_t additionalData = 0, optional<uint32_t> targetPlayerIdx = nullopt);
+void sendCheatNotice(WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::Context ctx, uint32_t dataA = 0, uint32_t dataB = 0);
 void sendLobbyCommandResponse(optional<uint32_t> receiver, WzQuickChatDataContexts::INTERNAL_LOBBY_COMMAND_RESPONSE::Context ctx, WzQuickChatDataContexts::INTERNAL_LOBBY_COMMAND_RESPONSE::Command cmd = WzQuickChatDataContexts::INTERNAL_LOBBY_COMMAND_RESPONSE::Command::None, uint32_t additionalData = 0);
 
 std::shared_ptr<W_FORM> createQuickChatForm(WzQuickChatContext context, const std::function<void ()>& onQuickChatSent, optional<WzQuickChatMode> startingPanel = nullopt);

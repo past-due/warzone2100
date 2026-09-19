@@ -57,6 +57,7 @@
 #include "lib/netplay/netplay.h"
 #include "multiplay.h"
 #include "multimenu.h"
+#include "hci/quickchat.h"
 #include "atmos.h"
 #include "advvis.h"
 
@@ -468,8 +469,7 @@ void kf_CloneSelected(int limit)
 			debug(LOG_ERROR, "Cloning has failed for template:%s id:%d", getID(sTemplate), sTemplate->multiPlayerID);
 		}
 	}
-	std::string msg = astringf(_("Player %u is cheating a new droid army of: %d × %s."), selectedPlayer, limit, droidToClone->aName);
-	sendInGameSystemMessage(msg.c_str());
+	sendCheatNotice(WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::Context::CloneDroidArmy, limit, droidToClone->id);
 	Cheated = true;
 	audio_PlayTrack(ID_SOUND_NEXUS_LAUGH1);
 }
@@ -652,9 +652,7 @@ void	kf_BifferBaker()
 
 	// player deals far more damage, and the enemy far less
 	setDamageModifiers(999, 1);
-	std::string cmsg = astringf(_("(Player %u) is using cheat :%s"),
-	          selectedPlayer, _("Hard as nails!!!"));
-	sendInGameSystemMessage(cmsg.c_str());
+	sendCheatNotice(WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::Context::HardAsNails);
 }
 
 // --------------------------------------------------------------------------
@@ -667,9 +665,7 @@ void	kf_UpThePower()
 		return;
 	}
 	addPower(selectedPlayer, 1000);
-	std::string cmsg = astringf(_("(Player %u) is using cheat :%s"),
-	          selectedPlayer, _("1000 big ones!!!"));
-	sendInGameSystemMessage(cmsg.c_str());
+	sendCheatNotice(WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::Context::BigOnes);
 }
 
 // --------------------------------------------------------------------------
@@ -682,9 +678,7 @@ void	kf_MaxPower()
 		return;
 	}
 	setPower(selectedPlayer, 100000);
-	std::string cmsg = astringf(_("(Player %u) is using cheat :%s"),
-	          selectedPlayer, _("Power overwhelming"));
-	sendInGameSystemMessage(cmsg.c_str());
+	sendCheatNotice(WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::Context::PowerOverwhelming);
 }
 
 // --------------------------------------------------------------------------
@@ -718,9 +712,7 @@ void	kf_DoubleUp()
 		return;
 	}
 	setDamageModifiers(100, 50); // enemy damage halved
-	std::string cmsg = astringf(_("(Player %u) is using cheat :%s"),
-	          selectedPlayer, _("Twice as nice!"));
-	sendInGameSystemMessage(cmsg.c_str());
+	sendCheatNotice(WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::Context::TwiceAsNice);
 }
 // --------------------------------------------------------------------------
 void kf_ToggleFPS() //This shows *just FPS* and is always visible (when active) -Q.
@@ -800,9 +792,7 @@ void kf_ShowNumObjects()
 	}
 
 	objCount(&droids, &structures, &features);
-	std::string cmsg = astringf(_("(Player %u) is using a cheat :Num Droids: %d  Num Structures: %d  Num Features: %d"),
-	          selectedPlayer, droids, structures, features);
-	sendInGameSystemMessage(cmsg.c_str());
+	sendCheatNotice(WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::Context::ObjectCounts, droids, ((static_cast<uint32_t>(structures) & 0xFFFF) << 16) | (static_cast<uint32_t>(features) & 0xFFFF));
 }
 
 
@@ -858,9 +848,7 @@ void	kf_TogglePower()
 		powerCalc(true);
 	}
 
-	std::string cmsg = astringf(_("(Player %u) is using cheat :%s"),
-	          selectedPlayer, powerCalculated ? _("Infinite power disabled") : _("Infinite power enabled"));
-	sendInGameSystemMessage(cmsg.c_str());
+	sendCheatNotice(WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::Context::InfinitePower, (powerCalculated) ? 0 : 1);
 }
 
 // --------------------------------------------------------------------------
@@ -898,9 +886,7 @@ void	kf_AllAvailable()
 	SPECTATOR_NO_OP();
 
 	makeAllAvailable();
-	std::string cmsg = astringf(_("(Player %u) is using cheat :%s"),
-	          selectedPlayer, _("All items made available"));
-	sendInGameSystemMessage(cmsg.c_str());
+	sendCheatNotice(WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::Context::AllItemsAvailable);
 }
 
 // --------------------------------------------------------------------------
@@ -940,8 +926,7 @@ void	kf_ToggleFog()
 		pie_EnableFog(true);
 	}
 	applySceneEffectSurfaces();
-	std::string cmsg = pie_GetFogEnabled() ? _("Fog on") : _("Fog off");
-	sendInGameSystemMessage(cmsg.c_str());
+	sendCheatNotice(WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::Context::Fog, (pie_GetFogEnabled()) ? 1 : 0);
 }
 
 // --------------------------------------------------------------------------
@@ -1430,9 +1415,7 @@ void	kf_ToggleGodMode()
 		enableGodMode();
 	}
 
-	std::string cmsg = astringf(_("(Player %u) is using cheat :%s"),
-	          selectedPlayer, godMode ? _("God Mode ON") : _("God Mode OFF"));
-	sendInGameSystemMessage(cmsg.c_str());
+	sendCheatNotice(WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::Context::GodMode, (godMode) ? 1 : 0);
 }
 // --------------------------------------------------------------------------
 /* Aligns the view to north - some people can't handle the world spinning */
@@ -1633,9 +1616,7 @@ void	kf_FinishAllResearch()
 			}
 		}
 	}
-	std::string cmsg = astringf(_("(Player %u) is using cheat :%s"),
-	          selectedPlayer, _("Researched EVERYTHING for you!"));
-	sendInGameSystemMessage(cmsg.c_str());
+	sendCheatNotice(WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::Context::ResearchedEverything);
 }
 
 void kf_Reload()
@@ -1709,8 +1690,7 @@ void	kf_FinishResearch()
 						{
 							researchResult(rindex, selectedPlayer, true, psCurr, true);
 						}
-						std::string cmsg = astringf(_("(Player %u) is using cheat :%s %s"), selectedPlayer, _("Researched"), getLocalizedStatsName(pSubject));
-						sendInGameSystemMessage(cmsg.c_str());
+						sendCheatNotice(WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::Context::Researched, rindex);
 						intResearchFinished(psCurr);
 					}
 					else
@@ -1746,9 +1726,7 @@ void	kf_ToggleEnergyBars()
 // --------------------------------------------------------------------------
 void	kf_ChooseOptions()
 {
-	std::string cmsg = astringf(_("(Player %u) is using cheat :%s"),
-	          selectedPlayer, _("Debug menu is Open"));
-	sendInGameSystemMessage(cmsg.c_str());
+	sendCheatNotice(WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::Context::DebugMenuOpen);
 	jsShowDebug();
 }
 
@@ -2068,9 +2046,7 @@ void	kf_KillEnemy()
 
 	debug(LOG_DEATH, "Destroying enemy droids and structures");
 	CONPRINTF("%s", _("Warning! This can have drastic consequences if used incorrectly in missions."));
-	std::string cmsg = astringf(_("(Player %u) is using cheat :%s"),
-	          selectedPlayer, _("All enemies destroyed by cheating!"));
-	sendInGameSystemMessage(cmsg.c_str());
+	sendCheatNotice(WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::Context::DestroyAllEnemies);
 	Cheated = true;
 
 	for (int playerId = 0; playerId < MAX_PLAYERS; playerId++)
@@ -2106,9 +2082,7 @@ void kf_KillSelected()
 	}
 #endif
 
-	std::string cmsg = astringf(_("(Player %u) is using cheat :%s"),
-	          selectedPlayer, _("Destroying selected droids and structures!"));
-	sendInGameSystemMessage(cmsg.c_str());
+	sendCheatNotice(WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::Context::DestroySelected);
 
 	debug(LOG_DEATH, "Destroying selected droids and structures");
 	audio_PlayTrack(ID_SOUND_COLL_DIE);

@@ -1814,18 +1814,14 @@ INT_RETVAL intRunWidgets()
 							// Send a text message to all players, notifying them of
 							// the fact that we're cheating ourselves a new
 							// structure.
-							std::string msg = astringf(_("Player %u is cheating (debug menu) him/herself a new structure: %s."),
-										selectedPlayer, getLocalizedStatsName(psStructure->pStructureType));
-							sendInGameSystemMessage(msg.c_str());
+							sendCheatNotice(WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::Context::DebugNewStructure, psStructure->pStructureType->ref);
 							Cheated = true;
 						}
 					}
 					else if (psPositionStats->hasType(STAT_FEATURE))
 					{
 						// Send a text message to all players, notifying them of the fact that we're cheating ourselves a new feature.
-						std::string msg = astringf(_("Player %u is cheating (debug menu) him/herself a new feature: %s."),
-									selectedPlayer, getLocalizedStatsName(psPositionStats));
-						sendInGameSystemMessage(msg.c_str());
+						sendCheatNotice(WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::Context::DebugNewFeature, psPositionStats->ref);
 						Cheated = true;
 						// Notify the other hosts that we've just built ourselves a feature
 						//sendMultiPlayerFeature(result->psStats->subType, result->pos.x, result->pos.y, result->id);
@@ -1833,26 +1829,14 @@ INT_RETVAL intRunWidgets()
 					}
 					else if (psPositionStats->hasType(STAT_TEMPLATE))
 					{
-						std::string msg;
 						DROID *psDroid = buildDroid(gameWorld, (DROID_TEMPLATE *)psPositionStats, pos.x, pos.y, selectedPlayer, false, nullptr);
 						cancelDeliveryRepos();
 						if (psDroid)
 						{
 							addDroid(psDroid, gameWorld.objects.droids);
-
-							// Send a text message to all players, notifying them of
-							// the fact that we're cheating ourselves a new droid.
-							msg = astringf(_("Player %u is cheating (debug menu) him/herself a new droid: %s."), selectedPlayer, psDroid->aName);
-
 							triggerEventDroidBuilt(psDroid, nullptr);
 						}
-						else
-						{
-							// Send a text message to all players, notifying them of
-							// the fact that we're cheating ourselves a new droid.
-							msg = astringf(_("Player %u is cheating (debug menu) him/herself a new droid."), selectedPlayer);
-						}
-						sendInGameSystemMessage(msg.c_str());
+						sendCheatNotice(WzQuickChatDataContexts::INTERNAL_CHEAT_NOTICE::Context::DebugNewDroid, (psDroid) ? psDroid->id : 0);
 						Cheated = true;
 					}
 					if (!quickQueueMode)
