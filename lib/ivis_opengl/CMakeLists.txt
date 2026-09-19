@@ -71,6 +71,7 @@ file(GLOB HEADERS
 	"smaa_luts.h"
 	"tex.h"
 	"textdraw.h"
+	"vectorimage.h"
 	"3rdparty/AreaTex.h"
 	"3rdparty/SearchTex.h"
 	"3rdparty/stb_image_resize.h"
@@ -118,6 +119,7 @@ file(GLOB SRC
 	"smaa_luts.cpp"
 	"tex.cpp"
 	"textdraw.cpp"
+	"vectorimage.cpp"
 	"3rdparty/stb_image_resize.cpp"
 )
 
@@ -158,6 +160,7 @@ else()
 	target_link_libraries(ivis-opengl PRIVATE PNG::PNG)
 endif()
 target_link_libraries(ivis-opengl PRIVATE mikktspace)
+target_link_libraries(ivis-opengl PRIVATE thorvg)
 target_link_libraries(ivis-opengl PUBLIC glad)
 target_link_libraries(ivis-opengl PUBLIC optional-lite)
 if (WZ_DEBUG_GFX_API_LEAKS)
