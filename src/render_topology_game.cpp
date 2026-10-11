@@ -23,6 +23,7 @@
  */
 
 #include "loop.h"
+#include "hud/intel/intelpanel.h"
 #include "main.h"
 #include "range_rings.h"
 #include "wrappers.h"
@@ -148,7 +149,8 @@ public:
 
 	bool inGameWorldFrozen() const override
 	{
-		return gameUpdatePaused();
+		// (The HUD's intelligence screen pauses the updates but still draws the world behind it)
+		return gameUpdatePaused() && !hudIntelScreenIsOpen();
 	}
 };
 
