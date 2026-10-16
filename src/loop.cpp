@@ -166,12 +166,14 @@ static void resetVideoSkipStates()
 static GAMECODE renderLoop()
 {
 	WZ_PROFILE_SCOPE(renderLoop);
+	camtrace::markStage(camtrace::Stage::RenderBegin);
 	if (bMultiPlayer && !NetPlay.isHostAlive && NetPlay.bComms && !NetPlay.isHost)
 	{
 		handleInGameHostQuit();
 	}
 
 	audio_Update();
+	camtrace::markStage(camtrace::Stage::AudioEnd);
 
 	wzShowMouse(!isGamepadActiveInput());
 
@@ -773,6 +775,7 @@ GAMECODE gameLoop()
 	{
 		before = wzGetTicks();
 		renderReturn = renderLoop();
+		camtrace::markStage(camtrace::Stage::RenderEnd);
 		pie_ScreenFrameRenderEnd(); // must happen here for proper renderBudget calculation
 		camtrace::markPresentEnd();
 		after = wzGetTicks();
