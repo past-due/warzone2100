@@ -56,6 +56,7 @@
 #include "stdinreader.h"
 #include "seqdisp.h"
 #include "perfcounters.h"
+#include "cameratrace.h"
 
 #include <cwchar>
 
@@ -370,6 +371,8 @@ typedef enum
 	CLI_GAMESTATE_CRCDETAIL,
 	CLI_GAMESTATE_CRCDETAIL_ONSAVE,
 	CLI_PERFCOUNTERS,
+	CLI_CAMERATRACE,
+	CLI_CAMERAAUTOPAN,
 	CLI_TMP_PREFER_OLD_SAVE,
 	CLI_DRS_FRACTION,
 	CLI_RESOLUTION,
@@ -473,6 +476,8 @@ static const struct poptOption *getOptionsTable()
 		{ "gamestate-crc-detail-tick", POPT_ARG_STRING, CLI_GAMESTATE_CRCDETAIL, N_("At this game tick, dump the full sync-debug log to <crc-trace-file>.detail.txt (diff original vs loaded run to pinpoint a divergence)"), N_("game tick") },
 		{ "gamestate-crc-detail-on-save", POPT_ARG_NONE, CLI_GAMESTATE_CRCDETAIL_ONSAVE, N_("Auto-dump a window of full sync-debug logs to <crc-trace-file>.detail.txt around each GameState save/load (no need to know the save tick)"), nullptr },
 		{ "perfcounters", POPT_ARG_STRING, CLI_PERFCOUNTERS, N_("Write per-tick performance counters to the given CSV file"), N_("file") },
+		{ "cameratrace", POPT_ARG_STRING, CLI_CAMERATRACE, N_("Write a per-frame camera timing trace to the given CSV file"), N_("file") },
+		{ "cameraautopan", POPT_ARG_STRING, CLI_CAMERAAUTOPAN, N_("Drive the camera scroll input with a repeating move / coast / reverse pattern"), N_("lr,ud[,legSeconds[,idleSeconds]]") },
 		{ "tmp-prefer-old-save", POPT_ARG_NONE, CLI_TMP_PREFER_OLD_SAVE, N_("Prefer the legacy load path for a save folder that has both the old and new-format data (temporary)"), nullptr },
 		{ "drs-fraction", POPT_ARG_STRING, CLI_DRS_FRACTION, N_("Pin the dynamic resolution scene render fraction for testing, bypassing GPU timing feedback"), N_("fraction 0.5 - 1.0") },
 		{ "resolution", POPT_ARG_STRING, CLI_RESOLUTION, N_("Set the resolution to use"),         N_("WIDTHxHEIGHT") },
@@ -948,6 +953,22 @@ bool ParseCommandLine(int argc, const char * const *argv)
 				qFatal("Missing file path for --perfcounters");
 			}
 			perf::open(token);
+			break;
+		case CLI_CAMERATRACE:
+			token = poptGetOptArg(poptCon);
+			if (token == nullptr)
+			{
+				qFatal("Missing file path for --cameratrace");
+			}
+			camtrace::open(token);
+			break;
+		case CLI_CAMERAAUTOPAN:
+			token = poptGetOptArg(poptCon);
+			if (token == nullptr)
+			{
+				qFatal("Missing pattern for --cameraautopan");
+			}
+			camtrace::setAutoPan(token);
 			break;
 		case CLI_TMP_PREFER_OLD_SAVE:
 			gamestate::savegame::setPreferLegacyLoadOverride(true);

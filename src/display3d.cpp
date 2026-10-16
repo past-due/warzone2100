@@ -102,6 +102,7 @@
 #include "game_world.h"
 #include "corridor_map.h"
 #include "perfcounters.h"
+#include "cameratrace.h"
 
 
 /********************  Prototypes  ********************/
@@ -306,6 +307,9 @@ static const int geoOffset = 192;
 
 /// The average terrain height for the center of the area the camera is looking at
 static int averageCentreTerrainHeight;
+
+/// Set by init3DView() to start the next height update at the target
+static bool trackHeightStartAtTarget = true;
 
 /** The time at which a sensor target was last assigned
  * Used to draw a visual effect.
@@ -1143,7 +1147,9 @@ void draw3DScene()
 	{
 		/* Move the autonomous camera if necessary */
 		updatePlayerAverageCentreTerrainHeight();
-		trackHeight(calculateCameraHeight(averageCentreTerrainHeight));
+		const int desiredCameraHeight = calculateCameraHeight(averageCentreTerrainHeight);
+		camtrace::markHeightTarget(averageCentreTerrainHeight, desiredCameraHeight);
+		trackHeight(desiredCameraHeight);
 	}
 	else
 	{
@@ -1267,6 +1273,8 @@ static void drawTiles(iView *player, LightingData& lightData, LightMap& lightmap
 	/* Find our position in tile coordinates */
 	playerXTile = map_coord(player->p.x);
 	playerZTile = map_coord(player->p.z);
+
+	camtrace::markDraw(player->p.x, player->p.y, player->p.z, player->r.x, player->r.y, distance, getWarCamStatus());
 
 	/* ---------------------------------------------------------------- */
 	/* Set up the geometry                                              */
@@ -4123,13 +4131,16 @@ static void trackHeight(int desiredHeight)
 	if ((desiredHeight == playerPos.p.y) && ((heightSpeed > -5.f) && (heightSpeed < 5.f)))
 	{
 		heightSpeed = 0.0f;
+		camtrace::markHeightUpdate(deltaTrackHeightRealTime, 0.f, 0.f, 0.f, true);
 		return;
 	}
 
 	float separation = desiredHeight - playerPos.p.y;	// How far are we from desired height?
+	const float separationBefore = separation;
 
 	// d²/dt² player.p.y = -ACCEL_CONSTANT * (player.p.y - desiredHeight) - VELOCITY_CONSTANT * d/dt player.p.y
 	solveDifferential2ndOrder(&separation, &heightSpeed, ACCEL_CONSTANT, VELOCITY_CONSTANT, (float) deltaTrackHeightRealTime / (float) GAME_TICKS_PER_SEC);
+	camtrace::markHeightUpdate(deltaTrackHeightRealTime, separationBefore, separation, heightSpeed);
 
 	/* Adjust the height accordingly */
 	playerPos.p.y = desiredHeight - static_cast<int>(std::trunc(separation));
