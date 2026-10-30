@@ -39,6 +39,8 @@
 #include "src/main.h"
 #include "src/intimage.h"
 
+#include <algorithm>
+
 // MARK: OptionsSlider
 
 static void displayBigSlider(WIDGET *psWidget, UDWORD xOffset, UDWORD yOffset)
@@ -59,12 +61,29 @@ OptionsSlider::OptionsSlider()
 std::shared_ptr<OptionsSlider> OptionsSlider::make(int32_t minValue, int32_t maxValue, int32_t stepValue, CurrentValueFunc currentValFunc, OnChangeValueFunc onChange, bool needsStateUpdates)
 {
 	ASSERT_OR_RETURN(nullptr, minValue < maxValue, "minValue is not < maxValue");
+	ASSERT_OR_RETURN(nullptr, stepValue > 0, "stepValue must be positive");
+
+	std::vector<int32_t> values;
+	for (int32_t value = minValue; value <= maxValue; value += stepValue)
+	{
+		values.push_back(value);
+	}
+	return make(values, currentValFunc, onChange, needsStateUpdates);
+}
+
+std::shared_ptr<OptionsSlider> OptionsSlider::make(const std::vector<int32_t>& values, CurrentValueFunc currentValFunc, OnChangeValueFunc onChange, bool needsStateUpdates)
+{
+	ASSERT_OR_RETURN(nullptr, values.size() >= 2, "Needs at least two values");
+	ASSERT_OR_RETURN(nullptr, std::is_sorted(values.begin(), values.end()), "Values must be in ascending order");
 	ASSERT_OR_RETURN(nullptr, currentValFunc != nullptr, "Invalid currentVal func");
 	ASSERT_OR_RETURN(nullptr, IntImages != nullptr, "IntImages not loaded?");
 
-	uint32_t totalRange = static_cast<uint32_t>(maxValue - minValue);
-	UWORD numStops = (maxValue - minValue) / stepValue;
-	UWORD currPos = (currentValFunc() - minValue) / stepValue;
+	class make_shared_enabler : public OptionsSlider { };
+	auto result = std::make_shared<make_shared_enabler>();
+	result->values = values;
+
+	UWORD numStops = static_cast<UWORD>(values.size() - 1);
+	UWORD currPos = result->posForValue(currentValFunc());
 
 	W_SLDINIT sSldInit;
 	sSldInit.formID		= 0;
@@ -76,15 +95,7 @@ std::shared_ptr<OptionsSlider> OptionsSlider::make(int32_t minValue, int32_t max
 	sSldInit.pos		= currPos;
 	sSldInit.pDisplay	= displayBigSlider;
 
-	auto sliderWidget = std::make_shared<W_SLIDER>(&sSldInit);
-
-	class make_shared_enabler : public OptionsSlider { };
-	auto result = std::make_shared<make_shared_enabler>();
-	result->sliderWidget = sliderWidget;
-	result->minValue = minValue;
-	result->maxValue = maxValue;
-	result->totalRange = totalRange;
-	result->stepValue = stepValue;
+	result->sliderWidget = std::make_shared<W_SLIDER>(&sSldInit);
 	result->currentValFunc = currentValFunc;
 	result->onChangeValueFunc = onChange;
 	result->needsStateUpdates = needsStateUpdates;
@@ -98,14 +109,25 @@ std::shared_ptr<OptionsSlider> OptionsSlider::make(int32_t minValue, int32_t max
 	result->attach(result->sliderWidget);
 
 	result->cachedIdealSliderWidth = iV_GetImageWidth(IntImages, IMAGE_SLIDER_BIG);
-	result->updateSliderValueText();
+	result->updateSliderValueText(currentValFunc());
 
 	return result;
 }
 
 int32_t OptionsSlider::currentValue() const
 {
-	return (static_cast<int32_t>(sliderWidget->pos) * stepValue) + minValue;
+	return values[std::min<size_t>(sliderWidget->pos, values.size() - 1)];
+}
+
+// The last value at or below value (or the first value)
+UWORD OptionsSlider::posForValue(int32_t value) const
+{
+	auto it = std::upper_bound(values.begin(), values.end(), value);
+	if (it == values.begin())
+	{
+		return 0;
+	}
+	return static_cast<UWORD>(std::distance(values.begin(), it) - 1);
 }
 
 void OptionsSlider::handleSliderPosChanged()
@@ -115,19 +137,19 @@ void OptionsSlider::handleSliderPosChanged()
 	{
 		onChangeValueFunc(newValue);
 	}
-	updateSliderValueText();
+	updateSliderValueText(newValue);
 }
 
-void OptionsSlider::updateSliderValueText()
+void OptionsSlider::updateSliderValueText(int32_t value)
 {
-	text = WzString::number(currentValue());
+	text = WzString::number(value);
 	cacheIdealTextSize();
 }
 
 size_t OptionsSlider::maxNumValueCharacters()
 {
-	WzString minValueStr = WzString::number(minValue);
-	WzString maxValueStr = WzString::number(maxValue);
+	WzString minValueStr = WzString::number(values.front());
+	WzString maxValueStr = WzString::number(values.back());
 	return std::max<size_t>(minValueStr.length(), maxValueStr.length());
 }
 
@@ -235,7 +257,9 @@ void OptionsSlider::update(bool force)
 		return;
 	}
 
-	sliderWidget->pos = (currentValFunc() - minValue) / stepValue;
+	int32_t value = currentValFunc();
+	sliderWidget->pos = posForValue(value);
+	updateSliderValueText(value);
 }
 
 void OptionsSlider::informAvailable(bool isAvailable)

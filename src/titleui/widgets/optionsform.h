@@ -67,6 +67,8 @@ public:
 	typedef std::function<void (int32_t newValue)> OnChangeValueFunc;
 public:
 	static std::shared_ptr<OptionsSlider> make(int32_t minValue, int32_t maxValue, int32_t stepValue, CurrentValueFunc currentValFunc, OnChangeValueFunc onChange, bool needsStateUpdates);
+	// values must be in ascending order
+	static std::shared_ptr<OptionsSlider> make(const std::vector<int32_t>& values, CurrentValueFunc currentValFunc, OnChangeValueFunc onChange, bool needsStateUpdates);
 
 	void display(int xOffset, int yOffset) override;
 	void geometryChanged() override;
@@ -81,7 +83,8 @@ public:
 
 private:
 	void handleSliderPosChanged();
-	void updateSliderValueText();
+	UWORD posForValue(int32_t value) const;
+	void updateSliderValueText(int32_t value);
 	void cacheIdealTextSize();
 	size_t maxNumValueCharacters();
 
@@ -100,10 +103,7 @@ private:
 	bool isTruncated = false;
 	CurrentValueFunc currentValFunc;
 	OnChangeValueFunc onChangeValueFunc;
-	int32_t minValue = 0;
-	int32_t maxValue = 0;
-	uint32_t totalRange = 0;
-	int32_t stepValue = 1;
+	std::vector<int32_t> values;
 	bool needsStateUpdates;
 };
 
