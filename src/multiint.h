@@ -127,6 +127,11 @@ const MultiplayOptionsLocked& getLockedOptions();
 bool updateLockedOptionsOnHost(const MultiplayOptionsLocked& newOpts);
 bool updateLockedOptionsFromHost(const MultiplayOptionsLocked& newOpts);
 
+// The unit limit the host asked for, which game.unitLimitSetting follows (within the cap for the current map)
+void setDesiredUnitLimitSetting(uint16_t value);
+uint16_t getDesiredUnitLimitSetting();
+void applyDesiredUnitLimitSetting();
+
 const char* getDifficultyListStr(size_t idx);
 size_t getDifficultyListCount();
 int difficultyIcon(int difficulty);

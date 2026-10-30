@@ -84,6 +84,7 @@ struct MULTIPLAYERGAME
 	uint16_t	playerReconnectWaitSeconds = PLAYER_RECONNECT_WAIT_SECONDS_DEFAULT;	// Max seconds the host holds a dropped player's slot for a mid-match reconnect before declaring them left (0 = do not wait)
 	BLIND_MODE	blindMode = BLIND_MODE::NONE;
 	uint16_t	pathfindingBackend = 65535;	// congestion feature bitmask (PathfindingFeature), every feature on by default, synced, locked before the match starts
+	uint16_t	unitLimitSetting = UNIT_LIMIT_DEFAULT;	// The per-player unit limit chosen by the host (applied by the rules script, which may adjust it)
 
 	// NOTE: If adding to this struct, a lot of things probably require changing
 	// (send/recvOptions? loadMainFile/writeMainFile? to/from_json in multiint.h.cpp?)

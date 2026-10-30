@@ -271,6 +271,7 @@ static const AIDifficulty difficultyValue[] = { AIDifficulty::SUPEREASY, AIDiffi
 static MultiplayOptionsLocked locked;
 static bool spectatorHost = false;
 static uint16_t defaultOpenSpectatorSlots = 0;
+static uint16_t desiredUnitLimitSetting = UNIT_LIMIT_DEFAULT;
 static std::vector<AIDATA> aidata;
 
 const std::vector<AIDATA>& getAIData() { return aidata; }
@@ -297,6 +298,22 @@ bool updateLockedOptionsFromHost(const MultiplayOptionsLocked& newOpts)
 	}
 	locked = newOpts;
 	return true;
+}
+
+void setDesiredUnitLimitSetting(uint16_t value)
+{
+	desiredUnitLimitSetting = clampUnitLimitSetting(value);
+	applyDesiredUnitLimitSetting();
+}
+
+uint16_t getDesiredUnitLimitSetting()
+{
+	return desiredUnitLimitSetting;
+}
+
+void applyDesiredUnitLimitSetting()
+{
+	game.unitLimitSetting = clampUnitLimitSettingForPlayerCount(desiredUnitLimitSetting, game.maxPlayers);
 }
 
 const char* getDifficultyListStr(size_t idx)
@@ -5056,6 +5073,7 @@ static void updateMapSettings(LEVEL_DATASET *mapData)
 	game.maxPlayers = mapData->players;
 	game.isMapMod = CheckForMod(mapData->realFileName);
 	game.isRandom = CheckForRandom(mapData->realFileName, mapData->apDataFiles[0].c_str());
+	applyDesiredUnitLimitSetting();
 }
 
 bool blindModeFromStr(const WzString& str, BLIND_MODE& mode_output)

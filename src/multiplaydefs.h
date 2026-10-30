@@ -25,6 +25,7 @@
 #include "lib/netplay/nettypes.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 
 // The behavior used once a player is considered to have *left* a game in progress
@@ -48,6 +49,55 @@ constexpr uint16_t PLAYER_RECONNECT_WAIT_SECONDS_DEFAULT = 30;
 static inline uint16_t clampPlayerReconnectWaitSeconds(uint32_t seconds)
 {
 	return static_cast<uint16_t>(std::min<uint32_t>(seconds, PLAYER_RECONNECT_WAIT_SECONDS_MAX));
+}
+
+constexpr uint16_t UNIT_LIMIT_MIN = 100;
+constexpr uint16_t UNIT_LIMIT_DEFAULT = 150;
+constexpr uint16_t UNIT_LIMIT_MAX = 500;
+constexpr uint32_t UNIT_LIMIT_TOTAL_BUDGET = 2500; // the most units (across all player slots) a host can configure
+
+// The values a unit limit slider steps through, which the maximum for a map is also rounded down to
+constexpr std::array<uint16_t, 24> UNIT_LIMIT_SETTING_STOPS = {
+	100, 105, 110, 115, 120, 125, 130, 135, 140, 145,
+	150, 160, 170, 180, 190, 200,
+	225, 250, 275, 300,
+	350, 400, 450, 500
+};
+static_assert(UNIT_LIMIT_SETTING_STOPS.front() == UNIT_LIMIT_MIN && UNIT_LIMIT_SETTING_STOPS.back() == UNIT_LIMIT_MAX, "");
+
+static inline bool isValidUnitLimitSetting(uint32_t value)
+{
+	return value >= UNIT_LIMIT_MIN && value <= UNIT_LIMIT_MAX;
+}
+
+static inline uint16_t clampUnitLimitSetting(uint32_t value)
+{
+	return static_cast<uint16_t>(std::clamp<uint32_t>(value, UNIT_LIMIT_MIN, UNIT_LIMIT_MAX));
+}
+
+// The largest unitLimitSetting a host can configure for a map with this many player slots (never below the default)
+static inline uint16_t unitLimitSettingMaxForPlayerCount(uint8_t numPlayers)
+{
+	if (numPlayers == 0)
+	{
+		return UNIT_LIMIT_MAX;
+	}
+	const uint32_t perPlayer = UNIT_LIMIT_TOTAL_BUDGET / numPlayers;
+	uint16_t result = UNIT_LIMIT_SETTING_STOPS.front();
+	for (uint16_t stop : UNIT_LIMIT_SETTING_STOPS)
+	{
+		if (stop > perPlayer)
+		{
+			break;
+		}
+		result = stop;
+	}
+	return std::max(result, UNIT_LIMIT_DEFAULT);
+}
+
+static inline uint16_t clampUnitLimitSettingForPlayerCount(uint32_t value, uint8_t numPlayers)
+{
+	return std::min(clampUnitLimitSetting(value), unitLimitSettingMaxForPlayerCount(numPlayers));
 }
 
 enum class BLIND_MODE : uint8_t
