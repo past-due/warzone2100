@@ -738,6 +738,8 @@ wzapi::scripting_instance* scripting_engine::loadPlayerScript(const WzString& pa
 	globalVars["playerLeaveMode"] = static_cast<uint8_t>(game.playerLeaveMode);
 	//== * ```playerReconnectWaitSeconds``` The maximum number of seconds the host will hold a dropped player's slot for a mid-match reconnect before considering them to have left (and applying playerLeaveMode). (0 = do not wait) (4.6.0+ only)
 	globalVars["playerReconnectWaitSeconds"] = static_cast<uint32_t>(game.playerReconnectWaitSeconds);
+	//== * ```unitLimitSetting``` The per-player unit limit chosen by the host. The rules script decides how to apply it (use ```getDroidLimit()``` for a player's current limit). (4.8.0+ only)
+	globalVars["unitLimitSetting"] = static_cast<uint32_t>(game.unitLimitSetting);
 	//== * ```tweakOptions``` The tweakOptions offered by the current mod / mode, as configured by the user. (4.5.0+ only)
 	globalVars["tweakOptions"] = getCamTweakOptions();
 
