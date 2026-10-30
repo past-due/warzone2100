@@ -906,6 +906,7 @@ static void NETlockedOptions(MessageWriter& w, const MultiplayOptionsLocked& loc
 	NETbool(w, lockedOpts.name);
 	NETbool(w, lockedOpts.readybeforefull);
 	NETbool(w, lockedOpts.cheats);
+	NETbool(w, lockedOpts.unitLimit);
 }
 
 static void NETlockedOptions(MessageReader &r, MultiplayOptionsLocked& lockedOpts)
@@ -922,6 +923,7 @@ static void NETlockedOptions(MessageReader &r, MultiplayOptionsLocked& lockedOpt
 	NETbool(r, lockedOpts.name);
 	NETbool(r, lockedOpts.readybeforefull);
 	NETbool(r, lockedOpts.cheats);
+	NETbool(r, lockedOpts.unitLimit);
 }
 
 void sendHostConfig()

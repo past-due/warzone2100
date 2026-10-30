@@ -5097,6 +5097,16 @@ bool blindModeFromStr(const WzString& str, BLIND_MODE& mode_output)
 	return false;
 }
 
+static uint16_t loadUnitLimitSetting(WzConfig& ini, uint16_t defaultValue)
+{
+	int value = ini.value("unitLimit", defaultValue).toInt();
+	if (value < UNIT_LIMIT_MIN || value > UNIT_LIMIT_MAX)
+	{
+		debug(LOG_ERROR, "Invalid unitLimit (%d) specified in config .json - clamping to [%u, %u]", value, (unsigned)UNIT_LIMIT_MIN, (unsigned)UNIT_LIMIT_MAX);
+	}
+	return clampUnitLimitSetting(static_cast<uint32_t>(std::max(value, 0)));
+}
+
 static bool loadMapChallengeSettings(WzConfig& ini)
 {
 	ini.beginGroup("locked"); // GUI lockdown
@@ -5113,6 +5123,7 @@ static bool loadMapChallengeSettings(WzConfig& ini)
 		locked.name = ini.value("name", false).toBool();
 		locked.readybeforefull = ini.value("readybeforefull", (getHostLaunch() == HostLaunch::Autohost)).toBool();
 		locked.cheats = ini.value("cheats", false).toBool();
+		locked.unitLimit = ini.value("unitLimit", challengeActive).toBool();
 	}
 	ini.endGroup();
 
@@ -5169,6 +5180,7 @@ static bool loadMapChallengeSettings(WzConfig& ini)
 			sstrcpy(game.name, ini.value("name").toWzString().toUtf8().c_str());
 			game.techLevel = ini.value("techLevel", game.techLevel).toInt();
 			game.pathfindingBackend = static_cast<uint16_t>(ini.value("pathfindingBackend", game.pathfindingBackend).toInt());
+			setDesiredUnitLimitSetting(loadUnitLimitSetting(ini, (challengeActive) ? UNIT_LIMIT_DEFAULT : getDesiredUnitLimitSetting()));
 
 			// Allow making the host a spectator (for MP games)
 			spectatorHost = ini.value("spectatorHost", false).toBool();
@@ -5205,6 +5217,7 @@ static bool loadMapChallengeSettings(WzConfig& ini)
 			game.base = ini.value("bases", game.base).toInt();
 			game.alliance = ini.value("alliances", game.alliance).toInt();
 			game.power = ini.value("powerLevel", game.power).toInt();
+			setDesiredUnitLimitSetting(loadUnitLimitSetting(ini, getDesiredUnitLimitSetting()));
 		}
 		ini.endGroup();
 	}

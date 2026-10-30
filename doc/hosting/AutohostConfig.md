@@ -28,6 +28,7 @@ The `challenge` object defines the game parameters for a multiplayer game.
   * `"blind_game_simple_lobby"`: Same as `blind_game`, but with the addition of "simple lobby" mode (players will be placed in a waiting room where they can't see the list of players until the game starts)
 * `allowPositionChange` is deprecated, use the `locked` object instead.
 * `gamePassword` sets a password for the game (optional)
+* `unitLimit` sets the maximum number of units per player, from `100` to `500` (optional, defaults to the host's configured unit limit). Maps with many player slots may cap it lower.
 
 ## the `locked` object
 
@@ -41,6 +42,7 @@ The `locked` object sets which game parameters can be changed by the host and ro
 * `scavengers` locks the `scavengers` value.
 * `position` prevents player from changing their starting location.
 * `bases` locks the `bases` value.
+* `unitLimit` locks the `unitLimit` value.
 
 ## Player objects
 
