@@ -600,7 +600,7 @@ function attackerCountsGood(recycle)
 //Produce a unit when factories allow it.
 function produce()
 {
-	if ((countDroid(DROID_ANY, me) >= 150) || currently_dead)
+	if ((countDroid(DROID_ANY, me) >= getDroidLimit(me)) || currently_dead)
 	{
 		return; //Stop spamming about having the droid limit reached.
 	}
