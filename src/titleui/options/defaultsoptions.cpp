@@ -572,6 +572,18 @@ std::shared_ptr<OptionsForm> makeDefaultsOptionsForm()
 		);
 		result->addOption(optionInfo, valueChanger, true);
 	}
+	{
+		auto optionInfo = OptionInfo("defaults.hosting.unitLimit", N_("Unit Limit"), N_("The maximum number of units each player may have. Maps with many players may allow less."));
+		optionInfo.addAvailabilityCondition(IsNotInGame);
+		auto valueChanger = OptionsSlider::make(std::vector<int32_t>(UNIT_LIMIT_SETTING_STOPS.begin(), UNIT_LIMIT_SETTING_STOPS.end()),
+			[]() { return static_cast<int32_t>(war_getMPUnitLimitSetting()); },
+			[](int32_t newValue) {
+				war_setMPUnitLimitSetting(static_cast<uint32_t>(newValue));
+				setDesiredUnitLimitSetting(war_getMPUnitLimitSetting());
+			}, false
+		);
+		result->addOption(optionInfo, valueChanger, true);
+	}
 
 	return result;
 }
