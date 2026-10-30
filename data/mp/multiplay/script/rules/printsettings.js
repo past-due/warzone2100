@@ -34,8 +34,14 @@ var human = {
 			case CAMP_WALLS: return _("Start with Advanced Bases");
 			}
 		},
+
+	unitLimits : function () {
+		return _("Unit Limit") + ": " + getDroidLimit(0) +
+			" (" + _("Commanders") + ": " + getDroidLimit(0, DROID_COMMAND) +
+			", " + _("Trucks") + ": " + getDroidLimit(0, DROID_CONSTRUCT) + ")";
+		},
 	};
 
 //	debug([mapName, human.scavengers(), human.alliancesType(), human.powerType(), human.baseType(), "T" + getMultiTechLevel(), version ].join("\n"));
-	console([mapName, human.scavengers(), human.alliancesType(), human.powerType(), human.baseType() ].join("\n"));
+	console([mapName, human.scavengers(), human.alliancesType(), human.powerType(), human.baseType(), human.unitLimits() ].join("\n"));
 }
