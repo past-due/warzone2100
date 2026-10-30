@@ -36,6 +36,7 @@
 #include "infobutton.h"
 #include "advcheckbox.h"
 #include "optionsform.h"
+#include "steppedvalueslider.h"
 
 #include "lib/netplay/netplay.h"
 
@@ -49,6 +50,7 @@
 #include "src/frend.h"
 #include "src/loadsave.h"
 #include "src/intimage.h"
+#include "src/warzoneconfig.h"
 #include "src/loadsave.h"
 
 #include "lib/ivis_opengl/pieblitfunc.h"
@@ -612,6 +614,152 @@ void WzLobbyPasswordOptionPopover::display(int xOffset, int yOffset)
 	drawBlueBox(x0, y0, width(), height());
 }
 
+// MARK: - WzLobbyUnitLimitRow
+
+static void changeUnitLimitSetting(uint16_t value)
+{
+	if (ingame.side != InGameSide::HOST_OR_SINGLEPLAYER || getLockedOptions().unitLimit)
+	{
+		return;
+	}
+	setDesiredUnitLimitSetting(value);
+	war_setMPUnitLimitSetting(getDesiredUnitLimitSetting());
+	resetReadyStatus(false);
+	if (NetPlay.isHost)
+	{
+		sendOptions();
+	}
+}
+
+class WzLobbyUnitLimitRow : public WIDGET
+{
+protected:
+	WzLobbyUnitLimitRow() { }
+	void initialize();
+public:
+	static std::shared_ptr<WzLobbyUnitLimitRow> make();
+
+	void display(int xOffset, int yOffset) override { }
+	void geometryChanged() override;
+	int32_t idealWidth() override;
+	int32_t idealHeight() override;
+
+	void refreshData();
+
+private:
+	void updateValueDisplay(int32_t value);
+
+private:
+	std::shared_ptr<W_LABEL> label;
+	std::shared_ptr<WzSteppedValueSlider> slider;
+	std::shared_ptr<W_LABEL> valueLabel;
+	int valueLabelWidth = 0;
+	const int outerPaddingX = 3;
+	const int gap = 8;
+	const int minSliderWidth = 80;
+};
+
+std::shared_ptr<WzLobbyUnitLimitRow> WzLobbyUnitLimitRow::make()
+{
+	class make_shared_enabler: public WzLobbyUnitLimitRow {};
+	auto widget = std::make_shared<make_shared_enabler>();
+	widget->initialize();
+	return widget;
+}
+
+void WzLobbyUnitLimitRow::initialize()
+{
+	label = std::make_shared<W_LABEL>();
+	label->setString(_("Units"));
+	label->setCacheNeverExpires(true);
+	label->setCanTruncate(true);
+	attach(label);
+
+	slider = WzSteppedValueSlider::make(std::vector<int32_t>(UNIT_LIMIT_SETTING_STOPS.begin(), UNIT_LIMIT_SETTING_STOPS.end()));
+	slider->setMarkerValue(UNIT_LIMIT_DEFAULT);
+	auto weakSelf = std::weak_ptr<WzLobbyUnitLimitRow>(std::static_pointer_cast<WzLobbyUnitLimitRow>(shared_from_this()));
+	slider->addOnChange([weakSelf](W_SLIDER&) {
+		auto strongSelf = weakSelf.lock();
+		ASSERT_OR_RETURN(, strongSelf != nullptr, "No parent?");
+		strongSelf->updateValueDisplay(strongSelf->slider->value());
+	});
+	slider->setOnRelease([weakSelf](WzSteppedValueSlider& s) {
+		auto strongSelf = weakSelf.lock();
+		ASSERT_OR_RETURN(, strongSelf != nullptr, "No parent?");
+		changeUnitLimitSetting(static_cast<uint16_t>(s.value()));
+		strongSelf->refreshData();
+	});
+	attach(slider);
+
+	valueLabel = std::make_shared<W_LABEL>();
+	valueLabel->setTextAlignment(WLAB_ALIGNRIGHT);
+	valueLabel->setTransparentToMouse(true);
+	attach(valueLabel);
+	valueLabelWidth = iV_GetTextWidth(WzString::number(UNIT_LIMIT_MAX).toUtf8().c_str(), font_regular) + 2;
+
+	refreshData();
+}
+
+void WzLobbyUnitLimitRow::updateValueDisplay(int32_t value)
+{
+	valueLabel->setString(WzString::number(value));
+	valueLabel->setFontColour((value != UNIT_LIMIT_DEFAULT) ? WZCOL_YELLOW : WZCOL_FORM_TEXT);
+}
+
+void WzLobbyUnitLimitRow::refreshData()
+{
+	if (ingame.side == InGameSide::HOST_OR_SINGLEPLAYER && !getLockedOptions().unitLimit)
+	{
+		slider->enable();
+	}
+	else
+	{
+		slider->disable();
+	}
+
+	const uint16_t mapMax = unitLimitSettingMaxForPlayerCount(game.maxPlayers);
+	slider->setMaxAllowedValue(mapMax);
+	WzString tip = WzString::format(_("Maximum number of units per player\nDefault: %u\nMaximum for this map: %u"), static_cast<unsigned>(UNIT_LIMIT_DEFAULT), static_cast<unsigned>(mapMax));
+	slider->setTip(tip.toUtf8());
+	label->setTip(tip.toUtf8());
+
+	if (slider->isDragging())
+	{
+		return;
+	}
+	slider->setValue(game.unitLimitSetting);
+	updateValueDisplay(game.unitLimitSetting);
+}
+
+void WzLobbyUnitLimitRow::geometryChanged()
+{
+	int w = width();
+	int h = height();
+	if (w <= 0 || h <= 0)
+	{
+		return;
+	}
+
+	int valueX0 = w - outerPaddingX - valueLabelWidth;
+	valueLabel->setGeometry(valueX0, 0, valueLabelWidth, h);
+
+	int labelWidth = std::min<int>(label->getMaxLineWidth(), std::max<int>(0, valueX0 - outerPaddingX - (gap * 2) - minSliderWidth));
+	label->setGeometry(outerPaddingX, 0, labelWidth, h);
+
+	int sliderX0 = outerPaddingX + labelWidth + gap;
+	slider->setGeometry(sliderX0, 0, std::max<int>(slider->barSize, valueX0 - gap - sliderX0), h);
+}
+
+int32_t WzLobbyUnitLimitRow::idealWidth()
+{
+	return outerPaddingX + label->getMaxLineWidth() + gap + minSliderWidth + gap + valueLabelWidth + outerPaddingX;
+}
+
+int32_t WzLobbyUnitLimitRow::idealHeight()
+{
+	return MultiOptionsRowHeight;
+}
+
 // MARK: - Helpers
 
 WzString formatMapName(const WzString& name)
@@ -730,6 +878,7 @@ private:
 	std::shared_ptr<LobbyMultiOptionsChoiceWidget> technologyChoice;
 	std::vector<std::shared_ptr<WzLobbyMultiOptionButton>> multiOptionButtons;
 
+	std::shared_ptr<WzLobbyUnitLimitRow> unitLimitRow;
 	std::shared_ptr<MultibuttonWidget> limitIconsWidget;
 	std::shared_ptr<WIDGET> limitIconsWidgetWrapper;
 	std::shared_ptr<WzFrontendImageButton> roomPasswordOptionsButton;
@@ -1139,6 +1288,8 @@ void WzMultiLobbyOptionsImpl::initialize(bool _isChallenge, const std::shared_pt
 	auto limitsInfoBut = addSectionImageButton(limitsSection, IMAGE_INFO_CIRCLE, 1);
 	limitsInfoBut->addOnClickHandler([](W_BUTTON&) {
 		widgScheduleTask([]() {
+			std::string unitLimitLine = astringf(_("Unit limit: %u per player"), static_cast<unsigned>(game.unitLimitSetting));
+			addConsoleMessage(unitLimitLine.c_str(), DEFAULT_JUSTIFY, SYSTEM_MESSAGE);
 			printStructureLimitsInfo(ingame.structureLimits, [](const std::string& line) {
 				addConsoleMessage(line.c_str(), DEFAULT_JUSTIFY, SYSTEM_MESSAGE);
 			});
@@ -1156,6 +1307,10 @@ void WzMultiLobbyOptionsImpl::initialize(bool _isChallenge, const std::shared_pt
 	}
 	limitsSection->setGeometry(0, 0, limitsSection->idealWidth(), limitsSection->idealHeight());
 	optionsList->addItem(wrapItemForList(limitsSection, displayWrappedOptionSectionItem));
+
+	unitLimitRow = WzLobbyUnitLimitRow::make();
+	unitLimitRow->setGeometry(0, 0, unitLimitRow->idealWidth(), unitLimitRow->idealHeight());
+	optionsList->addItem(wrapItemForList(unitLimitRow));
 
 	limitIconsWidget = std::make_shared<LobbyMultiOptionsSectionWidget>();
 	addLimitIcons(limitIconsWidget);
@@ -1249,6 +1404,8 @@ void WzMultiLobbyOptionsImpl::refreshData()
 		buttonUpdateFunc();
 	}
 	setShowTotalOptionVotesImpl(getShowTotalOptionVotes());
+
+	unitLimitRow->refreshData();
 
 	// update limit icons
 	limitIconsWidget->clearButtons();
