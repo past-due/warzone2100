@@ -214,6 +214,8 @@ PLAYER_LEAVE_MODE war_getMPPlayerLeaveMode();
 void war_setMPPlayerLeaveMode(PLAYER_LEAVE_MODE);
 uint16_t war_getMPPlayerReconnectWaitSeconds();
 void war_setMPPlayerReconnectWaitSeconds(uint16_t seconds);
+uint16_t war_getMPUnitLimitSetting();
+void war_setMPUnitLimitSetting(uint32_t unitLimit);
 
 enum class MP_CHAT_MODE : uint8_t
 {

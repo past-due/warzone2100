@@ -102,6 +102,7 @@ struct WARZONE_GLOBALS
 	uint8_t MPopenSpectatorSlots = 0;
 	PLAYER_LEAVE_MODE MPplayerLeaveMode = PLAYER_LEAVE_MODE_DEFAULT;
 	uint16_t MPplayerReconnectWaitSeconds = PLAYER_RECONNECT_WAIT_SECONDS_DEFAULT;
+	uint16_t MPunitLimitSetting = UNIT_LIMIT_DEFAULT;
 	MP_CHAT_MODE MPchatMode = MP_CHAT_MODE::ON;
 	std::string lastIPConnectServerName;
 	int fogStart = 4000;
@@ -796,6 +797,16 @@ uint16_t war_getMPPlayerReconnectWaitSeconds()
 void war_setMPPlayerReconnectWaitSeconds(uint16_t seconds)
 {
 	warGlobs.MPplayerReconnectWaitSeconds = clampPlayerReconnectWaitSeconds(seconds);
+}
+
+uint16_t war_getMPUnitLimitSetting()
+{
+	return warGlobs.MPunitLimitSetting;
+}
+
+void war_setMPUnitLimitSetting(uint32_t unitLimit)
+{
+	warGlobs.MPunitLimitSetting = clampUnitLimitSetting(unitLimit);
 }
 
 MP_CHAT_MODE war_getMPChatMode()

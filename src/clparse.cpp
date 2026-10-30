@@ -455,6 +455,7 @@ typedef enum
 	CLI_GAMELOG_OUTPUTNAMING,
 	CLI_GAMELOG_FRAMEINTERVAL,
 	CLI_GAMETIMELIMITMINUTES,
+	CLI_UNITLIMIT,
 	CLI_CONVERT_SPECULAR_MAP,
 	CLI_DEBUG_VERBOSE_SYNCLOG_OUTPUT,
 	CLI_ALLOW_VULKAN_IMPLICIT_LAYERS,
@@ -593,6 +594,7 @@ static const struct poptOption *getOptionsTable()
 		{ "gamelog-outputnaming", POPT_ARG_STRING, CLI_GAMELOG_OUTPUTNAMING, N_("Game history log output naming"), "[default, autohosterclassic]"},
 		{ "gamelog-frameinterval", POPT_ARG_STRING, CLI_GAMELOG_FRAMEINTERVAL, N_("Game history log frame interval"), N_("interval in seconds")},
 		{ "gametimelimit", POPT_ARG_STRING, CLI_GAMETIMELIMITMINUTES, N_("Multiplayer game time limit (in minutes)"), N_("number of minutes")},
+		{ "unitlimit", POPT_ARG_STRING, CLI_UNITLIMIT, N_("Multiplayer unit limit (per player)"), N_("number of units (100-500)")},
 		{ "convert-specular-map", POPT_ARG_STRING, CLI_CONVERT_SPECULAR_MAP, N_("Convert a specular-map .png to a luma, single-channel, grayscale .png (and exit)"), "inputpath/filename.png:outputpath/filename.png" },
 		{ "debug-verbose-sync-logs-until", POPT_ARG_STRING, CLI_DEBUG_VERBOSE_SYNCLOG_OUTPUT, nullptr, nullptr },
 		{ "allow-vulkan-implicit-layers", POPT_ARG_NONE, CLI_ALLOW_VULKAN_IMPLICIT_LAYERS, N_("Allow Vulkan implicit layers (that may be default-disabled due to potential crashes or bugs)"), nullptr },
@@ -1830,6 +1832,24 @@ bool ParseCommandLine(int argc, const char * const *argv)
 			}
 			war_setMPGameTimeLimitMinutes(static_cast<uint32_t>(token_intval));
 			game.gameTimeLimitMinutes = war_getMPGameTimeLimitMinutes();
+			break;
+		}
+
+		case CLI_UNITLIMIT:
+		{
+			token = poptGetOptArg(poptCon);
+			if (token == nullptr)
+			{
+				qFatal("Bad unit limit");
+			}
+			char *end = nullptr;
+			const long value = strtol(token, &end, 10);
+			if (end == token || *end != '\0' || value < UNIT_LIMIT_MIN || value > UNIT_LIMIT_MAX)
+			{
+				qFatal("Invalid unit limit \"%s\": expected a number from %u to %u", token, (unsigned)UNIT_LIMIT_MIN, (unsigned)UNIT_LIMIT_MAX);
+			}
+			war_setMPUnitLimitSetting(static_cast<uint32_t>(value));
+			game.unitLimitSetting = war_getMPUnitLimitSetting();
 			break;
 		}
 

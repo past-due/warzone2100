@@ -7127,6 +7127,7 @@ void WzMultiplayerOptionsTitleUI::start()
 		{
 			spectatorHost = false;
 			game.blindMode = BLIND_MODE::NONE;
+			setDesiredUnitLimitSetting(war_getMPUnitLimitSetting());
 		}
 		defaultOpenSpectatorSlots = war_getMPopenSpectatorSlots();
 		if (!loadMapChallengeAndPlayerSettings(true))

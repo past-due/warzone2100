@@ -560,6 +560,15 @@ bool loadConfig()
 	war_setMPPlayerReconnectWaitSeconds(iniGetInteger("playerReconnectWaitSecondsMP", war_getMPPlayerReconnectWaitSeconds()).value());
 	game.playerReconnectWaitSeconds = war_getMPPlayerReconnectWaitSeconds();
 	{
+		int unitLimitSettingMP = iniGetInteger("unitLimitSettingMP", war_getMPUnitLimitSetting()).value();
+		if (unitLimitSettingMP < UNIT_LIMIT_MIN || unitLimitSettingMP > UNIT_LIMIT_MAX)
+		{
+			debug(LOG_WARNING, "Unsupported / invalid unitLimitSettingMP value: %d; clamping to [%u, %u]", unitLimitSettingMP, (unsigned)UNIT_LIMIT_MIN, (unsigned)UNIT_LIMIT_MAX);
+		}
+		war_setMPUnitLimitSetting(static_cast<uint32_t>(std::max(unitLimitSettingMP, 0)));
+		setDesiredUnitLimitSetting(war_getMPUnitLimitSetting());
+	}
+	{
 		int chatModeMP = iniGetInteger("chatModeMP", static_cast<int>(war_getMPChatMode())).value();
 		if (chatModeMP < static_cast<int>(MP_CHAT_MODE::ON) || chatModeMP > static_cast<int>(MP_CHAT_MODE::QUICK_CHAT_ONLY))
 		{
@@ -1126,6 +1135,7 @@ bool saveConfig()
 	iniSetInteger("gameTimeLimitMinutesMP", war_getMPGameTimeLimitMinutes());
 	iniSetInteger("playerLeaveModeMP", (int)war_getMPPlayerLeaveMode());
 	iniSetInteger("playerReconnectWaitSecondsMP", (int)war_getMPPlayerReconnectWaitSeconds());
+	iniSetInteger("unitLimitSettingMP", (int)war_getMPUnitLimitSetting());
 	iniSetInteger("openSpectatorSlotsMP", war_getMPopenSpectatorSlots());
 	iniSetInteger("chatModeMP", static_cast<int>(war_getMPChatMode()));
 	iniSetString("gfxbackend", to_string(war_getGfxBackend()));
@@ -1328,6 +1338,7 @@ bool reloadMPConfig()
 	game.gameTimeLimitMinutes = war_getMPGameTimeLimitMinutes();
 	game.playerLeaveMode = war_getMPPlayerLeaveMode();
 	game.playerReconnectWaitSeconds = war_getMPPlayerReconnectWaitSeconds();
+	setDesiredUnitLimitSetting(war_getMPUnitLimitSetting());
 	game.blindMode = BLIND_MODE::NONE;
 
 	// restore group menus enabled setting (as tutorial may override it)
