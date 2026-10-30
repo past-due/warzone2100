@@ -338,6 +338,7 @@ nlohmann::ordered_json writeSetupHeader(SaveType saveType)
 	jopt["playerLeaveMode"] = static_cast<uint8_t>(game.playerLeaveMode);
 	jopt["playerReconnectWaitSeconds"] = game.playerReconnectWaitSeconds;
 	jopt["pathfindingBackend"] = game.pathfindingBackend;
+	jopt["unitLimitSetting"] = game.unitLimitSetting;
 	if (movementBenchGame())
 	{
 		nlohmann::ordered_json jbench = nlohmann::ordered_json::object();
@@ -505,6 +506,7 @@ SetupHeaderInfo readSetupHeader(const nlohmann::ordered_json &j)
 	game.playerReconnectWaitSeconds = clampPlayerReconnectWaitSeconds(jopt.at("playerReconnectWaitSeconds").get<uint32_t>());
 	// default to the legacy A* planner for snapshots written before this setting existed
 	game.pathfindingBackend = jopt.value("pathfindingBackend", static_cast<uint16_t>(0));
+	game.unitLimitSetting = clampUnitLimitSetting(jopt.value("unitLimitSetting", static_cast<uint32_t>(UNIT_LIMIT_DEFAULT)));
 	// A movement bench scenario stays one when loaded, since its scripts run their top level again and keep
 	// calling the bench script functions. Absent for any other game.
 	const auto jbench = jopt.find("movementBench");
@@ -593,6 +595,7 @@ bool runSavegameHeaderSelfTest()
 	game.inactivityMinutes = 10;
 	game.playerLeaveMode = PLAYER_LEAVE_MODE::SPLIT_WITH_TEAM;
 	game.playerReconnectWaitSeconds = 30;
+	game.unitLimitSetting = 275;
 	ingame.flags = 0x15;
 	ingame.structureLimits.clear();
 	ingame.structureLimits.push_back(MULTISTRUCTLIMITS{ 4u, 10u });
@@ -667,6 +670,7 @@ bool runSavegameHeaderSelfTest()
 	game.gameTimeLimitMinutes = 0;
 	game.inactivityMinutes = 0;
 	game.playerReconnectWaitSeconds = 0;
+	game.unitLimitSetting = UNIT_LIMIT_DEFAULT;
 	ingame.flags = 0;
 	ingame.structureLimits.clear();
 	sstrcpy(NetPlay.players[0].name, "wrong");
@@ -718,6 +722,7 @@ bool runSavegameHeaderSelfTest()
 	check(game.gameTimeLimitMinutes == 45u, "gameTimeLimitMinutes not restored");
 	check(game.inactivityMinutes == 10u, "inactivityMinutes not restored");
 	check(game.playerReconnectWaitSeconds == 30u, "playerReconnectWaitSeconds not restored");
+	check(game.unitLimitSetting == 275u, "unitLimitSetting not restored");
 
 	// Assert: flags + structure limits restored.
 	check(ingame.flags == 0x15, "flags not restored");

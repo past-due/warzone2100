@@ -4880,6 +4880,7 @@ static bool loadMainFile(const std::string &fileName)
 	}
 	// default to the legacy A* planner for saves written before this setting existed
 	game.pathfindingBackend = static_cast<uint16_t>(save.value("pathfindingBackend", 0).toUInt());
+	game.unitLimitSetting = clampUnitLimitSetting(save.value("unitLimitSetting", UNIT_LIMIT_DEFAULT).toUInt());
 	if (save.contains("multiplayer"))
 	{
 		bMultiPlayer = save.value("multiplayer").toBool();
@@ -5144,6 +5145,7 @@ static bool writeMainFile(const std::string &fileName, SDWORD saveType)
 	save.setValue("playerReconnectWaitSeconds", game.playerReconnectWaitSeconds);
 	save.setValue("blindMode", game.blindMode);
 	save.setValue("pathfindingBackend", game.pathfindingBackend);
+	save.setValue("unitLimitSetting", game.unitLimitSetting);
 	save.setValue("tweakOptions", getCamTweakOptions());
 
 	save.beginArray("scriptSetPlayerDataStrings");

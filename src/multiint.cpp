@@ -7865,6 +7865,7 @@ inline void to_json(nlohmann::json& j, const MULTIPLAYERGAME& p) {
 	j["playerReconnectWaitSeconds"] = p.playerReconnectWaitSeconds;
 	j["blindMode"] = p.blindMode;
 	j["pathfindingBackend"] = p.pathfindingBackend;
+	j["unitLimitSetting"] = p.unitLimitSetting;
 }
 
 inline void from_json(const nlohmann::json& j, MULTIPLAYERGAME& p) {
@@ -7931,6 +7932,7 @@ inline void from_json(const nlohmann::json& j, MULTIPLAYERGAME& p) {
 	}
 	// default to the legacy A* planner for replays recorded before this setting existed
 	p.pathfindingBackend = j.value("pathfindingBackend", static_cast<uint16_t>(0));
+	p.unitLimitSetting = clampUnitLimitSetting(j.value("unitLimitSetting", static_cast<uint32_t>(UNIT_LIMIT_DEFAULT)));
 }
 
 inline void to_json(nlohmann::json& j, const MULTISTRUCTLIMITS& p) {
