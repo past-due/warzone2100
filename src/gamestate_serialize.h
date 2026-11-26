@@ -79,14 +79,26 @@ enum class ScriptScope
 };
 
 /// Build a JSON document representing the current live match state.
-nlohmann::ordered_json gameStateToJson(ScriptScope scriptScope = ScriptScope::AllInstances);
+/// forSavegame adds what a cold load needs beyond an in-process restore (the upgrades remainder, the stat index).
+/// Building the remainder replays the completed research.
+nlohmann::ordered_json gameStateToJson(ScriptScope scriptScope = ScriptScope::AllInstances, bool forSavegame = false);
+
+/// How a GameState document is restored.
+enum class RestoreKind
+{
+	/// A savegame loaded from disk.
+	/// The stat index is checked, and the research upgrades are recomputed with the stats and research data
+	/// loaded now (keeping what the savegame holds beyond them).
+	ColdLoad,
+	/// A snapshot taken by this game (gamestate_snapshot.h), restored exactly as it was taken.
+	InProcess,
+};
 
 /// Restore live match state from a JSON document. Throws StateError on bad data.
 /// deferMessages skips the "messages" section (intel/proximity), for the disk cold-load where the level's
 /// VIEWDATA is not yet loaded when this runs. The caller replays it later via applyGameStateMessages().
-/// inProcess: an in-process restore of a snapshot taken by this game (gamestate_snapshot.h), not a cold load.
-/// Every script instance is loaded again before the scripting section is applied, as on a cold load.
-void gameStateFromJson(const nlohmann::ordered_json &j, ScriptScope scriptScope = ScriptScope::AllInstances, bool deferMessages = false, bool inProcess = false);
+/// As on a cold load, an in-process restore loads every script instance again before applying the scripting section.
+void gameStateFromJson(const nlohmann::ordered_json &j, RestoreKind kind, ScriptScope scriptScope = ScriptScope::AllInstances, bool deferMessages = false);
 
 /// The number of non-null object references the last gameStateFromJson could not resolve (restored as null).
 /// An honest snapshot has none.
@@ -111,7 +123,7 @@ void setGameStateRestoreFaultStage(const std::string &stage);
 std::string serializeGameState(ScriptScope scriptScope = ScriptScope::AllInstances);
 
 /// Restore live match state from a JSON string. Throws StateError on bad data.
-void deserializeGameState(const std::string &jsonText, ScriptScope scriptScope = ScriptScope::AllInstances, bool inProcess = false);
+void deserializeGameState(const std::string &jsonText, RestoreKind kind, ScriptScope scriptScope = ScriptScope::AllInstances);
 
 /// Parse a JSON document with a hard nesting-depth cap, throwing StateError past the limit.
 /// Used at the untrusted-input ingress parses.

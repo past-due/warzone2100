@@ -123,7 +123,7 @@ GameStateRestoreResult restoreGameStateSnapshot(const GameStateSnapshot &snapsho
 	const UiViewerState viewerState = uiBeforeObjectsReplaced();
 	try
 	{
-		gamestate::deserializeGameState(snapshot.document, gamestate::ScriptScope::AllInstances, /*inProcess=*/true);
+		gamestate::deserializeGameState(snapshot.document, gamestate::RestoreKind::InProcess);
 	}
 	catch (const std::exception &e)
 	{

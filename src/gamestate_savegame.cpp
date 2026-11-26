@@ -1055,7 +1055,7 @@ std::vector<uint8_t> serializeSavegameContainer(SaveType saveType)
 	// disk-only local view/meta state (camera, radar zoom, cheated), and the disk-only pending resume
 	// input (the in-flight game-queue backlog).
 	doc["setup"] = writeSetupHeader(saveType);
-	doc["gameState"] = gameStateToJson();
+	doc["gameState"] = gameStateToJson(ScriptScope::AllInstances, /*forSavegame=*/true);
 	doc["localState"] = writeLocalState();
 	doc["pendingResume"] = writePendingResume();
 
@@ -1416,7 +1416,7 @@ bool runSavegameContainerSelfTest()
 	// Stage 2: applying the embedded GameState restores the determinism clock.
 	try
 	{
-		gameStateFromJson(gsDoc);
+		gameStateFromJson(gsDoc, RestoreKind::ColdLoad);
 	}
 	catch (const std::exception &e)
 	{
@@ -1764,7 +1764,7 @@ bool coldLoadRestoreWorld()
 		// Defer the messages section: the level's message VIEWDATA is loaded from later-index data files
 		// that have not been processed yet here. applyDeferredColdLoadMessages() replays it in
 		// levFinalizeLevelLoad once level data has finished loading (matching the legacy loadSaveMessage).
-		gamestate::gameStateFromJson(*g_coldLoadGameStateDoc, gamestate::ScriptScope::AllInstances, /*deferMessages=*/true);
+		gamestate::gameStateFromJson(*g_coldLoadGameStateDoc, gamestate::RestoreKind::ColdLoad, gamestate::ScriptScope::AllInstances, /*deferMessages=*/true);
 	}
 	catch (const std::exception &e)
 	{

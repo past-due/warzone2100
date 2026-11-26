@@ -171,6 +171,9 @@ fi
 if echo "builtins" | grep -qE "$FILTER"; then
 	"$HERE/builtins.sh" "$BIN" | grep -v '^  '
 fi
+if echo "researchedit" | grep -qE "$FILTER"; then
+	"$HERE/researchedit.sh" "$BIN"
+fi
 if echo "replayrewind" | grep -qE "$FILTER"; then
 	echo "$REPLAY_CELLS" | while read -r cell; do
 		[ -n "$cell" ] || continue

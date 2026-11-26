@@ -911,6 +911,24 @@ namespace wzapi
 		}
 	};
 
+	/// Upgrade values of every component and structure stat for every player, separate from the stats' own upgrade[]
+	/// (entry index * MAX_PLAYERS + player of each stat type's table).
+	/// Used to work out upgrade values without changing the game (replayResearchUpgradeTables).
+	struct UpgradeTables
+	{
+		std::vector<decltype(BODY_STATS::base)> body;
+		std::vector<decltype(BRAIN_STATS::base)> brain;
+		std::vector<decltype(PROPULSION_STATS::base)> propulsion;
+		std::vector<decltype(SENSOR_STATS::base)> sensor;
+		std::vector<decltype(ECM_STATS::base)> ecm;
+		std::vector<decltype(REPAIR_STATS::base)> repair;
+		std::vector<decltype(WEAPON_STATS::base)> weapon;
+		std::vector<decltype(CONSTRUCT_STATS::base)> construct;
+		std::vector<decltype(STRUCTURE_STATS::base)> structure;
+		/// Every stat's base values, for every player
+		static UpgradeTables fromBase();
+	};
+
 	class GameEntityRules
 	{
 	public:
@@ -924,6 +942,9 @@ namespace wzapi
 		using value_type = nlohmann::json;
 		value_type getPropertyValue(const wzapi::execution_context_base& context, const std::string& name) const;
 		value_type setPropertyValue(const wzapi::execution_context_base& context, const std::string& name, const value_type& newValue);
+		/// The same, on tables instead of the game's own upgrade tables
+		value_type getPropertyValue(const wzapi::execution_context_base& context, const std::string& name, const UpgradeTables& tables) const;
+		value_type setPropertyValue(const wzapi::execution_context_base& context, const std::string& name, const value_type& newValue, UpgradeTables& tables);
 	public:
 		inline NameToTypeMap::const_iterator begin() const
 		{
@@ -1199,6 +1220,10 @@ namespace wzapi
 	no_return_value fireWeaponAtObj(WZAPI_PARAMS(std::string weaponName, BASE_OBJECT *psObj, optional<int> _player));
 	bool setUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::string& name, int type, unsigned index, const nlohmann::json& newValue));
 	nlohmann::json getUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::string& name, int type, unsigned index));
+	/// setUpgradeStats and getUpgradeStats on tables instead of the game's own upgrade tables.
+	/// Only the tables change (not game objects, visibility ranges or the sync debug log).
+	bool setUpgradeValue(UpgradeTables &tables, WZAPI_BASE_PARAMS(int player, const std::string& name, int type, unsigned index, const nlohmann::json& newValue));
+	nlohmann::json getUpgradeValue(const UpgradeTables &tables, WZAPI_BASE_PARAMS(int player, const std::string& name, int type, unsigned index));
 	bool setGameStoryLogPlayerDataValue(WZAPI_PARAMS(int player, std::string key_str, std::string value_str));
 	bool transformPlayerToSpectator(WZAPI_PARAMS(int player));
 

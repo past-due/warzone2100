@@ -26,6 +26,7 @@
 
 #include <map>
 #include <string>
+#include <vector>
 
 #include <nonstd/optional.hpp>
 
@@ -34,6 +35,8 @@
 #include "objectdef.h"
 
 struct VIEWDATA;
+struct ResearchUpgradeBookkeeping;
+namespace wzapi { struct UpgradeTables; }
 
 #define NO_RESEARCH_ICON 0
 //max 'research complete' console message length
@@ -114,6 +117,12 @@ void researchResult(UDWORD researchIndex, UBYTE player, bool bDisplay, STRUCTURE
 /// upgrades of researchResult, without the display, the script event or the player stats. For GameState documents
 /// without an upgrades section.
 void researchResultRestore(UDWORD researchIndex, UBYTE player);
+
+/// Apply the upgrade results of every research topic each player has completed, in topic order,
+/// to tables (usually wzapi::UpgradeTables::fromBase()).
+/// Sets bookkeeping to the research bookkeeping that results (MAX_PLAYERS entries).
+/// Changes nothing about the game, and the same tables, research and stats data always give the same result.
+void replayResearchUpgradeTables(wzapi::UpgradeTables &tables, std::vector<ResearchUpgradeBookkeeping> &bookkeeping);
 
 //this just inits all the research arrays
 bool ResearchShutDown();
