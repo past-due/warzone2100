@@ -94,6 +94,12 @@ DROID *reallyBuildDroid(GameWorld& world, const DROID_TEMPLATE *pTemplate, Posit
 /* Set the asBits in a DROID structure given it's template. */
 void droidSetBits(const DROID_TEMPLATE *pTemplate, DROID *psDroid);
 
+/// For a cold load whose research upgrades were recomputed with changed data.
+/// Sets the droid's maximum hitpoints (and those of its transporter cargo) to what the upgrade tables give,
+/// keeping the same fraction of hitpoints, without research's +1 (a pending research body upgrade is dropped).
+/// Returns the number of droids changed.
+unsigned droidRescaleBodyToUpgrades(DROID *psDroid);
+
 /* Calculate the weight of a droid from it's template */
 UDWORD calcDroidWeight(const DROID_TEMPLATE *psTemplate);
 
