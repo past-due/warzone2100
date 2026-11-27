@@ -1054,7 +1054,7 @@ static void eventResearchedHandleUpgrades(const RESEARCH *psResearch, const STRU
 		}
 		bool isBodyClass = ctype == "Body";
 		bool isWeaponClass = ctype == "Weapon";
-		for (auto cname : *pPlayerEntityClass) // iterate over all components of this type
+		for (auto &cname : *pPlayerEntityClass) // iterate over all components of this type, without copying their maps
 		{
 			const auto statsEntityClassObj = cachedStatsObject.find(ctype);
 			if (statsEntityClassObj == cachedStatsObject.end())

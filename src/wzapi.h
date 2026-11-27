@@ -968,6 +968,14 @@ namespace wzapi
 		{
 			return rules.cend();
 		}
+		inline std::vector<GameEntityRulesPair>::iterator begin()
+		{
+			return rules.begin();
+		}
+		inline std::vector<GameEntityRulesPair>::iterator end()
+		{
+			return rules.end();
+		}
 	private:
 		std::vector<GameEntityRulesPair> rules;
 		std::unordered_map<GameEntityName, size_t> lookup_table;
@@ -989,6 +997,15 @@ namespace wzapi
 		inline GameEntityRuleContainer& operator[](const GameEntityClass& entityClass)
 		{
 			return upgrades[entityClass];
+		}
+		inline GameEntityRuleContainer* find(const GameEntityClass& entityClass)
+		{
+			auto it = upgrades.find(entityClass);
+			if (it == upgrades.end())
+			{
+				return nullptr;
+			}
+			return &(it->second);
 		}
 		inline const GameEntityRuleContainer* find(const GameEntityClass& entityClass) const
 		{
