@@ -23,6 +23,8 @@
  * Droid method functions.
  *
  */
+#include <algorithm>
+
 #include "lib/framework/frame.h"
 #include "lib/framework/gamepad_input.h"
 #include "lib/framework/math_ext.h"
@@ -163,6 +165,35 @@ static void droidBodyUpgrade(DROID *psDroid)
 			}
 		}
 	}
+}
+
+unsigned droidRescaleBodyToUpgrades(DROID *psDroid)
+{
+	unsigned changed = 0;
+	const UDWORD newMax = calcDroidBaseBody(psDroid);
+	const UDWORD oldMax = psDroid->originalBody;
+	if (newMax != oldMax && oldMax > 0)
+	{
+		const uint64_t body = static_cast<uint64_t>(psDroid->body) * newMax / oldMax;
+		psDroid->originalBody = newMax;
+		psDroid->body = static_cast<UDWORD>(std::clamp<uint64_t>(body, psDroid->body > 0 ? 1 : 0, newMax));
+		++changed;
+	}
+	if (psDroid->isTransporter() && psDroid->psGroup != nullptr)
+	{
+		for (DROID *psCurr : psDroid->psGroup->psList)
+		{
+			if (psCurr != psDroid)
+			{
+				changed += droidRescaleBodyToUpgrades(psCurr);
+			}
+		}
+	}
+	if (changed > 0)
+	{
+		psDroid->flags.set(OBJECT_FLAG_DIRTY, false); // drop research's pending +1 (droidBodyUpgrade, cargo included)
+	}
+	return changed;
 }
 
 // initialise droid module

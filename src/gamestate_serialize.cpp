@@ -756,7 +756,10 @@ static void readResearch(const nlohmann::ordered_json &j, uint32_t version, bool
 // It then adds the remainder that disk saves hold (remainder), what the tables and bookkeeping held beyond that
 // replay when the game was saved (upgrades set by scripts, research completed more than once, rounding).
 // With the same data, that gives back the saved tables exactly.
-// The saved tables then only tell whether the result differs, for the log.
+// The saved tables then only tell whether the result differs.
+// Disk saves also hold the base values they were saved with (base),
+// which with the saved tables give the absolute values even where a base value has changed since.
+// When the result differs, it's logged and existing droids and structures are adjusted (adjustObjectsToRecomputedUpgrades).
 // The self-repair flags are restored either way.
 
 constexpr uint32_t UPGRADES_SECTION_VERSION = 1;
@@ -1222,50 +1225,107 @@ static nlohmann::ordered_json writeUpgradeRemainder()
 	return j;
 }
 
-// The number of upgrade values (stat, player, field) that differ between two upgrade tables in saved form
-static size_t countUpgradeTableDifferences(const nlohmann::ordered_json &a, const nlohmann::ordered_json &b, const char *table)
+// Disk saves: the base values of every stat, an entry per stat with its id and all the fields
+template<typename Stats, typename Visit>
+static nlohmann::ordered_json writeUpgradeBaseTable(const Stats *stats, size_t count, Visit visit)
 {
-	using Key = std::pair<std::string, unsigned>;
-	const auto index = [table](const nlohmann::ordered_json &arr)
+	nlohmann::ordered_json arr = nlohmann::ordered_json::array();
+	for (size_t i = 0; i < count; ++i)
 	{
-		if (!arr.is_array())
-		{
-			throw StateError(std::string("upgrades.") + table + " must be an array");
-		}
-		std::map<Key, const nlohmann::ordered_json *> m;
-		for (const nlohmann::ordered_json &entry : arr)
-		{
-			m[{entry.at("id").get<std::string>(), entry.at("player").get<unsigned>()}] = &entry;
-		}
-		return m;
+		nlohmann::ordered_json entry = nlohmann::ordered_json::object();
+		entry["id"] = stats[i].id.toUtf8();
+		visit(stats[i].base, [&entry](const char *name, const auto &value) { entry[name] = value; });
+		arr.push_back(std::move(entry));
+	}
+	return arr;
+}
+
+// Reads the absolute upgrade tables a savegame held into saved (from wzapi::UpgradeTables::fromBase()):
+// its base values (arrBase), with the saved fields that differ from them (arr) on top.
+// arrBase is an array of writeUpgradeBaseTable entries, or null for a savegame without them
+// (the base values of the data loaded now then stand in).
+// Stats that no longer exist are skipped, and stats added since keep the base values loaded now.
+template<typename Stats, typename Visit, typename Table>
+static void readSavedUpgradeTable(const nlohmann::ordered_json &arr, const nlohmann::ordered_json *arrBase, const char *table,
+	const Stats *stats, size_t count, Table &saved, Visit visit)
+{
+	std::unordered_map<std::string, size_t> indexById;
+	for (size_t i = 0; i < count; ++i)
+	{
+		indexById.emplace(stats[i].id.toUtf8(), i);
+	}
+	const auto indexOf = [&indexById](const nlohmann::ordered_json &entry)
+	{
+		const auto found = indexById.find(entry.at("id").get<std::string>());
+		return found != indexById.end() ? found->second : SIZE_MAX;
 	};
-	const auto ma = index(a);
-	const auto mb = index(b);
-	std::set<Key> keys;
-	for (const auto &kv : ma) { keys.insert(kv.first); }
-	for (const auto &kv : mb) { keys.insert(kv.first); }
-	static const nlohmann::ordered_json none = nlohmann::ordered_json::object();
-	size_t differences = 0;
-	for (const Key &key : keys)
+	const auto apply = [&visit](auto &u, const nlohmann::ordered_json &entry)
 	{
-		const auto ia = ma.find(key);
-		const auto ib = mb.find(key);
-		const nlohmann::ordered_json &ea = ia == ma.end() ? none : *ia->second;
-		const nlohmann::ordered_json &eb = ib == mb.end() ? none : *ib->second;
-		std::set<std::string> fields;
-		for (auto it = ea.begin(); it != ea.end(); ++it) { fields.insert(it.key()); }
-		for (auto it = eb.begin(); it != eb.end(); ++it) { fields.insert(it.key()); }
-		fields.erase("id");
-		fields.erase("player");
-		for (const std::string &field : fields)
+		visit(u, [&entry](const char *name, auto &field)
 		{
-			const auto fa = ea.find(field);
-			const auto fb = eb.find(field);
-			if (fa == ea.end() || fb == eb.end() || *fa != *fb)
+			const auto value = entry.find(name);
+			if (value != entry.end())
+			{
+				field = value->template get<std::remove_reference_t<decltype(field)>>();
+			}
+		});
+	};
+	if (arrBase != nullptr)
+	{
+		if (!arrBase->is_array())
+		{
+			throw StateError(std::string("upgrades.base.") + table + " must be an array");
+		}
+		for (const nlohmann::ordered_json &entry : *arrBase)
+		{
+			const size_t i = indexOf(entry);
+			if (i == SIZE_MAX)
+			{
+				continue;
+			}
+			for (unsigned p = 0; p < MAX_PLAYERS; ++p)
+			{
+				apply(saved[i * MAX_PLAYERS + p], entry);
+			}
+		}
+	}
+	if (!arr.is_array())
+	{
+		throw StateError(std::string("upgrades.") + table + " must be an array");
+	}
+	for (const nlohmann::ordered_json &entry : arr)
+	{
+		const unsigned p = entry.at("player").get<unsigned>();
+		if (p >= MAX_PLAYERS)
+		{
+			throw StateError(std::string("upgrades.") + table + ": player out of range");
+		}
+		const size_t i = indexOf(entry);
+		if (i != SIZE_MAX)
+		{
+			apply(saved[i * MAX_PLAYERS + p], entry);
+		}
+	}
+}
+
+// The number of upgrade values (stat, player, field) that differ between two tables of a wzapi::UpgradeTables
+template<typename Table, typename Visit>
+static size_t countUpgradeTableDifferences(const Table &a, const Table &b, Visit visit)
+{
+	size_t differences = 0;
+	std::vector<nlohmann::ordered_json> values;
+	for (size_t k = 0; k < a.size(); ++k)
+	{
+		values.clear();
+		visit(a[k], [&values](const char *, const auto &value) { values.emplace_back(value); });
+		size_t field = 0;
+		visit(b[k], [&](const char *, const auto &value)
+		{
+			if (nlohmann::ordered_json(value) != values[field++])
 			{
 				++differences;
 			}
-		}
+		});
 	}
 	return differences;
 }
@@ -1298,12 +1358,27 @@ static nlohmann::ordered_json writeUpgrades(bool forSavegame)
 	if (forSavegame)
 	{
 		j["remainder"] = writeUpgradeRemainder();
+		nlohmann::ordered_json jbase = nlohmann::ordered_json::object();
+		forEachUpgradeTable([&jbase](const char *name, const auto *stats, size_t count, auto visit, auto, auto)
+		{
+			jbase[name] = writeUpgradeBaseTable(stats, count, visit);
+		});
+		j["base"] = std::move(jbase);
 	}
 	return j;
 }
 
+// What a cold load's recompute changed, for adjustObjectsToRecomputedUpgrades once the objects are restored
+struct RecomputedUpgrades
+{
+	bool changed = false;     // the recomputed tables differ from the saved ones
+	bool withoutBase = false; // the savegame has no base values (a change of only base values can't be seen)
+	std::vector<uint32_t> oldStructureHitpoints;  // saved maxima, index * MAX_PLAYERS + player (if changed)
+	std::vector<uint32_t> oldStructureResistance; // saved maxima, index * MAX_PLAYERS + player (if changed)
+};
+
 // recompute: a cold load (see the section comment)
-static void readUpgrades(const nlohmann::ordered_json &j, uint32_t version, bool recompute)
+static RecomputedUpgrades readUpgrades(const nlohmann::ordered_json &j, uint32_t version, bool recompute)
 {
 	if (version != UPGRADES_SECTION_VERSION)
 	{
@@ -1337,7 +1412,7 @@ static void readUpgrades(const nlohmann::ordered_json &j, uint32_t version, bool
 			b.rawUpgradeChange = jp.at("rawUpgradeChange").get<std::map<std::string, std::map<std::string, int64_t>>>();
 			setResearchUpgradeBookkeeping(p, b);
 		}
-		return;
+		return RecomputedUpgrades();
 	}
 
 	// Replay the completed research with the data loaded now, from the base values
@@ -1391,16 +1466,106 @@ static void readUpgrades(const nlohmann::ordered_json &j, uint32_t version, bool
 	}
 
 	// The saved tables, only to tell whether the result differs from them (the stats or research data changed)
-	size_t differences = 0;
-	forEachUpgradeTable([&jtables, &differences](const char *name, const auto *stats, size_t count, auto visit, auto, auto)
+	const nlohmann::ordered_json *jbase = j.contains("base") ? &j.at("base") : nullptr;
+	if (jbase != nullptr && !jbase->is_object())
 	{
-		differences += countUpgradeTableDifferences(jtables.at(name), writeUpgradeTable(stats, count, visit), name);
+		throw StateError("upgrades.base must be an object");
+	}
+	wzapi::UpgradeTables saved = wzapi::UpgradeTables::fromBase();
+	size_t differences = 0;
+	forEachUpgradeTable([&](const char *name, const auto *stats, size_t count, auto visit, auto, auto table)
+	{
+		const nlohmann::ordered_json *arrBase = jbase != nullptr ? &jbase->at(name) : nullptr;
+		readSavedUpgradeTable(jtables.at(name), arrBase, name, stats, count, table(saved), visit);
+		differences += countUpgradeTableDifferences(table(saved), table(tables), visit);
 	});
+	RecomputedUpgrades result;
+	result.withoutBase = jbase == nullptr;
 	if (differences > 0)
 	{
 		debug(LOG_INFO, "Research upgrades recomputed with the current stats and research data: %zu upgrade value(s) differ from this savegame"
 			" (the data changed since it was saved%s)", differences,
 			hasRemainder ? "" : ", or scripts had set upgrades, which this savegame doesn't record");
+		result.changed = true;
+		result.oldStructureHitpoints.reserve(saved.structure.size());
+		result.oldStructureResistance.reserve(saved.structure.size());
+		for (const auto &u : saved.structure)
+		{
+			result.oldStructureHitpoints.push_back(u.hitpoints);
+			result.oldStructureResistance.push_back(u.resistance);
+		}
+	}
+	return result;
+}
+
+// After a cold load whose recomputed upgrades differ from the saved ones,
+// the restored droids and structures have maxima the recomputed tables no longer match.
+// Brings them in line as if the data had always been so:
+// - the new maximum hitpoints, keeping the same fraction of hitpoints (droidRescaleBodyToUpgrades)
+// - the new maximum resistance where it went up (as research does), and no more than it where it went down
+// For a savegame without the base values, only caps structures at their maximum hitpoints and resistance.
+static void adjustObjectsToRecomputedUpgrades(const RecomputedUpgrades &r)
+{
+	unsigned droids = 0;
+	unsigned structures = 0;
+	unsigned resistance = 0;
+	for (unsigned p = 0; p < MAX_PLAYERS; ++p)
+	{
+		if (r.changed)
+		{
+			for (auto *list : {&gameWorld.objects.droids[p], &mission.gameWorld.objects.droids[p], &apsLimboDroids[p]})
+			{
+				for (DROID *psDroid : *list)
+				{
+					droids += droidRescaleBodyToUpgrades(psDroid);
+				}
+			}
+		}
+		for (auto *list : {&gameWorld.objects.structures[p], &mission.gameWorld.objects.structures[p]})
+		{
+			for (STRUCTURE *psStruct : *list)
+			{
+				const size_t k = static_cast<size_t>(psStruct->pStructureType - asStructureStats) * MAX_PLAYERS + psStruct->player;
+				const uint32_t newMax = psStruct->structureBody();
+				const uint32_t oldMax = r.changed ? r.oldStructureHitpoints[k] : newMax;
+				uint32_t body = psStruct->body;
+				if (oldMax != newMax && oldMax > 0)
+				{
+					body = static_cast<uint32_t>(std::clamp<uint64_t>(static_cast<uint64_t>(body) * newMax / oldMax, body > 0 ? 1 : 0, newMax));
+				}
+				else if (r.withoutBase)
+				{
+					body = std::min(body, newMax);
+				}
+				if (body != psStruct->body)
+				{
+					psStruct->body = body;
+					++structures;
+				}
+				const int newResistance = static_cast<int>(structureResistance(psStruct->pStructureType, psStruct->player));
+				const int oldResistance = r.changed ? static_cast<int>(r.oldStructureResistance[k]) : newResistance;
+				int res = psStruct->resistance;
+				if (newResistance > oldResistance)
+				{
+					res = newResistance;
+				}
+				else if (newResistance < oldResistance || r.withoutBase)
+				{
+					res = std::min(res, newResistance);
+				}
+				if (res != psStruct->resistance)
+				{
+					psStruct->resistance = res;
+					++resistance;
+				}
+			}
+		}
+	}
+	if (droids > 0 || structures > 0 || resistance > 0)
+	{
+		debug(LOG_INFO, "Adjusted existing objects to the recomputed research upgrades: %u droid(s) and %u structure(s) to their new"
+			" maximum hitpoints, %u structure(s) to their new maximum resistance",
+			droids, structures, resistance);
 	}
 }
 
@@ -6435,6 +6600,7 @@ void gameStateFromJson(const nlohmann::ordered_json &j, RestoreKind kind, Script
 		readResearch(sec, sec.value("version", 0u), /*replayUpgrades=*/!j.contains("upgrades"));
 	}
 	// Before the limits section, which sets the structure limits kept in the same upgrade tables
+	RecomputedUpgrades recomputedUpgrades;
 	if (j.contains("upgrades"))
 	{
 		debug(LOG_GAMESTATE_SERIAL, "restoring section: upgrades");
@@ -6443,7 +6609,7 @@ void gameStateFromJson(const nlohmann::ordered_json &j, RestoreKind kind, Script
 		// NOTE: A restore of a document from another machine, if one is ever added (ScriptScope::LocalPlayerOnly),
 		// must apply the saved tables like an in-process one (a RestoreKind of its own),
 		// or the machines may disagree about upgrades set by scripts.
-		readUpgrades(sec, sec.value("version", 0u), /*recompute=*/!inProcess);
+		recomputedUpgrades = readUpgrades(sec, sec.value("version", 0u), /*recompute=*/!inProcess);
 	}
 	// Per-player experience-gain multiplier. Reset to 100 at level init, so restore it here (after that
 	// reset, before/independent of object building - it only affects runtime combat XP, not construction).
@@ -6593,6 +6759,12 @@ void gameStateFromJson(const nlohmann::ordered_json &j, RestoreKind kind, Script
 	// formation's members re-attached, fail-soft on violations, and drop the attach stash.
 	debug(LOG_GAMESTATE_SERIAL, "post-pass: finalizeRestoredFormations");
 	finalizeRestoredFormations();
+	// Adjust the restored objects to the recomputed upgrades (before the coverage below)
+	if (recomputedUpgrades.changed || recomputedUpgrades.withoutBase)
+	{
+		debug(LOG_GAMESTATE_SERIAL, "post-pass: adjustObjectsToRecomputedUpgrades");
+		adjustObjectsToRecomputedUpgrades(recomputedUpgrades);
+	}
 	// Undo the foundation-flattening the object build path applied to the main-world terrain
 	// (see restampTerrainHeights). Done after all world/mission object restoration so no later
 	// structure build can re-perturb the authoritative saved terrain.
@@ -7231,8 +7403,8 @@ bool runGameStateSelfTest()
 		check(serializeGameState() == before, "upgrades: writing a savegame (its remainder) changed the game");
 		const nlohmann::ordered_json diskDoc = nlohmann::ordered_json::parse(diskText);
 		const nlohmann::ordered_json snapshotDoc = nlohmann::ordered_json::parse(before);
-		check(diskDoc.at("upgrades").contains("remainder"), "upgrades: a savegame must have the remainder");
-		check(!snapshotDoc.at("upgrades").contains("remainder"), "upgrades: a snapshot must not have the remainder");
+		check(diskDoc.at("upgrades").contains("remainder") && diskDoc.at("upgrades").contains("base"), "upgrades: a savegame must have the remainder and the base values");
+		check(!snapshotDoc.at("upgrades").contains("remainder") && !snapshotDoc.at("upgrades").contains("base"), "upgrades: a snapshot must not have the remainder or the base values");
 
 		const auto bookkeepingIs = [](const ResearchUpgradeBookkeeping &expected)
 		{

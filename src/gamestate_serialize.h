@@ -79,7 +79,7 @@ enum class ScriptScope
 };
 
 /// Build a JSON document representing the current live match state.
-/// forSavegame adds what a cold load needs beyond an in-process restore (the upgrades remainder).
+/// forSavegame adds what a cold load needs beyond an in-process restore (the upgrades remainder and base values).
 /// Building the remainder replays the completed research.
 nlohmann::ordered_json gameStateToJson(ScriptScope scriptScope = ScriptScope::AllInstances, bool forSavegame = false);
 
