@@ -517,38 +517,93 @@ static void reapplyPowerQueue(const nlohmann::ordered_json &j)
 }
 
 // MARK: - Section: research + default component availability
+// Stored by ID, so a savegame still loads after research topics or components were added or removed.
+// Entries added start as in a new game, and those removed are dropped.
+// Version 1 (by position) is still read, and must match the data loaded exactly.
 
-constexpr uint32_t RESEARCH_SECTION_VERSION = 1;
+constexpr uint32_t RESEARCH_SECTION_VERSION = 2;
+
+// The index of each stat by ID
+template<typename Stats>
+static std::unordered_map<std::string, size_t> indexStatsById(const Stats &stats, size_t count)
+{
+	std::unordered_map<std::string, size_t> index;
+	index.reserve(count);
+	for (size_t i = 0; i < count; ++i)
+	{
+		index.emplace(stats[i].id.toUtf8(), i);
+	}
+	return index;
+}
+
+// Logs the entries a restore by ID dropped (no longer in the data) and those it had none for (added since)
+static void logRestoredById(const char *what, size_t dropped, size_t added)
+{
+	if (dropped > 0 || added > 0)
+	{
+		debug(LOG_INFO, "Savegame %s matched by ID: %zu no longer exist and were dropped, %zu added since start as in a new game",
+			what, dropped, added);
+	}
+}
+
+// entry[key], which must have MAX_PLAYERS entries
+static const nlohmann::ordered_json &perPlayerArray(const nlohmann::ordered_json &entry, const char *key, const char *section)
+{
+	const nlohmann::ordered_json &arr = entry.at(key);
+	if (!arr.is_array() || arr.size() != MAX_PLAYERS)
+	{
+		throw StateError(std::string(section) + ": " + key + " must have MAX_PLAYERS entries");
+	}
+	return arr;
+}
+
+// A default component (aDefaultSensor, ...) as its stat ID
+// (or as its index when no stats of the type are loaded, as in the headless self-test, where it's never used)
+template<typename Stats>
+static nlohmann::ordered_json writeDefaultComponent(const Stats &stats, UDWORD index)
+{
+	if (index < stats.size())
+	{
+		return stats[index].id.toUtf8();
+	}
+	return index;
+}
 
 static nlohmann::ordered_json writeResearch()
 {
 	nlohmann::ordered_json j = nlohmann::ordered_json::object();
 	j["version"] = RESEARCH_SECTION_VERSION;
 
-	nlohmann::ordered_json jplayers = nlohmann::ordered_json::array();
-	for (unsigned p = 0; p < MAX_PLAYERS; ++p)
+	nlohmann::ordered_json jtopics = nlohmann::ordered_json::array();
+	for (size_t t = 0; t < asResearch.size(); ++t)
 	{
-		nlohmann::ordered_json jtopics = nlohmann::ordered_json::array();
-		for (const PLAYER_RESEARCH &r : asPlayerResList[p])
+		nlohmann::ordered_json jpoints = nlohmann::ordered_json::array();
+		nlohmann::ordered_json jstatus = nlohmann::ordered_json::array();
+		nlohmann::ordered_json jpossible = nlohmann::ordered_json::array();
+		for (unsigned p = 0; p < MAX_PLAYERS; ++p)
 		{
-			nlohmann::ordered_json jt = nlohmann::ordered_json::object();
-			jt["points"] = r.currentPoints;
-			jt["status"] = r.ResearchStatus;
-			jt["possible"] = r.possible;
-			jtopics.push_back(std::move(jt));
+			const PLAYER_RESEARCH &r = asPlayerResList[p][t];
+			jpoints.push_back(r.currentPoints);
+			jstatus.push_back(r.ResearchStatus);
+			jpossible.push_back(r.possible);
 		}
-		jplayers.push_back(std::move(jtopics));
+		nlohmann::ordered_json jt = nlohmann::ordered_json::object();
+		jt["id"] = asResearch[t].id.toUtf8();
+		jt["points"] = std::move(jpoints);
+		jt["status"] = std::move(jstatus);
+		jt["possible"] = std::move(jpossible);
+		jtopics.push_back(std::move(jt));
 	}
-	j["players"] = std::move(jplayers);
+	j["topics"] = std::move(jtopics);
 
 	nlohmann::ordered_json jsensor = nlohmann::ordered_json::array();
 	nlohmann::ordered_json jecm = nlohmann::ordered_json::array();
 	nlohmann::ordered_json jrepair = nlohmann::ordered_json::array();
 	for (unsigned p = 0; p < MAX_PLAYERS; ++p)
 	{
-		jsensor.push_back(aDefaultSensor[p]);
-		jecm.push_back(aDefaultECM[p]);
-		jrepair.push_back(aDefaultRepair[p]);
+		jsensor.push_back(writeDefaultComponent(asSensorStats, aDefaultSensor[p]));
+		jecm.push_back(writeDefaultComponent(asECMStats, aDefaultECM[p]));
+		jrepair.push_back(writeDefaultComponent(asRepairStats, aDefaultRepair[p]));
 	}
 	nlohmann::ordered_json jdef = nlohmann::ordered_json::object();
 	jdef["sensor"] = std::move(jsensor);
@@ -559,58 +614,98 @@ static nlohmann::ordered_json writeResearch()
 	return j;
 }
 
-// replayUpgrades: re-apply the upgrade effects of the completed research, for documents without an upgrades
-// section (written before it existed).
+// Sets a player's state of research topic t.
+// replayUpgrades re-applies the upgrade effects of completed research, for documents without an upgrades section.
+static void readResearchTopic(size_t t, unsigned p, uint32_t points, uint8_t status, uint8_t possible, bool replayUpgrades)
+{
+	PLAYER_RESEARCH &r = asPlayerResList[p][t];
+	const bool resAlreadyCompleted = IsResearchCompleted(&r);
+	r.currentPoints = points;
+	r.ResearchStatus = status;
+	r.possible = possible;
+	// Documents without an upgrades section: re-apply the UPGRADE EFFECTS of completed research.
+	// The derived upgrade values (structure/component power, research, production, body, ...) live
+	// in the global stat tables and, on a cold load, start at their un-researched defaults. Without
+	// this a loaded game runs with wrong rates - i.e. getBuildingPowerPoints (upgrade.power +
+	// upgrade.modulePower*capacity) is too low, so power generation, economy and research progress
+	// all diverge. Mirrors loadSaveResearch. The !resAlreadyCompleted guard avoids double-applying
+	// when the research is already applied in the live globals (the in-process round-trip).
+	// This replay is approximate: it misses upgrades set directly by scripts, and does not take back
+	// research completed after the snapshot (in-process restore). It raises no eventResearched and
+	// does not count the topics in the player stats again: the saving game already did both.
+	if (replayUpgrades && IsResearchCompleted(&r) && !resAlreadyCompleted)
+	{
+		researchResultRestore(static_cast<UDWORD>(t), static_cast<UBYTE>(p));
+	}
+}
+
+// replayUpgrades: as for readResearchTopic
 static void readResearch(const nlohmann::ordered_json &j, uint32_t version, bool replayUpgrades)
 {
-	if (version != RESEARCH_SECTION_VERSION)
+	if (version != 1 && version != RESEARCH_SECTION_VERSION)
 	{
 		throw StateError("unsupported research section version");
 	}
 
-	const nlohmann::ordered_json &jplayers = j.at("players");
-	if (!jplayers.is_array() || jplayers.size() != MAX_PLAYERS)
+	if (version == 1)
 	{
-		throw StateError("research.players must have MAX_PLAYERS entries");
-	}
-	for (unsigned p = 0; p < MAX_PLAYERS; ++p)
-	{
-		const nlohmann::ordered_json &jtopics = jplayers[p];
-		if (!jtopics.is_array())
+		const nlohmann::ordered_json &jplayers = j.at("players");
+		if (!jplayers.is_array() || jplayers.size() != MAX_PLAYERS)
 		{
-			throw StateError("research.players entry must be an array");
+			throw StateError("research.players must have MAX_PLAYERS entries");
 		}
-		// The topic count must match the loaded research definitions (same research data/mods).
-		if (jtopics.size() != asPlayerResList[p].size())
+		for (unsigned p = 0; p < MAX_PLAYERS; ++p)
 		{
-			throw StateError("research topic count mismatch (different research data/mods?)");
-		}
-		for (size_t t = 0; t < jtopics.size(); ++t)
-		{
-			PLAYER_RESEARCH &r = asPlayerResList[p][t];
-			const bool resAlreadyCompleted = IsResearchCompleted(&r);
-			r.currentPoints = jtopics[t].at("points").get<uint32_t>();
-			r.ResearchStatus = jtopics[t].at("status").get<uint8_t>();
-			r.possible = jtopics[t].at("possible").get<uint8_t>();
-			// Documents without an upgrades section: re-apply the UPGRADE EFFECTS of completed research.
-			// The derived upgrade values (structure/component power, research, production, body, ...) live
-			// in the global stat tables and, on a cold load, start at their un-researched defaults. Without
-			// this a loaded game runs with wrong rates - i.e. getBuildingPowerPoints (upgrade.power +
-			// upgrade.modulePower*capacity) is too low, so power generation, economy and research progress
-			// all diverge. Mirrors loadSaveResearch. The !resAlreadyCompleted guard avoids double-applying
-			// when the research is already applied in the live globals (the in-process round-trip).
-			// This replay is approximate: it misses upgrades set directly by scripts, and does not take back
-			// research completed after the snapshot (in-process restore). It raises no eventResearched and
-			// does not count the topics in the player stats again: the saving game already did both.
-			if (replayUpgrades && IsResearchCompleted(&r) && !resAlreadyCompleted)
+			const nlohmann::ordered_json &jtopics = jplayers[p];
+			if (!jtopics.is_array())
 			{
-				researchResultRestore(static_cast<UDWORD>(t), static_cast<UBYTE>(p));
+				throw StateError("research.players entry must be an array");
+			}
+			// The topic count must match the loaded research definitions (same research data/mods).
+			if (jtopics.size() != asPlayerResList[p].size())
+			{
+				throw StateError("research topic count mismatch (different research data/mods?)");
+			}
+			for (size_t t = 0; t < jtopics.size(); ++t)
+			{
+				readResearchTopic(t, p, jtopics[t].at("points").get<uint32_t>(), jtopics[t].at("status").get<uint8_t>(),
+					jtopics[t].at("possible").get<uint8_t>(), replayUpgrades);
 			}
 		}
 	}
+	else
+	{
+		const nlohmann::ordered_json &jtopics = j.at("topics");
+		if (!jtopics.is_array())
+		{
+			throw StateError("research.topics must be an array");
+		}
+		const auto indexById = indexStatsById(asResearch, asResearch.size());
+		size_t restored = 0;
+		size_t dropped = 0;
+		for (const nlohmann::ordered_json &jt : jtopics)
+		{
+			const auto found = indexById.find(jt.at("id").get<std::string>());
+			if (found == indexById.end())
+			{
+				++dropped;
+				continue;
+			}
+			++restored;
+			const nlohmann::ordered_json &jpoints = perPlayerArray(jt, "points", "research.topics");
+			const nlohmann::ordered_json &jstatus = perPlayerArray(jt, "status", "research.topics");
+			const nlohmann::ordered_json &jpossible = perPlayerArray(jt, "possible", "research.topics");
+			for (unsigned p = 0; p < MAX_PLAYERS; ++p)
+			{
+				readResearchTopic(found->second, p, jpoints[p].get<uint32_t>(), jstatus[p].get<uint8_t>(),
+					jpossible[p].get<uint8_t>(), replayUpgrades);
+			}
+		}
+		logRestoredById("research topics", dropped, asResearch.size() - restored);
+	}
 
 	const nlohmann::ordered_json &jdef = j.at("defaults");
-	const auto readDefaults = [&jdef](const char *key, UDWORD (&dst)[MAX_PLAYERS], size_t statCount)
+	const auto readDefaults = [&jdef](const char *key, UDWORD (&dst)[MAX_PLAYERS], const auto &stats)
 	{
 		const nlohmann::ordered_json &arr = jdef.at(key);
 		if (!arr.is_array() || arr.size() != MAX_PLAYERS)
@@ -619,20 +714,32 @@ static void readResearch(const nlohmann::ordered_json &j, uint32_t version, bool
 		}
 		for (unsigned p = 0; p < MAX_PLAYERS; ++p)
 		{
+			if (arr[p].is_string())
+			{
+				const WzString id = WzString::fromUtf8(arr[p].get<std::string>());
+				const auto found = std::find_if(stats.begin(), stats.end(), [&id](const auto &s) { return s.id == id; });
+				if (found == stats.end())
+				{
+					debug(LOG_INFO, "research.defaults: %s %s no longer exists, keeping the default of a new game", key, id.toUtf8().c_str());
+					continue;
+				}
+				dst[p] = static_cast<UDWORD>(found - stats.begin());
+				continue;
+			}
 			const UDWORD idx = arr[p].get<UDWORD>();
 			// The index is used to index the stat table later. Validate only when stats of this type are
-			// loaded (statCount == 0 is the degenerate no-data case, i.e. the headless self-test, where
+			// loaded (an empty table is the degenerate no-data case, i.e. the headless self-test, where
 			// the default is inert and never dereferenced).
-			if (statCount > 0 && idx >= statCount)
+			if (!stats.empty() && idx >= stats.size())
 			{
 				throw StateError("research.defaults component index out of range");
 			}
 			dst[p] = idx;
 		}
 	};
-	readDefaults("sensor", aDefaultSensor, asSensorStats.size());
-	readDefaults("ecm", aDefaultECM, asECMStats.size());
-	readDefaults("repair", aDefaultRepair, asRepairStats.size());
+	readDefaults("sensor", aDefaultSensor, asSensorStats);
+	readDefaults("ecm", aDefaultECM, asECMStats);
+	readDefaults("repair", aDefaultRepair, asRepairStats);
 }
 
 // MARK: - Section: stat upgrades
@@ -798,7 +905,7 @@ static void readUpgradeTable(const nlohmann::ordered_json &arr, const char *tabl
 		const auto found = indexById.find(id);
 		if (found == indexById.end())
 		{
-			throw StateError(std::string("upgrades.") + table + ": unknown stat id " + id + " (different stats/mods?)");
+			continue; // a stat that no longer exists (the availability section logs it)
 		}
 		const unsigned player = entry.at("player").get<unsigned>();
 		if (player >= MAX_PLAYERS)
@@ -900,8 +1007,81 @@ static void readUpgrades(const nlohmann::ordered_json &j, uint32_t version)
 }
 
 // MARK: - Section: component / structure-type availability
+// Stored by ID, like the research section (version 1, by position, is still read).
 
-constexpr uint32_t AVAILABILITY_SECTION_VERSION = 1;
+constexpr uint32_t AVAILABILITY_SECTION_VERSION = 2;
+
+// Stat i of component type c
+static const COMPONENT_STATS &compStatsAt(unsigned c, size_t i)
+{
+	switch (c)
+	{
+	case COMP_BODY:       return asBodyStats[i];
+	case COMP_BRAIN:      return asBrainStats[i];
+	case COMP_PROPULSION: return asPropulsionStats[i];
+	case COMP_REPAIRUNIT: return asRepairStats[i];
+	case COMP_ECM:        return asECMStats[i];
+	case COMP_SENSOR:     return asSensorStats[i];
+	case COMP_CONSTRUCT:  return asConstructStats[i];
+	case COMP_WEAPON:     return asWeaponStats[i];
+	default:              throw StateError("unknown component type");
+	}
+}
+
+// An entry per stat: its ID and a per-player array of value(stat, player)
+template<typename Id, typename Value>
+static nlohmann::ordered_json writePerPlayerById(size_t count, Id id, Value value)
+{
+	nlohmann::ordered_json arr = nlohmann::ordered_json::array();
+	for (size_t i = 0; i < count; ++i)
+	{
+		nlohmann::ordered_json jplayers = nlohmann::ordered_json::array();
+		for (unsigned p = 0; p < MAX_PLAYERS; ++p)
+		{
+			jplayers.push_back(value(i, p));
+		}
+		nlohmann::ordered_json entry = nlohmann::ordered_json::object();
+		entry["id"] = id(i);
+		entry["players"] = std::move(jplayers);
+		arr.push_back(std::move(entry));
+	}
+	return arr;
+}
+
+// Reads writePerPlayerById entries: assign(stat, player, value) for each stat the data loaded has.
+// Returns the number of entries dropped and of stats not in the savegame.
+template<typename Id, typename Assign>
+static std::pair<size_t, size_t> readPerPlayerById(const nlohmann::ordered_json &arr, const char *section, size_t count, Id id, Assign assign)
+{
+	if (!arr.is_array())
+	{
+		throw StateError(std::string(section) + " must be an array");
+	}
+	std::unordered_map<std::string, size_t> indexById;
+	indexById.reserve(count);
+	for (size_t i = 0; i < count; ++i)
+	{
+		indexById.emplace(id(i), i);
+	}
+	size_t restored = 0;
+	size_t dropped = 0;
+	for (const nlohmann::ordered_json &entry : arr)
+	{
+		const auto found = indexById.find(entry.at("id").get<std::string>());
+		if (found == indexById.end())
+		{
+			++dropped;
+			continue;
+		}
+		++restored;
+		const nlohmann::ordered_json &jplayers = perPlayerArray(entry, "players", section);
+		for (unsigned p = 0; p < MAX_PLAYERS; ++p)
+		{
+			assign(found->second, p, jplayers[p]);
+		}
+	}
+	return {dropped, count - restored};
+}
 
 static nlohmann::ordered_json writeAvailability()
 {
@@ -909,96 +1089,102 @@ static nlohmann::ordered_json writeAvailability()
 	j["version"] = AVAILABILITY_SECTION_VERSION;
 
 	nlohmann::ordered_json jcomp = nlohmann::ordered_json::array();
-	for (unsigned p = 0; p < MAX_PLAYERS; ++p)
+	for (unsigned c = 0; c < COMP_NUMCOMPONENTS; ++c)
 	{
-		nlohmann::ordered_json jplayer = nlohmann::ordered_json::array();
-		for (unsigned c = 0; c < COMP_NUMCOMPONENTS; ++c)
-		{
-			nlohmann::ordered_json jlist = nlohmann::ordered_json::array();
-			const size_t count = compStatCount(c);
-			for (size_t i = 0; i < count; ++i)
-			{
-				jlist.push_back(apCompLists[p][c][i]);
-			}
-			jplayer.push_back(std::move(jlist));
-		}
-		jcomp.push_back(std::move(jplayer));
+		jcomp.push_back(writePerPlayerById(compStatCount(c), [c](size_t i) { return compStatsAt(c, i).id.toUtf8(); },
+			[c](size_t i, unsigned p) { return apCompLists[p][c][i]; }));
 	}
 	j["comp"] = std::move(jcomp);
-
-	nlohmann::ordered_json jstruct = nlohmann::ordered_json::array();
-	for (unsigned p = 0; p < MAX_PLAYERS; ++p)
-	{
-		nlohmann::ordered_json jlist = nlohmann::ordered_json::array();
-		for (unsigned i = 0; i < numStructureStats; ++i)
-		{
-			jlist.push_back(apStructTypeLists[p][i]);
-		}
-		jstruct.push_back(std::move(jlist));
-	}
-	j["structType"] = std::move(jstruct);
+	j["structType"] = writePerPlayerById(numStructureStats, [](size_t i) { return asStructureStats[i].id.toUtf8(); },
+		[](size_t i, unsigned p) { return apStructTypeLists[p][i]; });
 
 	return j;
 }
 
 static void readAvailability(const nlohmann::ordered_json &j, uint32_t version)
 {
-	if (version != AVAILABILITY_SECTION_VERSION)
+	if (version != 1 && version != AVAILABILITY_SECTION_VERSION)
 	{
 		throw StateError("unsupported availability section version");
 	}
 
-	const nlohmann::ordered_json &jcomp = j.at("comp");
-	if (!jcomp.is_array() || jcomp.size() != MAX_PLAYERS)
+	if (version == 1)
 	{
-		throw StateError("availability.comp must have MAX_PLAYERS entries");
-	}
-	for (unsigned p = 0; p < MAX_PLAYERS; ++p)
-	{
-		const nlohmann::ordered_json &jplayer = jcomp[p];
-		if (!jplayer.is_array() || jplayer.size() != COMP_NUMCOMPONENTS)
+		const nlohmann::ordered_json &jcomp = j.at("comp");
+		if (!jcomp.is_array() || jcomp.size() != MAX_PLAYERS)
 		{
-			throw StateError("availability.comp player entry size mismatch");
+			throw StateError("availability.comp must have MAX_PLAYERS entries");
 		}
-		for (unsigned c = 0; c < COMP_NUMCOMPONENTS; ++c)
+		for (unsigned p = 0; p < MAX_PLAYERS; ++p)
 		{
-			const nlohmann::ordered_json &jlist = jplayer[c];
-			const size_t count = compStatCount(c);
-			if (!jlist.is_array() || jlist.size() != count)
+			const nlohmann::ordered_json &jplayer = jcomp[p];
+			if (!jplayer.is_array() || jplayer.size() != COMP_NUMCOMPONENTS)
 			{
-				throw StateError("availability.comp list size mismatch (different stats/mods?)");
+				throw StateError("availability.comp player entry size mismatch");
 			}
-			for (size_t i = 0; i < count; ++i)
+			for (unsigned c = 0; c < COMP_NUMCOMPONENTS; ++c)
 			{
-				apCompLists[p][c][i] = jlist[i].get<uint8_t>();
+				const nlohmann::ordered_json &jlist = jplayer[c];
+				const size_t count = compStatCount(c);
+				if (!jlist.is_array() || jlist.size() != count)
+				{
+					throw StateError("availability.comp list size mismatch (different stats/mods?)");
+				}
+				for (size_t i = 0; i < count; ++i)
+				{
+					apCompLists[p][c][i] = jlist[i].get<uint8_t>();
+				}
 			}
 		}
+
+		const nlohmann::ordered_json &jstruct = j.at("structType");
+		if (!jstruct.is_array() || jstruct.size() != MAX_PLAYERS)
+		{
+			throw StateError("availability.structType must have MAX_PLAYERS entries");
+		}
+		for (unsigned p = 0; p < MAX_PLAYERS; ++p)
+		{
+			const nlohmann::ordered_json &jlist = jstruct[p];
+			if (!jlist.is_array() || jlist.size() != numStructureStats)
+			{
+				throw StateError("availability.structType list size mismatch (different stats/mods?)");
+			}
+			for (unsigned i = 0; i < numStructureStats; ++i)
+			{
+				apStructTypeLists[p][i] = jlist[i].get<uint8_t>();
+			}
+		}
+		return;
 	}
 
-	const nlohmann::ordered_json &jstruct = j.at("structType");
-	if (!jstruct.is_array() || jstruct.size() != MAX_PLAYERS)
+	const nlohmann::ordered_json &jcomp = j.at("comp");
+	if (!jcomp.is_array() || jcomp.size() != COMP_NUMCOMPONENTS)
 	{
-		throw StateError("availability.structType must have MAX_PLAYERS entries");
+		throw StateError("availability.comp must have COMP_NUMCOMPONENTS entries");
 	}
-	for (unsigned p = 0; p < MAX_PLAYERS; ++p)
+	size_t compDropped = 0;
+	size_t compAdded = 0;
+	for (unsigned c = 0; c < COMP_NUMCOMPONENTS; ++c)
 	{
-		const nlohmann::ordered_json &jlist = jstruct[p];
-		if (!jlist.is_array() || jlist.size() != numStructureStats)
-		{
-			throw StateError("availability.structType list size mismatch (different stats/mods?)");
-		}
-		for (unsigned i = 0; i < numStructureStats; ++i)
-		{
-			apStructTypeLists[p][i] = jlist[i].get<uint8_t>();
-		}
+		const auto changed = readPerPlayerById(jcomp[c], "availability.comp", compStatCount(c),
+			[c](size_t i) { return compStatsAt(c, i).id.toUtf8(); },
+			[c](size_t i, unsigned p, const nlohmann::ordered_json &v) { apCompLists[p][c][i] = v.get<uint8_t>(); });
+		compDropped += changed.first;
+		compAdded += changed.second;
 	}
+	logRestoredById("components", compDropped, compAdded);
+	const auto structChanged = readPerPlayerById(j.at("structType"), "availability.structType", numStructureStats,
+		[](size_t i) { return asStructureStats[i].id.toUtf8(); },
+		[](size_t i, unsigned p, const nlohmann::ordered_json &v) { apStructTypeLists[p][i] = v.get<uint8_t>(); });
+	logRestoredById("structures", structChanged.first, structChanged.second);
 }
 
 // MARK: - Section: limits
 // Authoritative caps only. Per-structure curCount is derivable from the object lists and
 // is rebuilt in a later phase, so it is not serialized here.
+// The structure limits are stored by ID, like the research section (version 1, by position, is still read).
 
-constexpr uint32_t LIMITS_SECTION_VERSION = 1;
+constexpr uint32_t LIMITS_SECTION_VERSION = 2;
 
 static nlohmann::ordered_json writeLimits()
 {
@@ -1019,24 +1205,15 @@ static nlohmann::ordered_json writeLimits()
 	j["maxConstructors"] = std::move(jconstr);
 
 	// Per-structure-type, per-player build limit (the live, possibly-upgraded value).
-	nlohmann::ordered_json jstructLimits = nlohmann::ordered_json::array();
-	for (unsigned i = 0; i < numStructureStats; ++i)
-	{
-		nlohmann::ordered_json row = nlohmann::ordered_json::array();
-		for (unsigned p = 0; p < MAX_PLAYERS; ++p)
-		{
-			row.push_back(asStructureStats[i].upgrade[p].limit);
-		}
-		jstructLimits.push_back(std::move(row));
-	}
-	j["structLimits"] = std::move(jstructLimits);
+	j["structLimits"] = writePerPlayerById(numStructureStats, [](size_t i) { return asStructureStats[i].id.toUtf8(); },
+		[](size_t i, unsigned p) { return asStructureStats[i].upgrade[p].limit; });
 
 	return j;
 }
 
 static void readLimits(const nlohmann::ordered_json &j, uint32_t version)
 {
-	if (version != LIMITS_SECTION_VERSION)
+	if (version != 1 && version != LIMITS_SECTION_VERSION)
 	{
 		throw StateError("unsupported limits section version");
 	}
@@ -1058,22 +1235,30 @@ static void readLimits(const nlohmann::ordered_json &j, uint32_t version)
 	readPerPlayer("maxConstructors", setMaxConstructors);
 
 	const nlohmann::ordered_json &jstructLimits = j.at("structLimits");
-	if (!jstructLimits.is_array() || jstructLimits.size() != numStructureStats)
+	if (version == 1)
 	{
-		throw StateError("limits.structLimits size mismatch (different stats/mods?)");
-	}
-	for (unsigned i = 0; i < numStructureStats; ++i)
-	{
-		const nlohmann::ordered_json &row = jstructLimits[i];
-		if (!row.is_array() || row.size() != MAX_PLAYERS)
+		if (!jstructLimits.is_array() || jstructLimits.size() != numStructureStats)
 		{
-			throw StateError("limits.structLimits row size mismatch");
+			throw StateError("limits.structLimits size mismatch (different stats/mods?)");
 		}
-		for (unsigned p = 0; p < MAX_PLAYERS; ++p)
+		for (unsigned i = 0; i < numStructureStats; ++i)
 		{
-			asStructureStats[i].upgrade[p].limit = row[p].get<uint32_t>();
+			const nlohmann::ordered_json &row = jstructLimits[i];
+			if (!row.is_array() || row.size() != MAX_PLAYERS)
+			{
+				throw StateError("limits.structLimits row size mismatch");
+			}
+			for (unsigned p = 0; p < MAX_PLAYERS; ++p)
+			{
+				asStructureStats[i].upgrade[p].limit = row[p].get<uint32_t>();
+			}
 		}
+		return;
 	}
+	// (the availability section logs structures added or removed)
+	readPerPlayerById(jstructLimits, "limits.structLimits", numStructureStats,
+		[](size_t i) { return asStructureStats[i].id.toUtf8(); },
+		[](size_t i, unsigned p, const nlohmann::ordered_json &v) { asStructureStats[i].upgrade[p].limit = v.get<uint32_t>(); });
 }
 
 // MARK: - Section: droid templates
@@ -1854,20 +2039,16 @@ static STRUCTURE *readStructurePass1(GameWorld &world, const nlohmann::ordered_j
 			}
 			else
 			{
-				throw StateError("unknown research target: " + resId.toStdString());
+				debug(LOG_INFO, "Research topic %s no longer exists, so the research facility researching it goes idle", resId.toUtf8().c_str());
 			}
 		}
 		if (jr.contains("bestTopic"))
 		{
 			const WzString bestId = WzString::fromUtf8(jr.at("bestTopic").get<std::string>());
 			const int bestIdx = findResearchIndexById(bestId);
-			if (bestIdx >= 0)
+			if (bestIdx >= 0) // unless the topic no longer exists
 			{
 				r->psBestTopic = &asResearch[bestIdx];
-			}
-			else
-			{
-				throw StateError("unknown research bestTopic: " + bestId.toStdString());
 			}
 		}
 	}
