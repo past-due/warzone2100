@@ -175,6 +175,9 @@ fi
 if echo "statsedit" | grep -qE "$FILTER"; then
 	"$HERE/statsedit.sh" "$BIN"
 fi
+if echo "researchedit" | grep -qE "$FILTER"; then
+	"$HERE/researchedit.sh" "$BIN"
+fi
 if echo "replayrewind" | grep -qE "$FILTER"; then
 	echo "$REPLAY_CELLS" | while read -r cell; do
 		[ -n "$cell" ] || continue

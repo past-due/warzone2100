@@ -100,6 +100,8 @@
 
 #include <vector>
 #include <algorithm>
+#include <functional>
+#include <limits>
 #include <map>
 #include <type_traits>
 #include <array>
@@ -747,6 +749,15 @@ static void readResearch(const nlohmann::ordered_json &j, uint32_t version, bool
 // change through Upgrades[player]), and the research bookkeeping kept next to them.
 // Saved as the fields that differ from the stat's base values.
 // The structure build limit is part of the same table, but has its own section (limits).
+//
+// An in-process restore (rewind, replay seek) applies the saved tables and bookkeeping as they are.
+// A cold load instead replays the completed research with the stats and research data loaded then
+// (replayResearchUpgradeTables), so research results or base stats changed since the save take effect.
+// It then adds the remainder that disk saves hold (remainder), what the tables and bookkeeping held beyond that
+// replay when the game was saved (upgrades set by scripts, research completed more than once, rounding).
+// With the same data, that gives back the saved tables exactly.
+// The saved tables then only tell whether the result differs, for the log.
+// The self-repair flags are restored either way.
 
 constexpr uint32_t UPGRADES_SECTION_VERSION = 1;
 
@@ -929,21 +940,346 @@ static void readUpgradeTable(const nlohmann::ordered_json &arr, const char *tabl
 	}
 }
 
-static nlohmann::ordered_json writeUpgrades()
+// Calls f(name, stats, count, visit, assign, table) for each upgrade table, in the saved order.
+// assign(stat, player, u) sets the player's upgrades of the stat to u
+// (for structures all but the limit, which the limits section restores).
+// table(tables) is the table's entries in a wzapi::UpgradeTables.
+template<typename F>
+static void forEachUpgradeTable(F &&f)
+{
+	const auto assign = [](auto &stats, unsigned p, const auto &u) { stats.upgrade[p] = u; };
+	f("Body", asBodyStats.data(), asBodyStats.size(), [](auto &u, auto &&v) { visitBodyUpgrade(u, v); }, assign, [](auto &t) -> auto & { return t.body; });
+	f("Brain", asBrainStats.data(), asBrainStats.size(), [](auto &u, auto &&v) { visitBrainUpgrade(u, v); }, assign, [](auto &t) -> auto & { return t.brain; });
+	f("Propulsion", asPropulsionStats.data(), asPropulsionStats.size(), [](auto &u, auto &&v) { visitPropulsionUpgrade(u, v); }, assign, [](auto &t) -> auto & { return t.propulsion; });
+	f("Sensor", asSensorStats.data(), asSensorStats.size(), [](auto &u, auto &&v) { visitRangeUpgrade(u, v); }, assign, [](auto &t) -> auto & { return t.sensor; });
+	f("ECM", asECMStats.data(), asECMStats.size(), [](auto &u, auto &&v) { visitRangeUpgrade(u, v); }, assign, [](auto &t) -> auto & { return t.ecm; });
+	f("Repair", asRepairStats.data(), asRepairStats.size(), [](auto &u, auto &&v) { visitRepairUpgrade(u, v); }, assign, [](auto &t) -> auto & { return t.repair; });
+	f("Weapon", asWeaponStats.data(), asWeaponStats.size(), [](auto &u, auto &&v) { visitWeaponUpgrade(u, v); }, assign, [](auto &t) -> auto & { return t.weapon; });
+	f("Construct", asConstructStats.data(), asConstructStats.size(), [](auto &u, auto &&v) { visitConstructUpgrade(u, v); }, assign, [](auto &t) -> auto & { return t.construct; });
+	f("Building", asStructureStats, numStructureStats, [](auto &u, auto &&v) { visitStructureUpgrade(u, v); },
+		[](STRUCTURE_STATS &stats, unsigned p, const auto &u)
+		{
+			const unsigned limit = stats.upgrade[p].limit;
+			stats.upgrade[p] = u;
+			stats.upgrade[p].limit = limit;
+		},
+		[](auto &t) -> auto & { return t.structure; });
+}
+
+// live minus replayed, for a value of an upgrade field in saved form (an integer or an array of integers).
+// Null if they're equal.
+static nlohmann::ordered_json upgradeDelta(const nlohmann::ordered_json &live, const nlohmann::ordered_json &replayed)
+{
+	if (live.is_array())
+	{
+		nlohmann::ordered_json d = nlohmann::ordered_json::array();
+		bool any = false;
+		for (size_t x = 0; x < live.size(); ++x)
+		{
+			const int64_t v = live[x].get<int64_t>() - (x < replayed.size() ? replayed[x].get<int64_t>() : 0);
+			any = any || v != 0;
+			d.push_back(v);
+		}
+		return any ? d : nlohmann::ordered_json();
+	}
+	const int64_t v = live.get<int64_t>() - replayed.get<int64_t>();
+	return v != 0 ? nlohmann::ordered_json(v) : nlohmann::ordered_json();
+}
+
+template<typename T>
+static std::enable_if_t<std::is_integral<T>::value> addUpgradeDelta(T &field, const nlohmann::ordered_json &delta)
+{
+	static_assert(sizeof(T) < sizeof(int64_t), "upgrade fields are expected to fit in an int64_t with room to add");
+	const int64_t v = static_cast<int64_t>(field) + delta.get<int64_t>();
+	field = static_cast<T>(std::clamp<int64_t>(v, std::numeric_limits<T>::min(), std::numeric_limits<T>::max()));
+}
+
+static void addUpgradeDelta(std::vector<int> &field, const nlohmann::ordered_json &delta)
+{
+	if (!delta.is_array())
+	{
+		throw StateError("upgrades.remainder: an array field's difference must be an array");
+	}
+	for (size_t x = 0; x < field.size() && x < delta.size(); ++x)
+	{
+		addUpgradeDelta(field[x], delta[x]);
+	}
+}
+
+// The remainder of a table: an entry per (stat, player) whose live upgrades differ from replayed
+// (entry index * MAX_PLAYERS + player), holding the differences of those fields.
+template<typename Stats, typename Upgrade, typename Visit>
+static nlohmann::ordered_json writeUpgradeRemainderTable(const Stats *stats, size_t count, const std::vector<Upgrade> &replayed, Visit visit)
+{
+	std::vector<nlohmann::ordered_json> replayedValues;
+	nlohmann::ordered_json arr = nlohmann::ordered_json::array();
+	for (size_t i = 0; i < count; ++i)
+	{
+		for (unsigned p = 0; p < MAX_PLAYERS; ++p)
+		{
+			replayedValues.clear();
+			visit(replayed[i * MAX_PLAYERS + p], [&replayedValues](const char *, const auto &value) { replayedValues.emplace_back(value); });
+			nlohmann::ordered_json entry;
+			size_t field = 0;
+			visit(stats[i].upgrade[p], [&](const char *name, const auto &value)
+			{
+				nlohmann::ordered_json d = upgradeDelta(nlohmann::ordered_json(value), replayedValues[field++]);
+				if (!d.is_null())
+				{
+					if (entry.is_null())
+					{
+						entry = nlohmann::ordered_json::object();
+						entry["id"] = stats[i].id.toUtf8();
+						entry["player"] = p;
+					}
+					entry[name] = std::move(d);
+				}
+			});
+			if (!entry.is_null())
+			{
+				arr.push_back(std::move(entry));
+			}
+		}
+	}
+	return arr;
+}
+
+// Adds a table's remainder to replayed (entry index * MAX_PLAYERS + player), skipping stats that no longer exist.
+template<typename Stats, typename Upgrade, typename Visit>
+static void addUpgradeRemainderTable(const nlohmann::ordered_json &arr, const char *table, const Stats *stats, size_t count, std::vector<Upgrade> &replayed, Visit visit)
+{
+	if (!arr.is_array())
+	{
+		throw StateError(std::string("upgrades.remainder.") + table + " must be an array");
+	}
+	std::unordered_map<std::string, size_t> indexById;
+	for (size_t i = 0; i < count; ++i)
+	{
+		indexById.emplace(stats[i].id.toUtf8(), i);
+	}
+	for (const nlohmann::ordered_json &entry : arr)
+	{
+		const std::string id = entry.at("id").get<std::string>();
+		const auto found = indexById.find(id);
+		if (found == indexById.end())
+		{
+			continue;
+		}
+		const unsigned player = entry.at("player").get<unsigned>();
+		if (player >= MAX_PLAYERS)
+		{
+			throw StateError(std::string("upgrades.remainder.") + table + ": player out of range");
+		}
+		size_t applied = 0;
+		visit(replayed[found->second * MAX_PLAYERS + player], [&entry, &applied](const char *name, auto &field)
+		{
+			const auto delta = entry.find(name);
+			if (delta != entry.end())
+			{
+				addUpgradeDelta(field, *delta);
+				++applied;
+			}
+		});
+		if (applied + 2 != entry.size()) // id, player and known fields only
+		{
+			throw StateError(std::string("upgrades.remainder.") + table + ": unknown upgrade field for " + id);
+		}
+	}
+}
+
+// live minus replayed per key of a bookkeeping map (key -> integer), null for a key only replayed has.
+// Adding them to replayed gives back live exactly.
+template<typename Map>
+static nlohmann::ordered_json bookkeepingDelta(const Map &live, const Map &replayed)
+{
+	nlohmann::ordered_json d = nlohmann::ordered_json::object();
+	for (const auto &kv : live)
+	{
+		const auto found = replayed.find(kv.first);
+		if (found == replayed.end() || found->second != kv.second)
+		{
+			d[kv.first] = static_cast<int64_t>(kv.second) - (found == replayed.end() ? 0 : static_cast<int64_t>(found->second));
+		}
+	}
+	for (const auto &kv : replayed)
+	{
+		if (live.find(kv.first) == live.end())
+		{
+			d[kv.first] = nullptr;
+		}
+	}
+	return d;
+}
+
+template<typename Map>
+static void addBookkeepingDelta(Map &map, const nlohmann::ordered_json &delta)
+{
+	using Value = typename Map::mapped_type;
+	if (!delta.is_object())
+	{
+		throw StateError("upgrades.remainder: a bookkeeping difference must be an object");
+	}
+	for (auto it = delta.begin(); it != delta.end(); ++it)
+	{
+		if (it.value().is_null())
+		{
+			map.erase(it.key());
+			continue;
+		}
+		Value &value = map[it.key()];
+		const int64_t v = static_cast<int64_t>(value) + it.value().get<int64_t>();
+		value = static_cast<Value>(std::clamp<int64_t>(v, std::numeric_limits<Value>::min(), std::numeric_limits<Value>::max()));
+	}
+}
+
+// The remainder of one player's bookkeeping (empty if none)
+static nlohmann::ordered_json writeBookkeepingRemainder(const ResearchUpgradeBookkeeping &live, const ResearchUpgradeBookkeeping &replayed)
+{
+	nlohmann::ordered_json j = nlohmann::ordered_json::object();
+	const auto add = [&j](const char *name, nlohmann::ordered_json d) { if (!d.empty()) { j[name] = std::move(d); } };
+	add("armourUpgrades", bookkeepingDelta(live.numBodyClassArmourUpgrades, replayed.numBodyClassArmourUpgrades));
+	add("thermalUpgrades", bookkeepingDelta(live.numBodyClassThermalUpgrades, replayed.numBodyClassThermalUpgrades));
+	add("weaponImpactUpgrades", bookkeepingDelta(live.numWeaponImpactClassUpgrades, replayed.numWeaponImpactClassUpgrades));
+	nlohmann::ordered_json raw = nlohmann::ordered_json::object();
+	static const std::map<std::string, int64_t> none;
+	for (const auto &comp : live.rawUpgradeChange)
+	{
+		const auto found = replayed.rawUpgradeChange.find(comp.first);
+		nlohmann::ordered_json d = bookkeepingDelta(comp.second, found == replayed.rawUpgradeChange.end() ? none : found->second);
+		if (!d.empty() || found == replayed.rawUpgradeChange.end())
+		{
+			raw[comp.first] = std::move(d);
+		}
+	}
+	for (const auto &comp : replayed.rawUpgradeChange)
+	{
+		if (live.rawUpgradeChange.find(comp.first) == live.rawUpgradeChange.end())
+		{
+			raw[comp.first] = nullptr;
+		}
+	}
+	add("rawUpgradeChange", std::move(raw));
+	return j;
+}
+
+static void addBookkeepingRemainder(ResearchUpgradeBookkeeping &b, const nlohmann::ordered_json &j)
+{
+	if (j.contains("armourUpgrades")) { addBookkeepingDelta(b.numBodyClassArmourUpgrades, j.at("armourUpgrades")); }
+	if (j.contains("thermalUpgrades")) { addBookkeepingDelta(b.numBodyClassThermalUpgrades, j.at("thermalUpgrades")); }
+	if (j.contains("weaponImpactUpgrades")) { addBookkeepingDelta(b.numWeaponImpactClassUpgrades, j.at("weaponImpactUpgrades")); }
+	if (j.contains("rawUpgradeChange"))
+	{
+		const nlohmann::ordered_json &raw = j.at("rawUpgradeChange");
+		if (!raw.is_object())
+		{
+			throw StateError("upgrades.remainder: rawUpgradeChange must be an object");
+		}
+		for (auto it = raw.begin(); it != raw.end(); ++it)
+		{
+			if (it.value().is_null())
+			{
+				b.rawUpgradeChange.erase(it.key());
+			}
+			else
+			{
+				addBookkeepingDelta(b.rawUpgradeChange[it.key()], it.value());
+			}
+		}
+	}
+}
+
+// Disk saves: the remainder (the completed research is replayed into separate tables, not the game's)
+static nlohmann::ordered_json writeUpgradeRemainder()
+{
+	wzapi::UpgradeTables replayed = wzapi::UpgradeTables::fromBase();
+	std::vector<ResearchUpgradeBookkeeping> replayedBookkeeping;
+	replayResearchUpgradeTables(replayed, replayedBookkeeping);
+
+	nlohmann::ordered_json j = nlohmann::ordered_json::object();
+	nlohmann::ordered_json tables = nlohmann::ordered_json::object();
+	forEachUpgradeTable([&tables, &replayed](const char *name, const auto *stats, size_t count, auto visit, auto, auto table)
+	{
+		nlohmann::ordered_json arr = writeUpgradeRemainderTable(stats, count, table(replayed), visit);
+		if (!arr.empty())
+		{
+			tables[name] = std::move(arr);
+		}
+	});
+	j["tables"] = std::move(tables);
+	nlohmann::ordered_json players = nlohmann::ordered_json::array();
+	for (unsigned p = 0; p < MAX_PLAYERS; ++p)
+	{
+		nlohmann::ordered_json jp = writeBookkeepingRemainder(getResearchUpgradeBookkeeping(p), replayedBookkeeping[p]);
+		if (!jp.empty())
+		{
+			nlohmann::ordered_json entry = nlohmann::ordered_json::object();
+			entry["player"] = p;
+			entry.update(jp);
+			players.push_back(std::move(entry));
+		}
+	}
+	j["players"] = std::move(players);
+	return j;
+}
+
+// The number of upgrade values (stat, player, field) that differ between two upgrade tables in saved form
+static size_t countUpgradeTableDifferences(const nlohmann::ordered_json &a, const nlohmann::ordered_json &b, const char *table)
+{
+	using Key = std::pair<std::string, unsigned>;
+	const auto index = [table](const nlohmann::ordered_json &arr)
+	{
+		if (!arr.is_array())
+		{
+			throw StateError(std::string("upgrades.") + table + " must be an array");
+		}
+		std::map<Key, const nlohmann::ordered_json *> m;
+		for (const nlohmann::ordered_json &entry : arr)
+		{
+			m[{entry.at("id").get<std::string>(), entry.at("player").get<unsigned>()}] = &entry;
+		}
+		return m;
+	};
+	const auto ma = index(a);
+	const auto mb = index(b);
+	std::set<Key> keys;
+	for (const auto &kv : ma) { keys.insert(kv.first); }
+	for (const auto &kv : mb) { keys.insert(kv.first); }
+	static const nlohmann::ordered_json none = nlohmann::ordered_json::object();
+	size_t differences = 0;
+	for (const Key &key : keys)
+	{
+		const auto ia = ma.find(key);
+		const auto ib = mb.find(key);
+		const nlohmann::ordered_json &ea = ia == ma.end() ? none : *ia->second;
+		const nlohmann::ordered_json &eb = ib == mb.end() ? none : *ib->second;
+		std::set<std::string> fields;
+		for (auto it = ea.begin(); it != ea.end(); ++it) { fields.insert(it.key()); }
+		for (auto it = eb.begin(); it != eb.end(); ++it) { fields.insert(it.key()); }
+		fields.erase("id");
+		fields.erase("player");
+		for (const std::string &field : fields)
+		{
+			const auto fa = ea.find(field);
+			const auto fb = eb.find(field);
+			if (fa == ea.end() || fb == eb.end() || *fa != *fb)
+			{
+				++differences;
+			}
+		}
+	}
+	return differences;
+}
+
+static nlohmann::ordered_json writeUpgrades(bool forSavegame)
 {
 	nlohmann::ordered_json j = nlohmann::ordered_json::object();
 	j["version"] = UPGRADES_SECTION_VERSION;
 
 	nlohmann::ordered_json jtables = nlohmann::ordered_json::object();
-	jtables["Body"] = writeUpgradeTable(asBodyStats.data(), asBodyStats.size(), [](const auto &u, auto &&f) { visitBodyUpgrade(u, f); });
-	jtables["Brain"] = writeUpgradeTable(asBrainStats.data(), asBrainStats.size(), [](const auto &u, auto &&f) { visitBrainUpgrade(u, f); });
-	jtables["Propulsion"] = writeUpgradeTable(asPropulsionStats.data(), asPropulsionStats.size(), [](const auto &u, auto &&f) { visitPropulsionUpgrade(u, f); });
-	jtables["Sensor"] = writeUpgradeTable(asSensorStats.data(), asSensorStats.size(), [](const auto &u, auto &&f) { visitRangeUpgrade(u, f); });
-	jtables["ECM"] = writeUpgradeTable(asECMStats.data(), asECMStats.size(), [](const auto &u, auto &&f) { visitRangeUpgrade(u, f); });
-	jtables["Repair"] = writeUpgradeTable(asRepairStats.data(), asRepairStats.size(), [](const auto &u, auto &&f) { visitRepairUpgrade(u, f); });
-	jtables["Weapon"] = writeUpgradeTable(asWeaponStats.data(), asWeaponStats.size(), [](const auto &u, auto &&f) { visitWeaponUpgrade(u, f); });
-	jtables["Construct"] = writeUpgradeTable(asConstructStats.data(), asConstructStats.size(), [](const auto &u, auto &&f) { visitConstructUpgrade(u, f); });
-	jtables["Building"] = writeUpgradeTable(asStructureStats, numStructureStats, [](const auto &u, auto &&f) { visitStructureUpgrade(u, f); });
+	forEachUpgradeTable([&jtables](const char *name, const auto *stats, size_t count, auto visit, auto, auto)
+	{
+		jtables[name] = writeUpgradeTable(stats, count, visit);
+	});
 	j["tables"] = std::move(jtables);
 
 	nlohmann::ordered_json jplayers = nlohmann::ordered_json::array();
@@ -959,10 +1295,15 @@ static nlohmann::ordered_json writeUpgrades()
 		jplayers.push_back(std::move(jp));
 	}
 	j["players"] = std::move(jplayers);
+	if (forSavegame)
+	{
+		j["remainder"] = writeUpgradeRemainder();
+	}
 	return j;
 }
 
-static void readUpgrades(const nlohmann::ordered_json &j, uint32_t version)
+// recompute: a cold load (see the section comment)
+static void readUpgrades(const nlohmann::ordered_json &j, uint32_t version, bool recompute)
 {
 	if (version != UPGRADES_SECTION_VERSION)
 	{
@@ -970,24 +1311,6 @@ static void readUpgrades(const nlohmann::ordered_json &j, uint32_t version)
 	}
 
 	const nlohmann::ordered_json &jtables = j.at("tables");
-	const auto resetTo = [](auto &stats, unsigned p) { stats.upgrade[p] = stats.base; };
-	readUpgradeTable(jtables.at("Body"), "Body", asBodyStats.data(), asBodyStats.size(), [](auto &u, auto &&f) { visitBodyUpgrade(u, f); }, resetTo);
-	readUpgradeTable(jtables.at("Brain"), "Brain", asBrainStats.data(), asBrainStats.size(), [](auto &u, auto &&f) { visitBrainUpgrade(u, f); }, resetTo);
-	readUpgradeTable(jtables.at("Propulsion"), "Propulsion", asPropulsionStats.data(), asPropulsionStats.size(), [](auto &u, auto &&f) { visitPropulsionUpgrade(u, f); }, resetTo);
-	readUpgradeTable(jtables.at("Sensor"), "Sensor", asSensorStats.data(), asSensorStats.size(), [](auto &u, auto &&f) { visitRangeUpgrade(u, f); }, resetTo);
-	readUpgradeTable(jtables.at("ECM"), "ECM", asECMStats.data(), asECMStats.size(), [](auto &u, auto &&f) { visitRangeUpgrade(u, f); }, resetTo);
-	readUpgradeTable(jtables.at("Repair"), "Repair", asRepairStats.data(), asRepairStats.size(), [](auto &u, auto &&f) { visitRepairUpgrade(u, f); }, resetTo);
-	readUpgradeTable(jtables.at("Weapon"), "Weapon", asWeaponStats.data(), asWeaponStats.size(), [](auto &u, auto &&f) { visitWeaponUpgrade(u, f); }, resetTo);
-	readUpgradeTable(jtables.at("Construct"), "Construct", asConstructStats.data(), asConstructStats.size(), [](auto &u, auto &&f) { visitConstructUpgrade(u, f); }, resetTo);
-	// Structures: the limit is left alone (restored by the limits section)
-	readUpgradeTable(jtables.at("Building"), "Building", asStructureStats, numStructureStats, [](auto &u, auto &&f) { visitStructureUpgrade(u, f); },
-		[](STRUCTURE_STATS &stats, unsigned p)
-		{
-			const unsigned limit = stats.upgrade[p].limit;
-			stats.upgrade[p] = stats.base;
-			stats.upgrade[p].limit = limit;
-		});
-
 	const nlohmann::ordered_json &jplayers = j.at("players");
 	if (!jplayers.is_array() || jplayers.size() != MAX_PLAYERS)
 	{
@@ -995,14 +1318,89 @@ static void readUpgrades(const nlohmann::ordered_json &j, uint32_t version)
 	}
 	for (unsigned p = 0; p < MAX_PLAYERS; ++p)
 	{
-		const nlohmann::ordered_json &jp = jplayers[p];
-		ResearchUpgradeBookkeeping b;
-		b.numBodyClassArmourUpgrades = jp.at("armourUpgrades").get<std::map<std::string, uint32_t>>();
-		b.numBodyClassThermalUpgrades = jp.at("thermalUpgrades").get<std::map<std::string, uint32_t>>();
-		b.numWeaponImpactClassUpgrades = jp.at("weaponImpactUpgrades").get<std::map<std::string, uint32_t>>();
-		b.rawUpgradeChange = jp.at("rawUpgradeChange").get<std::map<std::string, std::map<std::string, int64_t>>>();
-		setResearchUpgradeBookkeeping(p, b);
-		setSelfRepairEnabled(static_cast<UBYTE>(p), jp.at("selfRepair").get<bool>());
+		setSelfRepairEnabled(static_cast<UBYTE>(p), jplayers[p].at("selfRepair").get<bool>());
+	}
+
+	if (!recompute)
+	{
+		forEachUpgradeTable([&jtables](const char *name, auto *stats, size_t count, auto visit, auto assign, auto)
+		{
+			readUpgradeTable(jtables.at(name), name, stats, count, visit, [&assign](auto &stat, unsigned p) { assign(stat, p, stat.base); });
+		});
+		for (unsigned p = 0; p < MAX_PLAYERS; ++p)
+		{
+			const nlohmann::ordered_json &jp = jplayers[p];
+			ResearchUpgradeBookkeeping b;
+			b.numBodyClassArmourUpgrades = jp.at("armourUpgrades").get<std::map<std::string, uint32_t>>();
+			b.numBodyClassThermalUpgrades = jp.at("thermalUpgrades").get<std::map<std::string, uint32_t>>();
+			b.numWeaponImpactClassUpgrades = jp.at("weaponImpactUpgrades").get<std::map<std::string, uint32_t>>();
+			b.rawUpgradeChange = jp.at("rawUpgradeChange").get<std::map<std::string, std::map<std::string, int64_t>>>();
+			setResearchUpgradeBookkeeping(p, b);
+		}
+		return;
+	}
+
+	// Replay the completed research with the data loaded now, from the base values
+	wzapi::UpgradeTables tables = wzapi::UpgradeTables::fromBase();
+	std::vector<ResearchUpgradeBookkeeping> bookkeeping;
+	replayResearchUpgradeTables(tables, bookkeeping);
+
+	// Add what the saving game held beyond that replay
+	const bool hasRemainder = j.contains("remainder");
+	if (hasRemainder)
+	{
+		const nlohmann::ordered_json &rem = j.at("remainder");
+		const nlohmann::ordered_json &remTables = rem.at("tables");
+		if (!remTables.is_object())
+		{
+			throw StateError("upgrades.remainder.tables must be an object");
+		}
+		forEachUpgradeTable([&remTables, &tables](const char *name, const auto *stats, size_t count, auto visit, auto, auto table)
+		{
+			if (remTables.contains(name))
+			{
+				addUpgradeRemainderTable(remTables.at(name), name, stats, count, table(tables), visit);
+			}
+		});
+		for (const nlohmann::ordered_json &entry : rem.at("players"))
+		{
+			const unsigned p = entry.at("player").get<unsigned>();
+			if (p >= MAX_PLAYERS)
+			{
+				throw StateError("upgrades.remainder.players: player out of range");
+			}
+			addBookkeepingRemainder(bookkeeping[p], entry);
+		}
+	}
+
+	// Into the game
+	forEachUpgradeTable([&tables](const char *, auto *stats, size_t count, auto, auto assign, auto table)
+	{
+		const auto &t = table(tables);
+		for (size_t i = 0; i < count; ++i)
+		{
+			for (unsigned p = 0; p < MAX_PLAYERS; ++p)
+			{
+				assign(stats[i], p, t[i * MAX_PLAYERS + p]);
+			}
+		}
+	});
+	for (unsigned p = 0; p < MAX_PLAYERS; ++p)
+	{
+		setResearchUpgradeBookkeeping(p, bookkeeping[p]);
+	}
+
+	// The saved tables, only to tell whether the result differs from them (the stats or research data changed)
+	size_t differences = 0;
+	forEachUpgradeTable([&jtables, &differences](const char *name, const auto *stats, size_t count, auto visit, auto, auto)
+	{
+		differences += countUpgradeTableDifferences(jtables.at(name), writeUpgradeTable(stats, count, visit), name);
+	});
+	if (differences > 0)
+	{
+		debug(LOG_INFO, "Research upgrades recomputed with the current stats and research data: %zu upgrade value(s) differ from this savegame"
+			" (the data changed since it was saved%s)", differences,
+			hasRemainder ? "" : ", or scripts had set upgrades, which this savegame doesn't record");
 	}
 }
 
@@ -5539,7 +5937,7 @@ void applyGameStatePresentation(const nlohmann::ordered_json &gameStateDoc)
 
 // MARK: - Top-level document
 
-nlohmann::ordered_json gameStateToJson(ScriptScope scriptScope)
+nlohmann::ordered_json gameStateToJson(ScriptScope scriptScope, bool forSavegame)
 {
 	nlohmann::ordered_json j = nlohmann::ordered_json::object();
 	// An ordered_json object copies (not moves) every section built so far each time it grows.
@@ -5554,7 +5952,7 @@ nlohmann::ordered_json gameStateToJson(ScriptScope scriptScope)
 	j["diplomacy"] = writeDiplomacy();
 	j["power"] = writePower();
 	j["research"] = writeResearch();
-	j["upgrades"] = writeUpgrades();
+	j["upgrades"] = writeUpgrades(forSavegame);
 	j["combatModifiers"] = writeCombatModifiers();
 	j["simMisc"] = writeSimMisc();
 	j["campaign"] = writeCampaign();
@@ -5911,8 +6309,9 @@ void setGameStateRestoreFaultStage(const std::string &stage)
 	g_restoreFaultStage = stage;
 }
 
-void gameStateFromJson(const nlohmann::ordered_json &j, ScriptScope scriptScope, bool deferMessages, bool inProcess)
+void gameStateFromJson(const nlohmann::ordered_json &j, RestoreKind kind, ScriptScope scriptScope, bool deferMessages)
 {
+	const bool inProcess = kind == RestoreKind::InProcess;
 	g_restoreStage = nullptr;
 	if (!j.is_object())
 	{
@@ -6040,7 +6439,11 @@ void gameStateFromJson(const nlohmann::ordered_json &j, ScriptScope scriptScope,
 	{
 		debug(LOG_GAMESTATE_SERIAL, "restoring section: upgrades");
 		const nlohmann::ordered_json &sec = j.at("upgrades");
-		readUpgrades(sec, sec.value("version", 0u));
+		// A cold load recomputes the upgrades with the data loaded now.
+		// NOTE: A restore of a document from another machine, if one is ever added (ScriptScope::LocalPlayerOnly),
+		// must apply the saved tables like an in-process one (a RestoreKind of its own),
+		// or the machines may disagree about upgrades set by scripts.
+		readUpgrades(sec, sec.value("version", 0u), /*recompute=*/!inProcess);
 	}
 	// Per-player experience-gain multiplier. Reset to 100 at level init, so restore it here (after that
 	// reset, before/independent of object building - it only affects runtime combat XP, not construction).
@@ -6392,7 +6795,7 @@ nlohmann::ordered_json parseJsonBounded(const char *begin, const char *end)
 	return parseOrderedJson(begin, end);
 }
 
-void deserializeGameState(const std::string &jsonText, ScriptScope scriptScope, bool inProcess)
+void deserializeGameState(const std::string &jsonText, RestoreKind kind, ScriptScope scriptScope)
 {
 	g_restoreStage = nullptr;
 	nlohmann::ordered_json j;
@@ -6407,7 +6810,7 @@ void deserializeGameState(const std::string &jsonText, ScriptScope scriptScope, 
 
 	try
 	{
-		gameStateFromJson(j, scriptScope, false, inProcess);
+		gameStateFromJson(j, kind, scriptScope, false);
 	}
 	catch (const StateError &)
 	{
@@ -6469,8 +6872,9 @@ bool runGameStateRoundTripTest()
 	std::string buf1, buf2;
 	try
 	{
-		buf1 = serializeGameState();
-		deserializeGameState(buf1);
+		// The savegame form, as this is a cold load (which needs the remainder only savegames hold)
+		buf1 = gameStateToJson(ScriptScope::AllInstances, /*forSavegame=*/true).dump();
+		deserializeGameState(buf1, RestoreKind::ColdLoad);
 		// Mirror ALL of what the real restore paths do after reconstruction (cold-load in init.cpp, etc):
 		// discard the syncDebug accumulated while REBUILDING the world, re-seed the accumulator with the
 		// CRC captured at save time (stashed by readDeterminismCore's setResumeSyncDebugCrc), and floor
@@ -6481,7 +6885,7 @@ bool runGameStateRoundTripTest()
 		resetSyncDebug();
 		applyResumeSyncDebugCrc();
 		setSyncCheckFloorTime(gameTime);
-		buf2 = serializeGameState();
+		buf2 = gameStateToJson(ScriptScope::AllInstances, /*forSavegame=*/true).dump();
 	}
 	catch (const std::exception &e)
 	{
@@ -6618,7 +7022,7 @@ bool runGameStateSelfTest()
 
 	try
 	{
-		deserializeGameState(buf1);
+		deserializeGameState(buf1, RestoreKind::ColdLoad);
 	}
 	catch (const StateError &e)
 	{
@@ -6680,7 +7084,7 @@ bool runGameStateSelfTest()
 	// ...and a deserialize -> serialize round-trip must reproduce the snapshot byte-for-byte.
 	try
 	{
-		deserializeGameState(buf1);
+		deserializeGameState(buf1, RestoreKind::ColdLoad);
 	}
 	catch (const StateError &e)
 	{
@@ -6807,6 +7211,89 @@ bool runGameStateSelfTest()
 		}
 		currentMapTileset = savedTileset;
 		std::copy(std::begin(savedTtypes), std::end(savedTtypes), terrainTypes);
+	}
+
+	// --- Assert: how the upgrades are restored.
+	// In-process: the saved tables and bookkeeping.
+	// Cold load: the replay of the completed research, plus the remainder that disk saves (forSavegame) hold.
+	// No stats or research are loaded here, so the tables are empty and the replay gives nothing.
+	// The research bookkeeping shows which way it went: the saved one, the remainder (all of it here), or none.
+	// Self-repair is restored either way.
+	{
+		ResearchUpgradeBookkeeping refBook;
+		refBook.numWeaponImpactClassUpgrades["CANNON"] = 3;
+		refBook.numBodyClassArmourUpgrades["Light"] = 2;
+		refBook.rawUpgradeChange["Cannon1Mk1"]["damage"] = 2500;
+		setResearchUpgradeBookkeeping(0, refBook);
+		setSelfRepairEnabled(0, true);
+		const std::string before = serializeGameState();
+		const std::string diskText = gameStateToJson(ScriptScope::AllInstances, /*forSavegame=*/true).dump();
+		check(serializeGameState() == before, "upgrades: writing a savegame (its remainder) changed the game");
+		const nlohmann::ordered_json diskDoc = nlohmann::ordered_json::parse(diskText);
+		const nlohmann::ordered_json snapshotDoc = nlohmann::ordered_json::parse(before);
+		check(diskDoc.at("upgrades").contains("remainder"), "upgrades: a savegame must have the remainder");
+		check(!snapshotDoc.at("upgrades").contains("remainder"), "upgrades: a snapshot must not have the remainder");
+
+		const auto bookkeepingIs = [](const ResearchUpgradeBookkeeping &expected)
+		{
+			const ResearchUpgradeBookkeeping b = getResearchUpgradeBookkeeping(0);
+			return b.numWeaponImpactClassUpgrades == expected.numWeaponImpactClassUpgrades
+				&& b.numBodyClassArmourUpgrades == expected.numBodyClassArmourUpgrades
+				&& b.numBodyClassThermalUpgrades == expected.numBodyClassThermalUpgrades
+				&& b.rawUpgradeChange == expected.rawUpgradeChange;
+		};
+		// Loads over a perturbed state, returning false if it threw
+		const auto load = [&check](const std::string &text, RestoreKind kind, const char *what)
+		{
+			setSelfRepairEnabled(0, false);
+			ResearchUpgradeBookkeeping other;
+			other.numBodyClassThermalUpgrades["Heavy"] = 9;
+			setResearchUpgradeBookkeeping(0, other);
+			try
+			{
+				deserializeGameState(text, kind);
+				return true;
+			}
+			catch (const StateError &e)
+			{
+				check(false, (std::string(what) + ": " + e.what()).c_str());
+				return false;
+			}
+		};
+		if (load(before, RestoreKind::InProcess, "upgrades: in-process restore"))
+		{
+			check(selfRepairEnabled(0), "upgrades: in-process restore: self-repair not restored");
+			check(bookkeepingIs(refBook), "upgrades: in-process restore: the saved bookkeeping was not restored");
+		}
+		if (load(diskText, RestoreKind::ColdLoad, "upgrades: cold load of a savegame"))
+		{
+			check(selfRepairEnabled(0), "upgrades: cold load of a savegame: self-repair not restored");
+			check(bookkeepingIs(refBook), "upgrades: cold load of a savegame: replay + remainder is not the saved bookkeeping");
+		}
+		if (load(before, RestoreKind::ColdLoad, "upgrades: cold load without a remainder"))
+		{
+			check(selfRepairEnabled(0), "upgrades: cold load without a remainder: self-repair not restored");
+			check(bookkeepingIs(ResearchUpgradeBookkeeping{}), "upgrades: cold load without a remainder: the bookkeeping is not the replay's");
+		}
+
+		const auto rejected = [](const std::string &text)
+		{
+			try
+			{
+				deserializeGameState(text, RestoreKind::ColdLoad);
+			}
+			catch (const StateError &)
+			{
+				return true;
+			}
+			return false;
+		};
+		nlohmann::ordered_json d = diskDoc;
+		d["upgrades"]["version"] = UPGRADES_SECTION_VERSION + 1;
+		check(rejected(d.dump()), "upgrades: a newer section version must be rejected");
+
+		setResearchUpgradeBookkeeping(0, ResearchUpgradeBookkeeping{});
+		setSelfRepairEnabled(0, false);
 	}
 
 	if (ok)

@@ -3809,41 +3809,58 @@ enum Scrcb {
 	SCRCB_LAST = SCRCB_LIMIT
 };
 
-bool wzapi::setUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::string& name, int type, unsigned index, const nlohmann::json& newValue))
+// Sets an upgrade value (named as in Upgrades[]) in tables, or in the game's own upgrade tables when null.
+// For the game's own, also updates game objects, visibility and the sync debug log.
+static bool setUpgradeStatsIn(wzapi::UpgradeTables *tables, WZAPI_BASE_PARAMS(int player, const std::string& name, int type, unsigned index, const nlohmann::json& newValue))
 {
 	int value = json_variant(newValue).toInt();
-	syncDebug("stats[p%d,t%d,%s,i%d] = %d", player, type, name.c_str(), index, value);
+	const bool live = tables == nullptr; // the game's own tables
+	if (live)
+	{
+		syncDebug("stats[p%d,t%d,%s,i%d] = %d", player, type, name.c_str(), index, value);
+	}
+	const auto dirtyDroids = [live, player]() { if (live) { dirtyAllDroids(player); } };
+	const auto rangeChanged = [live, player]()
+	{
+		if (live)
+		{
+			dirtyAllDroids(player);
+			dirtyAllStructures(player);
+			visNoteRangeChange(player); // the tile coverage is refreshed at the end of the tick
+		}
+	};
 	if (type == COMP_BODY)
 	{
 		SCRIPT_ASSERT(false, context, index < asBodyStats.size(), "Bad index");
 		BODY_STATS *psStats = &asBodyStats[index];
+		auto &u = tables ? tables->body[index * MAX_PLAYERS + player] : psStats->upgrade[player];
 		if (name == "HitPoints")
 		{
-			psStats->upgrade[player].hitpoints = value;
-			dirtyAllDroids(player);
+			u.hitpoints = value;
+			dirtyDroids();
 		}
 		else if (name == "HitPointPct")
 		{
-			psStats->upgrade[player].hitpointPct = value;
-			dirtyAllDroids(player);
+			u.hitpointPct = value;
+			dirtyDroids();
 		}
 		else if (name == "Armour")
 		{
-			psStats->upgrade[player].armour = value;
+			u.armour = value;
 		}
 		else if (name == "Thermal")
 		{
-			psStats->upgrade[player].thermal = value;
+			u.thermal = value;
 		}
 		else if (name == "Power")
 		{
-			psStats->upgrade[player].power = value;
-			dirtyAllDroids(player);
+			u.power = value;
+			dirtyDroids();
 		}
 		else if (name == "Resistance")
 		{
 			// TBD FIXME - not updating resistance points in droids...
-			psStats->upgrade[player].resistance = value;
+			u.resistance = value;
 		}
 		else
 		{
@@ -3854,34 +3871,35 @@ bool wzapi::setUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::string& nam
 	{
 		SCRIPT_ASSERT(false, context, index < asBrainStats.size(), "Bad index");
 		BRAIN_STATS *psStats = &asBrainStats[index];
+		auto &u = tables ? tables->brain[index * MAX_PLAYERS + player] : psStats->upgrade[player];
 		if (name == "BaseCommandLimit")
 		{
-			psStats->upgrade[player].maxDroids = value;
+			u.maxDroids = value;
 		}
 		else if (name == "CommandLimitByLevel")
 		{
-			psStats->upgrade[player].maxDroidsMult = value;
+			u.maxDroidsMult = value;
 		}
 		else if (name == "RankThresholds")
 		{
 			SCRIPT_ASSERT(false, context, newValue.is_array(), "Level thresholds not an array!");
 			size_t length = newValue.size();
-			SCRIPT_ASSERT(false, context, length <= psStats->upgrade[player].rankThresholds.size(), "Invalid thresholds array length");
+			SCRIPT_ASSERT(false, context, length <= u.rankThresholds.size(), "Invalid thresholds array length");
 			for (size_t i = 0; i < length; i++)
 			{
 				// Use json_variant to support conversion from other value types to an int
-				psStats->upgrade[player].rankThresholds[i] = json_variant(newValue[i]).toInt();
+				u.rankThresholds[i] = json_variant(newValue[i]).toInt();
 			}
 		}
 		else if (name == "HitPoints")
 		{
-			psStats->upgrade[player].hitpoints = value;
-			dirtyAllDroids(player);
+			u.hitpoints = value;
+			dirtyDroids();
 		}
 		else if (name == "HitPointPct")
 		{
-			psStats->upgrade[player].hitpointPct = value;
-			dirtyAllDroids(player);
+			u.hitpointPct = value;
+			dirtyDroids();
 		}
 		else
 		{
@@ -3892,22 +3910,21 @@ bool wzapi::setUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::string& nam
 	{
 		SCRIPT_ASSERT(false, context, index < asSensorStats.size(), "Bad index");
 		SENSOR_STATS *psStats = &asSensorStats[index];
+		auto &u = tables ? tables->sensor[index * MAX_PLAYERS + player] : psStats->upgrade[player];
 		if (name == "Range")
 		{
-			psStats->upgrade[player].range = value;
-			dirtyAllDroids(player);
-			dirtyAllStructures(player);
-			visNoteRangeChange(player); // the tile coverage is refreshed at the end of the tick
+			u.range = value;
+			rangeChanged();
 		}
 		else if (name == "HitPoints")
 		{
-			psStats->upgrade[player].hitpoints = value;
-			dirtyAllDroids(player);
+			u.hitpoints = value;
+			dirtyDroids();
 		}
 		else if (name == "HitPointPct")
 		{
-			psStats->upgrade[player].hitpointPct = value;
-			dirtyAllDroids(player);
+			u.hitpointPct = value;
+			dirtyDroids();
 		}
 		else
 		{
@@ -3918,22 +3935,21 @@ bool wzapi::setUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::string& nam
 	{
 		SCRIPT_ASSERT(false, context, index < asECMStats.size(), "Bad index");
 		ECM_STATS *psStats = &asECMStats[index];
+		auto &u = tables ? tables->ecm[index * MAX_PLAYERS + player] : psStats->upgrade[player];
 		if (name == "Range")
 		{
-			psStats->upgrade[player].range = value;
-			dirtyAllDroids(player);
-			dirtyAllStructures(player);
-			visNoteRangeChange(player); // the tile coverage is refreshed at the end of the tick
+			u.range = value;
+			rangeChanged();
 		}
 		else if (name == "HitPoints")
 		{
-			psStats->upgrade[player].hitpoints = value;
-			dirtyAllDroids(player);
+			u.hitpoints = value;
+			dirtyDroids();
 		}
 		else if (name == "HitPointPct")
 		{
-			psStats->upgrade[player].hitpointPct = value;
-			dirtyAllDroids(player);
+			u.hitpointPct = value;
+			dirtyDroids();
 		}
 		else
 		{
@@ -3944,20 +3960,21 @@ bool wzapi::setUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::string& nam
 	{
 		SCRIPT_ASSERT(false, context, index < asPropulsionStats.size(), "Bad index");
 		PROPULSION_STATS *psStats = &asPropulsionStats[index];
+		auto &u = tables ? tables->propulsion[index * MAX_PLAYERS + player] : psStats->upgrade[player];
 		if (name == "HitPoints")
 		{
-			psStats->upgrade[player].hitpoints = value;
-			dirtyAllDroids(player);
+			u.hitpoints = value;
+			dirtyDroids();
 		}
 		else if (name == "HitPointPct")
 		{
-			psStats->upgrade[player].hitpointPct = value;
-			dirtyAllDroids(player);
+			u.hitpointPct = value;
+			dirtyDroids();
 		}
 		else if (name == "HitPointPctOfBody")
 		{
-			psStats->upgrade[player].hitpointPctOfBody = value;
-			dirtyAllDroids(player);
+			u.hitpointPctOfBody = value;
+			dirtyDroids();
 		}
 		else
 		{
@@ -3968,19 +3985,20 @@ bool wzapi::setUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::string& nam
 	{
 		SCRIPT_ASSERT(false, context, index < asConstructStats.size(), "Bad index");
 		CONSTRUCT_STATS *psStats = &asConstructStats[index];
+		auto &u = tables ? tables->construct[index * MAX_PLAYERS + player] : psStats->upgrade[player];
 		if (name == "ConstructorPoints")
 		{
-			psStats->upgrade[player].constructPoints = value;
+			u.constructPoints = value;
 		}
 		else if (name == "HitPoints")
 		{
-			psStats->upgrade[player].hitpoints = value;
-			dirtyAllDroids(player);
+			u.hitpoints = value;
+			dirtyDroids();
 		}
 		else if (name == "HitPointPct")
 		{
-			psStats->upgrade[player].hitpointPct = value;
-			dirtyAllDroids(player);
+			u.hitpointPct = value;
+			dirtyDroids();
 		}
 		else
 		{
@@ -3991,19 +4009,20 @@ bool wzapi::setUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::string& nam
 	{
 		SCRIPT_ASSERT(false, context, index < asRepairStats.size(), "Bad index");
 		REPAIR_STATS *psStats = &asRepairStats[index];
+		auto &u = tables ? tables->repair[index * MAX_PLAYERS + player] : psStats->upgrade[player];
 		if (name == "RepairPoints")
 		{
-			psStats->upgrade[player].repairPoints = value;
+			u.repairPoints = value;
 		}
 		else if (name == "HitPoints")
 		{
-			psStats->upgrade[player].hitpoints = value;
-			dirtyAllDroids(player);
+			u.hitpoints = value;
+			dirtyDroids();
 		}
 		else if (name == "HitPointPct")
 		{
-			psStats->upgrade[player].hitpointPct = value;
-			dirtyAllDroids(player);
+			u.hitpointPct = value;
+			dirtyDroids();
 		}
 		else
 		{
@@ -4014,79 +4033,80 @@ bool wzapi::setUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::string& nam
 	{
 		SCRIPT_ASSERT(false, context, index < asWeaponStats.size(), "Bad index");
 		WEAPON_STATS *psStats = &asWeaponStats[index];
+		auto &u = tables ? tables->weapon[index * MAX_PLAYERS + player] : psStats->upgrade[player];
 		if (name == "MaxRange")
 		{
-			psStats->upgrade[player].maxRange = value;
+			u.maxRange = value;
 		}
 		else if (name == "ShortRange")
 		{
-			psStats->upgrade[player].shortRange = value;
+			u.shortRange = value;
 		}
 		else if (name == "MinRange")
 		{
-			psStats->upgrade[player].minRange = value;
+			u.minRange = value;
 		}
 		else if (name == "HitChance")
 		{
-			psStats->upgrade[player].hitChance = value;
+			u.hitChance = value;
 		}
 		else if (name == "ShortHitChance")
 		{
-			psStats->upgrade[player].shortHitChance = value;
+			u.shortHitChance = value;
 		}
 		else if (name == "FirePause")
 		{
-			psStats->upgrade[player].firePause = value;
+			u.firePause = value;
 		}
 		else if (name == "Rounds")
 		{
-			psStats->upgrade[player].numRounds = value;
+			u.numRounds = value;
 		}
 		else if (name == "ReloadTime")
 		{
-			psStats->upgrade[player].reloadTime = value;
+			u.reloadTime = value;
 		}
 		else if (name == "Damage")
 		{
-			psStats->upgrade[player].damage = value;
+			u.damage = value;
 		}
 		else if (name == "MinimumDamage")
 		{
-			psStats->upgrade[player].minimumDamage = value;
+			u.minimumDamage = value;
 		}
 		else if (name == "EmpRadius")
 		{
-			psStats->upgrade[player].empRadius = value;
+			u.empRadius = value;
 		}
 		else if (name == "Radius")
 		{
-			psStats->upgrade[player].radius = value;
+			u.radius = value;
 		}
 		else if (name == "RadiusDamage")
 		{
-			psStats->upgrade[player].radiusDamage = value;
+			u.radiusDamage = value;
 		}
 		else if (name == "RepeatDamage")
 		{
-			psStats->upgrade[player].periodicalDamage = value;
+			u.periodicalDamage = value;
 		}
 		else if (name == "RepeatTime")
 		{
-			psStats->upgrade[player].periodicalDamageTime = value;
+			u.periodicalDamageTime = value;
 		}
 		else if (name == "RepeatRadius")
 		{
-			psStats->upgrade[player].periodicalDamageRadius = value;
+			u.periodicalDamageRadius = value;
 		}
 		else if (name == "HitPoints")
 		{
-			psStats->upgrade[player].hitpoints = value;
-			dirtyAllDroids(player);
+			u.hitpoints = value;
+			dirtyDroids();
 		}
 		else if (name == "HitPointPct")
 		{
-			psStats->upgrade[player].hitpointPct = value;
-			dirtyAllDroids(player);
+			u.hitpointPct = value;
+			dirtyDroids();
 		}
 		else
 		{
@@ -4097,36 +4117,40 @@ bool wzapi::setUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::string& nam
 	{
 		SCRIPT_ASSERT(false, context, index < numStructureStats, "Bad index");
 		STRUCTURE_STATS *psStats = asStructureStats + index;
+		auto &u = tables ? tables->structure[index * MAX_PLAYERS + player] : psStats->upgrade[player];
 		switch ((Scrcb)type)
 		{
-		case SCRCB_RES: psStats->upgrade[player].research = value; break;
-		case SCRCB_MODULE_RES: psStats->upgrade[player].moduleResearch = value; break;
-		case SCRCB_REP: psStats->upgrade[player].repair = value; break;
-		case SCRCB_POW: psStats->upgrade[player].power = value; break;
-		case SCRCB_MODULE_POW: psStats->upgrade[player].modulePower = value; break;
-		case SCRCB_CON: psStats->upgrade[player].production = value; break;
-		case SCRCB_MODULE_CON: psStats->upgrade[player].moduleProduction = value; break;
-		case SCRCB_REA: psStats->upgrade[player].rearm = value; break;
-		case SCRCB_HEA: psStats->upgrade[player].thermal = value; break;
-		case SCRCB_ARM: psStats->upgrade[player].armour = value; break;
+		case SCRCB_RES: u.research = value; break;
+		case SCRCB_MODULE_RES: u.moduleResearch = value; break;
+		case SCRCB_REP: u.repair = value; break;
+		case SCRCB_POW: u.power = value; break;
+		case SCRCB_MODULE_POW: u.modulePower = value; break;
+		case SCRCB_CON: u.production = value; break;
+		case SCRCB_MODULE_CON: u.moduleProduction = value; break;
+		case SCRCB_REA: u.rearm = value; break;
+		case SCRCB_HEA: u.thermal = value; break;
+		case SCRCB_ARM: u.armour = value; break;
 		case SCRCB_ELW:
 			// Update resistance points for all structures, to avoid making them damaged
 			// FIXME - this is _really_ slow! we could be doing this for dozens of buildings one at a time!
-			for (STRUCTURE *psCurr : gameWorld.objects.structures[player])
+			if (live)
 			{
-				if (psStats == psCurr->pStructureType && psStats->upgrade[player].resistance < value)
+				for (STRUCTURE *psCurr : gameWorld.objects.structures[player])
 				{
-					psCurr->resistance = value;
+					if (psStats == psCurr->pStructureType && u.resistance < value)
+					{
+						psCurr->resistance = value;
+					}
+				}
+				for (STRUCTURE *psCurr : mission.gameWorld.objects.structures[player])
+				{
+					if (psStats == psCurr->pStructureType && u.resistance < value)
+					{
+						psCurr->resistance = value;
+					}
 				}
 			}
-			for (STRUCTURE *psCurr : mission.gameWorld.objects.structures[player])
-			{
-				if (psStats == psCurr->pStructureType && psStats->upgrade[player].resistance < value)
-				{
-					psCurr->resistance = value;
-				}
-			}
-			psStats->upgrade[player].resistance = value;
+			u.resistance = value;
 			break;
 		case SCRCB_HIT:
 		{
@@ -4134,7 +4158,7 @@ bool wzapi::setUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::string& nam
 			// Update body points for all structures, to avoid making them damaged
 			// FIXME - this is _really_ slow! we could be doing this for
 			// dozens of buildings one at a time!
-			const unsigned previousHitpoints = psStats->upgrade[player].hitpoints;
+			const unsigned previousHitpoints = u.hitpoints;
 			const unsigned newHitpoints = static_cast<unsigned>(value);
 			auto rescaleBody = [&](STRUCTURE *psCurr)
 			{
@@ -4143,19 +4167,22 @@ bool wzapi::setUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::string& nam
 					psCurr->body = static_cast<UDWORD>(static_cast<uint64_t>(psCurr->body) * newHitpoints / previousHitpoints);
 				}
 			};
-			for (STRUCTURE *psCurr : gameWorld.objects.structures[player])
+			if (live)
 			{
-				rescaleBody(psCurr);
+				for (STRUCTURE *psCurr : gameWorld.objects.structures[player])
+				{
+					rescaleBody(psCurr);
+				}
+				for (STRUCTURE *psCurr : mission.gameWorld.objects.structures[player])
+				{
+					rescaleBody(psCurr);
+				}
 			}
-			for (STRUCTURE *psCurr : mission.gameWorld.objects.structures[player])
-			{
-				rescaleBody(psCurr);
-			}
-			psStats->upgrade[player].hitpoints = newHitpoints;
+			u.hitpoints = newHitpoints;
 			break;
 		}
 		case SCRCB_LIMIT:
-			psStats->upgrade[player].limit = value; break;
+			u.limit = value; break;
 		}
 	}
 	else
@@ -4166,35 +4193,47 @@ bool wzapi::setUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::string& nam
 	return true;
 }
 
-nlohmann::json wzapi::getUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::string& name, int type, unsigned index))
+bool wzapi::setUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::string& name, int type, unsigned index, const nlohmann::json& newValue))
+{
+	return setUpgradeStatsIn(nullptr, context, player, name, type, index, newValue);
+}
+
+bool wzapi::setUpgradeValue(UpgradeTables &tables, WZAPI_BASE_PARAMS(int player, const std::string& name, int type, unsigned index, const nlohmann::json& newValue))
+{
+	return setUpgradeStatsIn(&tables, context, player, name, type, index, newValue);
+}
+
+// Gets an upgrade value (named as in Upgrades[]) from tables, or from the game's own upgrade tables when null
+static nlohmann::json getUpgradeStatsIn(const wzapi::UpgradeTables *tables, WZAPI_BASE_PARAMS(int player, const std::string& name, int type, unsigned index))
 {
 	if (type == COMP_BODY)
 	{
 		SCRIPT_ASSERT(nlohmann::json(), context, index < asBodyStats.size(), "Bad index");
 		const BODY_STATS *psStats = &asBodyStats[index];
+		const auto &u = tables ? tables->body[index * MAX_PLAYERS + player] : psStats->upgrade[player];
 		if (name == "HitPoints")
 		{
-			return psStats->upgrade[player].hitpoints;
+			return u.hitpoints;
 		}
 		else if (name == "HitPointPct")
 		{
-			return psStats->upgrade[player].hitpointPct;
+			return u.hitpointPct;
 		}
 		else if (name == "Armour")
 		{
-			return psStats->upgrade[player].armour;
+			return u.armour;
 		}
 		else if (name == "Thermal")
 		{
-			return psStats->upgrade[player].thermal;
+			return u.thermal;
 		}
 		else if (name == "Power")
 		{
-			return psStats->upgrade[player].power;
+			return u.power;
 		}
 		else if (name == "Resistance")
 		{
-			return psStats->upgrade[player].resistance;
+			return u.resistance;
 		}
 		else
 		{
@@ -4205,31 +4244,32 @@ nlohmann::json wzapi::getUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::s
 	{
 		SCRIPT_ASSERT(nlohmann::json(), context, index < asBrainStats.size(), "Bad index");
 		const BRAIN_STATS *psStats = &asBrainStats[index];
+		const auto &u = tables ? tables->brain[index * MAX_PLAYERS + player] : psStats->upgrade[player];
 		if (name == "BaseCommandLimit")
 		{
-			return psStats->upgrade[player].maxDroids;
+			return u.maxDroids;
 		}
 		else if (name == "CommandLimitByLevel")
 		{
-			return psStats->upgrade[player].maxDroidsMult;
+			return u.maxDroidsMult;
 		}
 		else if (name == "RankThresholds")
 		{
-			size_t length = psStats->upgrade[player].rankThresholds.size();
+			size_t length = u.rankThresholds.size();
 			nlohmann::json value = nlohmann::json::array();
 			for (size_t i = 0; i < length; i++)
 			{
-				value.push_back(psStats->upgrade[player].rankThresholds[i]);
+				value.push_back(u.rankThresholds[i]);
 			}
 			return value;
 		}
 		else if (name == "HitPoints")
 		{
-			return psStats->upgrade[player].hitpoints;
+			return u.hitpoints;
 		}
 		else if (name == "HitPointPct")
 		{
-			return psStats->upgrade[player].hitpointPct;
+			return u.hitpointPct;
 		}
 		else
 		{
@@ -4240,17 +4280,18 @@ nlohmann::json wzapi::getUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::s
 	{
 		SCRIPT_ASSERT(nlohmann::json(), context, index < asSensorStats.size(), "Bad index");
 		const SENSOR_STATS *psStats = &asSensorStats[index];
+		const auto &u = tables ? tables->sensor[index * MAX_PLAYERS + player] : psStats->upgrade[player];
 		if (name == "Range")
 		{
-			return psStats->upgrade[player].range;
+			return u.range;
 		}
 		else if (name == "HitPoints")
 		{
-			return psStats->upgrade[player].hitpoints;
+			return u.hitpoints;
 		}
 		else if (name == "HitPointPct")
 		{
-			return psStats->upgrade[player].hitpointPct;
+			return u.hitpointPct;
 		}
 		else
 		{
@@ -4261,17 +4302,18 @@ nlohmann::json wzapi::getUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::s
 	{
 		SCRIPT_ASSERT(nlohmann::json(), context, index < asECMStats.size(), "Bad index");
 		const ECM_STATS *psStats = &asECMStats[index];
+		const auto &u = tables ? tables->ecm[index * MAX_PLAYERS + player] : psStats->upgrade[player];
 		if (name == "Range")
 		{
-			return psStats->upgrade[player].range;
+			return u.range;
 		}
 		else if (name == "HitPoints")
 		{
-			return psStats->upgrade[player].hitpoints;
+			return u.hitpoints;
 		}
 		else if (name == "HitPointPct")
 		{
-			return psStats->upgrade[player].hitpointPct;
+			return u.hitpointPct;
 		}
 		else
 		{
@@ -4282,17 +4324,18 @@ nlohmann::json wzapi::getUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::s
 	{
 		SCRIPT_ASSERT(nlohmann::json(), context, index < asPropulsionStats.size(), "Bad index");
 		const PROPULSION_STATS *psStats = &asPropulsionStats[index];
+		const auto &u = tables ? tables->propulsion[index * MAX_PLAYERS + player] : psStats->upgrade[player];
 		if (name == "HitPoints")
 		{
-			return psStats->upgrade[player].hitpoints;
+			return u.hitpoints;
 		}
 		else if (name == "HitPointPct")
 		{
-			return psStats->upgrade[player].hitpointPct;
+			return u.hitpointPct;
 		}
 		else if (name == "HitPointPctOfBody")
 		{
-			return psStats->upgrade[player].hitpointPctOfBody;
+			return u.hitpointPctOfBody;
 		}
 		else
 		{
@@ -4303,17 +4346,18 @@ nlohmann::json wzapi::getUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::s
 	{
 		SCRIPT_ASSERT(nlohmann::json(), context, index < asConstructStats.size(), "Bad index");
 		const CONSTRUCT_STATS *psStats = &asConstructStats[index];
+		const auto &u = tables ? tables->construct[index * MAX_PLAYERS + player] : psStats->upgrade[player];
 		if (name == "ConstructorPoints")
 		{
-			return psStats->upgrade[player].constructPoints;
+			return u.constructPoints;
 		}
 		else if (name == "HitPoints")
 		{
-			return psStats->upgrade[player].hitpoints;
+			return u.hitpoints;
 		}
 		else if (name == "HitPointPct")
 		{
-			return psStats->upgrade[player].hitpointPct;
+			return u.hitpointPct;
 		}
 		else
 		{
@@ -4324,17 +4368,18 @@ nlohmann::json wzapi::getUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::s
 	{
 		SCRIPT_ASSERT(nlohmann::json(), context, index < asRepairStats.size(), "Bad index");
 		const REPAIR_STATS *psStats = &asRepairStats[index];
+		const auto &u = tables ? tables->repair[index * MAX_PLAYERS + player] : psStats->upgrade[player];
 		if (name == "RepairPoints")
 		{
-			return psStats->upgrade[player].repairPoints;
+			return u.repairPoints;
 		}
 		else if (name == "HitPoints")
 		{
-			return psStats->upgrade[player].hitpoints;
+			return u.hitpoints;
 		}
 		else if (name == "HitPointPct")
 		{
-			return psStats->upgrade[player].hitpointPct;
+			return u.hitpointPct;
 		}
 		else
 		{
@@ -4345,77 +4390,78 @@ nlohmann::json wzapi::getUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::s
 	{
 		SCRIPT_ASSERT(nlohmann::json(), context, index < asWeaponStats.size(), "Bad index");
 		const WEAPON_STATS *psStats = &asWeaponStats[index];
+		const auto &u = tables ? tables->weapon[index * MAX_PLAYERS + player] : psStats->upgrade[player];
 		if (name == "MaxRange")
 		{
-			return psStats->upgrade[player].maxRange;
+			return u.maxRange;
 		}
 		else if (name == "ShortRange")
 		{
-			return psStats->upgrade[player].shortRange;
+			return u.shortRange;
 		}
 		else if (name == "MinRange")
 		{
-			return psStats->upgrade[player].minRange;
+			return u.minRange;
 		}
 		else if (name == "HitChance")
 		{
-			return psStats->upgrade[player].hitChance;
+			return u.hitChance;
 		}
 		else if (name == "ShortHitChance")
 		{
-			return psStats->upgrade[player].shortHitChance;
+			return u.shortHitChance;
 		}
 		else if (name == "FirePause")
 		{
-			return psStats->upgrade[player].firePause;
+			return u.firePause;
 		}
 		else if (name == "Rounds")
 		{
-			return psStats->upgrade[player].numRounds;
+			return u.numRounds;
 		}
 		else if (name == "ReloadTime")
 		{
-			return psStats->upgrade[player].reloadTime;
+			return u.reloadTime;
 		}
 		else if (name == "Damage")
 		{
-			return psStats->upgrade[player].damage;
+			return u.damage;
 		}
 		else if (name == "MinimumDamage")
 		{
-			return psStats->upgrade[player].minimumDamage;
+			return u.minimumDamage;
 		}
 		else if (name == "EmpRadius")
 		{
-			return psStats->upgrade[player].empRadius;
+			return u.empRadius;
 		}
 		else if (name == "Radius")
 		{
-			return psStats->upgrade[player].radius;
+			return u.radius;
 		}
 		else if (name == "RadiusDamage")
 		{
-			return psStats->upgrade[player].radiusDamage;
+			return u.radiusDamage;
 		}
 		else if (name == "RepeatDamage")
 		{
-			return psStats->upgrade[player].periodicalDamage;
+			return u.periodicalDamage;
 		}
 		else if (name == "RepeatTime")
 		{
-			return psStats->upgrade[player].periodicalDamageTime;
+			return u.periodicalDamageTime;
 		}
 		else if (name == "RepeatRadius")
 		{
-			return psStats->upgrade[player].periodicalDamageRadius;
+			return u.periodicalDamageRadius;
 		}
 		else if (name == "HitPoints")
 		{
-			return psStats->upgrade[player].hitpoints;
+			return u.hitpoints;
 		}
 		else if (name == "HitPointPct")
 		{
-			return psStats->upgrade[player].hitpointPct;
+			return u.hitpointPct;
 		}
 		else
 		{
@@ -4426,25 +4472,62 @@ nlohmann::json wzapi::getUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::s
 	{
 		SCRIPT_ASSERT(nlohmann::json(), context, index < numStructureStats, "Bad index");
 		const STRUCTURE_STATS *psStats = asStructureStats + index;
+		const auto &u = tables ? tables->structure[index * MAX_PLAYERS + player] : psStats->upgrade[player];
 		switch (type)
 		{
-		case SCRCB_RES: return psStats->upgrade[player].research; break;
-		case SCRCB_MODULE_RES: return psStats->upgrade[player].moduleResearch; break;
-		case SCRCB_REP: return psStats->upgrade[player].repair; break;
-		case SCRCB_POW: return psStats->upgrade[player].power; break;
-		case SCRCB_MODULE_POW: return psStats->upgrade[player].modulePower; break;
-		case SCRCB_CON: return psStats->upgrade[player].production; break;
-		case SCRCB_MODULE_CON: return psStats->upgrade[player].moduleProduction; break;
-		case SCRCB_REA: return psStats->upgrade[player].rearm; break;
-		case SCRCB_ELW: return psStats->upgrade[player].resistance; break;
-		case SCRCB_HEA: return psStats->upgrade[player].thermal; break;
-		case SCRCB_ARM: return psStats->upgrade[player].armour; break;
-		case SCRCB_HIT: return psStats->upgrade[player].hitpoints;
-		case SCRCB_LIMIT: return psStats->upgrade[player].limit;
+		case SCRCB_RES: return u.research; break;
+		case SCRCB_MODULE_RES: return u.moduleResearch; break;
+		case SCRCB_REP: return u.repair; break;
+		case SCRCB_POW: return u.power; break;
+		case SCRCB_MODULE_POW: return u.modulePower; break;
+		case SCRCB_CON: return u.production; break;
+		case SCRCB_MODULE_CON: return u.moduleProduction; break;
+		case SCRCB_REA: return u.rearm; break;
+		case SCRCB_ELW: return u.resistance; break;
+		case SCRCB_HEA: return u.thermal; break;
+		case SCRCB_ARM: return u.armour; break;
+		case SCRCB_HIT: return u.hitpoints;
+		case SCRCB_LIMIT: return u.limit;
 		default: SCRIPT_ASSERT(nlohmann::json(), context, false, "Component type not found for upgrade"); break;
 		}
 	}
 	return nlohmann::json();
+}
+
+nlohmann::json wzapi::getUpgradeStats(WZAPI_BASE_PARAMS(int player, const std::string& name, int type, unsigned index))
+{
+	return getUpgradeStatsIn(nullptr, context, player, name, type, index);
+}
+
+nlohmann::json wzapi::getUpgradeValue(const UpgradeTables &tables, WZAPI_BASE_PARAMS(int player, const std::string& name, int type, unsigned index))
+{
+	return getUpgradeStatsIn(&tables, context, player, name, type, index);
+}
+
+wzapi::UpgradeTables wzapi::UpgradeTables::fromBase()
+{
+	UpgradeTables t;
+	const auto fill = [](auto &table, const auto &stats, size_t count)
+	{
+		table.reserve(count * MAX_PLAYERS);
+		for (size_t i = 0; i < count; ++i)
+		{
+			for (unsigned p = 0; p < MAX_PLAYERS; ++p)
+			{
+				table.push_back(stats[i].base);
+			}
+		}
+	};
+	fill(t.body, asBodyStats, asBodyStats.size());
+	fill(t.brain, asBrainStats, asBrainStats.size());
+	fill(t.propulsion, asPropulsionStats, asPropulsionStats.size());
+	fill(t.sensor, asSensorStats, asSensorStats.size());
+	fill(t.ecm, asECMStats, asECMStats.size());
+	fill(t.repair, asRepairStats, asRepairStats.size());
+	fill(t.weapon, asWeaponStats, asWeaponStats.size());
+	fill(t.construct, asConstructStats, asConstructStats.size());
+	fill(t.structure, asStructureStats, numStructureStats);
+	return t;
 }
 
 
@@ -4470,6 +4553,26 @@ wzapi::GameEntityRules::value_type wzapi::GameEntityRules::setPropertyValue(cons
 	}
 	int type = it->second;
 	return wzapi::setUpgradeStats(context, getPlayer(), name, type, getIndex(), newValue);
+}
+
+wzapi::GameEntityRules::value_type wzapi::GameEntityRules::getPropertyValue(const wzapi::execution_context_base& context, const std::string& name, const UpgradeTables& tables) const
+{
+	auto it = propertyNameToTypeMap.find(name);
+	if (it == propertyNameToTypeMap.end())
+	{
+		return GameEntityRules::value_type();
+	}
+	return wzapi::getUpgradeValue(tables, context, getPlayer(), name, it->second, getIndex());
+}
+
+wzapi::GameEntityRules::value_type wzapi::GameEntityRules::setPropertyValue(const wzapi::execution_context_base& context, const std::string& name, const value_type& newValue, UpgradeTables& tables)
+{
+	auto it = propertyNameToTypeMap.find(name);
+	if (it == propertyNameToTypeMap.end())
+	{
+		return GameEntityRules::value_type();
+	}
+	return wzapi::setUpgradeValue(tables, context, getPlayer(), name, it->second, getIndex(), newValue);
 }
 
 const std::vector<wzapi::PerPlayerUpgrades>& wzapi::getUpgradesObjectCached()

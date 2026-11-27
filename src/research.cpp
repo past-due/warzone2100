@@ -991,7 +991,25 @@ static inline int64_t iDivFloor(int64_t dividend, int64_t divisor)
 	return (dividend / divisor) - static_cast<int64_t>((dividend % divisor != 0 && hasNegQuotient));
 }
 
-static void eventResearchedHandleUpgrades(const RESEARCH *psResearch, const STRUCTURE *psStruct, int player)
+// A player's research bookkeeping in saved form (ordered maps)
+static ResearchUpgradeBookkeeping toBookkeeping(const PlayerUpgradeCounts &counts, const RawResearchUpgradeChangeValues &raw)
+{
+	ResearchUpgradeBookkeeping result;
+	result.numBodyClassArmourUpgrades.insert(counts.numBodyClassArmourUpgrades.begin(), counts.numBodyClassArmourUpgrades.end());
+	result.numBodyClassThermalUpgrades.insert(counts.numBodyClassThermalUpgrades.begin(), counts.numBodyClassThermalUpgrades.end());
+	result.numWeaponImpactClassUpgrades.insert(counts.numWeaponImpactClassUpgrades.begin(), counts.numWeaponImpactClassUpgrades.end());
+	for (const auto &comp : raw)
+	{
+		result.rawUpgradeChange[comp.first].insert(comp.second.begin(), comp.second.end());
+	}
+	return result;
+}
+
+// Applies a research topic's upgrade results for a player to tables,
+// or to the game's own upgrade tables when null (and through them the game, via wzapi::setUpgradeStats).
+// counts and rawUpgradeChangeTotals are the player's research bookkeeping to update.
+static void eventResearchedHandleUpgrades(const RESEARCH *psResearch, const STRUCTURE *psStruct, int player, wzapi::UpgradeTables *tables,
+	PlayerUpgradeCounts &counts, RawResearchUpgradeChangeValues &rawUpgradeChangeTotals)
 {
 	if (cachedStatsObject.is_null()) { cachedStatsObject = wzapi::constructStatsObject(); }
 	if (cachedPerPlayerUpgrades.empty()) { cachedPerPlayerUpgrades = wzapi::getUpgradesObject(); }
@@ -1000,7 +1018,21 @@ static void eventResearchedHandleUpgrades(const RESEARCH *psResearch, const STRU
 	debug(LOG_RESEARCH, "RESEARCH : %s(%s) for %d", psResearch->name.toUtf8().c_str(), psResearch->id.toUtf8().c_str(), player);
 
 	ASSERT_OR_RETURN(, player >= 0 && player < cachedPerPlayerUpgrades.size(), "Player %d does not exist in per-player upgrades?", player);
-	auto &playerRawUpgradeChangeTotals = cachedPerPlayerRawUpgradeChange[player];
+	const auto getUpgrade = [&temp_no_throw_context, tables](const wzapi::GameEntityRules &rules, const std::string &parameter)
+	{
+		return tables ? rules.getPropertyValue(temp_no_throw_context, parameter, *tables) : rules.getPropertyValue(temp_no_throw_context, parameter);
+	};
+	const auto setUpgrade = [&temp_no_throw_context, tables](wzapi::GameEntityRules &rules, const std::string &parameter, const nlohmann::json &value)
+	{
+		if (tables)
+		{
+			rules.setPropertyValue(temp_no_throw_context, parameter, value, *tables);
+		}
+		else
+		{
+			rules.setPropertyValue(temp_no_throw_context, parameter, value);
+		}
+	};
 	const auto upgradeCalcMode = getResearchUpgradeCalcMode();
 
 	PlayerUpgradeCounts tempStats;
@@ -1096,7 +1128,7 @@ static void eventResearchedHandleUpgrades(const RESEARCH *psResearch, const STRU
 
 			if (pStatsParameterValue->is_array()) // (ex. modifying "RankThresholds")
 			{
-				nlohmann::json dst = cname.second.getPropertyValue(temp_no_throw_context, parameter);
+				nlohmann::json dst = getUpgrade(cname.second, parameter);
 				if (!dst.is_array() || (dst.size() != pStatsParameterValue->size()))
 				{
 					// The Upgrades parameter unexpectedly is not an array, or not the same array size
@@ -1133,7 +1165,7 @@ static void eventResearchedHandleUpgrades(const RESEARCH *psResearch, const STRU
 						dst[x] = newUpgradesValue;
 					}
 				}
-				cname.second.setPropertyValue(temp_no_throw_context, parameter, dst);
+				setUpgrade(cname.second, parameter, dst);
 				debug(LOG_RESEARCH, "    upgraded to : %s", dst.dump().c_str());
 			}
 			else if (pStatsParameterValue->is_number_integer())
@@ -1143,7 +1175,7 @@ static void eventResearchedHandleUpgrades(const RESEARCH *psResearch, const STRU
 				{
 					continue;
 				}
-				nlohmann::json currentUpgradesValue_json = cname.second.getPropertyValue(temp_no_throw_context, parameter);
+				nlohmann::json currentUpgradesValue_json = getUpgrade(cname.second, parameter);
 				if (!currentUpgradesValue_json.is_number_integer())
 				{
 					// The Upgrades parameter unexpectedly is not an integer
@@ -1166,7 +1198,7 @@ static void eventResearchedHandleUpgrades(const RESEARCH *psResearch, const STRU
 					case ResearchUpgradeCalculationMode::Improved:
 					{
 						// "Improved" cumulative upgrade handling (significantly reduces accumulated errors)
-						auto& compUpgradeTotals = playerRawUpgradeChangeTotals[cname.first];
+						auto& compUpgradeTotals = rawUpgradeChangeTotals[cname.first];
 						auto& cumulativeUpgradeScaledChange = compUpgradeTotals[parameter];
 						cumulativeUpgradeScaledChange += scaledChange;
 						newUpgradesValue = statsOriginalValue + ((cumulativeUpgradeScaledChange < 0) ? iDivFloor(cumulativeUpgradeScaledChange, 100) : iDivCeil(cumulativeUpgradeScaledChange, 100));
@@ -1178,11 +1210,11 @@ static void eventResearchedHandleUpgrades(const RESEARCH *psResearch, const STRU
 				{
 					// original was unsigned integer - round anything less than 0 up to 0
 					newUpgradesValue = std::max<int64_t>(newUpgradesValue, 0);
-					cname.second.setPropertyValue(temp_no_throw_context, parameter, static_cast<uint64_t>(newUpgradesValue));
+					setUpgrade(cname.second, parameter, static_cast<uint64_t>(newUpgradesValue));
 				}
 				else
 				{
-					cname.second.setPropertyValue(temp_no_throw_context, parameter, newUpgradesValue);
+					setUpgrade(cname.second, parameter, newUpgradesValue);
 				}
 				debug(LOG_RESEARCH, "      upgraded \"%s\" to %" PRIi64 " by %" PRIi64 "", cname.first.c_str(), newUpgradesValue, newUpgradesChange);
 				if (isWeaponClass)
@@ -1238,8 +1270,8 @@ static void eventResearchedHandleUpgrades(const RESEARCH *psResearch, const STRU
 		const auto& bodyClass = bodyClassUpgrades.first;
 		if (bodyClassUpgrades.second > 0)
 		{
-			playerUpgradeCounts[player].numBodyClassArmourUpgrades[bodyClass]++;
-			debug(LOG_RESEARCH, "  Player[%d], Armour[%s] grade: %" PRIu32 "", player, bodyClass.c_str(), playerUpgradeCounts[player].numBodyClassArmourUpgrades[bodyClass]);
+			counts.numBodyClassArmourUpgrades[bodyClass]++;
+			debug(LOG_RESEARCH, "  Player[%d], Armour[%s] grade: %" PRIu32 "", player, bodyClass.c_str(), counts.numBodyClassArmourUpgrades[bodyClass]);
 		}
 	}
 	for (auto& bodyClassUpgrades : tempStats.numBodyClassThermalUpgrades)
@@ -1247,8 +1279,8 @@ static void eventResearchedHandleUpgrades(const RESEARCH *psResearch, const STRU
 		const auto& bodyClass = bodyClassUpgrades.first;
 		if (bodyClassUpgrades.second > 0)
 		{
-			playerUpgradeCounts[player].numBodyClassThermalUpgrades[bodyClass]++;
-			debug(LOG_RESEARCH, "  Player[%d], Thermal[%s] grade: %" PRIu32 "", player, bodyClass.c_str(), playerUpgradeCounts[player].numBodyClassThermalUpgrades[bodyClass]);
+			counts.numBodyClassThermalUpgrades[bodyClass]++;
+			debug(LOG_RESEARCH, "  Player[%d], Thermal[%s] grade: %" PRIu32 "", player, bodyClass.c_str(), counts.numBodyClassThermalUpgrades[bodyClass]);
 		}
 	}
 	for (auto& weaponUpgrades : tempStats.numWeaponImpactClassUpgrades)
@@ -1256,8 +1288,8 @@ static void eventResearchedHandleUpgrades(const RESEARCH *psResearch, const STRU
 		const auto& impactClass = weaponUpgrades.first;
 		if (weaponUpgrades.second > 0)
 		{
-			playerUpgradeCounts[player].numWeaponImpactClassUpgrades[impactClass]++;
-			debug(LOG_RESEARCH, "  Player[%d], Weapon[%s] grade: %" PRIu32 "", player, impactClass.c_str(), playerUpgradeCounts[player].numWeaponImpactClassUpgrades[impactClass]);
+			counts.numWeaponImpactClassUpgrades[impactClass]++;
+			debug(LOG_RESEARCH, "  Player[%d], Weapon[%s] grade: %" PRIu32 "", player, impactClass.c_str(), counts.numWeaponImpactClassUpgrades[impactClass]);
 		}
 	}
 }
@@ -1305,6 +1337,24 @@ void researchResult(UDWORD researchIndex, UBYTE player, bool bDisplay, STRUCTURE
 void researchResultRestore(UDWORD researchIndex, UBYTE player)
 {
 	applyResearchResult(researchIndex, player, false, nullptr, false);
+}
+
+void replayResearchUpgradeTables(wzapi::UpgradeTables &tables, std::vector<ResearchUpgradeBookkeeping> &bookkeeping)
+{
+	bookkeeping.assign(MAX_PLAYERS, ResearchUpgradeBookkeeping{});
+	for (unsigned player = 0; player < MAX_PLAYERS; ++player)
+	{
+		PlayerUpgradeCounts counts;
+		RawResearchUpgradeChangeValues raw;
+		for (size_t index = 0; index < asResearch.size(); ++index)
+		{
+			if (IsResearchCompleted(&asPlayerResList[player][index]))
+			{
+				eventResearchedHandleUpgrades(&asResearch[index], nullptr, static_cast<int>(player), &tables, counts, raw);
+			}
+		}
+		bookkeeping[player] = toBookkeeping(counts, raw);
+	}
 }
 
 static void applyResearchResult(UDWORD researchIndex, UBYTE player, bool bDisplay, STRUCTURE *psResearchFacility, bool fireEvent)
@@ -1414,7 +1464,7 @@ static void applyResearchResult(UDWORD researchIndex, UBYTE player, bool bDispla
 		psResearchFacility->pFunctionality->researchFacility.psSubject = nullptr;		// Make sure topic is cleared
 	}
 
-	eventResearchedHandleUpgrades(pResearch, psResearchFacility, player);
+	eventResearchedHandleUpgrades(pResearch, psResearchFacility, player, nullptr, playerUpgradeCounts[player], cachedPerPlayerRawUpgradeChange[player]);
 
 	if (fireEvent)
 	{
@@ -1944,21 +1994,10 @@ void setSelfRepairEnabled(UBYTE player, bool enabled)
 
 ResearchUpgradeBookkeeping getResearchUpgradeBookkeeping(unsigned player)
 {
-	ResearchUpgradeBookkeeping result;
-	ASSERT_OR_RETURN(result, player < MAX_PLAYERS, "invalid player: %u", player);
+	ASSERT_OR_RETURN(ResearchUpgradeBookkeeping(), player < MAX_PLAYERS, "invalid player: %u", player);
 	// The counts are allocated when research is loaded (or by setResearchUpgradeBookkeeping). Before that there are none.
-	if (player < playerUpgradeCounts.size())
-	{
-		const PlayerUpgradeCounts &counts = playerUpgradeCounts[player];
-		result.numBodyClassArmourUpgrades.insert(counts.numBodyClassArmourUpgrades.begin(), counts.numBodyClassArmourUpgrades.end());
-		result.numBodyClassThermalUpgrades.insert(counts.numBodyClassThermalUpgrades.begin(), counts.numBodyClassThermalUpgrades.end());
-		result.numWeaponImpactClassUpgrades.insert(counts.numWeaponImpactClassUpgrades.begin(), counts.numWeaponImpactClassUpgrades.end());
-	}
-	for (const auto &comp : cachedPerPlayerRawUpgradeChange[player])
-	{
-		result.rawUpgradeChange[comp.first].insert(comp.second.begin(), comp.second.end());
-	}
-	return result;
+	static const PlayerUpgradeCounts none;
+	return toBookkeeping(player < playerUpgradeCounts.size() ? playerUpgradeCounts[player] : none, cachedPerPlayerRawUpgradeChange[player]);
 }
 
 void setResearchUpgradeBookkeeping(unsigned player, const ResearchUpgradeBookkeeping &bookkeeping)
